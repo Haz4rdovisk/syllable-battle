@@ -1013,7 +1013,7 @@ export const Battle: React.FC<BattleProps> = ({
         freshGame.openingIntroStep === "done" &&
         (previousGame.setupVersion !== freshGame.setupVersion || previousGame.turn !== freshGame.turn);
       const preservedStableHands =
-        freshGame.openingIntroStep === "done"
+        previousGame.setupVersion === freshGame.setupVersion
           ? {
               [PLAYER]: reconcileStableSide(PLAYER, freshGame.players[PLAYER].hand, stableHandsRef.current[PLAYER]),
               [ENEMY]: reconcileStableSide(ENEMY, freshGame.players[ENEMY].hand, stableHandsRef.current[ENEMY]),
@@ -1463,6 +1463,7 @@ export const Battle: React.FC<BattleProps> = ({
   );
 
   const isIntroSnapshotState = useCallback((state: GameState) => state.openingIntroStep !== "done", []);
+  const isWinnerSnapshotState = useCallback((state: GameState) => state.winner !== null && !state.combatLocked, []);
 
   const finalizeTurn = useCallback(() => {
     if (hasBlockingVisuals()) {
@@ -2045,7 +2046,7 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     if (mode !== "multiplayer" || localSide !== "player" || !onBattleSnapshotPublished) return;
-    if (!isIntroSnapshotState(game) && !isSnapshotCheckpointClear(game)) return;
+    if (!isIntroSnapshotState(game) && !isWinnerSnapshotState(game) && !isSnapshotCheckpointClear(game)) return;
 
     const signature = buildBattleSnapshotSignature(game);
     if (publishedSnapshotSignatureRef.current === signature) return;
@@ -2055,6 +2056,7 @@ export const Battle: React.FC<BattleProps> = ({
     buildBattleSnapshotSignature,
     cloneInitialGame,
     game,
+    isWinnerSnapshotState,
     isSnapshotCheckpointClear,
     localSide,
     mode,
@@ -2071,7 +2073,8 @@ export const Battle: React.FC<BattleProps> = ({
     const pendingSnapshot = pendingAuthoritativeSnapshotRef.current;
     if (!pendingSnapshot) return;
     const introSyncInFlight = isIntroSnapshotState(gameRef.current) || isIntroSnapshotState(pendingSnapshot);
-    if (!introSyncInFlight && !isSnapshotCheckpointClear(gameRef.current)) return;
+    const winnerSyncInFlight = isWinnerSnapshotState(pendingSnapshot);
+    if (!introSyncInFlight && !winnerSyncInFlight && !isSnapshotCheckpointClear(gameRef.current)) return;
 
     const nextSignature = buildBattleSnapshotSignature(pendingSnapshot);
     const currentSignature = buildBattleSnapshotSignature(gameRef.current);
@@ -2088,6 +2091,7 @@ export const Battle: React.FC<BattleProps> = ({
     incomingHands,
     incomingTargets,
     isIntroSnapshotState,
+    isWinnerSnapshotState,
     isSnapshotCheckpointClear,
     localSide,
     mode,

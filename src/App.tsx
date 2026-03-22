@@ -58,6 +58,10 @@ export default function App() {
   const [sharedInitialGame, setSharedInitialGame] = useState<GameState | null>(null);
   const [sharedBattleSnapshot, setSharedBattleSnapshot] = useState<GameState | null>(null);
   const battleTransitionSetupVersionRef = useRef<number | null>(null);
+  const lastKnownRoomProfilesRef = useRef({
+    host: { name: "", avatar: "" },
+    guest: { name: "", avatar: "" },
+  });
   const battleRoomServiceRef = useRef(
     createBattleRoomService(
       MOCK_ROOM_LATENCY_MS,
@@ -204,6 +208,24 @@ export default function App() {
   }, [activeRoomSession]);
 
   useEffect(() => {
+    if (!activeRoomState) return;
+
+    if (activeRoomState.host.name || activeRoomState.host.avatar) {
+      lastKnownRoomProfilesRef.current.host = {
+        name: activeRoomState.host.name ?? lastKnownRoomProfilesRef.current.host.name,
+        avatar: activeRoomState.host.avatar ?? lastKnownRoomProfilesRef.current.host.avatar,
+      };
+    }
+
+    if (activeRoomState.guest.name || activeRoomState.guest.avatar) {
+      lastKnownRoomProfilesRef.current.guest = {
+        name: activeRoomState.guest.name ?? lastKnownRoomProfilesRef.current.guest.name,
+        avatar: activeRoomState.guest.avatar ?? lastKnownRoomProfilesRef.current.guest.avatar,
+      };
+    }
+  }, [activeRoomState]);
+
+  useEffect(() => {
     if (!activeRoomSession) return;
 
     const unsubscribe = activeRoomSession.subscribeState((state) => {
@@ -285,15 +307,17 @@ export default function App() {
   const remoteBattleName =
     mode === "multiplayer"
       ? normalizePlayerName(
-          roomLocalSide === "player" ? activeRoomState?.guest.name ?? "OPONENTE" : activeRoomState?.host.name ?? "OPONENTE",
+          roomLocalSide === "player"
+            ? activeRoomState?.guest.name ?? lastKnownRoomProfilesRef.current.guest.name ?? "OPONENTE"
+            : activeRoomState?.host.name ?? lastKnownRoomProfilesRef.current.host.name ?? "OPONENTE",
           "OPONENTE",
         )
       : "BOT";
   const remoteBattleAvatar =
     mode === "multiplayer"
       ? roomLocalSide === "player"
-        ? activeRoomState?.guest.avatar ?? "\u{1F479}"
-        : activeRoomState?.host.avatar ?? "\u{1F479}"
+        ? activeRoomState?.guest.avatar ?? lastKnownRoomProfilesRef.current.guest.avatar ?? "\u{1F479}"
+        : activeRoomState?.host.avatar ?? lastKnownRoomProfilesRef.current.host.avatar ?? "\u{1F479}"
       : "\u{1F479}";
   const deckSelectionTitle = "DECKS DISPONIVEIS";
   const deckSelectionPhaseKey =
