@@ -49,7 +49,7 @@ function withParticipantUpdate(
   return next;
 }
 
-function mergeRoomState(base: BattleRoomState, incoming: BattleRoomState) {
+export function mergeRoomState(base: BattleRoomState, incoming: BattleRoomState) {
   const merged = cloneRoomState(base);
   merged.phase = PHASE_ORDER[incoming.phase] > PHASE_ORDER[merged.phase] ? incoming.phase : merged.phase;
   merged.host.connected = merged.host.connected || incoming.host.connected;

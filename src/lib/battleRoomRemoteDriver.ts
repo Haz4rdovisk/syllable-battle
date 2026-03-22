@@ -6,6 +6,7 @@ import {
   cloneRoomState,
   createEmptyRoomState,
   getParticipant,
+  mergeRoomState,
   normalizeRoomId,
   RoomStateController,
 } from "./battleRoomStateController";
@@ -164,7 +165,7 @@ class RemoteRoomStateController implements RoomStateController {
   private handleMessage(message: BattleRoomStateMessage) {
     switch (message.type) {
       case "snapshot":
-        this.state = cloneRoomState(message.state);
+        this.state = mergeRoomState(this.state, message.state);
         this.emitLocal();
         break;
       case "presence":
