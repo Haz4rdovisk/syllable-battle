@@ -1905,9 +1905,9 @@ export const Battle: React.FC<BattleProps> = ({
     (side: typeof PLAYER | typeof ENEMY) => {
       if (mode !== "multiplayer" || !onActionRequested) return false;
       if (roomTransportKind !== "remote") return false;
-      return localSide === "player" && side === localPlayerIndex;
+      return side === localPlayerIndex;
     },
-    [localPlayerIndex, localSide, mode, onActionRequested, roomTransportKind],
+    [localPlayerIndex, mode, onActionRequested, roomTransportKind],
   );
 
   const dispatchBattleAction = useCallback(
