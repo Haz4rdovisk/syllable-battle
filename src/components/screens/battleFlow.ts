@@ -8,6 +8,8 @@ export interface BattleFlowTimings {
   drawStaggerMs: number;
   drawSettleMs: number;
   visualSettleBufferMs: number;
+  turnHandoffMs: number;
+  mulliganTurnHandoffMs: number;
   mulliganReturnMs: number;
   mulliganReturnStaggerMs: number;
   mulliganDrawDelayMs: number;
@@ -35,7 +37,7 @@ export const getPlayedCardCommitDelayMs = (flow: BattleFlowTimings) => flow.card
 export const getPlayDrawStartDelayMs = (flow: BattleFlowTimings) => flow.cardToFieldMs + flow.cardSettleMs;
 
 export const getPlayFinishDelayMs = (flow: BattleFlowTimings) =>
-  flow.cardToFieldMs + flow.cardSettleMs + flow.drawTravelMs + flow.drawSettleMs + flow.visualSettleBufferMs;
+  flow.cardToFieldMs + flow.cardSettleMs + flow.drawTravelMs + flow.turnHandoffMs;
 
 export const getMulliganDrawStartDelayMs = (flow: BattleFlowTimings, returnedCount: number) =>
   flow.mulliganReturnMs + Math.max(0, returnedCount - 1) * flow.mulliganReturnStaggerMs + flow.mulliganDrawDelayMs;
@@ -44,8 +46,7 @@ export const getMulliganFinishDelayMs = (flow: BattleFlowTimings, returnedCount:
   getMulliganDrawStartDelayMs(flow, returnedCount) +
   flow.drawTravelMs +
   Math.max(0, drawnCount - 1) * flow.drawStaggerMs +
-  flow.mulliganSettleMs +
-  flow.visualSettleBufferMs;
+  flow.mulliganTurnHandoffMs;
 
 export const getBotMulliganIndexes = (hand: Syllable[], maxReturns: number) => {
   const capped = Math.min(maxReturns, hand.length);

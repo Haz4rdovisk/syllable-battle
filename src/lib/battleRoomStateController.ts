@@ -1,4 +1,4 @@
-import { BattleSide, GameState } from "../types/game";
+import { BattleSide, GameState, PlayerProfile } from "../types/game";
 import { BattleRoomPhase, BattleRoomState, BattleRoomStateMessage } from "./battleRoomProtocol";
 
 const PHASE_ORDER: Record<BattleRoomPhase, number> = {
@@ -56,6 +56,10 @@ function mergeRoomState(base: BattleRoomState, incoming: BattleRoomState) {
   merged.guest.connected = merged.guest.connected || incoming.guest.connected;
   merged.host.deckId = merged.host.deckId ?? incoming.host.deckId;
   merged.guest.deckId = merged.guest.deckId ?? incoming.guest.deckId;
+  merged.host.name = merged.host.name ?? incoming.host.name;
+  merged.guest.name = merged.guest.name ?? incoming.guest.name;
+  merged.host.avatar = merged.host.avatar ?? incoming.host.avatar;
+  merged.guest.avatar = merged.guest.avatar ?? incoming.guest.avatar;
   merged.initialGame = merged.initialGame ?? (incoming.initialGame ? structuredClone(incoming.initialGame) : undefined);
   merged.battleSnapshot =
     merged.battleSnapshot ?? (incoming.battleSnapshot ? structuredClone(incoming.battleSnapshot) : undefined);
@@ -65,7 +69,8 @@ function mergeRoomState(base: BattleRoomState, incoming: BattleRoomState) {
 export interface RoomStateController {
   getState(): BattleRoomState;
   subscribe(listener: (state: BattleRoomState) => void): () => void;
-  connect(side: BattleSide): void;
+  connect(side: BattleSide, profile: PlayerProfile): void;
+  returnToLobby(): void;
   startDeckSelection(): void;
   selectDeck(side: BattleSide, deckId: string): void;
   publishBattleSetup(game: GameState): void;
@@ -97,8 +102,19 @@ export class MockRoomStateController implements RoomStateController {
     };
   }
 
-  connect(side: BattleSide) {
-    this.update((state) => withParticipantUpdate(state, side, { connected: true }));
+  connect(side: BattleSide, profile: PlayerProfile) {
+    this.update((state) => withParticipantUpdate(state, side, { connected: true, name: profile.name, avatar: profile.avatar }));
+  }
+
+  returnToLobby() {
+    this.update((state) => ({
+      ...cloneRoomState(state),
+      phase: "lobby",
+      initialGame: undefined,
+      battleSnapshot: undefined,
+      host: { ...state.host, deckId: undefined },
+      guest: { ...state.guest, deckId: undefined },
+    }));
   }
 
   startDeckSelection() {
@@ -185,11 +201,28 @@ export class BroadcastRoomStateController implements RoomStateController {
     };
   }
 
-  connect(side: BattleSide) {
-    this.state = withParticipantUpdate(this.state, side, { connected: true });
+  connect(side: BattleSide, profile: PlayerProfile) {
+    this.state = withParticipantUpdate(this.state, side, {
+      connected: true,
+      name: profile.name,
+      avatar: profile.avatar,
+    });
     this.emitLocal();
-    this.post({ type: "hello", senderId: this.clientId, side });
-    this.post({ type: "presence", senderId: this.clientId, side, connected: true });
+    this.post({ type: "hello", senderId: this.clientId, side, name: profile.name, avatar: profile.avatar });
+    this.post({ type: "presence", senderId: this.clientId, side, connected: true, name: profile.name, avatar: profile.avatar });
+  }
+
+  returnToLobby() {
+    this.state = {
+      ...cloneRoomState(this.state),
+      phase: "lobby",
+      initialGame: undefined,
+      battleSnapshot: undefined,
+      host: { ...this.state.host, deckId: undefined },
+      guest: { ...this.state.guest, deckId: undefined },
+    };
+    this.emitLocal();
+    this.post({ type: "phase", senderId: this.clientId, phase: "lobby" });
   }
 
   startDeckSelection() {
@@ -251,7 +284,11 @@ export class BroadcastRoomStateController implements RoomStateController {
   private handleMessage(message: BattleRoomStateMessage) {
     switch (message.type) {
       case "hello":
-        this.state = withParticipantUpdate(this.state, message.side, { connected: true });
+        this.state = withParticipantUpdate(this.state, message.side, {
+          connected: true,
+          name: message.name,
+          avatar: message.avatar,
+        });
         this.emitLocal();
         this.post({ type: "snapshot", senderId: this.clientId, state: this.state });
         this.post({
@@ -259,6 +296,8 @@ export class BroadcastRoomStateController implements RoomStateController {
           senderId: this.clientId,
           side: this.localSide,
           connected: getParticipant(this.state, this.localSide).connected,
+          name: getParticipant(this.state, this.localSide).name,
+          avatar: getParticipant(this.state, this.localSide).avatar,
         });
         break;
       case "snapshot":
@@ -269,6 +308,8 @@ export class BroadcastRoomStateController implements RoomStateController {
         this.state = withParticipantUpdate(this.state, message.side, {
           connected: message.connected,
           deckId: message.connected ? getParticipant(this.state, message.side).deckId : undefined,
+          name: message.name ?? getParticipant(this.state, message.side).name,
+          avatar: message.avatar ?? getParticipant(this.state, message.side).avatar,
         });
         if (!message.connected) {
           this.state = { ...cloneRoomState(this.state), phase: "lobby" };
@@ -278,7 +319,7 @@ export class BroadcastRoomStateController implements RoomStateController {
       case "phase":
         if (PHASE_ORDER[message.phase] >= PHASE_ORDER[this.state.phase] || message.phase === "lobby") {
           this.state = { ...cloneRoomState(this.state), phase: message.phase };
-          if (message.phase === "deck-selection") {
+          if (message.phase === "deck-selection" || message.phase === "lobby") {
             this.state.initialGame = undefined;
             this.state.battleSnapshot = undefined;
             this.state.host.deckId = undefined;

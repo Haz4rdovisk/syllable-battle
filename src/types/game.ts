@@ -1,4 +1,6 @@
 export type Syllable = string;
+export type CoinFace = "cara" | "coroa";
+export type OpeningIntroStep = "coin-choice" | "coin-fall" | "coin-result" | "targets" | "done";
 
 export type Rarity = "comum" | "raro" | "\u00E9pico" | "lend\u00E1rio";
 
@@ -40,6 +42,18 @@ export interface Deck {
   color: string;
   syllables: Record<Syllable, number>;
   targets: Target[];
+}
+
+export interface PlayerProfile {
+  name: string;
+  avatar: string;
+}
+
+export const MAX_PLAYER_NAME_LENGTH = 12;
+
+export function normalizePlayerName(name: string, fallback = "Duelista") {
+  const normalized = name.trim().replace(/\s+/g, " ").slice(0, MAX_PLAYER_NAME_LENGTH);
+  return normalized || fallback;
 }
 
 export interface GameMessage {
@@ -180,5 +194,8 @@ export interface GameState {
   setupVersion: number;
   combatLocked: boolean;
   mode: GameMode;
+  openingCoinChoice: CoinFace | null;
+  openingCoinResult: CoinFace | null;
+  openingIntroStep: OpeningIntroStep;
   roomId?: string;
 }

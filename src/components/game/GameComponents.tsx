@@ -652,6 +652,8 @@ interface PlayerPortraitProps {
   life: number;
   active: boolean;
   flashDamage?: number;
+  avatar?: string;
+  isLocal?: boolean;
 }
 
 export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
@@ -659,10 +661,11 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
   life,
   active,
   flashDamage = 0,
+  avatar,
+  isLocal = false,
 }) => {
-  const isPlayer = label.toUpperCase().includes("VOC");
-  const displayLabel = isPlayer ? "VOCE" : "OPONENTE";
-  const avatar = isPlayer ? "\u{1F9D9}\u200D\u2642\uFE0F" : "\u{1F479}";
+  const displayLabel = label;
+  const portraitAvatar = avatar ?? (isLocal ? "\u{1F9D9}\u200D\u2642\uFE0F" : "\u{1F479}");
   const heart = "\u2764\uFE0F";
 
   return (
@@ -676,11 +679,11 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
           : {}
       }
       className={cn(
-        "relative inline-flex min-w-[172px] items-center gap-2 rounded-full border-4 px-2 py-1.5 pr-3 transition-all duration-500 sm:min-w-[236px] sm:gap-3 sm:border-8 sm:px-2 sm:py-2 sm:pr-5",
+        "relative z-20 inline-flex min-w-[172px] items-center gap-2 rounded-full border-4 px-2 py-1.5 pr-3 transition-all duration-500 sm:min-w-[236px] sm:gap-3 sm:border-8 sm:px-2 sm:py-2 sm:pr-5",
         active
           ? "scale-110 border-amber-400 bg-amber-900/60 shadow-[0_0_40px_rgba(251,191,36,0.4)]"
           : "border-[#3e2723] bg-black/60",
-        flashDamage > 0 && "border-rose-500 bg-rose-900/60",
+        flashDamage > 0 && "z-[130] border-rose-500 bg-rose-900/60",
       )}
     >
       <AnimatePresence>
@@ -689,7 +692,7 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
             key="damage-popup"
             initial={{ opacity: 0, y: 0, scale: 0.5 }}
             animate={
-              isPlayer
+              isLocal
                 ? {
                     opacity: [0, 1, 1, 0],
                     y: [0, -22, -44, -66],
@@ -704,7 +707,7 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
             transition={{ duration: 1.2, ease: "easeOut" }}
             className={cn(
               "pointer-events-none absolute left-1/2 z-50 -translate-x-1/2 text-3xl font-black text-rose-500 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] sm:text-5xl",
-              isPlayer ? "-top-12" : "bottom-0 translate-y-1/3",
+              isLocal ? "-top-12" : "bottom-0 translate-y-1/3",
             )}
           >
             -{flashDamage}
@@ -719,11 +722,11 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
           flashDamage > 0 && "scale-110 border-rose-500",
         )}
       >
-        {avatar}
+        {portraitAvatar}
       </div>
       <div className="flex flex-1 flex-col items-center justify-center text-center leading-none">
         <div className="flex items-center justify-center">
-          <div className="font-serif text-[9px] font-black uppercase tracking-[0.18em] text-amber-100/60 sm:text-[11px]">
+          <div className="max-w-[104px] px-1 text-center font-serif text-[8px] font-black uppercase leading-tight tracking-[0.16em] text-amber-100/60 sm:max-w-[140px] sm:text-[10px]">
             {displayLabel}
           </div>
         </div>

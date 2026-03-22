@@ -6,6 +6,8 @@ export interface BattleRoomParticipantState {
   side: BattleSide;
   connected: boolean;
   deckId?: string;
+  name?: string;
+  avatar?: string;
 }
 
 export interface BattleRoomState {
@@ -28,6 +30,8 @@ export type BattleRoomStateMessage =
       type: "hello";
       senderId: string;
       side: BattleSide;
+      name?: string;
+      avatar?: string;
     }
   | {
       type: "snapshot";
@@ -39,6 +43,8 @@ export type BattleRoomStateMessage =
       senderId: string;
       side: BattleSide;
       connected: boolean;
+      name?: string;
+      avatar?: string;
     }
   | {
       type: "phase";

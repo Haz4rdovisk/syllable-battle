@@ -1,4 +1,4 @@
-import { BattleSide, BattleSubmittedAction, GameState } from "../types/game";
+import { BattleSide, BattleSubmittedAction, GameState, PlayerProfile } from "../types/game";
 import type { BattleRoomParticipantState, BattleRoomPhase, BattleRoomState } from "./battleRoomProtocol";
 import { BattleRoomDriver, createBattleRoomDriver } from "./battleRoomDriver";
 import { RemoteBattleRoomConnector } from "./battleRoomRemote";
@@ -16,6 +16,7 @@ export interface BattleRoomSession {
   subscribe(listener: (action: BattleSubmittedAction) => void): () => void;
   getState(): BattleRoomState;
   subscribeState(listener: (state: BattleRoomState) => void): () => void;
+  returnToLobby(): void;
   startDeckSelection(): void;
   selectDeck(deckId: string): void;
   publishBattleSetup(game: GameState): void;
@@ -25,8 +26,8 @@ export interface BattleRoomSession {
 
 export interface BattleRoomService {
   kind: "mock" | "broadcast" | "remote";
-  createRoom(roomId: string): BattleRoomSession;
-  joinRoom(roomId: string): BattleRoomSession;
+  createRoom(roomId: string, profile: PlayerProfile): BattleRoomSession;
+  joinRoom(roomId: string, profile: PlayerProfile): BattleRoomSession;
   leaveRoom(roomId: string): void;
 }
 
@@ -35,10 +36,11 @@ class BattleRoomSessionImpl implements BattleRoomSession {
     public readonly roomId: string,
     public readonly localSide: BattleSide,
     public readonly remoteSide: BattleSide,
+    private readonly localProfile: PlayerProfile,
     private readonly transport: BattleRoomTransport,
     private readonly stateController: RoomStateController,
   ) {
-    this.stateController.connect(localSide);
+    this.stateController.connect(localSide, localProfile);
   }
 
   submitAction(action: BattleSubmittedAction) {
@@ -55,6 +57,10 @@ class BattleRoomSessionImpl implements BattleRoomSession {
 
   subscribeState(listener: (state: BattleRoomState) => void) {
     return this.stateController.subscribe(listener);
+  }
+
+  returnToLobby() {
+    this.stateController.returnToLobby();
   }
 
   startDeckSelection() {
@@ -84,24 +90,25 @@ export class MockBattleRoomService implements BattleRoomService {
   readonly kind = "mock" as const;
   constructor(private readonly driver: BattleRoomDriver) {}
 
-  createRoom(roomId: string): BattleRoomSession {
-    return this.openSession(roomId, "player", "enemy");
+  createRoom(roomId: string, profile: PlayerProfile): BattleRoomSession {
+    return this.openSession(roomId, "player", "enemy", profile);
   }
 
-  joinRoom(roomId: string): BattleRoomSession {
-    return this.openSession(roomId, "enemy", "player");
+  joinRoom(roomId: string, profile: PlayerProfile): BattleRoomSession {
+    return this.openSession(roomId, "enemy", "player", profile);
   }
 
   leaveRoom(roomId: string) {
     this.driver.disposeRoom(roomId);
   }
 
-  private openSession(roomId: string, localSide: BattleSide, remoteSide: BattleSide) {
+  private openSession(roomId: string, localSide: BattleSide, remoteSide: BattleSide, profile: PlayerProfile) {
     const normalizedRoomId = this.driver.normalizeRoomId(roomId);
     return new BattleRoomSessionImpl(
       normalizedRoomId,
       localSide,
       remoteSide,
+      profile,
       this.driver.createTransport(normalizedRoomId, `${localSide}-mock`),
       this.driver.createStateController(normalizedRoomId, localSide, `${localSide}-mock`),
     );
@@ -114,12 +121,12 @@ export class BroadcastBattleRoomService implements BattleRoomService {
 
   constructor(private readonly driver: BattleRoomDriver) {}
 
-  createRoom(roomId: string): BattleRoomSession {
-    return this.openSession(roomId, "player", "enemy");
+  createRoom(roomId: string, profile: PlayerProfile): BattleRoomSession {
+    return this.openSession(roomId, "player", "enemy", profile);
   }
 
-  joinRoom(roomId: string): BattleRoomSession {
-    return this.openSession(roomId, "enemy", "player");
+  joinRoom(roomId: string, profile: PlayerProfile): BattleRoomSession {
+    return this.openSession(roomId, "enemy", "player", profile);
   }
 
   leaveRoom(roomId: string) {
@@ -132,7 +139,7 @@ export class BroadcastBattleRoomService implements BattleRoomService {
     this.driver.disposeRoom(normalizedRoomId);
   }
 
-  private openSession(roomId: string, localSide: BattleSide, remoteSide: BattleSide) {
+  private openSession(roomId: string, localSide: BattleSide, remoteSide: BattleSide, profile: PlayerProfile) {
     const normalizedRoomId = this.driver.normalizeRoomId(roomId);
     const key = `${normalizedRoomId}:${localSide}`;
     this.sessions.get(key)?.reset();
@@ -142,6 +149,7 @@ export class BroadcastBattleRoomService implements BattleRoomService {
       normalizedRoomId,
       localSide,
       remoteSide,
+      profile,
       this.driver.createTransport(normalizedRoomId, clientId),
       this.driver.createStateController(normalizedRoomId, localSide, clientId),
     );
@@ -157,12 +165,12 @@ export class RemoteBattleRoomService implements BattleRoomService {
 
   constructor(private readonly connector: RemoteBattleRoomConnector) {}
 
-  createRoom(roomId: string): BattleRoomSession {
-    return this.openSession(roomId, "player", "enemy");
+  createRoom(roomId: string, profile: PlayerProfile): BattleRoomSession {
+    return this.openSession(roomId, "player", "enemy", profile);
   }
 
-  joinRoom(roomId: string): BattleRoomSession {
-    return this.openSession(roomId, "enemy", "player");
+  joinRoom(roomId: string, profile: PlayerProfile): BattleRoomSession {
+    return this.openSession(roomId, "enemy", "player", profile);
   }
 
   leaveRoom(roomId: string) {
@@ -174,7 +182,7 @@ export class RemoteBattleRoomService implements BattleRoomService {
     }
   }
 
-  private openSession(roomId: string, localSide: BattleSide, remoteSide: BattleSide) {
+  private openSession(roomId: string, localSide: BattleSide, remoteSide: BattleSide, profile: PlayerProfile) {
     const normalizedRoomId = roomId.trim().toUpperCase();
     const key = `${normalizedRoomId}:${localSide}`;
     this.sessions.get(key)?.reset();
@@ -195,6 +203,7 @@ export class RemoteBattleRoomService implements BattleRoomService {
       normalizedRoomId,
       localSide,
       remoteSide,
+      profile,
       driver.createTransport(normalizedRoomId, clientId),
       driver.createStateController(normalizedRoomId, localSide, clientId),
     );

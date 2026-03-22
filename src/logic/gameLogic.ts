@@ -100,11 +100,14 @@ export function makeInitialGame(mode: GameMode, playerDeck: Deck, enemyDeck: Dec
     selectedHandIndexes: [],
     selectedCardForPlay: null,
     log: ["\uD83C\uDFAE Jogo iniciado. Boa sorte!"],
-    messageQueue: [{ title: "Sua vez", detail: "Forme palavras na ordem correta das s\u00EDlabas.", kind: "turn" }],
+    messageQueue: [],
     currentMessage: null,
     setupVersion: Date.now(),
     combatLocked: false,
     mode,
+    openingCoinChoice: null,
+    openingCoinResult: null,
+    openingIntroStep: "coin-choice",
     roomId,
   };
 }

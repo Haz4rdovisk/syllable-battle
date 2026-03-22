@@ -1,4 +1,4 @@
-import { BattleSide, GameState } from "../types/game";
+import { BattleSide, GameState, PlayerProfile } from "../types/game";
 import { BattleRoomStateMessage } from "./battleRoomProtocol";
 import { BattleRoomDriver } from "./battleRoomDriver";
 import { RemoteBattleRoomConnection } from "./battleRoomRemote";
@@ -22,7 +22,6 @@ class RemoteBattleRoomTransportAdapter implements BattleRoomTransport {
   }
 
   submitAction(action: import("../types/game").BattleSubmittedAction) {
-    this.listeners.forEach((listener) => listener(action));
     void this.connection.sendAction(action);
   }
 
@@ -66,17 +65,32 @@ class RemoteRoomStateController implements RoomStateController {
     };
   }
 
-  connect(side: BattleSide) {
+  connect(side: BattleSide, profile: PlayerProfile) {
     this.state = {
       ...cloneRoomState(this.state),
       [side === "player" ? "host" : "guest"]: {
         ...getParticipant(this.state, side),
         connected: true,
+        name: profile.name,
+        avatar: profile.avatar,
       },
     };
     this.emitLocal();
-    this.post({ type: "hello", senderId: this.clientId, side });
-    this.post({ type: "presence", senderId: this.clientId, side, connected: true });
+    this.post({ type: "hello", senderId: this.clientId, side, name: profile.name, avatar: profile.avatar });
+    this.post({ type: "presence", senderId: this.clientId, side, connected: true, name: profile.name, avatar: profile.avatar });
+  }
+
+  returnToLobby() {
+    this.state = {
+      ...cloneRoomState(this.state),
+      phase: "lobby",
+      initialGame: undefined,
+      battleSnapshot: undefined,
+      host: { ...this.state.host, deckId: undefined },
+      guest: { ...this.state.guest, deckId: undefined },
+    };
+    this.emitLocal();
+    this.post({ type: "phase", senderId: this.clientId, phase: "lobby" });
   }
 
   startDeckSelection() {
@@ -160,13 +174,31 @@ class RemoteRoomStateController implements RoomStateController {
             ...getParticipant(this.state, message.side),
             connected: message.connected,
             deckId: message.connected ? getParticipant(this.state, message.side).deckId : undefined,
+            name: message.name ?? getParticipant(this.state, message.side).name,
+            avatar: message.avatar ?? getParticipant(this.state, message.side).avatar,
           },
         };
+        if (!message.connected) {
+          this.state = {
+            ...cloneRoomState(this.state),
+            phase: "lobby",
+            initialGame: undefined,
+            battleSnapshot: undefined,
+            host: {
+              ...this.state.host,
+              deckId: message.side === "player" ? undefined : this.state.host.deckId,
+            },
+            guest: {
+              ...this.state.guest,
+              deckId: message.side === "enemy" ? undefined : this.state.guest.deckId,
+            },
+          };
+        }
         this.emitLocal();
         break;
       case "phase":
         this.state = { ...cloneRoomState(this.state), phase: message.phase };
-        if (message.phase === "deck-selection") {
+        if (message.phase === "deck-selection" || message.phase === "lobby") {
           this.state.initialGame = undefined;
           this.state.battleSnapshot = undefined;
           this.state.host.deckId = undefined;
@@ -207,6 +239,8 @@ class RemoteRoomStateController implements RoomStateController {
           senderId: this.clientId,
           side: this.localSide,
           connected: getParticipant(this.state, this.localSide).connected,
+          name: getParticipant(this.state, this.localSide).name,
+          avatar: getParticipant(this.state, this.localSide).avatar,
         });
         break;
     }

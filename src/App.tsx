@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { GameMode, Deck, BattleSide, BattleSubmittedAction, GameState } from "./types/game";
+import { GameMode, Deck, BattleSide, BattleSubmittedAction, GameState, PlayerProfile, normalizePlayerName } from "./types/game";
 import { Menu } from "./components/screens/Menu";
 import { DeckSelection } from "./components/screens/DeckSelection";
 import { Lobby } from "./components/screens/Lobby";
 import { Battle } from "./components/screens/Battle";
+import { ProfileSetup } from "./components/screens/ProfileSetup";
 import { DECKS } from "./data/decks";
 import { BattleRoomSession, BattleRoomState, createBattleRoomService } from "./lib/battleRoomSession";
 import { SseBattleRoomConnector } from "./lib/battleRoomSseConnector";
@@ -11,16 +12,44 @@ import { AnimatePresence, motion } from "motion/react";
 import { makeInitialGame } from "./logic/gameLogic";
 
 type Screen = "menu" | "deck-selection" | "lobby" | "battle";
+type SoloDeckStep = "player" | "enemy";
 const MOCK_ROOM_LATENCY_MS = 180;
 const MOCK_ROOM_DELIVERED_MS = 60;
 const ENABLE_LOCAL_MULTIPLAYER_MOCK = true;
 const RELAY_URL = import.meta.env.VITE_BATTLE_ROOM_RELAY_URL?.trim();
+const PLAYER_PROFILE_STORAGE_KEY = "syllable-battle:player-profile";
+
+function compareBattleActions(a: BattleSubmittedAction, b: BattleSubmittedAction) {
+  if (a.setupVersion !== b.setupVersion) return a.setupVersion - b.setupVersion;
+  if (a.turn !== b.turn) return a.turn - b.turn;
+  if (a.sequence !== b.sequence) return a.sequence - b.sequence;
+  if (a.side !== b.side) return a.side === "player" ? -1 : 1;
+  return a.id.localeCompare(b.id);
+}
 
 export default function App() {
+  const [playerProfile, setPlayerProfile] = useState<PlayerProfile | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(PLAYER_PROFILE_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as PlayerProfile;
+      if (!parsed?.name || !parsed?.avatar) return null;
+      return {
+        name: normalizePlayerName(parsed.name),
+        avatar: parsed.avatar,
+      };
+    } catch {
+      return null;
+    }
+  });
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [screen, setScreen] = useState<Screen>("menu");
   const [mode, setMode] = useState<GameMode>("bot");
   const [playerDeck, setPlayerDeck] = useState<Deck | null>(null);
   const [enemyBattleDeck, setEnemyBattleDeck] = useState<Deck | null>(null);
+  const [soloDeckStep, setSoloDeckStep] = useState<SoloDeckStep>("player");
+  const [isPreparingBattle, setIsPreparingBattle] = useState(false);
   const [roomId, setRoomId] = useState<string | undefined>();
   const [roomLocalSide, setRoomLocalSide] = useState<BattleSide>("player");
   const [activeRoomSession, setActiveRoomSession] = useState<BattleRoomSession | null>(null);
@@ -28,6 +57,7 @@ export default function App() {
   const [pendingBattleActions, setPendingBattleActions] = useState<BattleSubmittedAction[]>([]);
   const [sharedInitialGame, setSharedInitialGame] = useState<GameState | null>(null);
   const [sharedBattleSnapshot, setSharedBattleSnapshot] = useState<GameState | null>(null);
+  const battleTransitionSetupVersionRef = useRef<number | null>(null);
   const battleRoomServiceRef = useRef(
     createBattleRoomService(
       MOCK_ROOM_LATENCY_MS,
@@ -37,6 +67,9 @@ export default function App() {
 
   const handleSelectMode = (selectedMode: GameMode) => {
     setMode(selectedMode);
+    setPlayerDeck(null);
+    setEnemyBattleDeck(null);
+    setSoloDeckStep("player");
     if (selectedMode === "multiplayer") {
       setScreen("lobby");
     } else {
@@ -51,6 +84,20 @@ export default function App() {
       return;
     }
 
+    if (mode === "bot" && soloDeckStep === "player") {
+      setPlayerDeck(deck);
+      setEnemyBattleDeck(null);
+      setSoloDeckStep("enemy");
+      return;
+    }
+
+    if (mode === "bot" && soloDeckStep === "enemy") {
+      setEnemyBattleDeck(deck);
+      setPendingBattleActions([]);
+      setScreen("battle");
+      return;
+    }
+
     setPlayerDeck(deck);
     setEnemyBattleDeck(null);
     setPendingBattleActions([]);
@@ -58,7 +105,8 @@ export default function App() {
   };
 
   const handleCreateRoom = (id: string) => {
-    const session = battleRoomServiceRef.current.createRoom(id);
+    if (!playerProfile) return;
+    const session = battleRoomServiceRef.current.createRoom(id, playerProfile);
     setRoomId(id);
     setRoomLocalSide(session.localSide);
     setActiveRoomSession(session);
@@ -67,12 +115,15 @@ export default function App() {
     setEnemyBattleDeck(null);
     setSharedInitialGame(null);
     setSharedBattleSnapshot(null);
+    setIsPreparingBattle(false);
+    battleTransitionSetupVersionRef.current = null;
     setPendingBattleActions([]);
     setScreen("lobby");
   };
 
   const handleJoinRoom = (id: string) => {
-    const session = battleRoomServiceRef.current.joinRoom(id);
+    if (!playerProfile) return;
+    const session = battleRoomServiceRef.current.joinRoom(id, playerProfile);
     setRoomId(id);
     setRoomLocalSide(session.localSide);
     setActiveRoomSession(session);
@@ -81,11 +132,26 @@ export default function App() {
     setEnemyBattleDeck(null);
     setSharedInitialGame(null);
     setSharedBattleSnapshot(null);
+    setIsPreparingBattle(false);
+    battleTransitionSetupVersionRef.current = null;
     setPendingBattleActions([]);
     setScreen("lobby");
   };
 
   const handleStartRoom = () => {
+    activeRoomSession?.startDeckSelection();
+  };
+
+  const handleReturnToLobby = () => {
+    if (mode === "multiplayer" && activeRoomSession) {
+      activeRoomSession.returnToLobby();
+      return;
+    }
+
+    handleExit();
+  };
+
+  const handleChooseDecksAgain = () => {
     activeRoomSession?.startDeckSelection();
   };
 
@@ -95,6 +161,7 @@ export default function App() {
     }
     setScreen("menu");
     setPlayerDeck(null);
+    setSoloDeckStep("player");
     setRoomId(undefined);
     setRoomLocalSide("player");
     setActiveRoomSession(null);
@@ -103,6 +170,20 @@ export default function App() {
     setEnemyBattleDeck(null);
     setSharedInitialGame(null);
     setSharedBattleSnapshot(null);
+    setIsPreparingBattle(false);
+    battleTransitionSetupVersionRef.current = null;
+  };
+
+  const handleSaveProfile = (profile: PlayerProfile) => {
+    const normalizedProfile = {
+      ...profile,
+      name: normalizePlayerName(profile.name),
+    };
+    setPlayerProfile(normalizedProfile);
+    setIsEditingProfile(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(PLAYER_PROFILE_STORAGE_KEY, JSON.stringify(normalizedProfile));
+    }
   };
 
   const handleBattleActionRequested = (action: BattleSubmittedAction) => {
@@ -113,9 +194,10 @@ export default function App() {
     if (!activeRoomSession) return;
 
     const unsubscribe = activeRoomSession.subscribe((action) => {
-      setPendingBattleActions((prev) =>
-        prev.some((queuedAction) => queuedAction.id === action.id) ? prev : [...prev, action],
-      );
+      setPendingBattleActions((prev) => {
+        if (prev.some((queuedAction) => queuedAction.id === action.id)) return prev;
+        return [...prev, action].sort(compareBattleActions);
+      });
     });
 
     return unsubscribe;
@@ -141,11 +223,23 @@ export default function App() {
     const bothDecksSelected = !!localDeckId && !!remoteDeckId;
 
     if (activeRoomState.phase === "lobby") {
+      setIsPreparingBattle(false);
+      battleTransitionSetupVersionRef.current = null;
+      setPlayerDeck(null);
+      setEnemyBattleDeck(null);
+      setPendingBattleActions([]);
+      setSharedInitialGame(null);
+      setSharedBattleSnapshot(null);
       setScreen("lobby");
       return;
     }
 
     if (activeRoomState.phase === "deck-selection") {
+      setIsPreparingBattle(false);
+      battleTransitionSetupVersionRef.current = null;
+      setPlayerDeck(localDeckId ? (DECKS.find((deck) => deck.id === localDeckId) ?? null) : null);
+      setEnemyBattleDeck(remoteDeckId ? (DECKS.find((deck) => deck.id === remoteDeckId) ?? null) : null);
+      setPendingBattleActions([]);
       if (bothDecksSelected && !activeRoomState.initialGame && roomLocalSide === "player") {
         const nextPlayerDeck = DECKS.find((deck) => deck.id === localDeckId) ?? null;
         const nextEnemyDeck = DECKS.find((deck) => deck.id === remoteDeckId) ?? null;
@@ -171,10 +265,52 @@ export default function App() {
 
     setPlayerDeck(nextPlayerDeck);
     setEnemyBattleDeck(nextEnemyDeck);
-    setScreen("battle");
+    const setupVersion = activeRoomState.initialGame.setupVersion;
+    if (battleTransitionSetupVersionRef.current === setupVersion) return;
+
+    battleTransitionSetupVersionRef.current = setupVersion;
+    setIsPreparingBattle(true);
+
+    const transitionTimer = setTimeout(() => {
+      setIsPreparingBattle(false);
+      setScreen("battle");
+    }, 2000);
+
+    return () => clearTimeout(transitionTimer);
   }, [activeRoomSession, activeRoomState, mode, roomId, roomLocalSide]);
 
   const headPendingBattleAction = pendingBattleActions[0] ?? null;
+  const localBattleName = normalizePlayerName(playerProfile?.name ?? "VOCE", "VOCE");
+  const localBattleAvatar = playerProfile?.avatar ?? "\u{1F9D9}\u200D\u2642\uFE0F";
+  const remoteBattleName =
+    mode === "multiplayer"
+      ? normalizePlayerName(
+          roomLocalSide === "player" ? activeRoomState?.guest.name ?? "OPONENTE" : activeRoomState?.host.name ?? "OPONENTE",
+          "OPONENTE",
+        )
+      : "BOT";
+  const remoteBattleAvatar =
+    mode === "multiplayer"
+      ? roomLocalSide === "player"
+        ? activeRoomState?.guest.avatar ?? "\u{1F479}"
+        : activeRoomState?.host.avatar ?? "\u{1F479}"
+      : "\u{1F479}";
+  const deckSelectionTitle = "DECKS DISPONIVEIS";
+  const deckSelectionPhaseKey =
+    mode === "bot" ? `bot-${soloDeckStep}` : mode === "multiplayer" ? "multiplayer-deck-selection" : "solo-deck-selection";
+  const deckSelectionIdleStatusTitle =
+    mode === "bot" && soloDeckStep === "enemy" ? "DEFINA O DECK DO ADVERSARIO" : "ESCOLHA SEU DECK";
+  const handleDeckSelectionBack = () => {
+    if (mode === "bot" && soloDeckStep === "enemy") {
+      setEnemyBattleDeck(null);
+      setSoloDeckStep("player");
+      return;
+    }
+
+    setSoloDeckStep("player");
+    setScreen(mode === "multiplayer" ? "lobby" : "menu");
+  };
+
   const handleBattleActionConsumed = (actionId: string) => {
     setPendingBattleActions((prev) => prev.filter((action) => action.id !== actionId));
   };
@@ -194,6 +330,13 @@ export default function App() {
       </div>
 
       <main className="relative z-10 h-full w-full overflow-hidden">
+        {!playerProfile || isEditingProfile ? (
+          <ProfileSetup
+            initialProfile={playerProfile}
+            isEditing={!!playerProfile && isEditingProfile}
+            onSave={handleSaveProfile}
+          />
+        ) : (
         <AnimatePresence mode="wait">
           {screen === "menu" && (
             <motion.div
@@ -204,7 +347,7 @@ export default function App() {
               exit={{ opacity: 0, scale: 1.05 }}
               transition={{ duration: 0.3 }}
             >
-              <Menu onSelectMode={handleSelectMode} />
+              <Menu onSelectMode={handleSelectMode} profile={playerProfile} onEditProfile={() => setIsEditingProfile(true)} />
             </motion.div>
           )}
 
@@ -219,8 +362,12 @@ export default function App() {
             >
               <DeckSelection 
                 onSelectDeck={handleSelectDeck} 
-                onBack={() => setScreen(mode === "multiplayer" ? "lobby" : "menu")} 
-                selectedDeckId={playerDeck?.id}
+                onBack={handleDeckSelectionBack}
+                selectedDeckId={mode === "bot" && soloDeckStep === "enemy" ? enemyBattleDeck?.id : playerDeck?.id}
+                isPreparingBattle={isPreparingBattle}
+                title={deckSelectionTitle}
+                idleStatusTitle={deckSelectionIdleStatusTitle}
+                phaseKey={deckSelectionPhaseKey}
                 remoteSelectedDeckId={
                   mode === "multiplayer"
                     ? roomLocalSide === "player"
@@ -241,10 +388,11 @@ export default function App() {
               exit={{ opacity: 0, y: -50 }}
               transition={{ duration: 0.3 }}
             >
-              <Lobby 
+              <Lobby
                 onBack={handleExit}
                 onCreateRoom={handleCreateRoom}
                 onJoinRoom={handleJoinRoom}
+                localProfile={playerProfile}
                 activeRoomId={roomId}
                 localSide={roomLocalSide}
                 roomState={activeRoomState}
@@ -265,12 +413,20 @@ export default function App() {
               <Battle 
                 mode={mode}
                 playerDeck={playerDeck}
-                enemyDeck={mode === "multiplayer" ? (enemyBattleDeck ?? DECKS[0]) : DECKS[Math.floor(Math.random() * DECKS.length)]}
+                enemyDeck={
+                  mode === "multiplayer"
+                    ? (enemyBattleDeck ?? DECKS[0])
+                    : (enemyBattleDeck ?? DECKS[Math.floor(Math.random() * DECKS.length)])
+                }
                 roomTransportKind={battleRoomServiceRef.current.kind}
                 initialGameState={sharedInitialGame ?? undefined}
                 authoritativeBattleSnapshot={sharedBattleSnapshot ?? undefined}
                 roomId={roomId}
                 localSide={roomLocalSide}
+                localPlayerName={localBattleName}
+                remotePlayerName={remoteBattleName}
+                localPlayerAvatar={localBattleAvatar}
+                remotePlayerAvatar={remoteBattleAvatar}
                 pendingExternalAction={headPendingBattleAction}
                 onExternalActionConsumed={handleBattleActionConsumed}
                 onBattleSnapshotPublished={handleBattleSnapshotPublished}
@@ -282,10 +438,13 @@ export default function App() {
                   battleRoomServiceRef.current.kind === "mock"
                 }
                 onExit={handleExit}
+                onReturnToLobby={handleReturnToLobby}
+                onChooseDecksAgain={mode === "multiplayer" ? handleChooseDecksAgain : undefined}
               />
             </motion.div>
           )}
         </AnimatePresence>
+        )}
       </main>
     </div>
   );
