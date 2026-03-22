@@ -488,7 +488,7 @@ export const Battle: React.FC<BattleProps> = ({
       slotIndex: number,
     ): VisualTargetEntity => ({
       id: target.uiId,
-      side: side === PLAYER ? "player" : "enemy",
+      side: side === localPlayerIndex ? "player" : "enemy",
       slotIndex,
       target: {
         ...target,
@@ -498,7 +498,7 @@ export const Battle: React.FC<BattleProps> = ({
         justArrived: false,
       },
     }),
-    [],
+    [localPlayerIndex],
   );
   const buildStableTargets = useCallback(
     (state: GameState): StableTargetsState => ({
@@ -1527,7 +1527,7 @@ export const Battle: React.FC<BattleProps> = ({
       appendTargetMotion({
         id: `target-motion-${stableTarget.id}-depart`,
         type: "attack-exit",
-        side: side === PLAYER ? "player" : "enemy",
+        side: side === localPlayerIndex ? "player" : "enemy",
         slotIndex: result.completedSlot,
         entity: stableTarget,
         origin,
@@ -1537,7 +1537,7 @@ export const Battle: React.FC<BattleProps> = ({
         exitMs: TIMINGS.leaveMs,
       });
     },
-    [appendTargetMotion, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot],
+    [appendTargetMotion, localPlayerIndex, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot],
   );
 
   const queueReplacementTargetArrival = useCallback(
@@ -2249,8 +2249,8 @@ export const Battle: React.FC<BattleProps> = ({
   const safeRemotePlayerName = normalizePlayerName(remotePlayerName, "OPONENTE");
   const didLocalPlayerWin = game.winner === localPlayerIndex;
   const resultTitle = didLocalPlayerWin ? "VITÓRIA!" : "DERROTA!";
-  const resultAvatar = didLocalPlayerWin ? localPlayerAvatar : remotePlayerAvatar;
-  const resultLabel = didLocalPlayerWin ? safeLocalPlayerName : safeRemotePlayerName;
+  const resultAvatar = localPlayerAvatar;
+  const resultLabel = safeLocalPlayerName;
   const resultAccentClasses = didLocalPlayerWin
     ? "border-amber-400/80 bg-amber-900/20 text-amber-100 shadow-[0_0_60px_rgba(245,158,11,0.22)]"
     : "border-slate-500/70 bg-slate-950/30 text-slate-100 shadow-[0_0_60px_rgba(15,23,42,0.28)]";
