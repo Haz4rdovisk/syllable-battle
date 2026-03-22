@@ -1,0 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Outfit:wght@300;400;600;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cinzel", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-parchment: #f4e4bc;
+  --color-parchment-dark: #e2cf9f;
+  --color-wood: #3e2723;
+  --color-wood-light: #5d4037;
+  --color-gold: #ffd700;
+  --color-bronze: #cd7f32;
+  --color-ink: #1a1a1a;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+
+  body {
+    @apply bg-[#1a1a1a] text-slate-200 antialiased;
+    background-image: radial-gradient(circle at center, #2c1e1a 0%, #1a1a1a 100%);
+    touch-action: none;
+  }
+
+  h1, h2, h3, .font-fantasy {
+    @apply font-serif tracking-tight;
+  }
+}
+
+@layer components {
+  .game-table {
+    @apply relative overflow-hidden rounded-[20px] sm:rounded-[40px] border-[6px] sm:border-[12px] border-[#3e2723] bg-[#1b2e1b] shadow-[inset_0_0_100px_rgba(0,0,0,0.8),0_20px_50px_rgba(0,0,0,0.5)];
+    background-image: 
+      radial-gradient(circle at center, rgba(46, 125, 50, 0.15) 0%, transparent 70%),
+      url("https://www.transparenttextures.com/patterns/felt.png");
+  }
+
+  .card-base {
+    @apply relative overflow-hidden rounded-xl border-2 border-[#d4af37] bg-[#f4e4bc] shadow-lg transition-all duration-300;
+    background-image: url("https://www.transparenttextures.com/patterns/paper-fibers.png");
+  }
+
+  .paper-panel {
+    @apply rounded-2xl border-2 border-[#8d6e63] bg-[#fdf5e6] p-4 shadow-xl;
+    background-image: url("https://www.transparenttextures.com/patterns/old-mathematics.png");
+  }
+}
+
+@keyframes cardEnter {
+  0% { transform: translateY(-30px) scale(0.9); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes cardAttack {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.1) translateY(-20px); z-index: 50; }
+  50% { transform: scale(1.2) translateY(-100px); z-index: 50; }
+  100% { transform: scale(1); }
+}
+
+@keyframes cardLeave {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.5) rotate(5deg); opacity: 0; }
+}
+
+@keyframes cardDraw {
+  0% { transform: translate(-100px, 100px) rotate(-20deg) scale(0); opacity: 0; }
+  100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+}
+
+.animate-draw { animation: cardDraw 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

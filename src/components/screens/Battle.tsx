@@ -1,0 +1,2155 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "../ui/button";
+import {
+  GameState,
+  GameMode,
+  Deck,
+  Syllable,
+  BattleEvent,
+  BattleSide,
+  BattleSubmittedAction,
+  BattleTurnAction,
+} from "../../types/game";
+import {
+  makeInitialGame,
+  CONFIG,
+  TIMINGS,
+  canPlace,
+  isHandStuck,
+  clearTransientPlayerState,
+  replaceTargetInSlot,
+} from "../../logic/gameLogic";
+import {
+  TargetCard,
+  PlayerPortrait,
+  SyllableCard,
+  CardBackCard,
+  CardPile,
+  BoardTravelLayer,
+  BoardTravelMotion,
+  BoardZoneId,
+  ZoneAnchorSnapshot,
+  TRAVEL_TARGET_CARD_SIZE,
+  getTravelSyllableCardSize,
+  VisualTargetEntity,
+  TargetMotionLayer,
+  TargetTransitMotion,
+} from "../game/GameComponents";
+import { AnimatePresence, motion } from "motion/react";
+import { LogOut, RefreshCw, RotateCcw, Swords } from "lucide-react";
+import { cn } from "../../lib/utils";
+import {
+  createDamageAppliedEvent,
+  createMulliganResolutionEvents,
+  createPlayResolutionEvents,
+  createTargetReplacedEvent,
+  createTurnStartedEvent,
+} from "./battleEvents";
+import {
+  getEnemyHandLayout,
+  getMulliganDrawStartDelayMs,
+  getMulliganFinishDelayMs,
+  getPlayDrawStartDelayMs,
+  getPlayFinishDelayMs,
+  getPlayedCardCommitDelayMs,
+  getPlayerHandLayout,
+  resolveBotTurnAction,
+} from "./battleFlow";
+import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
+
+const PLAYER = 0;
+const ENEMY = 1;
+const zoneRefKey = (zoneId: BoardZoneId, slot: string) => `${zoneId}:${slot}`;
+const HAND_LAYOUT_SLOT_COUNT = 5;
+const FLOW = {
+  cardToFieldMs: 660,
+  cardSettleMs: 180,
+  drawTravelMs: 940,
+  drawStaggerMs: 130,
+  drawSettleMs: 220,
+  visualSettleBufferMs: 180,
+  attackWindupMs: 220,
+  attackTravelMs: 1020,
+  impactPauseMs: 260,
+  targetExitMs: TIMINGS.leaveMs,
+  replacementGapMs: 220,
+  targetEnterMs: TIMINGS.leaveMs,
+  targetSettleMs: 240,
+  mulliganReturnMs: 760,
+  mulliganReturnStaggerMs: 110,
+  mulliganDrawDelayMs: 220,
+  mulliganSettleMs: 260,
+};
+
+interface VisualHandCard {
+  id: string;
+  syllable: Syllable;
+  side: typeof PLAYER | typeof ENEMY;
+  hidden: boolean;
+  skipEntryAnimation?: boolean;
+}
+
+type StableHandsState = Record<typeof PLAYER | typeof ENEMY, VisualHandCard[]>;
+
+interface IncomingHandCard {
+  id: string;
+  side: typeof PLAYER | typeof ENEMY;
+  card: VisualHandCard;
+  origin: ZoneAnchorSnapshot;
+  finalIndex: number;
+  finalTotal: number;
+  delayMs: number;
+  durationMs: number;
+}
+
+type StableTargetsState = Record<typeof PLAYER | typeof ENEMY, Array<VisualTargetEntity | null>>;
+type LockedTargetSlotsState = Record<typeof PLAYER | typeof ENEMY, boolean[]>;
+type PendingTargetPlacementsState = Record<typeof PLAYER | typeof ENEMY, Array<Syllable | null>>;
+
+interface IncomingTargetCard {
+  id: string;
+  side: typeof PLAYER | typeof ENEMY;
+  slotIndex: number;
+  entity: VisualTargetEntity;
+  origin: ZoneAnchorSnapshot;
+  delayMs: number;
+  durationMs: number;
+}
+
+interface BattleProps {
+  mode: GameMode;
+  playerDeck: Deck;
+  enemyDeck: Deck;
+  roomTransportKind?: "mock" | "broadcast" | "remote";
+  initialGameState?: GameState;
+  authoritativeBattleSnapshot?: GameState;
+  roomId?: string;
+  localSide?: BattleSide;
+  pendingExternalAction?: BattleSubmittedAction | null;
+  onExternalActionConsumed?: (actionId: string) => void;
+  onBattleSnapshotPublished?: (state: GameState) => void;
+  onActionRequested?: (action: BattleSubmittedAction) => void;
+  enableMockRoomBot?: boolean;
+  onExit: () => void;
+}
+
+const HandFan: React.FC<{
+  side: typeof PLAYER | typeof ENEMY;
+  presentation: "local" | "remote";
+  stableCards: VisualHandCard[];
+  incomingCards?: IncomingHandCard[];
+  scale: "desktop" | "mobile";
+  pulse?: boolean;
+  anchorRef?: React.Ref<HTMLDivElement>;
+  onIncomingCardComplete?: (incomingCard: IncomingHandCard) => void;
+  hoveredCardIndex?: number | null;
+  onHoverCard?: (index: number | null) => void;
+  selectedIndexes?: number[];
+  canInteract?: boolean;
+  showTurnHighlights?: boolean;
+  showPlayableHints?: boolean;
+  targets?: GameState["players"][0]["targets"];
+  onCardClick?: (index: number) => void;
+  freshCardIds?: string[];
+  bindCardRef?: (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => void;
+}> = ({
+  side,
+  presentation,
+  stableCards,
+  scale,
+  pulse = false,
+  anchorRef,
+  incomingCards = [],
+  onIncomingCardComplete,
+  hoveredCardIndex = null,
+  onHoverCard,
+  selectedIndexes = [],
+  canInteract = false,
+  showTurnHighlights = false,
+  showPlayableHints = false,
+  targets = [],
+  onCardClick,
+  freshCardIds = [],
+  bindCardRef,
+}) => {
+  const isLocalPresentation = presentation === "local";
+  const isDesktop = scale === "desktop";
+  const visibleCards = Math.min(stableCards.length, 5);
+  const minHeight = isDesktop ? "min-h-[150px]" : "min-h-[120px]";
+  const height = isDesktop ? "h-[150px]" : "h-[120px]";
+  const width =
+    isLocalPresentation
+      ? isDesktop
+        ? "max-w-[720px]"
+        : "max-w-[660px]"
+      : isDesktop
+        ? "max-w-[560px]"
+        : "max-w-[320px]";
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const totalCards = Math.min(HAND_LAYOUT_SLOT_COUNT, stableCards.length + incomingCards.length);
+  const getLayout = isLocalPresentation ? getPlayerHandLayout : getEnemyHandLayout;
+
+  return (
+    <motion.div
+      animate={pulse ? { y: [0, -6, 0], rotate: [0, 1, 0] } : {}}
+      transition={{ duration: 0.62, ease: "easeOut" }}
+      className={cn("relative flex w-full items-end justify-center overflow-visible", minHeight)}
+    >
+      <div
+        ref={(node) => {
+          hostRef.current = node;
+          if (typeof anchorRef === "function") anchorRef(node);
+        }}
+        className={cn("relative flex h-full w-full items-end justify-center", height, width)}
+      >
+        <AnimatePresence>
+          {stableCards.map((card, i) => {
+            const layout = getLayout(totalCards, i, isDesktop);
+            const selected = selectedIndexes.includes(i);
+            const playable = isLocalPresentation ? targets.some((target) => canPlace(card.syllable, target)) : false;
+
+            return (
+              <motion.div
+                key={card.id}
+                initial={
+                  card.skipEntryAnimation
+                    ? false
+                    : isLocalPresentation
+                      ? { x: 600, y: 0, opacity: 0, rotate: 90, scale: 1 }
+                      : { x: 0, y: -60, opacity: 0, rotate: layout.rotate, scale: 0.9 }
+                }
+                animate={{
+                  x: layout.x,
+                  y: isLocalPresentation && selected ? (isDesktop ? -28 : -18) : layout.y,
+                  rotate: layout.rotate,
+                  opacity: 1,
+                  scale: isLocalPresentation && hoveredCardIndex === i ? 1.14 : 1,
+                }}
+                exit={{ opacity: 0, transition: { duration: 0.01 } }}
+                transition={{ type: "spring", stiffness: 82, damping: 22 }}
+                onMouseEnter={() => onHoverCard?.(i)}
+                onMouseLeave={() => onHoverCard?.(null)}
+                ref={bindCardRef?.(card.id, scale)}
+                className={cn("absolute bottom-0", isLocalPresentation && "cursor-pointer")}
+                style={{ zIndex: isLocalPresentation && hoveredCardIndex === i ? 100 : i }}
+              >
+                {isLocalPresentation ? (
+                  <SyllableCard
+                    syllable={card.syllable}
+                    selected={selected}
+                    playable={playable && showPlayableHints}
+                    newlyDrawn={freshCardIds.includes(card.id) && showTurnHighlights}
+                    attentionPulse={playable && showPlayableHints}
+                    disabled={!canInteract}
+                    onClick={() => onCardClick?.(i)}
+                  />
+                ) : (
+                  <CardBackCard />
+                )}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+        {hostRef.current &&
+          incomingCards.map((incomingCard) => {
+            const hostRect = hostRef.current!.getBoundingClientRect();
+            const cardSize = getTravelSyllableCardSize();
+            const layout = getLayout(incomingCard.finalTotal, incomingCard.finalIndex, isDesktop);
+            const startX = incomingCard.origin.left + incomingCard.origin.width / 2 - hostRect.left - cardSize.width / 2;
+            const startY = incomingCard.origin.top + incomingCard.origin.height / 2 - hostRect.top - cardSize.height / 2;
+            const endX = hostRect.width / 2 - cardSize.width / 2 + layout.x;
+            const endY = hostRect.height - cardSize.height + layout.y;
+
+            return (
+              <motion.div
+                key={incomingCard.id}
+                initial={{ x: startX, y: startY, rotate: 0, scale: 0.94, opacity: 0 }}
+                animate={{ x: endX, y: endY, rotate: layout.rotate, scale: 1, opacity: 1 }}
+                transition={{
+                  delay: incomingCard.delayMs / 1000,
+                  duration: incomingCard.durationMs / 1000,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                onAnimationComplete={() => onIncomingCardComplete?.(incomingCard)}
+                className="pointer-events-none absolute left-0 top-0 z-[120]"
+              >
+                {isLocalPresentation ? (
+                  <SyllableCard
+                    syllable={incomingCard.card.syllable}
+                    selected={false}
+                    playable={showPlayableHints}
+                    newlyDrawn={showTurnHighlights}
+                    attentionPulse={false}
+                    floating={true}
+                    disabled={true}
+                    onClick={() => {}}
+                  />
+                ) : (
+                  <CardBackCard floating={true} />
+                )}
+              </motion.div>
+            );
+          })}
+      </div>
+    </motion.div>
+  );
+};
+
+export const Battle: React.FC<BattleProps> = ({
+  mode,
+  playerDeck,
+  enemyDeck,
+  roomTransportKind,
+  initialGameState,
+  authoritativeBattleSnapshot,
+  roomId,
+  localSide = "player",
+  pendingExternalAction = null,
+  onExternalActionConsumed,
+  onBattleSnapshotPublished,
+  onActionRequested,
+  enableMockRoomBot = false,
+  onExit,
+}) => {
+  const localPlayerIndex = localSide === "player" ? PLAYER : ENEMY;
+  const remotePlayerIndex = localPlayerIndex === PLAYER ? ENEMY : PLAYER;
+  const zoneIdForSide = useCallback(
+    (
+      side: typeof PLAYER | typeof ENEMY,
+      role: "hand" | "field" | "deck" | "targetDeck" | "discard",
+    ): BoardZoneId => {
+      const isLocal = side === localPlayerIndex;
+      if (role === "hand") return isLocal ? "playerHand" : "enemyHand";
+      if (role === "field") return isLocal ? "playerField" : "enemyField";
+      if (role === "deck") return isLocal ? "playerDeck" : "enemyDeck";
+      if (role === "targetDeck") return isLocal ? "playerTargetDeck" : "enemyTargetDeck";
+      return isLocal ? "playerDiscard" : "enemyDiscard";
+    },
+    [localPlayerIndex],
+  );
+  const initialGameRef = useRef<GameState | null>(null);
+  const cloneInitialGame = useCallback(
+    (source: GameState) => structuredClone(source),
+    [],
+  );
+  if (!initialGameRef.current) {
+    initialGameRef.current = initialGameState ? cloneInitialGame(initialGameState) : makeInitialGame(mode, playerDeck, enemyDeck, roomId);
+  }
+
+  const [hoveredCardIndex, setHoveredCardIndex] = useState<number | null>(null);
+  const [turnElapsedMs, setTurnElapsedMs] = useState(0);
+  const [enemyHandPulse, setEnemyHandPulse] = useState(false);
+  const [travelMotions, setTravelMotions] = useState<BoardTravelMotion[]>([]);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth >= 1024,
+  );
+  const [game, setGame] = useState<GameState>(initialGameRef.current);
+
+  const actionTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const visualTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const gameRef = useRef<GameState>(initialGameRef.current);
+  const zoneNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const handCardNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const travelMotionsRef = useRef<BoardTravelMotion[]>(travelMotions);
+  const travelMotionIdRef = useRef(0);
+  const handCardIdRef = useRef(0);
+  const battleEventIdRef = useRef(0);
+  const battleEventsRef = useRef<BattleEvent[]>([]);
+  const battleActionIdRef = useRef(0);
+  const actionSequenceRef = useRef<Record<typeof PLAYER | typeof ENEMY, number>>({
+    [PLAYER]: 0,
+    [ENEMY]: 0,
+  });
+  const processedExternalActionIdsRef = useRef<Set<string>>(new Set());
+  const pendingAuthoritativeSnapshotRef = useRef<GameState | null>(null);
+  const publishedSnapshotSignatureRef = useRef<string>("");
+  const createVisualHandCard = useCallback(
+    (syllable: Syllable, side: typeof PLAYER | typeof ENEMY): VisualHandCard => ({
+      id: `hand-card-${side}-${handCardIdRef.current++}`,
+      syllable,
+      side,
+      hidden: side === ENEMY,
+      skipEntryAnimation: false,
+    }),
+    [],
+  );
+  const buildStableHands = useCallback(
+    (state: GameState): StableHandsState => ({
+      [PLAYER]: state.players[PLAYER].hand.map((syllable) => createVisualHandCard(syllable, PLAYER)),
+      [ENEMY]: state.players[ENEMY].hand.map((syllable) => createVisualHandCard(syllable, ENEMY)),
+    }),
+    [createVisualHandCard],
+  );
+  const toVisualTarget = useCallback(
+    (
+      target: GameState["players"][0]["targets"][number],
+      side: typeof PLAYER | typeof ENEMY,
+      slotIndex: number,
+    ): VisualTargetEntity => ({
+      id: target.uiId,
+      side: side === PLAYER ? "player" : "enemy",
+      slotIndex,
+      target: {
+        ...target,
+        entering: false,
+        attacking: false,
+        leaving: false,
+        justArrived: false,
+      },
+    }),
+    [],
+  );
+  const buildStableTargets = useCallback(
+    (state: GameState): StableTargetsState => ({
+      [PLAYER]: state.players[PLAYER].targets.map((target, index) => toVisualTarget(target, PLAYER, index)),
+      [ENEMY]: state.players[ENEMY].targets.map((target, index) => toVisualTarget(target, ENEMY, index)),
+    }),
+    [toVisualTarget],
+  );
+  const [stableHands, setStableHands] = useState<StableHandsState>(() => buildStableHands(initialGameRef.current!));
+  const stableHandsRef = useRef<StableHandsState>(stableHands);
+  const [stableTargets, setStableTargets] = useState<StableTargetsState>(() => buildStableTargets(initialGameRef.current!));
+  const stableTargetsRef = useRef<StableTargetsState>(stableTargets);
+  const [incomingHands, setIncomingHands] = useState<Record<typeof PLAYER | typeof ENEMY, IncomingHandCard[]>>({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
+  const incomingHandsRef = useRef(incomingHands);
+  const [incomingTargets, setIncomingTargets] = useState<Record<typeof PLAYER | typeof ENEMY, IncomingTargetCard[]>>({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
+  const incomingTargetsRef = useRef(incomingTargets);
+  const [targetMotions, setTargetMotions] = useState<TargetTransitMotion[]>([]);
+  const targetMotionsRef = useRef<TargetTransitMotion[]>([]);
+  const [lockedTargetSlots, setLockedTargetSlots] = useState<LockedTargetSlotsState>({
+    [PLAYER]: Array(CONFIG.targetsInPlay).fill(false),
+    [ENEMY]: Array(CONFIG.targetsInPlay).fill(false),
+  });
+  const lockedTargetSlotsRef = useRef(lockedTargetSlots);
+  const [pendingTargetPlacements, setPendingTargetPlacements] = useState<PendingTargetPlacementsState>({
+    [PLAYER]: Array(CONFIG.targetsInPlay).fill(null),
+    [ENEMY]: Array(CONFIG.targetsInPlay).fill(null),
+  });
+  const pendingTargetPlacementsRef = useRef(pendingTargetPlacements);
+  const [freshCardIds, setFreshCardIds] = useState<string[]>([]);
+  gameRef.current = game;
+  const previousEnemyHandSignatureRef = useRef<string>("");
+
+  const addLog = (log: string[], message: string) => [message, ...log].slice(0, CONFIG.logSize);
+  const emitBattleEvent = useCallback((event: Omit<BattleEvent, "id" | "createdAt">) => {
+    battleEventsRef.current = [
+      ...battleEventsRef.current.slice(-199),
+      {
+        ...event,
+        id: `battle-event-${battleEventIdRef.current++}`,
+        createdAt: Date.now(),
+      } as BattleEvent,
+    ];
+  }, []);
+  const emitTurnStartedEvent = useCallback(
+    (turn: number, side: typeof PLAYER | typeof ENEMY) => {
+      emitBattleEvent(createTurnStartedEvent(turn, side));
+    },
+    [emitBattleEvent],
+  );
+  const emitDamageAppliedEvent = useCallback(
+    (
+      turn: number,
+      sourceSide: typeof PLAYER | typeof ENEMY,
+      targetSide: typeof PLAYER | typeof ENEMY,
+      amount: number,
+      sourceTargetName: string,
+      lifeAfter: number,
+    ) => {
+      emitBattleEvent(createDamageAppliedEvent(turn, sourceSide, targetSide, amount, sourceTargetName, lifeAfter));
+    },
+    [emitBattleEvent],
+  );
+  const emitTargetReplacedEvent = useCallback(
+    (
+      turn: number,
+      side: typeof PLAYER | typeof ENEMY,
+      slotIndex: number,
+      previousTargetName: string,
+      nextTargetName: string,
+    ) => {
+      const event = createTargetReplacedEvent(turn, side, slotIndex, previousTargetName, nextTargetName);
+      if (!event) return;
+      emitBattleEvent(event);
+    },
+    [emitBattleEvent],
+  );
+
+  const clearAllTimers = useCallback(() => {
+    actionTimersRef.current.forEach(clearTimeout);
+    actionTimersRef.current = [];
+  }, []);
+
+  const clearVisualTimers = useCallback(() => {
+    visualTimersRef.current.forEach(clearTimeout);
+    visualTimersRef.current = [];
+  }, []);
+
+  const commitStableHands = useCallback((nextHands: StableHandsState) => {
+    stableHandsRef.current = nextHands;
+    setStableHands(nextHands);
+  }, []);
+
+  const commitStableTargets = useCallback((nextTargets: StableTargetsState) => {
+    stableTargetsRef.current = nextTargets;
+    setStableTargets(nextTargets);
+  }, []);
+
+  const commitIncomingHands = useCallback(
+    (nextHands: Record<typeof PLAYER | typeof ENEMY, IncomingHandCard[]>) => {
+      incomingHandsRef.current = nextHands;
+      setIncomingHands(nextHands);
+    },
+    [],
+  );
+
+  const commitIncomingTargets = useCallback(
+    (nextTargets: Record<typeof PLAYER | typeof ENEMY, IncomingTargetCard[]>) => {
+      incomingTargetsRef.current = nextTargets;
+      setIncomingTargets(nextTargets);
+    },
+    [],
+  );
+
+  const commitTargetMotions = useCallback((nextMotions: TargetTransitMotion[]) => {
+    targetMotionsRef.current = nextMotions;
+    setTargetMotions(nextMotions);
+  }, []);
+
+  const commitLockedTargetSlots = useCallback((nextLockedSlots: LockedTargetSlotsState) => {
+    lockedTargetSlotsRef.current = nextLockedSlots;
+    setLockedTargetSlots(nextLockedSlots);
+  }, []);
+
+  const commitPendingTargetPlacements = useCallback((nextPending: PendingTargetPlacementsState) => {
+    pendingTargetPlacementsRef.current = nextPending;
+    setPendingTargetPlacements(nextPending);
+  }, []);
+
+  const commitTravelMotions = useCallback((nextMotions: BoardTravelMotion[]) => {
+    travelMotionsRef.current = nextMotions;
+    setTravelMotions(nextMotions);
+  }, []);
+
+  const reconcileStableSide = useCallback(
+    (
+      side: typeof PLAYER | typeof ENEMY,
+      logicalHand: Syllable[],
+      currentStableSide: VisualHandCard[],
+    ) => {
+      const buckets = new Map<string, VisualHandCard[]>();
+      currentStableSide.forEach((card) => {
+        const bucket = buckets.get(card.syllable) ?? [];
+        bucket.push(card);
+        buckets.set(card.syllable, bucket);
+      });
+
+      return logicalHand.map((syllable) => {
+        const bucket = buckets.get(syllable);
+        if (bucket && bucket.length > 0) {
+          return bucket.shift()!;
+        }
+
+        return createVisualHandCard(syllable, side);
+      });
+    },
+    [createVisualHandCard],
+  );
+
+  const removeStableCards = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, indexes: number[]) => {
+      const current = stableHandsRef.current;
+      const sortedIndexes = [...new Set(indexes)].sort((a, b) => b - a);
+      const nextSide = [...current[side]];
+      const removed: VisualHandCard[] = [];
+
+      sortedIndexes.forEach((index) => {
+        const card = nextSide[index];
+        if (!card) return;
+        removed.unshift(card);
+        nextSide.splice(index, 1);
+      });
+
+      commitStableHands({
+        ...current,
+        [side]: nextSide,
+      });
+      setFreshCardIds((prev) => prev.filter((id) => !removed.some((card) => card.id === id)));
+
+      return removed;
+    },
+    [commitStableHands],
+  );
+
+  const appendStableCard = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, card: VisualHandCard, options?: { skipEntryAnimation?: boolean }) => {
+      const current = stableHandsRef.current;
+      commitStableHands({
+        ...current,
+        [side]: [
+          ...current[side],
+          {
+            ...card,
+            skipEntryAnimation: options?.skipEntryAnimation ?? card.skipEntryAnimation ?? false,
+          },
+        ],
+      });
+    },
+    [commitStableHands],
+  );
+
+  const appendIncomingCard = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, incomingCard: IncomingHandCard) => {
+      const current = incomingHandsRef.current;
+      commitIncomingHands({
+        ...current,
+        [side]: [...current[side], incomingCard],
+      });
+    },
+    [commitIncomingHands],
+  );
+
+  const removeIncomingCard = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, id: string) => {
+      const current = incomingHandsRef.current;
+      commitIncomingHands({
+        ...current,
+        [side]: current[side].filter((card) => card.id !== id),
+      });
+    },
+    [commitIncomingHands],
+  );
+
+  const markFreshCard = useCallback((cardId: string) => {
+    setFreshCardIds((prev) => (prev.includes(cardId) ? prev : [...prev, cardId]));
+    const timer = setTimeout(() => {
+      setFreshCardIds((prev) => prev.filter((id) => id !== cardId));
+    }, 1800);
+    visualTimersRef.current.push(timer);
+  }, []);
+
+  const bindZoneRef = useCallback(
+    (zoneId: BoardZoneId, slot: string) => (node: HTMLDivElement | null) => {
+      zoneNodesRef.current[zoneRefKey(zoneId, slot)] = node;
+    },
+    [],
+  );
+
+  const bindHandCardRef = useCallback(
+    (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => {
+      handCardNodesRef.current[`${cardId}:${layoutId}`] = node;
+    },
+    [],
+  );
+
+  const snapshotZone = useCallback((zoneId: BoardZoneId): ZoneAnchorSnapshot | null => {
+    const bestNode = Object.entries(zoneNodesRef.current)
+      .filter(([key, node]) => key.startsWith(`${zoneId}:`) && node)
+      .map(([, node]) => node as HTMLDivElement)
+      .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
+
+    if (!bestNode) return null;
+
+    const { left, top, width, height } = bestNode.rect;
+    return { left, top, width, height };
+  }, []);
+
+  const snapshotZoneSlot = useCallback((zoneId: BoardZoneId, slot: string): ZoneAnchorSnapshot | null => {
+    const node = zoneNodesRef.current[zoneRefKey(zoneId, slot)];
+    if (!node) return null;
+    const rect = node.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+  }, []);
+
+  const snapshotHandCard = useCallback((cardId: string): ZoneAnchorSnapshot | null => {
+    const bestNode = Object.entries(handCardNodesRef.current)
+      .filter(([key, node]) => key.startsWith(`${cardId}:`) && node)
+      .map(([, node]) => node as HTMLDivElement)
+      .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
+
+    if (!bestNode) return null;
+
+    const { left, top, width, height } = bestNode.rect;
+    return {
+      left,
+      top,
+      width,
+      height,
+    };
+  }, []);
+
+  const setStableTargetSlot = useCallback(
+    (
+      side: typeof PLAYER | typeof ENEMY,
+      slotIndex: number,
+      target: VisualTargetEntity | null,
+    ) => {
+      const current = stableTargetsRef.current;
+      const nextSide = [...current[side]];
+      nextSide[slotIndex] = target;
+      commitStableTargets({
+        ...current,
+        [side]: nextSide,
+      });
+    },
+    [commitStableTargets],
+  );
+
+  const lockTargetSlot = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, slotIndex: number, locked: boolean) => {
+      const current = lockedTargetSlotsRef.current;
+      const nextSide = [...current[side]];
+      nextSide[slotIndex] = locked;
+      commitLockedTargetSlots({
+        ...current,
+        [side]: nextSide,
+      });
+    },
+    [commitLockedTargetSlots],
+  );
+
+  const setPendingTargetPlacement = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, slotIndex: number, syllable: Syllable | null) => {
+      const current = pendingTargetPlacementsRef.current;
+      const nextSide = [...current[side]];
+      nextSide[slotIndex] = syllable;
+      commitPendingTargetPlacements({
+        ...current,
+        [side]: nextSide,
+      });
+    },
+    [commitPendingTargetPlacements],
+  );
+
+  const appendTargetMotion = useCallback(
+    (motion: TargetTransitMotion) => {
+      const current = targetMotionsRef.current;
+      commitTargetMotions([...current, motion]);
+    },
+    [commitTargetMotions],
+  );
+
+  const removeTargetMotion = useCallback(
+    (motionId: string) => {
+      const current = targetMotionsRef.current;
+      commitTargetMotions(current.filter((motion) => motion.id !== motionId));
+    },
+    [commitTargetMotions],
+  );
+
+  const appendIncomingTarget = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, incomingTarget: IncomingTargetCard) => {
+      const current = incomingTargetsRef.current;
+      commitIncomingTargets({
+        ...current,
+        [side]: [...current[side], incomingTarget],
+      });
+    },
+    [commitIncomingTargets],
+  );
+
+  const removeIncomingTarget = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, id: string) => {
+      const current = incomingTargetsRef.current;
+      commitIncomingTargets({
+        ...current,
+        [side]: current[side].filter((target) => target.id !== id),
+      });
+    },
+    [commitIncomingTargets],
+  );
+
+  // Battle resolve as zonas nomeadas em snapshots absolutos e agenda a ordem dos eventos.
+  const queueZoneTravel = useCallback(
+    (
+      motion: Omit<BoardTravelMotion, "id" | "origin" | "destination">,
+    ) => {
+      const origin = motion.originOverride ?? snapshotZone(motion.from);
+      const destination = motion.destinationOverride ?? snapshotZone(motion.to);
+
+      if (!origin || !destination) return null;
+
+      const id = `travel-${travelMotionIdRef.current++}`;
+      commitTravelMotions([
+        ...travelMotionsRef.current,
+        {
+          ...motion,
+          id,
+          origin,
+          destination,
+        },
+      ]);
+      return id;
+    },
+    [commitTravelMotions, snapshotZone],
+  );
+
+  const handleTravelMotionComplete = useCallback((id: string) => {
+    commitTravelMotions(travelMotionsRef.current.filter((motion) => motion.id !== id));
+  }, [commitTravelMotions]);
+
+  const queueStableCardTravel = useCallback(
+    (
+      card: VisualHandCard,
+      config: Omit<BoardTravelMotion, "id" | "origin" | "destination" | "entityId" | "label" | "side">,
+    ) => {
+      return queueZoneTravel({
+        ...config,
+        entityId: card.id,
+        label: card.syllable,
+        side: card.side === PLAYER ? "player" : "enemy",
+      });
+    },
+    [queueZoneTravel],
+  );
+
+  const queueHandDrawBatch = useCallback(
+    (
+      side: typeof PLAYER | typeof ENEMY,
+      cards: Syllable[],
+      config?: { initialDelayMs?: number; staggerMs?: number; durationMs?: number },
+    ) => {
+      if (cards.length === 0) return;
+
+      const origin = snapshotZone(zoneIdForSide(side, "deck"));
+      const stableCount = stableHandsRef.current[side].length;
+      const incomingCount = incomingHandsRef.current[side].length;
+      const baseCount = stableCount + incomingCount;
+      const finalTotal = Math.min(HAND_LAYOUT_SLOT_COUNT, baseCount + cards.length);
+
+      cards.forEach((card, index) => {
+        const visualCard = createVisualHandCard(card, side);
+        if (!origin) {
+          appendStableCard(side, visualCard, { skipEntryAnimation: false });
+          return;
+        }
+
+        appendIncomingCard(side, {
+          id: `incoming-${visualCard.id}`,
+          side,
+          card: visualCard,
+          origin,
+          finalIndex: Math.min(HAND_LAYOUT_SLOT_COUNT - 1, baseCount + index),
+          finalTotal,
+          delayMs: (config?.initialDelayMs ?? 0) + index * (config?.staggerMs ?? 130),
+          durationMs: config?.durationMs ?? 940,
+        });
+      });
+    },
+    [appendIncomingCard, appendStableCard, createVisualHandCard, snapshotZone],
+  );
+
+  const commitIncomingCardToHand = useCallback(
+    (incomingCard: IncomingHandCard) => {
+      removeIncomingCard(incomingCard.side, incomingCard.id);
+      appendStableCard(incomingCard.side, incomingCard.card, { skipEntryAnimation: true });
+      if (incomingCard.side === PLAYER) {
+        markFreshCard(incomingCard.card.id);
+      }
+    },
+    [appendStableCard, markFreshCard, removeIncomingCard],
+  );
+
+  const buildBattleSnapshotSignature = useCallback(
+    (state: GameState) =>
+      JSON.stringify({
+        setupVersion: state.setupVersion,
+        turn: state.turn,
+        winner: state.winner,
+        actedThisTurn: state.actedThisTurn,
+        combatLocked: state.combatLocked,
+        players: state.players.map((player) => ({
+          life: player.life,
+          hand: player.hand,
+          syllableDeck: player.syllableDeck,
+          discard: player.discard,
+          targetDeck: player.targetDeck.map((target) => target.id),
+          targets: player.targets.map((target) => ({
+            id: target.uiId,
+            name: target.name,
+            progress: target.progress,
+          })),
+        })),
+      }),
+    [],
+  );
+
+  const hydrateBattleSnapshot = useCallback(
+    (snapshot: GameState) => {
+      const freshGame = cloneInitialGame(snapshot);
+      clearAllTimers();
+      clearVisualTimers();
+      commitIncomingHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      commitIncomingTargets({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      commitPendingTargetPlacements({
+        [PLAYER]: Array(CONFIG.targetsInPlay).fill(null),
+        [ENEMY]: Array(CONFIG.targetsInPlay).fill(null),
+      });
+      commitTargetMotions([]);
+      commitLockedTargetSlots({
+        [PLAYER]: Array(CONFIG.targetsInPlay).fill(false),
+        [ENEMY]: Array(CONFIG.targetsInPlay).fill(false),
+      });
+      commitTravelMotions([]);
+      setFreshCardIds([]);
+      commitStableHands(buildStableHands(freshGame));
+      commitStableTargets(buildStableTargets(freshGame));
+      setGame(freshGame);
+    },
+    [
+      buildStableHands,
+      buildStableTargets,
+      clearAllTimers,
+      clearVisualTimers,
+      cloneInitialGame,
+      commitIncomingHands,
+      commitIncomingTargets,
+      commitLockedTargetSlots,
+      commitPendingTargetPlacements,
+      commitTargetMotions,
+      commitTravelMotions,
+      commitStableHands,
+      commitStableTargets,
+    ],
+  );
+
+  const resetGame = () => {
+    const freshGame = initialGameState ? cloneInitialGame(initialGameState) : makeInitialGame(mode, playerDeck, enemyDeck, roomId);
+    hydrateBattleSnapshot(freshGame);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+      clearVisualTimers();
+    };
+  }, [clearAllTimers, clearVisualTimers]);
+
+  useEffect(() => {
+    const updateViewportMode = () => setIsDesktopViewport(window.innerWidth >= 1024);
+    updateViewportMode();
+    window.addEventListener("resize", updateViewportMode);
+    return () => window.removeEventListener("resize", updateViewportMode);
+  }, []);
+
+  useEffect(() => {
+    if (game.winner !== null) return;
+
+    const startedAt = Date.now();
+    setTurnElapsedMs(0);
+
+    const interval = setInterval(() => {
+      setTurnElapsedMs(Date.now() - startedAt);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [game.turn, game.setupVersion, game.winner]);
+
+  useEffect(() => {
+    const currentEnemy = game.players[remotePlayerIndex];
+    const signature = `${stableHands[remotePlayerIndex].map((card) => card.id).join("|")}:${incomingHands[remotePlayerIndex]
+      .map((card) => card.id)
+      .join("|")}:${currentEnemy.targets.map((target) => target.progress.join("-")).join("|")}`;
+    if (!previousEnemyHandSignatureRef.current) {
+      previousEnemyHandSignatureRef.current = signature;
+      return;
+    }
+
+    if (previousEnemyHandSignatureRef.current !== signature) {
+      previousEnemyHandSignatureRef.current = signature;
+      setEnemyHandPulse(true);
+      const timer = setTimeout(() => setEnemyHandPulse(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [game.players, incomingHands, remotePlayerIndex, stableHands]);
+
+  useEffect(() => {
+    const pendingCounts = {
+      [PLAYER]: incomingHands[PLAYER].length,
+      [ENEMY]: incomingHands[ENEMY].length,
+    };
+
+    const expectedPlayerStable = game.players[PLAYER].hand.length - pendingCounts[PLAYER];
+    const expectedEnemyStable = game.players[ENEMY].hand.length - pendingCounts[ENEMY];
+
+    if (
+      expectedPlayerStable === stableHands[PLAYER].length &&
+      expectedEnemyStable === stableHands[ENEMY].length
+    ) {
+      return;
+    }
+
+    const current = stableHandsRef.current;
+    const nextHands: StableHandsState = {
+      [PLAYER]:
+        pendingCounts[PLAYER] === 0
+          ? reconcileStableSide(PLAYER, game.players[PLAYER].hand, current[PLAYER])
+          : current[PLAYER],
+      [ENEMY]:
+        pendingCounts[ENEMY] === 0
+          ? reconcileStableSide(ENEMY, game.players[ENEMY].hand, current[ENEMY])
+          : current[ENEMY],
+    };
+
+    if (nextHands[PLAYER] !== current[PLAYER] || nextHands[ENEMY] !== current[ENEMY]) {
+      commitStableHands(nextHands);
+    }
+  }, [commitStableHands, game, incomingHands, reconcileStableSide, stableHands]);
+
+  useEffect(() => {
+    const current = stableTargetsRef.current;
+    const nextTargets: StableTargetsState = {
+      [PLAYER]: game.players[PLAYER].targets.map((target, index) => {
+        if (lockedTargetSlots[PLAYER][index]) return current[PLAYER][index];
+        const existing = current[PLAYER][index];
+        if (existing?.id === target.uiId) {
+          return toVisualTarget(target, PLAYER, index);
+        }
+        return toVisualTarget(target, PLAYER, index);
+      }),
+      [ENEMY]: game.players[ENEMY].targets.map((target, index) => {
+        if (lockedTargetSlots[ENEMY][index]) return current[ENEMY][index];
+        const existing = current[ENEMY][index];
+        if (existing?.id === target.uiId) {
+          return toVisualTarget(target, ENEMY, index);
+        }
+        return toVisualTarget(target, ENEMY, index);
+      }),
+    };
+
+    if (nextTargets[PLAYER] !== current[PLAYER] || nextTargets[ENEMY] !== current[ENEMY]) {
+      commitStableTargets(nextTargets);
+    }
+  }, [commitStableTargets, game.players, lockedTargetSlots, toVisualTarget]);
+
+  const hasBlockingVisuals = useCallback(
+    () =>
+      travelMotionsRef.current.length > 0 ||
+      incomingHandsRef.current[PLAYER].length > 0 ||
+      incomingHandsRef.current[ENEMY].length > 0 ||
+      incomingTargetsRef.current[PLAYER].length > 0 ||
+      incomingTargetsRef.current[ENEMY].length > 0 ||
+      targetMotionsRef.current.length > 0,
+    [],
+  );
+
+  const finalizeTurn = useCallback(() => {
+    if (hasBlockingVisuals()) {
+      const retry = setTimeout(finalizeTurn, 120);
+      actionTimersRef.current.push(retry);
+      return;
+    }
+
+    clearAllTimers();
+    setGame((prev) => {
+      if (prev.winner !== null) return prev;
+      const nextTurn = prev.turn === PLAYER ? ENEMY : PLAYER;
+      const players = [...prev.players];
+      players[nextTurn] = { ...players[nextTurn], mulliganUsedThisRound: false };
+
+      return {
+        ...prev,
+        players: players.map((p, i) => (i === prev.turn ? clearTransientPlayerState(p) : p)),
+        turn: nextTurn,
+        actedThisTurn: false,
+        combatLocked: false,
+        selectedHandIndexes: [],
+        selectedCardForPlay: null,
+        log: addLog(prev.log, `Turno do ${nextTurn === PLAYER ? "Jogador" : "Oponente"}.`),
+        messageQueue: [
+          ...prev.messageQueue,
+          { title: nextTurn === PLAYER ? "Sua vez" : "Vez do oponente", detail: "", kind: "turn" },
+        ],
+      };
+    });
+    const nextTurnSide = gameRef.current.turn === PLAYER ? ENEMY : PLAYER;
+    emitTurnStartedEvent(gameRef.current.turn + 1, nextTurnSide);
+  }, [clearAllTimers, emitTurnStartedEvent, hasBlockingVisuals]);
+
+  const handleTargetMotionComplete = useCallback(
+    (motionId: string) => {
+      const motion = targetMotionsRef.current.find((item) => item.id === motionId);
+      if (!motion) return;
+
+      removeTargetMotion(motionId);
+    },
+    [removeTargetMotion],
+  );
+
+  const queueCompletedTargetDeparture = useCallback(
+    (result: {
+      actorIndex: number;
+      completedSlot: number | null;
+    }) => {
+      if (result.completedSlot == null) return;
+
+      const side = result.actorIndex;
+      const stableTarget = stableTargetsRef.current[side][result.completedSlot];
+      const origin = snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${result.completedSlot}`);
+      const destination = snapshotZone(zoneIdForSide(side, "discard"));
+
+      if (!stableTarget || !origin || !destination) {
+        setStableTargetSlot(side, result.completedSlot, null);
+        lockTargetSlot(side, result.completedSlot, true);
+        return;
+      }
+
+      lockTargetSlot(side, result.completedSlot, true);
+      setStableTargetSlot(side, result.completedSlot, null);
+      appendTargetMotion({
+        id: `target-motion-${stableTarget.id}-depart`,
+        type: "attack-exit",
+        side: side === PLAYER ? "player" : "enemy",
+        slotIndex: result.completedSlot,
+        entity: stableTarget,
+        origin,
+        destination,
+        attackMs: TIMINGS.attackMs - 280,
+        pauseMs: 220,
+        exitMs: TIMINGS.leaveMs,
+      });
+    },
+    [appendTargetMotion, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot],
+  );
+
+  const queueReplacementTargetArrival = useCallback(
+    (
+      actorIndex: number,
+      slotIndex: number,
+      logicalTarget: GameState["players"][0]["targets"][number],
+    ) => {
+      if (!logicalTarget) {
+        lockTargetSlot(actorIndex, slotIndex, false);
+        return;
+      }
+
+      const origin = snapshotZone(zoneIdForSide(actorIndex, "targetDeck"));
+      const entity = toVisualTarget(logicalTarget, actorIndex, slotIndex);
+
+      if (!origin) {
+        setStableTargetSlot(actorIndex, slotIndex, entity);
+        lockTargetSlot(actorIndex, slotIndex, false);
+        return;
+      }
+
+      appendIncomingTarget(actorIndex, {
+        id: `incoming-target-${entity.id}`,
+        side: actorIndex,
+        slotIndex,
+        entity,
+        origin,
+        delayMs: 0,
+        durationMs: TIMINGS.leaveMs,
+      });
+    },
+    [appendIncomingTarget, lockTargetSlot, setStableTargetSlot, snapshotZone, toVisualTarget],
+  );
+
+  const commitIncomingTargetToField = useCallback(
+    (incomingTarget: IncomingTargetCard) => {
+      removeIncomingTarget(incomingTarget.side, incomingTarget.id);
+      setStableTargetSlot(incomingTarget.side, incomingTarget.slotIndex, incomingTarget.entity);
+      lockTargetSlot(incomingTarget.side, incomingTarget.slotIndex, false);
+    },
+    [lockTargetSlot, removeIncomingTarget, setStableTargetSlot],
+  );
+
+  const commitPlayedTargetProgress = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, slotIndex: number) => {
+      const logicalTarget = gameRef.current.players[side].targets[slotIndex];
+      if (!logicalTarget) {
+        setPendingTargetPlacement(side, slotIndex, null);
+        lockTargetSlot(side, slotIndex, false);
+        return;
+      }
+
+      setStableTargetSlot(side, slotIndex, toVisualTarget(logicalTarget, side, slotIndex));
+      setPendingTargetPlacement(side, slotIndex, null);
+      lockTargetSlot(side, slotIndex, false);
+    },
+    [lockTargetSlot, setPendingTargetPlacement, setStableTargetSlot, toVisualTarget],
+  );
+
+  const startCombatSequence = (result: any) => {
+    const attackStartDelay = FLOW.cardToFieldMs + FLOW.cardSettleMs + FLOW.attackWindupMs;
+    const impactDelayMs = attackStartDelay + FLOW.attackTravelMs;
+    const replacementDelayMs =
+      attackStartDelay +
+      FLOW.attackTravelMs +
+      FLOW.impactPauseMs +
+      FLOW.targetExitMs +
+      FLOW.replacementGapMs;
+    const combatResolveEndMs = replacementDelayMs + FLOW.targetEnterMs + FLOW.targetSettleMs;
+    const drawStartDelayMs = impactDelayMs + FLOW.impactPauseMs + 120;
+    const drawTotalMs =
+      (result.drawnCards.length > 0 ? FLOW.drawTravelMs : 0) +
+      Math.max(0, result.drawnCards.length - 1) * FLOW.drawStaggerMs;
+    const drawResolveEndMs = drawStartDelayMs + drawTotalMs + FLOW.drawSettleMs;
+    const finishDelayMs = Math.max(combatResolveEndMs, drawResolveEndMs) + FLOW.visualSettleBufferMs;
+
+    const t1 = setTimeout(() => {
+      queueCompletedTargetDeparture(result);
+    }, attackStartDelay);
+
+    if (result.drawnCards.length > 0) {
+      queueHandDrawBatch(result.actorIndex, result.drawnCards, {
+        initialDelayMs: drawStartDelayMs,
+        staggerMs: FLOW.drawStaggerMs,
+        durationMs: FLOW.drawTravelMs,
+      });
+    }
+
+    const t2 = setTimeout(() => {
+      if (!result.damage) return;
+      emitDamageAppliedEvent(
+        gameRef.current.turn,
+        result.actorIndex,
+        result.actorIndex === PLAYER ? ENEMY : PLAYER,
+        result.damage,
+        result.damageSource,
+        result.impactLife,
+      );
+      setGame((prev) => {
+        const players = [...prev.players];
+        const opponentIndex = result.actorIndex === PLAYER ? ENEMY : PLAYER;
+        players[opponentIndex] = {
+          ...players[opponentIndex],
+          life: result.impactLife,
+          flashDamage: result.damage,
+        };
+        return {
+          ...prev,
+          players,
+        };
+      });
+    }, impactDelayMs);
+
+    const t3 = setTimeout(() => {
+      if (result.completedSlot == null) return;
+      const pIdx = result.actorIndex;
+      const deck = pIdx === PLAYER ? playerDeck : enemyDeck;
+      const previousTargetName = gameRef.current.players[pIdx].targets[result.completedSlot]?.name ?? "";
+      const nextPlayer = replaceTargetInSlot(gameRef.current.players[pIdx], result.completedSlot, deck);
+      const nextTarget = nextPlayer.targets[result.completedSlot];
+
+      emitTargetReplacedEvent(gameRef.current.turn, result.actorIndex, result.completedSlot, previousTargetName, nextTarget?.name ?? "");
+
+      setGame((prev) => {
+        const players = [...prev.players];
+        players[pIdx] = nextPlayer;
+        return { ...prev, players };
+      });
+
+      queueReplacementTargetArrival(result.actorIndex, result.completedSlot, nextTarget);
+    }, replacementDelayMs);
+
+    const t4 = setTimeout(() => {
+      setGame((prev) => ({
+        ...prev,
+        combatLocked: false,
+        players: prev.players.map((p) => ({ ...p, flashDamage: 0 })),
+      }));
+
+      if (result.winner !== null) {
+        setGame((prev) => ({ ...prev, winner: result.winner }));
+      } else {
+        finalizeTurn();
+      }
+    }, finishDelayMs);
+
+    actionTimersRef.current.push(t1, t2, t3, t4);
+  };
+
+  const resolvePlayInternal = (handIndex: number, targetIndex: number) =>
+    resolveBattlePlayAction(gameRef.current, handIndex, targetIndex);
+
+  type PlayResolution = NonNullable<ReturnType<typeof resolvePlayInternal>>;
+
+  const applyResolvedPlayFlow = ({
+    side,
+    targetIndex,
+    result,
+    clearSelection,
+  }: {
+    side: typeof PLAYER | typeof ENEMY;
+    targetIndex: number;
+    result: PlayResolution;
+    clearSelection: boolean;
+  }) => {
+    if (result.damage === 0) {
+      queueHandDrawBatch(side, result.drawnCards, {
+        initialDelayMs: getPlayDrawStartDelayMs(FLOW),
+        staggerMs: FLOW.drawStaggerMs,
+        durationMs: FLOW.drawTravelMs,
+      });
+    }
+
+    setGame((prev) => ({
+      ...prev,
+      players: result.nextPlayers as any,
+      winner: result.winner,
+      actedThisTurn: true,
+      combatLocked: result.damage > 0,
+      selectedHandIndexes: clearSelection ? [] : prev.selectedHandIndexes,
+      selectedCardForPlay: clearSelection ? null : prev.selectedCardForPlay,
+      currentMessage: null,
+      log: result.logs.reduce((acc, l) => addLog(acc, l), prev.log),
+    }));
+
+    createPlayResolutionEvents({
+      turn: game.turn,
+      side,
+      playedCard: result.playedCard,
+      targetSlot: targetIndex,
+      targetName: game.players[side].targets[targetIndex]?.name ?? "",
+      damage: result.damage,
+      damageSource: result.damageSource,
+      completedSlot: result.completedSlot,
+      drawnCards: result.drawnCards,
+    }).forEach(emitBattleEvent);
+
+    {
+      const t = setTimeout(() => commitPlayedTargetProgress(side, targetIndex), getPlayedCardCommitDelayMs(FLOW));
+      actionTimersRef.current.push(t);
+    }
+
+    if (result.damage > 0) {
+      startCombatSequence(result);
+    } else {
+      const t = setTimeout(finalizeTurn, getPlayFinishDelayMs(FLOW));
+      actionTimersRef.current.push(t);
+    }
+  };
+
+  const applyResolvedMulliganFlow = ({
+    side,
+    removedStableCards,
+    drawnCards,
+  }: {
+    side: typeof PLAYER | typeof ENEMY;
+    removedStableCards: VisualHandCard[];
+    drawnCards: Syllable[];
+  }) => {
+    createMulliganResolutionEvents({
+      turn: game.turn,
+      side,
+      returned: removedStableCards.map((card) => card.syllable),
+      drawn: drawnCards,
+    }).forEach(emitBattleEvent);
+
+    removedStableCards.forEach((card, index) => {
+      queueStableCardTravel(card, {
+        from: zoneIdForSide(side, "hand"),
+        to: zoneIdForSide(side, "deck"),
+        kind: side === localPlayerIndex ? "syllable" : "card-back",
+        delayMs: index * FLOW.mulliganReturnStaggerMs,
+        durationMs: FLOW.mulliganReturnMs,
+        arcHeight: 92,
+      });
+    });
+
+    queueHandDrawBatch(side, drawnCards, {
+      initialDelayMs: getMulliganDrawStartDelayMs(FLOW, removedStableCards.length),
+      staggerMs: FLOW.drawStaggerMs,
+      durationMs: FLOW.drawTravelMs,
+    });
+
+    const t = setTimeout(finalizeTurn, getMulliganFinishDelayMs(FLOW, removedStableCards.length, drawnCards.length));
+    actionTimersRef.current.push(t);
+  };
+
+  const executeBattleTurnAction = ({
+    side,
+    move,
+    selectedCardOrigin,
+    clearSelection,
+    clearIncomingHand,
+  }: {
+    side: typeof PLAYER | typeof ENEMY;
+    move: BattleTurnAction;
+    selectedCardOrigin?: ZoneAnchorSnapshot | null;
+    clearSelection: boolean;
+    clearIncomingHand?: boolean;
+  }) => {
+    if (move.type === "play") {
+      const result = resolvePlayInternal(move.handIndex, move.targetIndex);
+      if (!result) return;
+
+      const [playedStableCard] = removeStableCards(side, [move.handIndex]);
+      lockTargetSlot(side, move.targetIndex, true);
+      setPendingTargetPlacement(side, move.targetIndex, result.playedCard);
+
+      if (playedStableCard) {
+        queueStableCardTravel(playedStableCard, {
+          from: zoneIdForSide(side, "hand"),
+          to: zoneIdForSide(side, "field"),
+          kind: side === localPlayerIndex ? "syllable" : "card-back",
+          originOverride: selectedCardOrigin ?? undefined,
+          destinationOverride: snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`) ?? undefined,
+          durationMs: FLOW.cardToFieldMs,
+          arcHeight: side === localPlayerIndex ? 82 : 86,
+          selectedVisual: side === localPlayerIndex,
+          playableVisual: false,
+        });
+      }
+
+      applyResolvedPlayFlow({
+        side,
+        targetIndex: move.targetIndex,
+        result,
+        clearSelection,
+      });
+      return;
+    }
+
+    if (move.type === "mulligan") {
+      const selectedIndexes = [...move.handIndexes].sort((a, b) => b - a);
+      const removedStableCards = removeStableCards(side, selectedIndexes);
+
+      if (clearIncomingHand) {
+        commitIncomingHands({
+          ...incomingHandsRef.current,
+          [side]: [],
+        });
+      }
+
+      let drawnCards: Syllable[] = [];
+      let returnedCount = 0;
+      setGame((prev) => {
+        const resolution = resolveBattleMulliganAction(prev, side, selectedIndexes, CONFIG.handSize);
+        drawnCards = [...resolution.drawnCards];
+        returnedCount = resolution.returnedCards.length;
+        return {
+          ...prev,
+          players: resolution.nextPlayers as any,
+          selectedHandIndexes: clearSelection ? [] : prev.selectedHandIndexes,
+          selectedCardForPlay: clearSelection ? null : prev.selectedCardForPlay,
+          actedThisTurn: true,
+          currentMessage: null,
+          log: addLog(
+            prev.log,
+            side === PLAYER
+              ? `Mulligan: devolveu ${returnedCount} cartas e encerrou o turno.`
+              : "Oponente usou Mulligan.",
+          ),
+        };
+      });
+
+      applyResolvedMulliganFlow({
+        side,
+        removedStableCards,
+        drawnCards,
+      });
+      return;
+    }
+
+    finalizeTurn();
+  };
+
+  const snapshotActionOrigin = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, action: BattleTurnAction) => {
+      if (action.type !== "play") return null;
+      const selectedStableCard = stableHandsRef.current[side][action.handIndex];
+      return selectedStableCard ? snapshotHandCard(selectedStableCard.id) : null;
+    },
+    [snapshotHandCard],
+  );
+
+  const requestBattleAction = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, action: BattleTurnAction) => {
+      if (mode !== "multiplayer" || !onActionRequested) return false;
+
+      const sequence = actionSequenceRef.current[side];
+      actionSequenceRef.current[side] += 1;
+      onActionRequested({
+        id: `battle-action-${side === PLAYER ? "player" : "enemy"}-${gameRef.current.setupVersion}-${battleActionIdRef.current++}`,
+        setupVersion: gameRef.current.setupVersion,
+        sequence,
+        turn: gameRef.current.turn,
+        side: side === PLAYER ? "player" : "enemy",
+        action,
+      });
+      return true;
+    },
+    [mode, onActionRequested],
+  );
+
+  const shouldExecuteLocallyAfterRequest = useCallback(
+    (side: typeof PLAYER | typeof ENEMY) => {
+      if (mode !== "multiplayer" || !onActionRequested) return false;
+      if (roomTransportKind !== "remote") return false;
+      return localSide === "player" && side === localPlayerIndex;
+    },
+    [localPlayerIndex, localSide, mode, onActionRequested, roomTransportKind],
+  );
+
+  const dispatchBattleAction = useCallback(
+    ({
+      side,
+      move,
+      clearSelection,
+      clearIncomingHand,
+    }: {
+      side: typeof PLAYER | typeof ENEMY;
+      move: BattleTurnAction;
+      clearSelection: boolean;
+      clearIncomingHand?: boolean;
+    }) => {
+      const requested = requestBattleAction(side, move);
+      if (requested && !shouldExecuteLocallyAfterRequest(side)) return;
+
+      executeBattleTurnAction({
+        side,
+        move,
+        selectedCardOrigin: snapshotActionOrigin(side, move),
+        clearSelection,
+        clearIncomingHand,
+      });
+    },
+    [requestBattleAction, shouldExecuteLocallyAfterRequest, snapshotActionOrigin],
+  );
+
+  const playOnTarget = (targetIndex: number) => {
+    if (game.turn !== localPlayerIndex || game.winner !== null || game.actedThisTurn || game.selectedCardForPlay === null || game.combatLocked) return;
+
+    dispatchBattleAction({
+      side: localPlayerIndex,
+      move: {
+        type: "play",
+        handIndex: game.selectedCardForPlay,
+        targetIndex,
+      },
+      clearSelection: true,
+      clearIncomingHand: false,
+    });
+  };
+
+  const handleMulligan = () => {
+    const me = game.players[localPlayerIndex];
+    const stuck = isHandStuck(me);
+
+    if (
+      game.turn !== localPlayerIndex ||
+      game.winner !== null ||
+      game.combatLocked ||
+      me.mulliganUsedThisRound ||
+      !stuck ||
+      game.selectedHandIndexes.length === 0 ||
+      game.selectedHandIndexes.length > CONFIG.maxMulligan ||
+      game.actedThisTurn
+    ) {
+      return;
+    }
+
+    clearAllTimers();
+    const selectedIndexes = [...new Set<number>(game.selectedHandIndexes)].sort((a, b) => b - a);
+    dispatchBattleAction({
+      side: localPlayerIndex,
+      move: {
+        type: "mulligan",
+        handIndexes: selectedIndexes,
+      },
+      clearSelection: true,
+      clearIncomingHand: true,
+    });
+  };
+
+  useEffect(() => {
+    const shouldRunEnemyAuto = mode === "bot" || (mode === "multiplayer" && enableMockRoomBot);
+    if (game.turn !== remotePlayerIndex || game.winner !== null || game.combatLocked || !shouldRunEnemyAuto) return;
+
+    const botAction = setTimeout(() => {
+      const move = resolveBotTurnAction({
+        actedThisTurn: gameRef.current.actedThisTurn,
+        hand: gameRef.current.players[remotePlayerIndex].hand,
+        targets: gameRef.current.players[remotePlayerIndex].targets,
+        mulliganUsedThisRound: gameRef.current.players[remotePlayerIndex].mulliganUsedThisRound,
+        maxMulligan: CONFIG.maxMulligan,
+      });
+      if (move) {
+        dispatchBattleAction({
+          side: remotePlayerIndex,
+          move,
+          clearSelection: false,
+          clearIncomingHand: false,
+        });
+      }
+    }, TIMINGS.botThinkMs);
+
+    return () => clearTimeout(botAction);
+  }, [dispatchBattleAction, enableMockRoomBot, game.turn, game.winner, game.combatLocked, mode, remotePlayerIndex]);
+
+  useEffect(() => {
+    if (!pendingExternalAction) return;
+    if (processedExternalActionIdsRef.current.has(pendingExternalAction.id)) return;
+    if (pendingExternalAction.setupVersion !== gameRef.current.setupVersion) {
+      processedExternalActionIdsRef.current.add(pendingExternalAction.id);
+      onExternalActionConsumed?.(pendingExternalAction.id);
+      return;
+    }
+    if (pendingExternalAction.turn < gameRef.current.turn) {
+      processedExternalActionIdsRef.current.add(pendingExternalAction.id);
+      onExternalActionConsumed?.(pendingExternalAction.id);
+      return;
+    }
+    if (pendingExternalAction.turn !== gameRef.current.turn) return;
+
+    const side = pendingExternalAction.side === "player" ? PLAYER : ENEMY;
+    processedExternalActionIdsRef.current.add(pendingExternalAction.id);
+    onExternalActionConsumed?.(pendingExternalAction.id);
+
+    executeBattleTurnAction({
+      side,
+      move: pendingExternalAction.action,
+      selectedCardOrigin: snapshotActionOrigin(side, pendingExternalAction.action),
+      clearSelection: side === localPlayerIndex,
+      clearIncomingHand: side === localPlayerIndex && pendingExternalAction.action.type === "mulligan",
+    });
+  }, [executeBattleTurnAction, localPlayerIndex, onExternalActionConsumed, pendingExternalAction, snapshotActionOrigin]);
+
+  useEffect(() => {
+    if (mode !== "multiplayer" || localSide !== "player" || !onBattleSnapshotPublished) return;
+    if (hasBlockingVisuals() || game.combatLocked) return;
+
+    const signature = buildBattleSnapshotSignature(game);
+    if (publishedSnapshotSignatureRef.current === signature) return;
+    publishedSnapshotSignatureRef.current = signature;
+    onBattleSnapshotPublished(cloneInitialGame(game));
+  }, [
+    buildBattleSnapshotSignature,
+    cloneInitialGame,
+    game,
+    hasBlockingVisuals,
+    localSide,
+    mode,
+    onBattleSnapshotPublished,
+  ]);
+
+  useEffect(() => {
+    if (!authoritativeBattleSnapshot || mode !== "multiplayer" || localSide === "player") return;
+    pendingAuthoritativeSnapshotRef.current = authoritativeBattleSnapshot;
+  }, [authoritativeBattleSnapshot, localSide, mode]);
+
+  useEffect(() => {
+    if (mode !== "multiplayer" || localSide === "player") return;
+    const pendingSnapshot = pendingAuthoritativeSnapshotRef.current;
+    if (!pendingSnapshot) return;
+    if (hasBlockingVisuals() || game.combatLocked) return;
+
+    const nextSignature = buildBattleSnapshotSignature(pendingSnapshot);
+    const currentSignature = buildBattleSnapshotSignature(gameRef.current);
+    pendingAuthoritativeSnapshotRef.current = null;
+    if (nextSignature === currentSignature) return;
+
+    hydrateBattleSnapshot(pendingSnapshot);
+  }, [
+    authoritativeBattleSnapshot,
+    buildBattleSnapshotSignature,
+    game.combatLocked,
+    hasBlockingVisuals,
+    hydrateBattleSnapshot,
+    incomingHands,
+    incomingTargets,
+    localSide,
+    mode,
+    targetMotions,
+    travelMotions,
+  ]);
+
+  useEffect(() => {
+    if (game.currentMessage) {
+      const durationMs =
+        game.currentMessage.kind === "turn"
+          ? 1200
+          : game.currentMessage.kind === "damage"
+            ? 900
+            : 1100;
+      const t = setTimeout(() => setGame((prev) => ({ ...prev, currentMessage: null })), durationMs);
+      return () => clearTimeout(t);
+    }
+
+    if (game.messageQueue.length > 0 && !hasBlockingVisuals() && !game.combatLocked) {
+      setGame((prev) => {
+        const [first, ...rest] = prev.messageQueue;
+        return { ...prev, currentMessage: first, messageQueue: rest };
+      });
+    }
+  }, [
+    game.combatLocked,
+    game.currentMessage,
+    game.messageQueue,
+    hasBlockingVisuals,
+    incomingHands,
+    incomingTargets,
+    targetMotions,
+    travelMotions,
+  ]);
+
+  const me = game.players[localPlayerIndex];
+  const enemy = game.players[remotePlayerIndex];
+  const selectedCard = game.selectedCardForPlay !== null ? me.hand[game.selectedCardForPlay] : null;
+  const canSwap = game.turn === localPlayerIndex && !game.combatLocked && !game.actedThisTurn && isHandStuck(me) && !me.mulliganUsedThisRound;
+  const turnMinutes = Math.floor(turnElapsedMs / 60000);
+  const turnSeconds = Math.floor((turnElapsedMs % 60000) / 1000);
+  const turnClock = `${String(turnMinutes).padStart(2, "0")}:${String(turnSeconds).padStart(2, "0")}`;
+
+  const renderPlayerHand = (scale: "desktop" | "mobile") => (
+    <HandFan
+      side={localPlayerIndex}
+      presentation="local"
+      stableCards={stableHands[localPlayerIndex]}
+      incomingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? incomingHands[localPlayerIndex] : []}
+      scale={scale}
+      anchorRef={bindZoneRef("playerHand", `layout-${scale}`)}
+      onIncomingCardComplete={commitIncomingCardToHand}
+      hoveredCardIndex={hoveredCardIndex}
+      onHoverCard={setHoveredCardIndex}
+      selectedIndexes={game.selectedHandIndexes}
+      canInteract={game.turn === localPlayerIndex && !game.combatLocked && !game.actedThisTurn}
+      showTurnHighlights={game.turn === localPlayerIndex}
+      showPlayableHints={game.turn === localPlayerIndex && !game.combatLocked && !game.actedThisTurn}
+      targets={me.targets}
+      onCardClick={(i) => {
+        setGame((prev) => {
+          const already = prev.selectedHandIndexes.includes(i);
+          const swapMode =
+            prev.turn === localPlayerIndex &&
+            !prev.combatLocked &&
+            !prev.actedThisTurn &&
+            !prev.players[localPlayerIndex].mulliganUsedThisRound &&
+            isHandStuck(prev.players[localPlayerIndex]);
+
+          const next = already
+            ? prev.selectedHandIndexes.filter((index) => index !== i)
+            : swapMode
+              ? (prev.selectedHandIndexes.length < CONFIG.maxMulligan ? [...prev.selectedHandIndexes, i] : [i])
+              : [i];
+
+          return {
+            ...prev,
+            selectedHandIndexes: next,
+            selectedCardForPlay: next.length === 1 ? next[0] : null,
+          };
+        });
+      }}
+      freshCardIds={freshCardIds}
+      bindCardRef={bindHandCardRef}
+    />
+  );
+
+  const renderEnemyHand = (scale: "desktop" | "mobile") => (
+    <HandFan
+      side={remotePlayerIndex}
+      presentation="remote"
+      stableCards={stableHands[remotePlayerIndex]}
+      incomingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? incomingHands[remotePlayerIndex] : []}
+      scale={scale}
+      pulse={enemyHandPulse}
+      anchorRef={bindZoneRef("enemyHand", `layout-${scale}`)}
+      onIncomingCardComplete={commitIncomingCardToHand}
+    />
+  );
+
+  return (
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#1a472a] font-sans text-amber-100">
+      <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/felt.png')] opacity-30" />
+      <div className="pointer-events-none absolute inset-0 bg-radial-gradient(circle at 50% 50%, transparent 0%, rgba(0,0,0,0.5) 100%)" />
+      <BoardTravelLayer motions={travelMotions} onMotionComplete={handleTravelMotionComplete} />
+      <TargetMotionLayer motions={targetMotions} onMotionComplete={handleTargetMotionComplete} />
+
+      <main className="relative z-10 flex h-full min-h-0 flex-col gap-1 px-3 py-2 sm:gap-2 sm:px-4 sm:py-3 lg:gap-0 lg:px-5 lg:pt-2 lg:pb-3">
+        <header className="grid grid-cols-[1fr_auto] items-start gap-2 lg:grid-cols-[240px_1fr_240px]">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onExit} className="h-9 rounded-lg border border-white/5 px-3 text-amber-100/60 hover:bg-white/10 hover:text-amber-100">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Sair</span>
+            </Button>
+            {mode !== "multiplayer" ? (
+              <Button variant="ghost" size="sm" onClick={resetGame} className="h-9 w-9 rounded-lg border border-white/5 p-0 text-amber-100/60 hover:bg-white/10 hover:text-amber-100">
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            ) : (
+              <div className="h-9 w-9" />
+            )}
+          </div>
+
+          <div className="hidden lg:block" />
+
+          <div className="hidden lg:block" />
+        </header>
+
+        <section className="grid min-h-0 flex-1 gap-2 lg:gap-1 lg:grid-cols-[220px_minmax(0,1fr)_220px]">
+          <aside className="hidden min-h-0 flex-col gap-3 pt-4 lg:flex">
+            <div className="px-2 pt-4 pb-1">
+              <div className="relative flex items-start justify-center gap-3">
+                <div ref={bindZoneRef("enemyDiscard", "desktop")} className="pointer-events-none absolute -left-4 top-1/2 h-20 w-14 -translate-y-1/2 opacity-0" />
+                <div>
+                  <CardPile
+                    label="ALVOS"
+                    count={enemy.targetDeck.length}
+                    color="bg-rose-950"
+                    anchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
+                  />
+                </div>
+                <div>
+                  <CardPile
+                    label="DECK"
+                    count={enemy.syllableDeck.length}
+                    color="bg-amber-950"
+                    anchorRef={bindZoneRef("enemyDeck", "desktop")}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="paper-panel h-[320px] overflow-y-auto rounded-xl border-2 border-amber-900/30 bg-parchment/95 p-4 text-[11px] font-serif italic text-amber-950 shadow-2xl no-scrollbar">
+              <div className="mb-3 border-b-2 border-amber-900/10 pb-2 text-center text-[10px] font-black uppercase tracking-[0.2em]">
+                Cronicas
+              </div>
+              <div className="flex flex-col gap-2">
+                <AnimatePresence initial={false}>
+                  {game.log.map((item, idx) => (
+                    <motion.div
+                      key={`${idx}-${item}`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="rounded-r-md border-l-2 border-amber-900/20 bg-black/5 py-1 pl-3 leading-relaxed"
+                    >
+                      {item}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          </aside>
+
+          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 lg:mx-auto lg:w-full lg:max-w-[980px]">
+            <div className="rounded-[2rem] border border-white/10 bg-black/35 px-4 py-2 shadow-xl lg:hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="w-full">
+                  {renderEnemyHand("mobile")}
+                </div>
+                <div className="flex gap-3">
+                  <div>
+                    <CardPile
+                      label="ALVOS"
+                      count={enemy.targetDeck.length}
+                      color="bg-rose-950"
+                      anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
+                    />
+                  </div>
+                  <div>
+                    <CardPile
+                      label="DECK"
+                      count={enemy.syllableDeck.length}
+                      color="bg-amber-950"
+                      anchorRef={bindZoneRef("enemyDeck", "mobile")}
+                    />
+                  </div>
+                  <div ref={bindZoneRef("enemyDiscard", "mobile")} className="pointer-events-none h-0 w-0 opacity-0" />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2 lg:grid-rows-[84px_minmax(0,1fr)_156px]">
+              <div className="flex justify-center -mt-3 -mb-2 sm:-mt-2 lg:hidden">
+                <PlayerPortrait label="Oponente" life={enemy.life} active={game.turn === remotePlayerIndex} flashDamage={enemy.flashDamage} />
+              </div>
+
+              <div className="hidden h-[84px] items-start px-2 lg:grid lg:grid-cols-[1fr_300px] lg:gap-3">
+                <div className="flex items-start justify-end pr-6 -mt-20">
+                  {renderEnemyHand("desktop")}
+                </div>
+                <div className="flex items-start justify-start -mt-6 pl-9">
+                  <PlayerPortrait label="Oponente" life={enemy.life} active={game.turn === remotePlayerIndex} flashDamage={enemy.flashDamage} />
+                </div>
+              </div>
+
+              <div className="relative min-h-0 overflow-visible rounded-[2.5rem] border-8 border-amber-900/40 bg-black/40 shadow-[inset_0_0_120px_rgba(0,0,0,0.7)] lg:h-full">
+                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2rem]">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(17,24,39,0.05)_0%,rgba(0,0,0,0.45)_100%)]" />
+                </div>
+
+                <div className="grid h-full min-h-0 grid-rows-[minmax(180px,1fr)_minmax(180px,1fr)] gap-2 px-3 py-2 sm:px-4 sm:py-3 lg:px-6 lg:pt-2 lg:pb-4">
+                  <section className="flex min-h-0 items-start justify-center overflow-visible pt-1 lg:pt-0">
+                    <div ref={bindZoneRef("enemyField", "main")} className="mx-auto grid w-full max-w-[300px] grid-cols-2 place-items-start justify-items-center gap-3 lg:max-w-[380px] lg:gap-5">
+                      {Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
+                        const visualTarget = stableTargets[remotePlayerIndex][idx];
+                        const incomingTarget = incomingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
+                        const displayedTarget = incomingTarget?.entity ?? visualTarget;
+                        const slotNode = zoneNodesRef.current[zoneRefKey("enemyField", `slot-${idx}`)];
+                        const slotRect = slotNode?.getBoundingClientRect();
+                        const startX = incomingTarget && slotRect
+                          ? incomingTarget.origin.left + incomingTarget.origin.width / 2 - slotRect.left - TRAVEL_TARGET_CARD_SIZE.width / 2
+                          : 0;
+                        const startY = incomingTarget && slotRect
+                          ? incomingTarget.origin.top + incomingTarget.origin.height / 2 - slotRect.top - TRAVEL_TARGET_CARD_SIZE.height / 2
+                          : 0;
+                        return (
+                          <div
+                            key={displayedTarget?.id ?? `enemy-slot-${idx}`}
+                            ref={bindZoneRef("enemyField", `slot-${idx}`)}
+                            className="relative flex min-h-[clamp(164px,20vh,220px)] w-[clamp(108px,13.5vw,156px)] items-start justify-center overflow-visible"
+                          >
+                            {displayedTarget ? (
+                              <motion.div
+                                key={displayedTarget.id}
+                                initial={incomingTarget && slotRect ? { opacity: 1, x: startX, y: startY, rotate: -12, scale: 0.88 } : false}
+                                animate={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
+                                transition={incomingTarget
+                                  ? { duration: incomingTarget.durationMs / 1000, delay: incomingTarget.delayMs / 1000, ease: [0.22, 1, 0.36, 1] }
+                                  : { type: "spring", stiffness: 80, damping: 18 }}
+                                onAnimationComplete={() => incomingTarget ? commitIncomingTargetToField(incomingTarget) : undefined}
+                                className="absolute left-0 top-0 origin-center"
+                              >
+                                <TargetCard target={displayedTarget.target} selectedCard={null} isPlayerSide={false} canClick={false} onClick={() => {}} />
+                              </motion.div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="flex min-h-0 items-start justify-center overflow-visible pt-2 lg:pt-3">
+                    <div ref={bindZoneRef("playerField", "main")} className="mx-auto grid w-full max-w-[300px] grid-cols-2 place-items-start justify-items-center gap-3 lg:max-w-[380px] lg:gap-5">
+                      {Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
+                        const visualTarget = stableTargets[localPlayerIndex][idx];
+                        const incomingTarget = incomingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
+                        const displayedTarget = incomingTarget?.entity ?? visualTarget;
+                        const slotNode = zoneNodesRef.current[zoneRefKey("playerField", `slot-${idx}`)];
+                        const slotRect = slotNode?.getBoundingClientRect();
+                        const startX = incomingTarget && slotRect
+                          ? incomingTarget.origin.left + incomingTarget.origin.width / 2 - slotRect.left - TRAVEL_TARGET_CARD_SIZE.width / 2
+                          : 0;
+                        const startY = incomingTarget && slotRect
+                          ? incomingTarget.origin.top + incomingTarget.origin.height / 2 - slotRect.top - TRAVEL_TARGET_CARD_SIZE.height / 2
+                          : 0;
+                        return (
+                          <div
+                            key={displayedTarget?.id ?? `player-slot-${idx}`}
+                            ref={bindZoneRef("playerField", `slot-${idx}`)}
+                            className="relative flex min-h-[clamp(164px,20vh,220px)] w-[clamp(108px,13.5vw,156px)] items-start justify-center overflow-visible"
+                          >
+                            {displayedTarget ? (
+                              <motion.div
+                                key={displayedTarget.id}
+                                initial={incomingTarget && slotRect ? { opacity: 1, x: startX, y: startY, rotate: 12, scale: 0.88 } : false}
+                                animate={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
+                                transition={incomingTarget
+                                  ? { duration: incomingTarget.durationMs / 1000, delay: incomingTarget.delayMs / 1000, ease: [0.22, 1, 0.36, 1] }
+                                  : { type: "spring", stiffness: 80, damping: 18 }}
+                                onAnimationComplete={() => incomingTarget ? commitIncomingTargetToField(incomingTarget) : undefined}
+                                className="absolute left-0 top-0 origin-center"
+                              >
+                                <TargetCard
+                                  target={displayedTarget.target}
+                                  selectedCard={selectedCard}
+                                  pendingCard={pendingTargetPlacements[localPlayerIndex][idx]}
+                                  isPlayerSide={true}
+                                  canClick={Boolean(
+                                    displayedTarget &&
+                                      !incomingTarget &&
+                                      !lockedTargetSlots[localPlayerIndex][idx] &&
+                                      game.turn === localPlayerIndex &&
+                                      !game.combatLocked &&
+                                      !game.actedThisTurn &&
+                                      game.selectedCardForPlay !== null,
+                                  )}
+                                  onClick={() => playOnTarget(idx)}
+                                  playerHand={me.hand}
+                                />
+                              </motion.div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+
+                <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2">
+                  <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-amber-400/20 to-transparent" />
+                  <div className="flex items-center justify-center">
+                    <AnimatePresence mode="wait">
+                      {game.currentMessage ? (
+                        <motion.div
+                          key={game.currentMessage.title}
+                          initial={{ opacity: 0, scale: 0.4, y: 20 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 1.8, y: -20 }}
+                          className={cn(
+                            "paper-panel z-50 min-w-[200px] rounded-2xl border-4 px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.5)] sm:min-w-[260px] sm:px-8 sm:py-4",
+                            game.currentMessage.kind === "damage" ? "bg-rose-50 border-rose-900" : "bg-amber-50 border-amber-900",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "text-center font-serif text-xl font-black uppercase tracking-tighter sm:text-3xl",
+                              game.currentMessage.kind === "damage" ? "text-rose-900" : "text-amber-950",
+                            )}
+                          >
+                            {game.currentMessage.title}
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <div className="flex items-center gap-4 opacity-10 sm:gap-6">
+                          <div className="h-0.5 w-16 bg-amber-100 sm:w-36" />
+                          <Swords className="h-7 w-7 text-amber-100 sm:h-8 sm:w-8" />
+                          <div className="h-0.5 w-16 bg-amber-100 sm:w-36" />
+                        </div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden h-[156px] items-end px-2 lg:grid lg:grid-cols-[260px_1fr] lg:gap-4">
+                <div className="flex items-end justify-end pr-1 pb-7">
+                  <PlayerPortrait label="Voc\u00EA" life={me.life} active={game.turn === localPlayerIndex} flashDamage={me.flashDamage} />
+                </div>
+                <div className="flex items-end justify-start overflow-visible">
+                  {renderPlayerHand("desktop")}
+                </div>
+              </div>
+
+              <div className="flex justify-center lg:hidden">
+                <PlayerPortrait label="Voc\u00EA" life={me.life} active={game.turn === localPlayerIndex} flashDamage={me.flashDamage} />
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex gap-3">
+                  <div>
+                    <CardPile
+                      label="ALVOS"
+                      count={me.targetDeck.length}
+                      color="bg-rose-950"
+                      anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
+                    />
+                  </div>
+                  <div>
+                    <CardPile
+                      label="DECK"
+                      count={me.syllableDeck.length}
+                      color="bg-amber-950"
+                      anchorRef={bindZoneRef("playerDeck", "mobile")}
+                    />
+                  </div>
+                  <div ref={bindZoneRef("playerDiscard", "mobile")} className="pointer-events-none h-0 w-0 opacity-0" />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-center shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-100/30">Tempo</div>
+                    <div className="mt-1 text-lg font-black text-amber-200">{turnClock}</div>
+                  </div>
+
+                  {canSwap && (
+                    <Button
+                      variant="outline"
+                      className="h-16 rounded-2xl border-4 border-amber-500 bg-amber-900/95 px-5 font-black text-amber-100 shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-transform hover:scale-105"
+                      disabled={game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan}
+                      onClick={handleMulligan}
+                    >
+                      <RefreshCw className="mr-2 h-5 w-5" />
+                      TROCAR 3
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside className="hidden min-h-0 flex-col justify-between gap-2 lg:flex">
+            <div className="rounded-[2rem] border border-white/10 bg-black/35 p-4 shadow-xl">
+              <div className="mb-4 text-center text-[10px] font-black uppercase tracking-[0.3em] text-amber-100/30">Controle</div>
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-center text-[11px] font-black uppercase tracking-[0.4em] text-amber-100/50">
+                    {game.turn === localPlayerIndex ? "Seu Turno" : "Turno do Oponente"}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-2 py-1">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-full rounded-[1.25rem] border border-white/10 bg-black/30 px-4 py-4 text-center shadow-inner">
+                  <div className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-100/30">Tempo</div>
+                  <div className="mt-2 text-3xl font-black tracking-wider text-amber-200">{turnClock}</div>
+                </div>
+
+                {canSwap ? (
+                  <Button
+                    variant="outline"
+                    className="flex h-24 w-24 flex-col items-center justify-center rounded-full border-4 border-amber-500 bg-amber-900/95 font-black text-amber-100 shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-transform hover:scale-105"
+                    disabled={game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan}
+                    onClick={handleMulligan}
+                  >
+                    <RefreshCw className="mb-1 h-8 w-8" />
+                    <span className="text-center font-serif text-[10px] leading-tight">TROCAR 3</span>
+                  </Button>
+                ) : (
+                  <div className="rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-center text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/35">
+                    {game.turn === localPlayerIndex ? "Aguardando jogada" : "Oponente pensando"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-2 py-1">
+              <div className="relative flex items-start justify-center gap-3">
+                <div ref={bindZoneRef("playerDiscard", "desktop")} className="pointer-events-none absolute -left-4 top-1/2 h-20 w-14 -translate-y-1/2 opacity-0" />
+                <div>
+                  <CardPile
+                    label="ALVOS"
+                    count={me.targetDeck.length}
+                    color="bg-rose-950"
+                    anchorRef={bindZoneRef("playerTargetDeck", "desktop")}
+                  />
+                </div>
+                <div>
+                  <CardPile
+                    label="DECK"
+                    count={me.syllableDeck.length}
+                    color="bg-amber-950"
+                    anchorRef={bindZoneRef("playerDeck", "desktop")}
+                  />
+                </div>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section className="mt-auto px-0 pt-7 lg:hidden">
+          <div>
+            {renderPlayerHand("mobile")}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+};
