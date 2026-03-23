@@ -41,7 +41,7 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
   }
 
   return (
-    <div className="flex w-[244px] flex-col items-center gap-4">
+    <div className="flex w-[200px] flex-col items-center gap-4">
       <div
         className={cn(
           "paper-panel relative flex h-[146px] w-full flex-col justify-center overflow-hidden rounded-xl border-2 p-4 text-center shadow-2xl transition-all duration-300",

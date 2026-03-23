@@ -111,6 +111,12 @@ const TURN_RELEASE_DELAY_MS =
   TURN_PRESENTATION.bannerDurationMs +
   TURN_PRESENTATION.interactionReleaseBufferMs;
 
+function getTurnCycleKey(state: Pick<GameState, "setupVersion" | "turn" | "turnDeadlineAt" | "openingIntroStep">) {
+  return state.openingIntroStep !== "done"
+    ? `${state.setupVersion}:intro`
+    : `${state.setupVersion}:${state.turn}:${state.turnDeadlineAt ?? "na"}`;
+}
+
 const SNAPSHOT_INTRO_PROGRESS: Record<BattleIntroPhase, number> = {
   "coin-choice": 0,
   "coin-fall": 1,
@@ -309,11 +315,7 @@ export const Battle: React.FC<BattleProps> = ({
   const pendingAuthoritativeSnapshotRef = useRef<GameState | null>(null);
   const publishedSnapshotSignatureRef = useRef<string>("");
   const timedOutTurnKeyRef = useRef("");
-  const presentedTurnKeyRef = useRef(
-    initialGameRef.current.openingIntroStep === "done"
-      ? `${initialGameRef.current.setupVersion}:${initialGameRef.current.turn}`
-      : `${initialGameRef.current.setupVersion}:intro`,
-  );
+  const presentedTurnKeyRef = useRef(getTurnCycleKey(initialGameRef.current));
   const createVisualHandCard = useCallback(
     (syllable: Syllable, side: typeof PLAYER | typeof ENEMY): VisualHandCard => ({
       id: `hand-card-${side}-${handCardIdRef.current++}`,
@@ -899,10 +901,14 @@ export const Battle: React.FC<BattleProps> = ({
       const freshGame = cloneInitialGame(snapshot);
       const shouldRunIntro = isFreshBattleState(freshGame) && freshGame.openingIntroStep !== "done";
       const previousGame = gameRef.current;
-      const nextTurnPresentationKey = `${freshGame.setupVersion}:${freshGame.turn}`;
+      const nextTurnPresentationKey = getTurnCycleKey(freshGame);
       const shouldReplayTurnPresentation =
         freshGame.openingIntroStep === "done" &&
-        (previousGame.setupVersion !== freshGame.setupVersion || previousGame.turn !== freshGame.turn);
+        (
+          previousGame.setupVersion !== freshGame.setupVersion ||
+          previousGame.turn !== freshGame.turn ||
+          previousGame.turnDeadlineAt !== freshGame.turnDeadlineAt
+        );
       const preservedStableHands =
         previousGame.setupVersion === freshGame.setupVersion
           ? {
@@ -949,11 +955,7 @@ export const Battle: React.FC<BattleProps> = ({
         [ENEMY]: 0,
       };
       presentedTurnKeyRef.current =
-        freshGame.openingIntroStep !== "done"
-          ? `${freshGame.setupVersion}:intro`
-          : shouldReplayTurnPresentation
-            ? ""
-            : nextTurnPresentationKey;
+        shouldReplayTurnPresentation ? "" : nextTurnPresentationKey;
       setShowResultOverlay(false);
       setGame(freshGame);
     },
@@ -1408,7 +1410,7 @@ export const Battle: React.FC<BattleProps> = ({
     if (!timeoutAuthorityLocal) return;
     if (introPhase !== "done" || game.winner !== null || game.turnDeadlineAt == null || game.actedThisTurn) return;
 
-    const turnKey = `${game.setupVersion}:${game.turn}`;
+    const turnKey = getTurnCycleKey(game);
     if (timedOutTurnKeyRef.current === turnKey) return;
 
     const remainingMs = game.turnDeadlineAt - Date.now();
@@ -2055,7 +2057,7 @@ export const Battle: React.FC<BattleProps> = ({
         gameRef.current.turnDeadlineAt != null &&
         Date.now() >= gameRef.current.turnDeadlineAt
       ) {
-        const overdueTurnKey = `${gameRef.current.setupVersion}:${gameRef.current.turn}`;
+        const overdueTurnKey = getTurnCycleKey(gameRef.current);
         if (timedOutTurnKeyRef.current !== overdueTurnKey) {
           timedOutTurnKeyRef.current = overdueTurnKey;
           finalizeTurn();
@@ -2157,7 +2159,7 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     if (introPhase !== "done") {
-      presentedTurnKeyRef.current = `${game.setupVersion}:intro`;
+      presentedTurnKeyRef.current = getTurnCycleKey(game);
       setTurnPresentationLocked(false);
       return;
     }
@@ -2167,7 +2169,7 @@ export const Battle: React.FC<BattleProps> = ({
       return;
     }
 
-    const presentationKey = `${game.setupVersion}:${game.turn}`;
+    const presentationKey = getTurnCycleKey(game);
     if (presentedTurnKeyRef.current === presentationKey) return;
     presentedTurnKeyRef.current = presentationKey;
     setTurnPresentationLocked(true);
@@ -2175,7 +2177,7 @@ export const Battle: React.FC<BattleProps> = ({
     const queueTimer = setTimeout(() => {
       setGame((prev) => {
         if (prev.winner !== null || prev.openingIntroStep !== "done") return prev;
-        if (prev.setupVersion !== game.setupVersion || prev.turn !== game.turn) return prev;
+        if (prev.setupVersion !== game.setupVersion || prev.turn !== game.turn || prev.turnDeadlineAt !== game.turnDeadlineAt) return prev;
         return {
           ...prev,
           messageQueue: [
@@ -2194,7 +2196,7 @@ export const Battle: React.FC<BattleProps> = ({
       clearTimeout(queueTimer);
       clearTimeout(releaseTimer);
     };
-  }, [game.setupVersion, game.turn, game.winner, getTurnMessageTitle, introPhase]);
+  }, [game.setupVersion, game.turn, game.turnDeadlineAt, game.winner, getTurnMessageTitle, introPhase]);
 
   useEffect(() => {
     if (game.currentMessage) {
@@ -2650,7 +2652,7 @@ export const Battle: React.FC<BattleProps> = ({
           }
           rightSidebar={
             <aside className="hidden min-h-0 flex-col items-center pt-3 lg:flex">
-              <div className="w-[244px] py-1">
+              <div className="flex w-[244px] justify-center py-1">
                 <BattleStatusPanel
                   presentation="desktop"
                   title="Controle"
@@ -2660,7 +2662,7 @@ export const Battle: React.FC<BattleProps> = ({
                 />
               </div>
 
-              <div className="flex min-h-0 flex-1 items-center py-2">
+              <div className="flex min-h-0 flex-1 items-center justify-center py-2">
                 <Button
                   variant="outline"
                   className={cn(
