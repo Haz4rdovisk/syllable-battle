@@ -12,6 +12,7 @@ interface MenuProps {
 
 export const Menu: React.FC<MenuProps> = ({ onSelectMode, profile, onEditProfile }) => {
   const displayName = normalizePlayerName(profile.name);
+  const buildLabel = (__APP_BUILD__ || "local").slice(0, 7).toUpperCase();
 
   return (
     <motion.div
@@ -19,6 +20,10 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, profile, onEditProfile
       animate={{ opacity: 1, y: 0 }}
       className="flex h-full w-full flex-col items-center justify-center gap-8 overflow-y-auto p-4 no-scrollbar sm:gap-12"
     >
+      <div className="pointer-events-none absolute bottom-4 left-4 rounded-full border border-amber-200/10 bg-black/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/30 shadow-[0_10px_24px_rgba(0,0,0,0.22)]">
+        Build {buildLabel}
+      </div>
+
       <div className="space-y-4 text-center sm:space-y-6">
         <motion.div
           initial={{ scale: 0.8, rotate: -5 }}

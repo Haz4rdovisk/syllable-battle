@@ -12,6 +12,12 @@ import {
 } from "./battleRoomStateController";
 import { BattleRoomTransport } from "./battleRoomTransport";
 
+const PHASE_ORDER: Record<"lobby" | "deck-selection" | "battle", number> = {
+  lobby: 0,
+  "deck-selection": 1,
+  battle: 2,
+};
+
 class RemoteBattleRoomTransportAdapter implements BattleRoomTransport {
   private listeners = new Set<(action: import("../types/game").BattleSubmittedAction) => void>();
   private readonly unsubscribe: () => void;
@@ -198,6 +204,10 @@ class RemoteRoomStateController implements RoomStateController {
         this.emitLocal();
         break;
       case "phase":
+        if (PHASE_ORDER[message.phase] < PHASE_ORDER[this.state.phase] && message.phase !== "lobby") {
+          this.emitLocal();
+          break;
+        }
         this.state = { ...cloneRoomState(this.state), phase: message.phase };
         if (message.phase === "deck-selection" || message.phase === "lobby") {
           this.state.initialGame = undefined;

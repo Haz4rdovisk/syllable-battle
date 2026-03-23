@@ -37,6 +37,7 @@ import {
   TargetMotionLayer,
   TargetTransitMotion,
 } from "../game/GameComponents";
+import { BattleFieldLane } from "./BattleFieldLane";
 import { AnimatePresence, motion } from "motion/react";
 import { BadgeDollarSign, Crown, LogOut, RefreshCw, RotateCcw, Swords } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -547,6 +548,7 @@ export const Battle: React.FC<BattleProps> = ({
   const previousEnemyHandSignatureRef = useRef<string>("");
   const lastHiddenAtRef = useRef<number | null>(null);
   const needsVisibilityRecoveryRef = useRef(false);
+  const pendingResultOverlayRecoveryRef = useRef(false);
 
   const addLog = (log: string[], message: string) => [message, ...log].slice(0, CONFIG.logSize);
   const emitBattleEvent = useCallback((event: Omit<BattleEvent, "id" | "createdAt">) => {
@@ -1226,12 +1228,19 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     if (game.winner === null || game.combatLocked) {
+      pendingResultOverlayRecoveryRef.current = false;
       setShowResultOverlay(false);
+      return;
+    }
+
+    if (typeof document !== "undefined" && document.hidden) {
+      pendingResultOverlayRecoveryRef.current = true;
       return;
     }
 
     const timer = setTimeout(() => setShowResultOverlay(true), 320);
     visualTimersRef.current.push(timer);
+    pendingResultOverlayRecoveryRef.current = false;
 
     return () => clearTimeout(timer);
   }, [game.combatLocked, game.winner]);
@@ -2066,9 +2075,9 @@ export const Battle: React.FC<BattleProps> = ({
   ]);
 
   useEffect(() => {
-    if (!authoritativeBattleSnapshot || mode !== "multiplayer" || localSide === "player") return;
+    if (!authoritativeBattleSnapshot || mode !== "multiplayer") return;
     pendingAuthoritativeSnapshotRef.current = authoritativeBattleSnapshot;
-  }, [authoritativeBattleSnapshot, localSide, mode]);
+  }, [authoritativeBattleSnapshot, mode]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -2092,13 +2101,27 @@ export const Battle: React.FC<BattleProps> = ({
       setEnemyHandPulse(false);
       setTurnPresentationLocked(false);
       setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
-      if (gameRef.current.winner !== null && !gameRef.current.combatLocked) {
+      if (pendingResultOverlayRecoveryRef.current || (gameRef.current.winner !== null && !gameRef.current.combatLocked)) {
         setShowResultOverlay(true);
+        pendingResultOverlayRecoveryRef.current = false;
       }
 
       if (mode !== "multiplayer") return;
 
+      const latestSnapshot = pendingAuthoritativeSnapshotRef.current ?? authoritativeBattleSnapshot;
+      const canRecoverFromSnapshot =
+        latestSnapshot &&
+        compareBattleSnapshotProgress(latestSnapshot, gameRef.current) >= 0 &&
+        (isIntroSnapshotState(latestSnapshot) || isWinnerSnapshotState(latestSnapshot) || isSnapshotCheckpointClear(latestSnapshot));
+
       if (localSide === "player") {
+        if (canRecoverFromSnapshot) {
+          hydrateBattleSnapshot(latestSnapshot);
+          if (latestSnapshot.winner !== null && !latestSnapshot.combatLocked) {
+            setShowResultOverlay(true);
+            pendingResultOverlayRecoveryRef.current = false;
+          }
+        }
         if (!onBattleSnapshotPublished) return;
 
         const publishRecoverySnapshot = () => {
@@ -2111,11 +2134,11 @@ export const Battle: React.FC<BattleProps> = ({
         return;
       }
 
-      const latestSnapshot = pendingAuthoritativeSnapshotRef.current ?? authoritativeBattleSnapshot;
       if (latestSnapshot) {
         hydrateBattleSnapshot(latestSnapshot);
         if (latestSnapshot.winner !== null && !latestSnapshot.combatLocked) {
           setShowResultOverlay(true);
+          pendingResultOverlayRecoveryRef.current = false;
         }
         needsVisibilityRecoveryRef.current = false;
       }
@@ -2128,7 +2151,18 @@ export const Battle: React.FC<BattleProps> = ({
       document.removeEventListener("visibilitychange", handleVisibilityRecovery);
       window.removeEventListener("focus", handleVisibilityRecovery);
     };
-  }, [authoritativeBattleSnapshot, clearVisualTimers, cloneInitialGame, hydrateBattleSnapshot, localSide, mode, onBattleSnapshotPublished]);
+  }, [
+    authoritativeBattleSnapshot,
+    clearVisualTimers,
+    cloneInitialGame,
+    hydrateBattleSnapshot,
+    isIntroSnapshotState,
+    isSnapshotCheckpointClear,
+    isWinnerSnapshotState,
+    localSide,
+    mode,
+    onBattleSnapshotPublished,
+  ]);
 
   useEffect(() => {
     if (mode !== "multiplayer" || localSide === "player") return;
@@ -2337,6 +2371,54 @@ export const Battle: React.FC<BattleProps> = ({
   const coinSpinScales =
     plannedCoinFace === "coroa" ? [0.94, 1, 1.03, 1, 1.02, 1] : [0.94, 1, 1.03, 1, 1];
   const finalCoinRotation = revealedCoinFace === "coroa" ? 900 : 720;
+  const enemyFieldSlots = Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
+    const visualTarget = stableTargets[remotePlayerIndex][idx];
+    const incomingTarget = incomingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
+    const displayedTarget = incomingTarget?.entity ?? visualTarget;
+    const slotNode = zoneNodesRef.current[zoneRefKey("enemyField", `slot-${idx}`)];
+
+    return {
+      key: displayedTarget?.id ?? `enemy-slot-${idx}`,
+      slotRef: bindZoneRef("enemyField", `slot-${idx}`),
+      displayedTarget,
+      incomingTarget,
+      slotRect: slotNode?.getBoundingClientRect() ?? null,
+      selectedCard: null,
+      canClick: false,
+      onClick: () => {},
+      onIncomingTargetComplete: commitIncomingTargetToField,
+      playerHand: [],
+    };
+  });
+  const playerFieldSlots = Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
+    const visualTarget = stableTargets[localPlayerIndex][idx];
+    const incomingTarget = incomingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
+    const displayedTarget = incomingTarget?.entity ?? visualTarget;
+    const slotNode = zoneNodesRef.current[zoneRefKey("playerField", `slot-${idx}`)];
+
+    return {
+      key: displayedTarget?.id ?? `player-slot-${idx}`,
+      slotRef: bindZoneRef("playerField", `slot-${idx}`),
+      displayedTarget,
+      incomingTarget,
+      slotRect: slotNode?.getBoundingClientRect() ?? null,
+      selectedCard,
+      pendingCard: pendingTargetPlacements[localPlayerIndex][idx],
+      canClick: Boolean(
+        displayedTarget &&
+          !incomingTarget &&
+          !lockedTargetSlots[localPlayerIndex][idx] &&
+          !introActive &&
+          game.turn === localPlayerIndex &&
+          !game.combatLocked &&
+          !game.actedThisTurn &&
+          game.selectedCardForPlay !== null,
+      ),
+      onClick: () => playOnTarget(idx),
+      onIncomingTargetComplete: commitIncomingTargetToField,
+      playerHand: me.hand,
+    };
+  });
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#1a472a] font-sans text-amber-100">
@@ -2459,102 +2541,19 @@ export const Battle: React.FC<BattleProps> = ({
                 </div>
 
                 <div className="grid h-full min-h-0 grid-rows-[minmax(180px,1fr)_minmax(180px,1fr)] gap-2 px-3 py-2 sm:px-4 sm:py-3 lg:px-6 lg:pt-2 lg:pb-4">
-                  <section className="flex min-h-0 items-start justify-center overflow-visible pt-1 lg:pt-0">
-                    <div ref={bindZoneRef("enemyField", "main")} className="mx-auto grid w-full max-w-[300px] grid-cols-2 place-items-start justify-items-center gap-3 lg:max-w-[380px] lg:gap-5">
-                      {Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
-                        const visualTarget = stableTargets[remotePlayerIndex][idx];
-                        const incomingTarget = incomingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-                        const displayedTarget = incomingTarget?.entity ?? visualTarget;
-                        const slotNode = zoneNodesRef.current[zoneRefKey("enemyField", `slot-${idx}`)];
-                        const slotRect = slotNode?.getBoundingClientRect();
-                        const startX = incomingTarget && slotRect
-                          ? incomingTarget.origin.left + incomingTarget.origin.width / 2 - slotRect.left - TRAVEL_TARGET_CARD_SIZE.width / 2
-                          : 0;
-                        const startY = incomingTarget && slotRect
-                          ? incomingTarget.origin.top + incomingTarget.origin.height / 2 - slotRect.top - TRAVEL_TARGET_CARD_SIZE.height / 2
-                          : 0;
-                        return (
-                          <div
-                            key={displayedTarget?.id ?? `enemy-slot-${idx}`}
-                            ref={bindZoneRef("enemyField", `slot-${idx}`)}
-                            className="relative flex min-h-[clamp(164px,20vh,220px)] w-[clamp(108px,13.5vw,156px)] items-start justify-center overflow-visible"
-                          >
-                            {displayedTarget ? (
-                              <motion.div
-                                key={displayedTarget.id}
-                                initial={incomingTarget && slotRect ? { opacity: 1, x: startX, y: startY, rotate: -12, scale: 0.88 } : false}
-                                animate={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-                                transition={incomingTarget
-                                  ? { duration: incomingTarget.durationMs / 1000, delay: incomingTarget.delayMs / 1000, ease: [0.22, 1, 0.36, 1] }
-                                  : { type: "spring", stiffness: 80, damping: 18 }}
-                                onAnimationComplete={() => incomingTarget ? commitIncomingTargetToField(incomingTarget) : undefined}
-                                className="absolute left-0 top-0 origin-center"
-                              >
-                                <TargetCard target={displayedTarget.target} selectedCard={null} isPlayerSide={false} canClick={false} onClick={() => {}} />
-                              </motion.div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
+                  <BattleFieldLane
+                    presentation="enemy"
+                    containerRef={bindZoneRef("enemyField", "main")}
+                    sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1 lg:pt-0"
+                    slots={enemyFieldSlots}
+                  />
 
-                  <section className="flex min-h-0 items-start justify-center overflow-visible pt-2 lg:pt-3">
-                    <div ref={bindZoneRef("playerField", "main")} className="mx-auto grid w-full max-w-[300px] grid-cols-2 place-items-start justify-items-center gap-3 lg:max-w-[380px] lg:gap-5">
-                      {Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
-                        const visualTarget = stableTargets[localPlayerIndex][idx];
-                        const incomingTarget = incomingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-                        const displayedTarget = incomingTarget?.entity ?? visualTarget;
-                        const slotNode = zoneNodesRef.current[zoneRefKey("playerField", `slot-${idx}`)];
-                        const slotRect = slotNode?.getBoundingClientRect();
-                        const startX = incomingTarget && slotRect
-                          ? incomingTarget.origin.left + incomingTarget.origin.width / 2 - slotRect.left - TRAVEL_TARGET_CARD_SIZE.width / 2
-                          : 0;
-                        const startY = incomingTarget && slotRect
-                          ? incomingTarget.origin.top + incomingTarget.origin.height / 2 - slotRect.top - TRAVEL_TARGET_CARD_SIZE.height / 2
-                          : 0;
-                        return (
-                          <div
-                            key={displayedTarget?.id ?? `player-slot-${idx}`}
-                            ref={bindZoneRef("playerField", `slot-${idx}`)}
-                            className="relative flex min-h-[clamp(164px,20vh,220px)] w-[clamp(108px,13.5vw,156px)] items-start justify-center overflow-visible"
-                          >
-                            {displayedTarget ? (
-                              <motion.div
-                                key={displayedTarget.id}
-                                initial={incomingTarget && slotRect ? { opacity: 1, x: startX, y: startY, rotate: 12, scale: 0.88 } : false}
-                                animate={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-                                transition={incomingTarget
-                                  ? { duration: incomingTarget.durationMs / 1000, delay: incomingTarget.delayMs / 1000, ease: [0.22, 1, 0.36, 1] }
-                                  : { type: "spring", stiffness: 80, damping: 18 }}
-                                onAnimationComplete={() => incomingTarget ? commitIncomingTargetToField(incomingTarget) : undefined}
-                                className="absolute left-0 top-0 origin-center"
-                              >
-                                <TargetCard
-                                  target={displayedTarget.target}
-                                  selectedCard={selectedCard}
-                                  pendingCard={pendingTargetPlacements[localPlayerIndex][idx]}
-                                  isPlayerSide={true}
-                                canClick={Boolean(
-                                    displayedTarget &&
-                                      !incomingTarget &&
-                                      !lockedTargetSlots[localPlayerIndex][idx] &&
-                                      !introActive &&
-                                      game.turn === localPlayerIndex &&
-                                      !game.combatLocked &&
-                                      !game.actedThisTurn &&
-                                      game.selectedCardForPlay !== null,
-                                  )}
-                                  onClick={() => playOnTarget(idx)}
-                                  playerHand={me.hand}
-                                />
-                              </motion.div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
+                  <BattleFieldLane
+                    presentation="player"
+                    containerRef={bindZoneRef("playerField", "main")}
+                    sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-2 lg:pt-3"
+                    slots={playerFieldSlots}
+                  />
                 </div>
 
                 <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2">

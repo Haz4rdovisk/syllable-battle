@@ -58,6 +58,7 @@ export default function App() {
   const [sharedInitialGame, setSharedInitialGame] = useState<GameState | null>(null);
   const [sharedBattleSnapshot, setSharedBattleSnapshot] = useState<GameState | null>(null);
   const battleTransitionSetupVersionRef = useRef<number | null>(null);
+  const battleTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastKnownRoomProfilesRef = useRef({
     host: { name: "", avatar: "" },
     guest: { name: "", avatar: "" },
@@ -79,6 +80,12 @@ export default function App() {
     } else {
       setScreen("deck-selection");
     }
+  };
+
+  const clearBattleTransitionTimer = () => {
+    if (!battleTransitionTimerRef.current) return;
+    clearTimeout(battleTransitionTimerRef.current);
+    battleTransitionTimerRef.current = null;
   };
 
   const handleSelectDeck = (deck: Deck) => {
@@ -121,6 +128,7 @@ export default function App() {
     setSharedBattleSnapshot(null);
     setIsPreparingBattle(false);
     battleTransitionSetupVersionRef.current = null;
+    clearBattleTransitionTimer();
     setPendingBattleActions([]);
     setScreen("lobby");
   };
@@ -138,6 +146,7 @@ export default function App() {
     setSharedBattleSnapshot(null);
     setIsPreparingBattle(false);
     battleTransitionSetupVersionRef.current = null;
+    clearBattleTransitionTimer();
     setPendingBattleActions([]);
     setScreen("lobby");
   };
@@ -176,6 +185,7 @@ export default function App() {
     setSharedBattleSnapshot(null);
     setIsPreparingBattle(false);
     battleTransitionSetupVersionRef.current = null;
+    clearBattleTransitionTimer();
   };
 
   const handleSaveProfile = (profile: PlayerProfile) => {
@@ -245,6 +255,7 @@ export default function App() {
     const bothDecksSelected = !!localDeckId && !!remoteDeckId;
 
     if (activeRoomState.phase === "lobby") {
+      clearBattleTransitionTimer();
       setIsPreparingBattle(false);
       battleTransitionSetupVersionRef.current = null;
       setPlayerDeck(null);
@@ -257,6 +268,7 @@ export default function App() {
     }
 
     if (activeRoomState.phase === "deck-selection") {
+      clearBattleTransitionTimer();
       setIsPreparingBattle(false);
       battleTransitionSetupVersionRef.current = null;
       setPlayerDeck(localDeckId ? (DECKS.find((deck) => deck.id === localDeckId) ?? null) : null);
@@ -292,14 +304,17 @@ export default function App() {
 
     battleTransitionSetupVersionRef.current = setupVersion;
     setIsPreparingBattle(true);
+    setPendingBattleActions([]);
+    clearBattleTransitionTimer();
 
-    const transitionTimer = setTimeout(() => {
+    battleTransitionTimerRef.current = setTimeout(() => {
       setIsPreparingBattle(false);
       setScreen("battle");
+      battleTransitionTimerRef.current = null;
     }, 2000);
-
-    return () => clearTimeout(transitionTimer);
   }, [activeRoomSession, activeRoomState, mode, roomId, roomLocalSide]);
+
+  useEffect(() => () => clearBattleTransitionTimer(), []);
 
   const headPendingBattleAction = pendingBattleActions[0] ?? null;
   const localBattleName = normalizePlayerName(playerProfile?.name ?? "VOCE", "VOCE");

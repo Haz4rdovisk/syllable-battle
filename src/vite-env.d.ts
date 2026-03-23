@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+declare const __APP_BUILD__: string;
+
 interface Window {
   __battleDev?: {
     damage: (side: "player" | "enemy", amount?: number) => void;
