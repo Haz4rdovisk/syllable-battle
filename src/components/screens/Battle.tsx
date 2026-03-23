@@ -2092,6 +2092,9 @@ export const Battle: React.FC<BattleProps> = ({
       setEnemyHandPulse(false);
       setTurnPresentationLocked(false);
       setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
+      if (gameRef.current.winner !== null && !gameRef.current.combatLocked) {
+        setShowResultOverlay(true);
+      }
 
       if (mode !== "multiplayer") return;
 
@@ -2111,6 +2114,9 @@ export const Battle: React.FC<BattleProps> = ({
       const latestSnapshot = pendingAuthoritativeSnapshotRef.current ?? authoritativeBattleSnapshot;
       if (latestSnapshot) {
         hydrateBattleSnapshot(latestSnapshot);
+        if (latestSnapshot.winner !== null && !latestSnapshot.combatLocked) {
+          setShowResultOverlay(true);
+        }
         needsVisibilityRecoveryRef.current = false;
       }
     };
