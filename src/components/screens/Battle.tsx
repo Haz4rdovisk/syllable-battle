@@ -545,6 +545,8 @@ export const Battle: React.FC<BattleProps> = ({
   const [freshCardIds, setFreshCardIds] = useState<string[]>([]);
   gameRef.current = game;
   const previousEnemyHandSignatureRef = useRef<string>("");
+  const lastHiddenAtRef = useRef<number | null>(null);
+  const needsVisibilityRecoveryRef = useRef(false);
 
   const addLog = (log: string[], message: string) => [message, ...log].slice(0, CONFIG.logSize);
   const emitBattleEvent = useCallback((event: Omit<BattleEvent, "id" | "createdAt">) => {
@@ -2069,17 +2071,73 @@ export const Battle: React.FC<BattleProps> = ({
   }, [authoritativeBattleSnapshot, localSide, mode]);
 
   useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityRecovery = () => {
+      if (document.hidden) {
+        lastHiddenAtRef.current = Date.now();
+        return;
+      }
+
+      const hiddenAt = lastHiddenAtRef.current;
+      lastHiddenAtRef.current = null;
+      if (!hiddenAt) return;
+
+      const hiddenMs = Date.now() - hiddenAt;
+      if (hiddenMs < 300) return;
+
+      needsVisibilityRecoveryRef.current = true;
+      clearVisualTimers();
+      setFreshCardIds([]);
+      setEnemyHandPulse(false);
+      setTurnPresentationLocked(false);
+      setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
+
+      if (mode !== "multiplayer") return;
+
+      if (localSide === "player") {
+        if (!onBattleSnapshotPublished) return;
+
+        const publishRecoverySnapshot = () => {
+          onBattleSnapshotPublished(cloneInitialGame(gameRef.current));
+        };
+
+        const earlyTimer = setTimeout(publishRecoverySnapshot, 260);
+        const settleTimer = setTimeout(publishRecoverySnapshot, 980);
+        visualTimersRef.current.push(earlyTimer, settleTimer);
+        return;
+      }
+
+      const latestSnapshot = pendingAuthoritativeSnapshotRef.current ?? authoritativeBattleSnapshot;
+      if (latestSnapshot) {
+        hydrateBattleSnapshot(latestSnapshot);
+        needsVisibilityRecoveryRef.current = false;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityRecovery);
+    window.addEventListener("focus", handleVisibilityRecovery);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityRecovery);
+      window.removeEventListener("focus", handleVisibilityRecovery);
+    };
+  }, [authoritativeBattleSnapshot, clearVisualTimers, cloneInitialGame, hydrateBattleSnapshot, localSide, mode, onBattleSnapshotPublished]);
+
+  useEffect(() => {
     if (mode !== "multiplayer" || localSide === "player") return;
     const pendingSnapshot = pendingAuthoritativeSnapshotRef.current;
     if (!pendingSnapshot) return;
     const introSyncInFlight = isIntroSnapshotState(gameRef.current) || isIntroSnapshotState(pendingSnapshot);
     const winnerSyncInFlight = isWinnerSnapshotState(pendingSnapshot);
-    if (!introSyncInFlight && !winnerSyncInFlight && !isSnapshotCheckpointClear(gameRef.current)) return;
+    const forceVisibilityRecovery = needsVisibilityRecoveryRef.current;
+    if (!introSyncInFlight && !winnerSyncInFlight && !forceVisibilityRecovery && !isSnapshotCheckpointClear(gameRef.current)) return;
 
     const nextSignature = buildBattleSnapshotSignature(pendingSnapshot);
     const currentSignature = buildBattleSnapshotSignature(gameRef.current);
     const progressComparison = compareBattleSnapshotProgress(pendingSnapshot, gameRef.current);
     pendingAuthoritativeSnapshotRef.current = null;
+    needsVisibilityRecoveryRef.current = false;
     if (progressComparison < 0) return;
     if (nextSignature === currentSignature) return;
 
