@@ -181,14 +181,20 @@ export interface UITarget extends Target {
 
 export type GameMode = "bot" | "multiplayer" | "local";
 
+export interface ChronicleEntry {
+  text: string;
+  tone: "player" | "enemy" | "system";
+}
+
 export interface GameState {
   players: PlayerState[];
   turn: number;
+  turnDeadlineAt: number | null;
   winner: number | null;
   actedThisTurn: boolean;
   selectedHandIndexes: number[];
   selectedCardForPlay: number | null;
-  log: string[];
+  log: ChronicleEntry[];
   messageQueue: GameMessage[];
   currentMessage: GameMessage | null;
   setupVersion: number;

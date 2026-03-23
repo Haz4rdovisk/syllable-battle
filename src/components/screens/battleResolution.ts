@@ -3,7 +3,6 @@ import { canPlace, drawFromSyllableDeck } from "../../logic/gameLogic";
 
 export interface ResolvedBattlePlayAction {
   nextPlayers: PlayerState[];
-  logs: string[];
   damage: number;
   damageSource: string;
   impactLife: number;
@@ -44,9 +43,6 @@ export const resolveBattlePlayAction = (
   target.progress.push(card);
   actor.targets = actor.targets.map((candidate, index) => (index === targetIndex ? target : candidate));
 
-  const actorLabel = currentIndex === 0 ? "Voc\u00EA" : "Oponente";
-  const logs = [`${actorLabel} jogou ${card} em ${target.name}.`];
-
   let damage = 0;
   let damageSource = "";
   let winner: number | null = null;
@@ -61,7 +57,6 @@ export const resolveBattlePlayAction = (
     opponent.flashDamage = 0;
     target.attacking = true;
     actor.syllableDeck = [...actor.syllableDeck, ...target.progress];
-    logs.unshift(`${actorLabel} completou ${target.name}! ${resolvedDamage} de dano!`);
     completedSlot = targetIndex;
     if (impactLife <= 0) winner = currentIndex;
   }
@@ -76,7 +71,6 @@ export const resolveBattlePlayAction = (
 
   return {
     nextPlayers,
-    logs,
     damage,
     damageSource,
     impactLife,

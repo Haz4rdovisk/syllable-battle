@@ -492,11 +492,13 @@ export const CardPile: React.FC<{
   label: string;
   count: number;
   color: string;
+  variant?: "deck" | "target";
   anchorRef?: React.Ref<HTMLDivElement>;
 }> = ({
   label,
   count,
   color,
+  variant = "deck",
   anchorRef,
 }) => {
   const [prevCount, setPrevCount] = React.useState(count);
@@ -512,43 +514,81 @@ export const CardPile: React.FC<{
   }, [count, prevCount]);
 
   const layers = Math.min(Math.ceil(count / 2), 8);
+  const isDeckVariant = variant === "deck";
+  const visibleBackLayers = Math.max(0, layers - 1);
 
   return (
     <div className="group flex cursor-help flex-col items-center gap-2 perspective-1000">
-      <div ref={anchorRef} className="relative h-32 w-22 transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1 md:h-36 md:w-24">
-        {[...Array(layers)].map((_, i) => (
+      <div
+        ref={anchorRef}
+        className="relative h-[clamp(110px,16vh,150px)] w-[clamp(80px,12vw,110px)] transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1"
+      >
+        {[...Array(visibleBackLayers)].map((_, i) => {
+          const depth = visibleBackLayers - i;
+
+          return (
           <div
             key={i}
-            className="absolute inset-0 rounded-lg border border-amber-900/40 bg-[#fdfbf7] shadow-sm"
+            className={cn(
+              "absolute inset-0 rounded-xl shadow-sm",
+              isDeckVariant
+                ? "border border-amber-300/18 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
+                : "border border-amber-300/22 bg-gradient-to-br from-rose-950 via-red-950 to-stone-950",
+            )}
             style={{
-              transform: `translateY(${-i * 2}px) translateX(${i * 0.5}px)`,
+              transform: `translateY(${-depth * 2.5}px) translateX(${depth * 0.8}px)`,
               zIndex: i,
             }}
           />
-        ))}
+          );
+        })}
 
         <motion.div
-          animate={isChanging ? { scale: [1, 1.1, 1], y: [0, -20, 0] } : {}}
+          animate={isChanging ? { scale: [1, 1.05, 1], y: [0, -12, 0], rotate: [0, -1.5, 0] } : {}}
           className={cn(
-            "absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-lg border-2 border-amber-400/30 shadow-2xl transition-all",
-            color,
+            "absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-xl border-2 shadow-2xl transition-all",
+            isDeckVariant
+              ? "border-amber-300/40 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
+              : cn("border-amber-300/30", color),
           )}
-          style={{
-            transform: `translateY(${-layers * 2}px) translateX(${layers * 0.5}px)`,
-          }}
         >
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/exclusive-paper.png')] opacity-40" />
-          <div className="pointer-events-none absolute inset-2 rounded-md border-2 border-white/20" />
-          <div className="pointer-events-none absolute inset-4 rounded-sm border border-white/10" />
+          <div
+            className={cn(
+              "absolute inset-0 opacity-25",
+              isDeckVariant
+                ? "bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"
+                : "bg-[url('https://www.transparenttextures.com/patterns/exclusive-paper.png')]",
+            )}
+          />
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-1.5",
+              isDeckVariant
+                ? "rounded-lg border border-amber-200/20"
+                : "rounded-lg border border-amber-200/18",
+            )}
+          />
+          <div
+            className={cn(
+              "pointer-events-none absolute",
+              isDeckVariant
+                ? "inset-4 rounded-full border border-amber-200/15"
+                : "inset-4 rounded-xl border border-amber-200/12",
+            )}
+          />
 
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/20 bg-white/5 backdrop-blur-sm">
-            <div className="h-4 w-4 rotate-45 border border-white/40" />
-          </div>
+          {isDeckVariant ? (
+            <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-200/30" />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/15 bg-white/5 backdrop-blur-sm">
+              <div className="h-4 w-4 rotate-45 border border-white/30" />
+            </div>
+          )}
 
           {isChanging && (
             <motion.div
               initial={{ opacity: 0, scale: 0.5, y: 0 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.5, 2, 2.5], y: -60 }}
+              animate={{ opacity: [0, 1, 0], scale: [0.5, 1.7, 2.2], y: -48 }}
               className="pointer-events-none absolute z-30 text-2xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
             >
               {count > prevCount ? `+${count - prevCount}` : `-${prevCount - count}`}

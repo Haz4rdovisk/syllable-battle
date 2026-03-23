@@ -19,7 +19,7 @@ export interface BattleFlowTimings {
 export const getPlayerHandLayout = (total: number, index: number, desktop: boolean) => {
   const mid = (total - 1) / 2;
   const offset = index - mid;
-  const spacing = total > 5 ? (desktop ? 78 : 64) : desktop ? 100 : 76;
+  const spacing = total > 5 ? (desktop ? 88 : 64) : desktop ? 116 : 76;
   const y = Math.abs(offset) * (desktop ? 10 : 7);
   return { x: offset * spacing, y, rotate: offset * 5, scale: 1 };
 };
@@ -27,7 +27,7 @@ export const getPlayerHandLayout = (total: number, index: number, desktop: boole
 export const getEnemyHandLayout = (total: number, index: number, desktop: boolean) => {
   const mid = (total - 1) / 2;
   const offset = index - mid;
-  const spacing = total > 5 ? (desktop ? 78 : 64) : desktop ? 92 : 72;
+  const spacing = total > 5 ? (desktop ? 86 : 64) : desktop ? 108 : 72;
   const y = Math.abs(offset) * (desktop ? -10 : -7);
   return { x: offset * spacing, y, rotate: offset * -5, scale: 1 };
 };

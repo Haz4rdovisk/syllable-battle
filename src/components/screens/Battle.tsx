@@ -10,13 +10,13 @@ import {
   BattleSubmittedAction,
   BattleTurnAction,
   CoinFace,
+  ChronicleEntry,
   normalizePlayerName,
 } from "../../types/game";
 import {
   makeInitialGame,
   CONFIG,
   TIMINGS,
-  canPlace,
   isHandStuck,
   clearTransientPlayerState,
   replaceTargetInSlot,
@@ -24,22 +24,23 @@ import {
 import {
   TargetCard,
   PlayerPortrait,
-  SyllableCard,
-  CardBackCard,
   CardPile,
   BoardTravelLayer,
   BoardTravelMotion,
   BoardZoneId,
   ZoneAnchorSnapshot,
   TRAVEL_TARGET_CARD_SIZE,
-  getTravelSyllableCardSize,
   VisualTargetEntity,
   TargetMotionLayer,
   TargetTransitMotion,
 } from "../game/GameComponents";
+import { BattleBoardShell } from "./BattleBoardShell";
 import { BattleFieldLane } from "./BattleFieldLane";
+import { BattleHandLane } from "./BattleHandLane";
+import { BattlePileRack, BattlePortraitRail } from "./BattleSidePanel";
+import { BattleStatusPanel } from "./BattleStatusPanel";
 import { AnimatePresence, motion } from "motion/react";
-import { BadgeDollarSign, Crown, LogOut, RefreshCw, RotateCcw, Swords } from "lucide-react";
+import { BadgeDollarSign, Crown, LogOut, RotateCcw, Swords } from "lucide-react";
 import { cn } from "../../lib/utils";
 import {
   createDamageAppliedEvent,
@@ -49,13 +50,11 @@ import {
   createTurnStartedEvent,
 } from "./battleEvents";
 import {
-  getEnemyHandLayout,
   getMulliganDrawStartDelayMs,
   getMulliganFinishDelayMs,
   getPlayDrawStartDelayMs,
   getPlayFinishDelayMs,
   getPlayedCardCommitDelayMs,
-  getPlayerHandLayout,
   resolveBotTurnAction,
 } from "./battleFlow";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
@@ -101,6 +100,16 @@ const TURN_PRESENTATION = {
   bannerDurationMs: 1120,
   interactionReleaseBufferMs: 90,
 };
+
+const TURN_TIMER = {
+  limitMs: 60000,
+  warningMs: 15000,
+};
+
+const TURN_RELEASE_DELAY_MS =
+  TURN_PRESENTATION.preBannerDelayMs +
+  TURN_PRESENTATION.bannerDurationMs +
+  TURN_PRESENTATION.interactionReleaseBufferMs;
 
 const SNAPSHOT_INTRO_PROGRESS: Record<BattleIntroPhase, number> = {
   "coin-choice": 0,
@@ -190,169 +199,6 @@ interface BattleProps {
   onChooseDecksAgain?: () => void;
 }
 
-const HandFan: React.FC<{
-  side: typeof PLAYER | typeof ENEMY;
-  presentation: "local" | "remote";
-  stableCards: VisualHandCard[];
-  incomingCards?: IncomingHandCard[];
-  scale: "desktop" | "mobile";
-  pulse?: boolean;
-  anchorRef?: React.Ref<HTMLDivElement>;
-  onIncomingCardComplete?: (incomingCard: IncomingHandCard) => void;
-  hoveredCardIndex?: number | null;
-  onHoverCard?: (index: number | null) => void;
-  selectedIndexes?: number[];
-  canInteract?: boolean;
-  showTurnHighlights?: boolean;
-  showPlayableHints?: boolean;
-  targets?: GameState["players"][0]["targets"];
-  onCardClick?: (index: number) => void;
-  freshCardIds?: string[];
-  bindCardRef?: (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => void;
-}> = ({
-  side,
-  presentation,
-  stableCards,
-  scale,
-  pulse = false,
-  anchorRef,
-  incomingCards = [],
-  onIncomingCardComplete,
-  hoveredCardIndex = null,
-  onHoverCard,
-  selectedIndexes = [],
-  canInteract = false,
-  showTurnHighlights = false,
-  showPlayableHints = false,
-  targets = [],
-  onCardClick,
-  freshCardIds = [],
-  bindCardRef,
-}) => {
-  const isLocalPresentation = presentation === "local";
-  const isDesktop = scale === "desktop";
-  const visibleCards = Math.min(stableCards.length, 5);
-  const minHeight = isDesktop ? "min-h-[150px]" : "min-h-[120px]";
-  const height = isDesktop ? "h-[150px]" : "h-[120px]";
-  const width =
-    isLocalPresentation
-      ? isDesktop
-        ? "max-w-[720px]"
-        : "max-w-[660px]"
-      : isDesktop
-        ? "max-w-[560px]"
-        : "max-w-[320px]";
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const totalCards = Math.min(HAND_LAYOUT_SLOT_COUNT, stableCards.length + incomingCards.length);
-  const getLayout = isLocalPresentation ? getPlayerHandLayout : getEnemyHandLayout;
-
-  return (
-    <motion.div
-      animate={pulse ? { y: [0, -6, 0], rotate: [0, 1, 0] } : {}}
-      transition={{ duration: 0.62, ease: "easeOut" }}
-      className={cn("relative flex w-full items-end justify-center overflow-visible", minHeight)}
-    >
-      <div
-        ref={(node) => {
-          hostRef.current = node;
-          if (typeof anchorRef === "function") anchorRef(node);
-        }}
-        className={cn("relative flex h-full w-full items-end justify-center", height, width)}
-      >
-        <AnimatePresence>
-          {stableCards.map((card, i) => {
-            const layout = getLayout(totalCards, i, isDesktop);
-            const selected = selectedIndexes.includes(i);
-            const playable = isLocalPresentation ? targets.some((target) => canPlace(card.syllable, target)) : false;
-
-            return (
-              <motion.div
-                key={card.id}
-                initial={
-                  card.skipEntryAnimation
-                    ? false
-                    : isLocalPresentation
-                      ? { x: 600, y: 0, opacity: 0, rotate: 90, scale: 1 }
-                      : { x: 0, y: -60, opacity: 0, rotate: layout.rotate, scale: 0.9 }
-                }
-                animate={{
-                  x: layout.x,
-                  y: isLocalPresentation && selected ? (isDesktop ? -28 : -18) : layout.y,
-                  rotate: layout.rotate,
-                  opacity: 1,
-                  scale: isLocalPresentation && hoveredCardIndex === i ? 1.14 : 1,
-                }}
-                exit={{ opacity: 0, transition: { duration: 0.01 } }}
-                transition={{ type: "spring", stiffness: 82, damping: 22 }}
-                onMouseEnter={() => onHoverCard?.(i)}
-                onMouseLeave={() => onHoverCard?.(null)}
-                ref={bindCardRef?.(card.id, scale)}
-                className={cn("absolute bottom-0", isLocalPresentation && "cursor-pointer")}
-                style={{ zIndex: isLocalPresentation && hoveredCardIndex === i ? 100 : i }}
-              >
-                {isLocalPresentation ? (
-                  <SyllableCard
-                    syllable={card.syllable}
-                    selected={selected}
-                    playable={playable && showPlayableHints}
-                    newlyDrawn={freshCardIds.includes(card.id) && showTurnHighlights}
-                    attentionPulse={playable && showPlayableHints}
-                    disabled={!canInteract}
-                    onClick={() => onCardClick?.(i)}
-                  />
-                ) : (
-                  <CardBackCard />
-                )}
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-
-        {hostRef.current &&
-          incomingCards.map((incomingCard) => {
-            const hostRect = hostRef.current!.getBoundingClientRect();
-            const cardSize = getTravelSyllableCardSize();
-            const layout = getLayout(incomingCard.finalTotal, incomingCard.finalIndex, isDesktop);
-            const startX = incomingCard.origin.left + incomingCard.origin.width / 2 - hostRect.left - cardSize.width / 2;
-            const startY = incomingCard.origin.top + incomingCard.origin.height / 2 - hostRect.top - cardSize.height / 2;
-            const endX = hostRect.width / 2 - cardSize.width / 2 + layout.x;
-            const endY = hostRect.height - cardSize.height + layout.y;
-
-            return (
-              <motion.div
-                key={incomingCard.id}
-                initial={{ x: startX, y: startY, rotate: 0, scale: 0.94, opacity: 0 }}
-                animate={{ x: endX, y: endY, rotate: layout.rotate, scale: 1, opacity: 1 }}
-                transition={{
-                  delay: incomingCard.delayMs / 1000,
-                  duration: incomingCard.durationMs / 1000,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                onAnimationComplete={() => onIncomingCardComplete?.(incomingCard)}
-                className="pointer-events-none absolute left-0 top-0 z-[120]"
-              >
-                {isLocalPresentation ? (
-                  <SyllableCard
-                    syllable={incomingCard.card.syllable}
-                    selected={false}
-                    playable={showPlayableHints}
-                    newlyDrawn={showTurnHighlights}
-                    attentionPulse={false}
-                    floating={true}
-                    disabled={true}
-                    onClick={() => {}}
-                  />
-                ) : (
-                  <CardBackCard floating={true} />
-                )}
-              </motion.div>
-            );
-          })}
-      </div>
-    </motion.div>
-  );
-};
-
 export const Battle: React.FC<BattleProps> = ({
   mode,
   playerDeck,
@@ -423,7 +269,9 @@ export const Battle: React.FC<BattleProps> = ({
   );
 
   const [hoveredCardIndex, setHoveredCardIndex] = useState<number | null>(null);
-  const [turnElapsedMs, setTurnElapsedMs] = useState(0);
+  const [turnRemainingMs, setTurnRemainingMs] = useState(
+    initialGameRef.current.turnDeadlineAt ? Math.max(0, initialGameRef.current.turnDeadlineAt - Date.now()) : TURN_TIMER.limitMs,
+  );
   const [enemyHandPulse, setEnemyHandPulse] = useState(false);
   const [travelMotions, setTravelMotions] = useState<BoardTravelMotion[]>([]);
   const [showResultOverlay, setShowResultOverlay] = useState(false);
@@ -460,6 +308,7 @@ export const Battle: React.FC<BattleProps> = ({
   const processedExternalActionIdsRef = useRef<Set<string>>(new Set());
   const pendingAuthoritativeSnapshotRef = useRef<GameState | null>(null);
   const publishedSnapshotSignatureRef = useRef<string>("");
+  const timedOutTurnKeyRef = useRef("");
   const presentedTurnKeyRef = useRef(
     initialGameRef.current.openingIntroStep === "done"
       ? `${initialGameRef.current.setupVersion}:${initialGameRef.current.turn}`
@@ -550,7 +399,44 @@ export const Battle: React.FC<BattleProps> = ({
   const needsVisibilityRecoveryRef = useRef(false);
   const pendingResultOverlayRecoveryRef = useRef(false);
 
-  const addLog = (log: string[], message: string) => [message, ...log].slice(0, CONFIG.logSize);
+  const addLog = (log: ChronicleEntry[], entry: ChronicleEntry) => [entry, ...log].slice(0, CONFIG.logSize);
+  const chronicleToneForSide = useCallback(
+    (side: typeof PLAYER | typeof ENEMY): ChronicleEntry["tone"] => (side === localPlayerIndex ? "player" : "enemy"),
+    [localPlayerIndex],
+  );
+  const chronicleActorLabel = useCallback(
+    (side: typeof PLAYER | typeof ENEMY) => (side === localPlayerIndex ? "Voce" : "Oponente"),
+    [localPlayerIndex],
+  );
+  const buildPlayChronicleEntries = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, result: PlayResolution, targetName: string): ChronicleEntry[] => {
+      const actorLabel = chronicleActorLabel(side);
+      const tone = chronicleToneForSide(side);
+      const entries: ChronicleEntry[] = [
+        { text: `${actorLabel} colocou ${result.playedCard} em ${targetName}`, tone },
+      ];
+
+      if (result.damage > 0) {
+        entries.push({
+          text: `${actorLabel} concluiu ${result.damageSource} e causou ${result.damage} de dano`,
+          tone,
+        });
+      }
+
+      return entries;
+    },
+    [chronicleActorLabel, chronicleToneForSide],
+  );
+  const buildHandSwapChronicleEntry = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, returnedCount: number): ChronicleEntry => ({
+      text:
+        side === localPlayerIndex
+          ? `Voce trocou ${returnedCount} ${returnedCount === 1 ? "carta" : "cartas"} da mao`
+          : `Oponente trocou ${returnedCount} ${returnedCount === 1 ? "carta" : "cartas"} da mao`,
+      tone: chronicleToneForSide(side),
+    }),
+    [chronicleToneForSide, localPlayerIndex],
+  );
   const emitBattleEvent = useCallback((event: Omit<BattleEvent, "id" | "createdAt">) => {
     battleEventsRef.current = [
       ...battleEventsRef.current.slice(-199),
@@ -985,6 +871,7 @@ export const Battle: React.FC<BattleProps> = ({
       JSON.stringify({
         setupVersion: state.setupVersion,
         turn: state.turn,
+        turnDeadlineAt: state.turnDeadlineAt,
         winner: state.winner,
         openingCoinChoice: state.openingCoinChoice,
         openingCoinResult: state.openingCoinResult,
@@ -1053,6 +940,7 @@ export const Battle: React.FC<BattleProps> = ({
       setPlannedCoinFace(freshGame.openingCoinResult);
       setIntroPhase(freshGame.openingIntroStep);
       setTurnPresentationLocked(false);
+      setTurnRemainingMs(freshGame.turnDeadlineAt ? Math.max(0, freshGame.turnDeadlineAt - Date.now()) : TURN_TIMER.limitMs);
       processedExternalActionIdsRef.current = new Set();
       pendingAuthoritativeSnapshotRef.current = null;
       publishedSnapshotSignatureRef.current = "";
@@ -1215,16 +1103,20 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     if (game.winner !== null || introPhase !== "done") return;
+    if (game.turnDeadlineAt == null) {
+      setTurnRemainingMs(TURN_TIMER.limitMs);
+      return;
+    }
 
-    const startedAt = Date.now();
-    setTurnElapsedMs(0);
+    const updateRemaining = () => {
+      setTurnRemainingMs(Math.max(0, game.turnDeadlineAt! - Date.now()));
+    };
 
-    const interval = setInterval(() => {
-      setTurnElapsedMs(Date.now() - startedAt);
-    }, 1000);
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 200);
 
     return () => clearInterval(interval);
-  }, [game.turn, game.setupVersion, game.winner, introPhase]);
+  }, [game.turn, game.setupVersion, game.turnDeadlineAt, game.winner, introPhase]);
 
   useEffect(() => {
     if (game.winner === null || game.combatLocked) {
@@ -1360,6 +1252,7 @@ export const Battle: React.FC<BattleProps> = ({
         setGame((prev) => ({
           ...prev,
           openingIntroStep: "done",
+          turnDeadlineAt: Date.now() + TURN_RELEASE_DELAY_MS + TURN_TIMER.limitMs,
         }));
       }, (stagedTargets.length - 1) * INTRO.targetEnterStaggerMs + TIMINGS.leaveMs + INTRO.targetSettleMs);
 
@@ -1483,6 +1376,7 @@ export const Battle: React.FC<BattleProps> = ({
       return;
     }
 
+    setTurnRemainingMs(TURN_TIMER.limitMs);
     clearAllTimers();
     setGame((prev) => {
       if (prev.winner !== null) return prev;
@@ -1494,16 +1388,64 @@ export const Battle: React.FC<BattleProps> = ({
         ...prev,
         players: players.map((p, i) => (i === prev.turn ? clearTransientPlayerState(p) : p)),
         turn: nextTurn,
+        turnDeadlineAt: Date.now() + TURN_RELEASE_DELAY_MS + TURN_TIMER.limitMs,
         actedThisTurn: false,
         combatLocked: false,
         selectedHandIndexes: [],
         selectedCardForPlay: null,
-        log: addLog(prev.log, nextTurn === localPlayerIndex ? "Seu turno comecou." : "Turno do oponente."),
+        log: addLog(prev.log, {
+          text: nextTurn === localPlayerIndex ? "Seu turno comecou" : "Turno do oponente",
+          tone: nextTurn === localPlayerIndex ? "player" : "enemy",
+        }),
       };
     });
     const nextTurnSide = gameRef.current.turn === PLAYER ? ENEMY : PLAYER;
     emitTurnStartedEvent(gameRef.current.turn + 1, nextTurnSide);
   }, [clearAllTimers, emitTurnStartedEvent, hasBlockingVisuals, localPlayerIndex]);
+
+  useEffect(() => {
+    const timeoutAuthorityLocal = mode !== "multiplayer" || localSide === "player";
+    if (!timeoutAuthorityLocal) return;
+    if (introPhase !== "done" || game.winner !== null || game.turnDeadlineAt == null || game.actedThisTurn) return;
+
+    const turnKey = `${game.setupVersion}:${game.turn}`;
+    if (timedOutTurnKeyRef.current === turnKey) return;
+
+    const remainingMs = game.turnDeadlineAt - Date.now();
+    if (remainingMs <= 0) {
+      timedOutTurnKeyRef.current = turnKey;
+      finalizeTurn();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (timedOutTurnKeyRef.current === turnKey) return;
+      if (
+        gameRef.current.setupVersion !== game.setupVersion ||
+        gameRef.current.turn !== game.turn ||
+        gameRef.current.turnDeadlineAt !== game.turnDeadlineAt ||
+        gameRef.current.winner !== null ||
+        gameRef.current.actedThisTurn
+      ) {
+        return;
+      }
+
+      timedOutTurnKeyRef.current = turnKey;
+      finalizeTurn();
+    }, remainingMs + 8);
+
+    return () => clearTimeout(timer);
+  }, [
+    finalizeTurn,
+    game.actedThisTurn,
+    game.setupVersion,
+    game.turn,
+    game.turnDeadlineAt,
+    game.winner,
+    introPhase,
+    localSide,
+    mode,
+  ]);
 
   const handleTargetMotionComplete = useCallback(
     (motionId: string) => {
@@ -1732,7 +1674,10 @@ export const Battle: React.FC<BattleProps> = ({
       selectedHandIndexes: clearSelection ? [] : prev.selectedHandIndexes,
       selectedCardForPlay: clearSelection ? null : prev.selectedCardForPlay,
       currentMessage: null,
-      log: result.logs.reduce((acc, l) => addLog(acc, l), prev.log),
+      log: buildPlayChronicleEntries(side, result, game.players[side].targets[targetIndex]?.name ?? "").reduce(
+        (acc, entry) => addLog(acc, entry),
+        prev.log,
+      ),
     }));
 
     createPlayResolutionEvents({
@@ -1844,6 +1789,7 @@ export const Battle: React.FC<BattleProps> = ({
     if (move.type === "mulligan") {
       const selectedIndexes = [...move.handIndexes].sort((a, b) => b - a);
       const removedStableCards = removeStableCards(side, selectedIndexes);
+      const returnedCountForLog = removedStableCards.length;
 
       if (clearIncomingHand) {
         commitIncomingHands({
@@ -1853,11 +1799,9 @@ export const Battle: React.FC<BattleProps> = ({
       }
 
       let drawnCards: Syllable[] = [];
-      let returnedCount = 0;
       setGame((prev) => {
         const resolution = resolveBattleMulliganAction(prev, side, selectedIndexes, CONFIG.handSize);
         drawnCards = [...resolution.drawnCards];
-        returnedCount = resolution.returnedCards.length;
         return {
           ...prev,
           players: resolution.nextPlayers as any,
@@ -1865,12 +1809,7 @@ export const Battle: React.FC<BattleProps> = ({
           selectedCardForPlay: clearSelection ? null : prev.selectedCardForPlay,
           actedThisTurn: true,
           currentMessage: null,
-          log: addLog(
-            prev.log,
-            side === PLAYER
-              ? `Mulligan: devolveu ${returnedCount} cartas e encerrou o turno.`
-              : "Oponente usou Mulligan.",
-          ),
+          log: addLog(prev.log, buildHandSwapChronicleEntry(side, returnedCountForLog)),
         };
       });
 
@@ -2100,10 +2039,28 @@ export const Battle: React.FC<BattleProps> = ({
       setFreshCardIds([]);
       setEnemyHandPulse(false);
       setTurnPresentationLocked(false);
+      setTurnRemainingMs(TURN_TIMER.limitMs);
       setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
       if (pendingResultOverlayRecoveryRef.current || (gameRef.current.winner !== null && !gameRef.current.combatLocked)) {
         setShowResultOverlay(true);
         pendingResultOverlayRecoveryRef.current = false;
+      }
+
+      const authorityCanResolveTimeout = mode !== "multiplayer" || localSide === "player";
+      if (
+        authorityCanResolveTimeout &&
+        gameRef.current.openingIntroStep === "done" &&
+        gameRef.current.winner === null &&
+        !gameRef.current.actedThisTurn &&
+        gameRef.current.turnDeadlineAt != null &&
+        Date.now() >= gameRef.current.turnDeadlineAt
+      ) {
+        const overdueTurnKey = `${gameRef.current.setupVersion}:${gameRef.current.turn}`;
+        if (timedOutTurnKeyRef.current !== overdueTurnKey) {
+          timedOutTurnKeyRef.current = overdueTurnKey;
+          finalizeTurn();
+          return;
+        }
       }
 
       if (mode !== "multiplayer") return;
@@ -2159,6 +2116,7 @@ export const Battle: React.FC<BattleProps> = ({
     isIntroSnapshotState,
     isSnapshotCheckpointClear,
     isWinnerSnapshotState,
+    finalizeTurn,
     localSide,
     mode,
     onBattleSnapshotPublished,
@@ -2280,12 +2238,29 @@ export const Battle: React.FC<BattleProps> = ({
     !game.actedThisTurn &&
     isHandStuck(me) &&
     !me.mulliganUsedThisRound;
-  const turnMinutes = Math.floor(turnElapsedMs / 60000);
-  const turnSeconds = Math.floor((turnElapsedMs % 60000) / 1000);
-  const turnClock = `${String(turnMinutes).padStart(2, "0")}:${String(turnSeconds).padStart(2, "0")}`;
+  const displayTurnRemainingMs = introActive
+    ? TURN_TIMER.limitMs
+    : Math.min(TURN_TIMER.limitMs, turnPresentationLocked ? TURN_TIMER.limitMs : turnRemainingMs);
+  const turnSecondsRemaining = Math.max(0, Math.ceil(displayTurnRemainingMs / 1000) - 1);
+  const turnClock = introActive ? "--" : String(turnSecondsRemaining).padStart(2, "0");
+  const turnClockUrgent = !introActive && game.winner === null && displayTurnRemainingMs <= TURN_TIMER.warningMs;
+  const desktopTurnLabel = introActive ? "Inicio do Duelo" : game.turn === localPlayerIndex ? "Seu Turno" : "Turno do Oponente";
+  const desktopFallbackLabel =
+    introPhase === "coin-choice"
+      ? "Escolha a moeda"
+      : introActive
+        ? "Resolucao de abertura"
+        : game.turn === localPlayerIndex
+          ? "Aguardando jogada"
+          : "Oponente pensando";
+  const mulliganSelectionInvalid =
+    game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan;
+  const mulliganDisabled = !canSwap || mulliganSelectionInvalid;
+  const mulliganButtonClass =
+    "group relative overflow-hidden rounded-[1.6rem] border-4 border-[#d4af37] bg-[#4a1d24] text-amber-50 shadow-[0_18px_38px_rgba(0,0,0,0.42)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_46px_rgba(0,0,0,0.5)] before:absolute before:inset-0 before:bg-[url('https://www.transparenttextures.com/patterns/leather.png')] before:opacity-35 disabled:border-[#8a6a25] disabled:bg-[#3f2327] disabled:text-amber-100/45 disabled:shadow-none disabled:hover:translate-y-0";
 
   const renderPlayerHand = (scale: "desktop" | "mobile") => (
-    <HandFan
+    <BattleHandLane
       side={localPlayerIndex}
       presentation="local"
       stableCards={stableHands[localPlayerIndex]}
@@ -2331,7 +2306,7 @@ export const Battle: React.FC<BattleProps> = ({
   );
 
   const renderEnemyHand = (scale: "desktop" | "mobile") => (
-    <HandFan
+    <BattleHandLane
       side={remotePlayerIndex}
       presentation="remote"
       stableCards={stableHands[remotePlayerIndex]}
@@ -2427,299 +2402,301 @@ export const Battle: React.FC<BattleProps> = ({
       <BoardTravelLayer motions={travelMotions} onMotionComplete={handleTravelMotionComplete} />
       <TargetMotionLayer motions={targetMotions} onMotionComplete={handleTargetMotionComplete} />
 
-      <main className="relative z-10 flex h-full min-h-0 flex-col gap-1 px-3 py-2 sm:gap-2 sm:px-4 sm:py-3 lg:gap-0 lg:px-5 lg:pt-2 lg:pb-3">
-        <header className="grid grid-cols-[1fr_auto] items-start gap-2 lg:grid-cols-[240px_1fr_240px]">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onExit} className="h-9 rounded-lg border border-white/5 px-3 text-amber-100/60 hover:bg-white/10 hover:text-amber-100">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Sair</span>
-            </Button>
-            {mode !== "multiplayer" ? (
-              <Button variant="ghost" size="sm" onClick={resetGame} className="h-9 w-9 rounded-lg border border-white/5 p-0 text-amber-100/60 hover:bg-white/10 hover:text-amber-100">
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            ) : (
-              <div className="h-9 w-9" />
-            )}
-          </div>
+      <div className="absolute bottom-2 left-3 z-30 flex items-center gap-2 sm:bottom-3 sm:left-4 lg:bottom-4 lg:left-5">
+        <Button variant="ghost" size="sm" onClick={onExit} className="h-9 rounded-lg border border-white/5 px-3 text-amber-100/60 hover:bg-white/10 hover:text-amber-100">
+          <LogOut className="mr-2 h-4 w-4" />
+          <span className="text-[10px] font-bold uppercase tracking-wider">Sair</span>
+        </Button>
+        {mode !== "multiplayer" ? (
+          <Button variant="ghost" size="sm" onClick={resetGame} className="h-9 w-9 rounded-lg border border-white/5 p-0 text-amber-100/60 hover:bg-white/10 hover:text-amber-100">
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        ) : null}
+      </div>
 
-          <div className="hidden lg:block" />
+      <main className="relative z-10 flex h-full min-h-0 flex-col px-3 py-2 sm:px-4 sm:py-3 lg:px-5 lg:py-4">
 
-          <div className="hidden lg:block" />
-        </header>
+        <BattleBoardShell
+          leftSidebar={
+            <aside className="hidden min-h-0 flex-col items-center gap-4 pt-4 lg:flex">
+              <div className="w-[244px] pt-3 pb-1">
+                <BattlePileRack
+                  presentation="desktop"
+                  targetDeckCount={enemy.targetDeck.length}
+                  deckCount={enemy.syllableDeck.length}
+                  targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
+                  deckAnchorRef={bindZoneRef("enemyDeck", "desktop")}
+                  discardAnchorRef={bindZoneRef("enemyDiscard", "desktop")}
+                />
+              </div>
 
-        <section className="grid min-h-0 flex-1 gap-2 lg:gap-1 lg:grid-cols-[220px_minmax(0,1fr)_220px]">
-          <aside className="hidden min-h-0 flex-col gap-3 pt-4 lg:flex">
-            <div className="px-2 pt-4 pb-1">
-              <div className="relative flex items-start justify-center gap-3">
-                <div ref={bindZoneRef("enemyDiscard", "desktop")} className="pointer-events-none absolute -left-4 top-1/2 h-20 w-14 -translate-y-1/2 opacity-0" />
-                <div>
-                  <CardPile
-                    label="ALVOS"
-                    count={enemy.targetDeck.length}
-                    color="bg-rose-950"
-                    anchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
-                  />
+              <div className="paper-panel mt-4 h-[392px] w-[244px] overflow-y-auto rounded-xl border-2 border-amber-900/30 bg-parchment/95 p-4 text-[11px] font-serif italic text-amber-950 shadow-2xl no-scrollbar">
+                <div className="mb-3 border-b-2 border-amber-900/10 pb-2 text-center font-serif text-[15px] font-black uppercase leading-tight tracking-[0.12em] text-amber-950">
+                  Cronicas
                 </div>
-                <div>
-                  <CardPile
-                    label="DECK"
-                    count={enemy.syllableDeck.length}
-                    color="bg-amber-950"
-                    anchorRef={bindZoneRef("enemyDeck", "desktop")}
-                  />
+                <div className="flex flex-col gap-2">
+                  <AnimatePresence initial={false}>
+                    {game.log.map((item, idx) => (
+                      <motion.div
+                        key={`${idx}-${item.tone}-${item.text}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={cn(
+                          "rounded-xl border px-3 py-2 text-center text-[12px] font-semibold leading-relaxed shadow-sm",
+                          item.tone === "player" &&
+                            "border-emerald-900/30 bg-emerald-100 text-emerald-950",
+                          item.tone === "enemy" &&
+                            "border-rose-900/30 bg-rose-100 text-rose-950",
+                          item.tone === "system" &&
+                            "border-amber-900/20 bg-amber-50/85 text-amber-950",
+                        )}
+                      >
+                        {item.text}
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
               </div>
-            </div>
-
-            <div className="paper-panel h-[320px] overflow-y-auto rounded-xl border-2 border-amber-900/30 bg-parchment/95 p-4 text-[11px] font-serif italic text-amber-950 shadow-2xl no-scrollbar">
-              <div className="mb-3 border-b-2 border-amber-900/10 pb-2 text-center text-[10px] font-black uppercase tracking-[0.2em]">
-                Cronicas
-              </div>
-              <div className="flex flex-col gap-2">
-                <AnimatePresence initial={false}>
-                  {game.log.map((item, idx) => (
-                    <motion.div
-                      key={`${idx}-${item}`}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="rounded-r-md border-l-2 border-amber-900/20 bg-black/5 py-1 pl-3 leading-relaxed"
-                    >
-                      {item}
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
-          </aside>
-
-          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 lg:mx-auto lg:w-full lg:max-w-[980px]">
+            </aside>
+          }
+          centerTopMobile={
             <div className="rounded-[2rem] border border-white/10 bg-black/35 px-4 py-2 shadow-xl lg:hidden">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="w-full">
-                  {renderEnemyHand("mobile")}
-                </div>
-                <div className="flex gap-3">
-                  <div>
-                    <CardPile
-                      label="ALVOS"
-                      count={enemy.targetDeck.length}
-                      color="bg-rose-950"
-                      anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
-                    />
-                  </div>
-                  <div>
-                    <CardPile
-                      label="DECK"
-                      count={enemy.syllableDeck.length}
-                      color="bg-amber-950"
-                      anchorRef={bindZoneRef("enemyDeck", "mobile")}
-                    />
-                  </div>
-                  <div ref={bindZoneRef("enemyDiscard", "mobile")} className="pointer-events-none h-0 w-0 opacity-0" />
-                </div>
+                <div className="w-full">{renderEnemyHand("mobile")}</div>
+                <BattlePileRack
+                  presentation="mobile"
+                  targetDeckCount={enemy.targetDeck.length}
+                  deckCount={enemy.syllableDeck.length}
+                  targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
+                  deckAnchorRef={bindZoneRef("enemyDeck", "mobile")}
+                  discardAnchorRef={bindZoneRef("enemyDiscard", "mobile")}
+                />
               </div>
             </div>
-
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2 lg:grid-rows-[84px_minmax(0,1fr)_156px]">
-              <div className="flex justify-center -mt-3 -mb-2 sm:-mt-2 lg:hidden">
-                <PlayerPortrait label={safeRemotePlayerName} avatar={remotePlayerAvatar} isLocal={false} life={enemy.life} active={game.turn === remotePlayerIndex} flashDamage={enemy.flashDamage} />
+          }
+          centerTopDesktop={
+            <>
+              <div className="-mt-1 -mb-1 sm:mt-0">
+                <BattlePortraitRail
+                  presentation="mobile"
+                  portrait={
+                    <PlayerPortrait
+                      label={safeRemotePlayerName}
+                      avatar={remotePlayerAvatar}
+                      isLocal={false}
+                      life={enemy.life}
+                      active={game.turn === remotePlayerIndex}
+                      flashDamage={enemy.flashDamage}
+                    />
+                  }
+                />
               </div>
 
-              <div className="hidden h-[84px] items-start px-2 lg:grid lg:grid-cols-[1fr_300px] lg:gap-3">
-                <div className="flex items-start justify-end pr-6 -mt-20">
-                  {renderEnemyHand("desktop")}
-                </div>
-                <div className="flex items-start justify-start -mt-6 pl-9">
-                  <PlayerPortrait label={safeRemotePlayerName} avatar={remotePlayerAvatar} isLocal={false} life={enemy.life} active={game.turn === remotePlayerIndex} flashDamage={enemy.flashDamage} />
+              <BattlePortraitRail
+                presentation="desktop-top"
+                hand={renderEnemyHand("desktop")}
+                portrait={null}
+              />
+            </>
+          }
+          boardSurface={
+            <div className="relative min-h-0 overflow-visible rounded-[2.5rem] border-8 border-amber-900/40 bg-black/40 shadow-[inset_0_0_120px_rgba(0,0,0,0.7)] lg:mx-auto lg:h-full lg:w-full lg:max-w-[930px]">
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2rem]">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(17,24,39,0.05)_0%,rgba(0,0,0,0.45)_100%)]" />
+              </div>
+
+              <div className="grid h-full min-h-0 grid-rows-[minmax(170px,1fr)_minmax(170px,1fr)] gap-2 px-3 py-2 sm:px-4 sm:py-3 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-9 lg:px-8 lg:pt-3 lg:pb-3">
+                <BattleFieldLane
+                  presentation="enemy"
+                  containerRef={bindZoneRef("enemyField", "main")}
+                  sectionClassName="flex min-h-0 items-end justify-center overflow-visible pb-1"
+                  slots={enemyFieldSlots}
+                />
+
+                <BattleFieldLane
+                  presentation="player"
+                  containerRef={bindZoneRef("playerField", "main")}
+                  sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1"
+                  slots={playerFieldSlots}
+                />
+              </div>
+
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2">
+                <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-amber-400/20 to-transparent" />
+                <div className="flex items-center justify-center">
+                  <div className="flex items-center gap-4 opacity-10 sm:gap-6">
+                    <div className="h-0.5 w-16 bg-amber-100 sm:w-36" />
+                    <Swords className="h-7 w-7 text-amber-100 sm:h-8 sm:w-8" />
+                    <div className="h-0.5 w-16 bg-amber-100 sm:w-36" />
+                  </div>
                 </div>
               </div>
 
-              <div className="relative min-h-0 overflow-visible rounded-[2.5rem] border-8 border-amber-900/40 bg-black/40 shadow-[inset_0_0_120px_rgba(0,0,0,0.7)] lg:h-full">
-                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2rem]">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(17,24,39,0.05)_0%,rgba(0,0,0,0.45)_100%)]" />
-                </div>
-
-                <div className="grid h-full min-h-0 grid-rows-[minmax(180px,1fr)_minmax(180px,1fr)] gap-2 px-3 py-2 sm:px-4 sm:py-3 lg:px-6 lg:pt-2 lg:pb-4">
-                  <BattleFieldLane
-                    presentation="enemy"
-                    containerRef={bindZoneRef("enemyField", "main")}
-                    sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1 lg:pt-0"
-                    slots={enemyFieldSlots}
-                  />
-
-                  <BattleFieldLane
-                    presentation="player"
-                    containerRef={bindZoneRef("playerField", "main")}
-                    sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-2 lg:pt-3"
-                    slots={playerFieldSlots}
-                  />
-                </div>
-
-                <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2">
-                  <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-amber-400/20 to-transparent" />
-                  <div className="flex items-center justify-center">
-                    <AnimatePresence mode="wait">
-                      {game.currentMessage ? (
-                        <motion.div
-                          key={game.currentMessage.title}
-                          initial={{ opacity: 0, scale: 0.4, y: 20 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 1.8, y: -20 }}
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2">
+                <div className="flex items-center justify-center">
+                  <AnimatePresence mode="wait">
+                    {game.currentMessage ? (
+                      <motion.div
+                        key={game.currentMessage.title}
+                        initial={{ opacity: 0, scale: 0.4, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 1.8, y: -20 }}
+                        className={cn(
+                          "paper-panel z-50 min-w-[200px] rounded-2xl border-4 px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.5)] sm:min-w-[260px] sm:px-8 sm:py-4",
+                          game.currentMessage.kind === "damage" ? "bg-rose-50 border-rose-900" : "bg-amber-50 border-amber-900",
+                        )}
+                      >
+                        <div
                           className={cn(
-                            "paper-panel z-50 min-w-[200px] rounded-2xl border-4 px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.5)] sm:min-w-[260px] sm:px-8 sm:py-4",
-                            game.currentMessage.kind === "damage" ? "bg-rose-50 border-rose-900" : "bg-amber-50 border-amber-900",
+                            "text-center font-serif text-xl font-black uppercase tracking-tighter sm:text-3xl",
+                            game.currentMessage.kind === "damage" ? "text-rose-900" : "text-amber-950",
                           )}
                         >
-                          <div
-                            className={cn(
-                              "text-center font-serif text-xl font-black uppercase tracking-tighter sm:text-3xl",
-                              game.currentMessage.kind === "damage" ? "text-rose-900" : "text-amber-950",
-                            )}
-                          >
-                            {game.currentMessage.title}
-                          </div>
-                        </motion.div>
-                      ) : (
-                        <div className="flex items-center gap-4 opacity-10 sm:gap-6">
-                          <div className="h-0.5 w-16 bg-amber-100 sm:w-36" />
-                          <Swords className="h-7 w-7 text-amber-100 sm:h-8 sm:w-8" />
-                          <div className="h-0.5 w-16 bg-amber-100 sm:w-36" />
+                          {game.currentMessage.title}
                         </div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </div>
               </div>
 
-              <div className="hidden h-[156px] items-end px-2 lg:grid lg:grid-cols-[260px_1fr] lg:gap-4">
-                <div className="flex items-end justify-end pr-1 pb-7">
-                  <PlayerPortrait label={safeLocalPlayerName} avatar={localPlayerAvatar} isLocal life={me.life} active={game.turn === localPlayerIndex} flashDamage={me.flashDamage} />
-                </div>
-                <div className="flex items-end justify-start overflow-visible">
-                  {renderPlayerHand("desktop")}
-                </div>
+              <div className="pointer-events-none absolute right-0 top-0 z-30 hidden translate-x-[1%] -translate-y-[132%] lg:block">
+                <PlayerPortrait
+                  label={safeRemotePlayerName}
+                  avatar={remotePlayerAvatar}
+                  isLocal={false}
+                  life={enemy.life}
+                  active={game.turn === remotePlayerIndex}
+                  flashDamage={enemy.flashDamage}
+                />
               </div>
 
-              <div className="flex justify-center lg:hidden">
-                <PlayerPortrait label={safeLocalPlayerName} avatar={localPlayerAvatar} isLocal life={me.life} active={game.turn === localPlayerIndex} flashDamage={me.flashDamage} />
+              <div className="pointer-events-none absolute bottom-0 left-0 z-30 hidden -translate-x-[1%] translate-y-[132%] lg:block">
+                <PlayerPortrait
+                  label={safeLocalPlayerName}
+                  avatar={localPlayerAvatar}
+                  isLocal
+                  life={me.life}
+                  active={game.turn === localPlayerIndex}
+                  flashDamage={me.flashDamage}
+                />
               </div>
             </div>
+          }
+          centerBottomDesktop={
+            <>
+              <BattlePortraitRail
+                presentation="desktop-bottom"
+                hand={renderPlayerHand("desktop")}
+                portrait={null}
+              />
 
+              <BattlePortraitRail
+                presentation="mobile"
+                portrait={
+                  <PlayerPortrait
+                    label={safeLocalPlayerName}
+                    avatar={localPlayerAvatar}
+                    isLocal
+                    life={me.life}
+                    active={game.turn === localPlayerIndex}
+                    flashDamage={me.flashDamage}
+                  />
+                }
+              />
+            </>
+          }
+          centerBottomMobile={null}
+          centerControlMobile={
             <div className="rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex gap-3">
-                  <div>
-                    <CardPile
-                      label="ALVOS"
-                      count={me.targetDeck.length}
-                      color="bg-rose-950"
-                      anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
-                    />
-                  </div>
-                  <div>
-                    <CardPile
-                      label="DECK"
-                      count={me.syllableDeck.length}
-                      color="bg-amber-950"
-                      anchorRef={bindZoneRef("playerDeck", "mobile")}
-                    />
-                  </div>
-                  <div ref={bindZoneRef("playerDiscard", "mobile")} className="pointer-events-none h-0 w-0 opacity-0" />
-                </div>
+                <BattlePileRack
+                  presentation="mobile"
+                  targetDeckCount={me.targetDeck.length}
+                  deckCount={me.syllableDeck.length}
+                  targetDeckAnchorRef={bindZoneRef("playerTargetDeck", "mobile")}
+                  deckAnchorRef={bindZoneRef("playerDeck", "mobile")}
+                  discardAnchorRef={bindZoneRef("playerDiscard", "mobile")}
+                />
 
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-center shadow-xl">
-                    <div className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-100/30">Tempo</div>
-                    <div className="mt-1 text-lg font-black text-amber-200">{turnClock}</div>
-                  </div>
-
-                  {canSwap && (
+                <BattleStatusPanel
+                  presentation="mobile"
+                  title="Tempo"
+                  turnLabel=""
+                  clock={turnClock}
+                  clockUrgent={turnClockUrgent}
+                  action={
                     <Button
                       variant="outline"
-                      className="h-16 rounded-2xl border-4 border-amber-500 bg-amber-900/95 px-5 font-black text-amber-100 shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-transform hover:scale-105"
-                      disabled={game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan}
+                      className={cn(
+                        "h-16 min-w-[188px] gap-0 rounded-[1.35rem] px-5 font-black",
+                        mulliganButtonClass,
+                        !mulliganDisabled && "animate-[pulse_4.6s_ease-in-out_infinite]",
+                      )}
+                      disabled={mulliganDisabled}
                       onClick={handleMulligan}
                     >
-                      <RefreshCw className="mr-2 h-5 w-5" />
-                      TROCAR 3
+                      <div className="absolute inset-1 rounded-[1rem] border border-[#d4af37]/35 bg-[linear-gradient(180deg,rgba(190,24,93,0.92),rgba(127,29,29,0.96))]" />
+                      <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-100/80 to-transparent" />
+                      <div className="relative -ml-2 -mr-1 grid h-14 w-14 shrink-0 place-items-center">
+                        <span className="font-serif text-[42px] font-black leading-none text-amber-50/90 transition-transform duration-300 group-hover:rotate-[-10deg]">↻</span>
+                      </div>
+                      <span className="relative text-[13px] uppercase tracking-[0.12em] text-amber-50">Trocar</span>
                     </Button>
+                  }
+                />
+              </div>
+            </div>
+          }
+          rightSidebar={
+            <aside className="hidden min-h-0 flex-col items-center pt-3 lg:flex">
+              <div className="w-[244px] py-1">
+                <BattleStatusPanel
+                  presentation="desktop"
+                  title="Controle"
+                  turnLabel={desktopTurnLabel}
+                  clock={turnClock}
+                  clockUrgent={turnClockUrgent}
+                />
+              </div>
+
+              <div className="flex min-h-0 flex-1 items-center py-2">
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "flex h-[112px] w-[244px] items-center justify-between gap-0 rounded-[1.6rem] px-7 font-black",
+                    mulliganButtonClass,
+                    !mulliganDisabled && "animate-[pulse_4.6s_ease-in-out_infinite]",
                   )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <aside className="hidden min-h-0 flex-col justify-between gap-2 lg:flex">
-            <div className="rounded-[2rem] border border-white/10 bg-black/35 p-4 shadow-xl">
-              <div className="mb-4 text-center text-[10px] font-black uppercase tracking-[0.3em] text-amber-100/30">Controle</div>
-                <div className="flex flex-col items-center gap-4">
-                  <div className="text-center text-[11px] font-black uppercase tracking-[0.4em] text-amber-100/50">
-                    {introActive ? "Inicio do Duelo" : game.turn === localPlayerIndex ? "Seu Turno" : "Turno do Oponente"}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-2 py-1">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-full rounded-[1.25rem] border border-white/10 bg-black/30 px-4 py-4 text-center shadow-inner">
-                  <div className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-100/30">Tempo</div>
-                  <div className="mt-2 text-3xl font-black tracking-wider text-amber-200">{turnClock}</div>
-                </div>
-
-                {canSwap ? (
-                  <Button
-                    variant="outline"
-                    className="flex h-24 w-24 flex-col items-center justify-center rounded-full border-4 border-amber-500 bg-amber-900/95 font-black text-amber-100 shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-transform hover:scale-105"
-                    disabled={game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan}
-                    onClick={handleMulligan}
-                  >
-                    <RefreshCw className="mb-1 h-8 w-8" />
-                    <span className="text-center font-serif text-[10px] leading-tight">TROCAR 3</span>
-                  </Button>
-                ) : (
-                  <div className="rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-center text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/35">
-                    {introPhase === "coin-choice"
-                      ? "Escolha a moeda"
-                      : introActive
-                        ? "Resolucao de abertura"
-                        : game.turn === localPlayerIndex
-                          ? "Aguardando jogada"
-                          : "Oponente pensando"}
+                  disabled={mulliganDisabled}
+                  onClick={handleMulligan}
+                >
+                  <div className="absolute inset-1 rounded-[1.2rem] border border-[#d4af37]/35 bg-[linear-gradient(180deg,rgba(190,24,93,0.92),rgba(127,29,29,0.96))]" />
+                  <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-100/80 to-transparent" />
+                  <div className="relative -ml-2 mr-0 grid h-[88px] w-[88px] shrink-0 place-items-center">
+                    <span className="font-serif text-[72px] font-black leading-none text-amber-50/90 transition-transform duration-300 group-hover:rotate-[-10deg]">{"\u21BB"}</span>
                   </div>
-                )}
+                  <div className="relative -translate-x-2 flex min-w-0 flex-1 flex-col items-center text-center">
+                    <span className="font-serif text-[18px] font-black uppercase tracking-[0.08em] text-amber-50">Trocar</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/85">Ate x3 cartas</span>
+                  </div>
+                </Button>
               </div>
-            </div>
 
-            <div className="px-2 py-1">
-              <div className="relative flex items-start justify-center gap-3">
-                <div ref={bindZoneRef("playerDiscard", "desktop")} className="pointer-events-none absolute -left-4 top-1/2 h-20 w-14 -translate-y-1/2 opacity-0" />
-                <div>
-                  <CardPile
-                    label="ALVOS"
-                    count={me.targetDeck.length}
-                    color="bg-rose-950"
-                    anchorRef={bindZoneRef("playerTargetDeck", "desktop")}
-                  />
-                </div>
-                <div>
-                  <CardPile
-                    label="DECK"
-                    count={me.syllableDeck.length}
-                    color="bg-amber-950"
-                    anchorRef={bindZoneRef("playerDeck", "desktop")}
-                  />
-                </div>
+              <div className="w-[244px] py-1">
+                <BattlePileRack
+                  presentation="desktop"
+                  targetDeckCount={me.targetDeck.length}
+                  deckCount={me.syllableDeck.length}
+                  targetDeckAnchorRef={bindZoneRef("playerTargetDeck", "desktop")}
+                  deckAnchorRef={bindZoneRef("playerDeck", "desktop")}
+                  discardAnchorRef={bindZoneRef("playerDiscard", "desktop")}
+                />
               </div>
-            </div>
-          </aside>
-        </section>
-
-        <section className="mt-auto px-0 pt-7 lg:hidden">
-          <div>
-            {renderPlayerHand("mobile")}
-          </div>
-        </section>
+            </aside>
+          }
+          footerMobileHand={renderPlayerHand("mobile")}
+        />
       </main>
 
       <AnimatePresence>
