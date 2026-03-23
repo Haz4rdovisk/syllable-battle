@@ -132,7 +132,9 @@ function compareBattleSnapshotProgress(next: GameState, current: GameState) {
   const currentIntroProgress = SNAPSHOT_INTRO_PROGRESS[current.openingIntroStep as BattleIntroPhase] ?? 0;
   if (nextIntroProgress !== currentIntroProgress) return nextIntroProgress - currentIntroProgress;
 
-  if (next.turn !== current.turn) return next.turn - current.turn;
+  const nextDeadlineProgress = next.turnDeadlineAt ?? 0;
+  const currentDeadlineProgress = current.turnDeadlineAt ?? 0;
+  if (nextDeadlineProgress !== currentDeadlineProgress) return nextDeadlineProgress - currentDeadlineProgress;
 
   const nextActedProgress = next.actedThisTurn ? 1 : 0;
   const currentActedProgress = current.actedThisTurn ? 1 : 0;

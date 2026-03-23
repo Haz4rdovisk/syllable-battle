@@ -170,10 +170,31 @@ class RemoteRoomStateController implements RoomStateController {
 
   private handleMessage(message: BattleRoomStateMessage) {
     switch (message.type) {
-      case "snapshot":
-        this.state = mergeRoomState(this.state, message.state);
+      case "snapshot": {
+        const mergedState = mergeRoomState(this.state, message.state);
+        const disconnectedLobbyState =
+          (!mergedState.host.connected || !mergedState.guest.connected) &&
+          (this.state.phase === "lobby" || message.state.phase === "lobby");
+
+        this.state = disconnectedLobbyState
+          ? {
+              ...mergedState,
+              phase: "lobby",
+              initialGame: undefined,
+              battleSnapshot: undefined,
+              host: {
+                ...mergedState.host,
+                deckId: mergedState.host.connected ? mergedState.host.deckId : undefined,
+              },
+              guest: {
+                ...mergedState.guest,
+                deckId: mergedState.guest.connected ? mergedState.guest.deckId : undefined,
+              },
+            }
+          : mergedState;
         this.emitLocal();
         break;
+      }
       case "presence":
         this.state = {
           ...cloneRoomState(this.state),
@@ -204,6 +225,10 @@ class RemoteRoomStateController implements RoomStateController {
         this.emitLocal();
         break;
       case "phase":
+        if ((!this.state.host.connected || !this.state.guest.connected) && this.state.phase === "lobby" && message.phase !== "lobby") {
+          this.emitLocal();
+          break;
+        }
         if (PHASE_ORDER[message.phase] < PHASE_ORDER[this.state.phase] && message.phase !== "lobby") {
           this.emitLocal();
           break;
