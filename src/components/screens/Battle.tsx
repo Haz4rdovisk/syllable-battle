@@ -117,6 +117,12 @@ function getTurnCycleKey(state: Pick<GameState, "setupVersion" | "turn" | "turnD
     : `${state.setupVersion}:${state.turn}:${state.turnDeadlineAt ?? "na"}`;
 }
 
+function getTurnPresentationKey(state: Pick<GameState, "setupVersion" | "turn" | "openingIntroStep">) {
+  return state.openingIntroStep !== "done"
+    ? `${state.setupVersion}:intro`
+    : `${state.setupVersion}:${state.turn}`;
+}
+
 const SNAPSHOT_INTRO_PROGRESS: Record<BattleIntroPhase, number> = {
   "coin-choice": 0,
   "coin-fall": 1,
@@ -317,7 +323,7 @@ export const Battle: React.FC<BattleProps> = ({
   const pendingAuthoritativeSnapshotRef = useRef<GameState | null>(null);
   const publishedSnapshotSignatureRef = useRef<string>("");
   const timedOutTurnKeyRef = useRef("");
-  const presentedTurnKeyRef = useRef(getTurnCycleKey(initialGameRef.current));
+  const presentedTurnKeyRef = useRef(getTurnPresentationKey(initialGameRef.current));
   const createVisualHandCard = useCallback(
     (syllable: Syllable, side: typeof PLAYER | typeof ENEMY): VisualHandCard => ({
       id: `hand-card-${side}-${handCardIdRef.current++}`,
@@ -903,13 +909,13 @@ export const Battle: React.FC<BattleProps> = ({
       const freshGame = cloneInitialGame(snapshot);
       const shouldRunIntro = isFreshBattleState(freshGame) && freshGame.openingIntroStep !== "done";
       const previousGame = gameRef.current;
-      const nextTurnPresentationKey = getTurnCycleKey(freshGame);
+      const nextTurnPresentationKey = getTurnPresentationKey(freshGame);
       const shouldReplayTurnPresentation =
         freshGame.openingIntroStep === "done" &&
         (
           previousGame.setupVersion !== freshGame.setupVersion ||
-          previousGame.turn !== freshGame.turn ||
-          previousGame.turnDeadlineAt !== freshGame.turnDeadlineAt
+          previousGame.openingIntroStep !== freshGame.openingIntroStep ||
+          previousGame.turn !== freshGame.turn
         );
       const preservedStableHands =
         previousGame.setupVersion === freshGame.setupVersion
@@ -956,8 +962,7 @@ export const Battle: React.FC<BattleProps> = ({
         [PLAYER]: 0,
         [ENEMY]: 0,
       };
-      presentedTurnKeyRef.current =
-        shouldReplayTurnPresentation ? "" : nextTurnPresentationKey;
+      presentedTurnKeyRef.current = shouldReplayTurnPresentation ? "" : nextTurnPresentationKey;
       setShowResultOverlay(false);
       setGame(freshGame);
     },
@@ -2135,15 +2140,23 @@ export const Battle: React.FC<BattleProps> = ({
     const forceVisibilityRecovery = needsVisibilityRecoveryRef.current;
     if (!introSyncInFlight && !winnerSyncInFlight && !forceVisibilityRecovery && !isSnapshotCheckpointClear(gameRef.current)) return;
 
-    const nextSignature = buildBattleSnapshotSignature(pendingSnapshot);
-    const currentSignature = buildBattleSnapshotSignature(gameRef.current);
-    const progressComparison = compareBattleSnapshotProgress(pendingSnapshot, gameRef.current);
-    pendingAuthoritativeSnapshotRef.current = null;
-    needsVisibilityRecoveryRef.current = false;
+      const nextSignature = buildBattleSnapshotSignature(pendingSnapshot);
+      const currentSignature = buildBattleSnapshotSignature(gameRef.current);
+      const progressComparison = compareBattleSnapshotProgress(pendingSnapshot, gameRef.current);
+      pendingAuthoritativeSnapshotRef.current = null;
+      needsVisibilityRecoveryRef.current = false;
     if (progressComparison < 0) return;
     if (nextSignature === currentSignature) return;
 
-    hydrateBattleSnapshot(pendingSnapshot);
+      hydrateBattleSnapshot(pendingSnapshot);
+      if (
+        pendingSnapshot.winner !== null &&
+        !pendingSnapshot.combatLocked &&
+        (typeof document === "undefined" || !document.hidden)
+      ) {
+        setShowResultOverlay(true);
+        pendingResultOverlayRecoveryRef.current = false;
+      }
   }, [
     authoritativeBattleSnapshot,
     buildBattleSnapshotSignature,
@@ -2161,7 +2174,7 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     if (introPhase !== "done") {
-      presentedTurnKeyRef.current = `${game.setupVersion}:intro`;
+      presentedTurnKeyRef.current = getTurnPresentationKey(game);
       setTurnPresentationLocked(false);
       return;
     }
@@ -2171,7 +2184,7 @@ export const Battle: React.FC<BattleProps> = ({
       return;
     }
 
-    const presentationKey = getTurnCycleKey(game);
+    const presentationKey = getTurnPresentationKey(game);
     if (presentedTurnKeyRef.current === presentationKey) return;
     presentedTurnKeyRef.current = presentationKey;
     setTurnPresentationLocked(true);
