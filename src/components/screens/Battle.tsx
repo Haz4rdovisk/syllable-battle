@@ -2036,6 +2036,11 @@ export const Battle: React.FC<BattleProps> = ({
         return;
       }
 
+      if (pendingResultOverlayRecoveryRef.current || (gameRef.current.winner !== null && !gameRef.current.combatLocked)) {
+        setShowResultOverlay(true);
+        pendingResultOverlayRecoveryRef.current = false;
+      }
+
       const hiddenAt = lastHiddenAtRef.current;
       lastHiddenAtRef.current = null;
       if (!hiddenAt) return;
@@ -2050,10 +2055,6 @@ export const Battle: React.FC<BattleProps> = ({
       setTurnPresentationLocked(false);
       setTurnRemainingMs(TURN_TIMER.limitMs);
       setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
-      if (pendingResultOverlayRecoveryRef.current || (gameRef.current.winner !== null && !gameRef.current.combatLocked)) {
-        setShowResultOverlay(true);
-        pendingResultOverlayRecoveryRef.current = false;
-      }
 
       const authorityCanResolveTimeout = mode !== "multiplayer" || localSide === "player";
       if (
@@ -2174,7 +2175,7 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     if (introPhase !== "done") {
-      presentedTurnKeyRef.current = getTurnPresentationKey(game);
+      presentedTurnKeyRef.current = `${game.setupVersion}:intro`;
       setTurnPresentationLocked(false);
       return;
     }
