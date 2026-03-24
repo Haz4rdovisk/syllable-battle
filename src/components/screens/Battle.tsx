@@ -958,7 +958,14 @@ export const Battle: React.FC<BattleProps> = ({
       };
       presentedTurnKeyRef.current =
         shouldReplayTurnPresentation ? "" : nextTurnPresentationKey;
-      setShowResultOverlay(false);
+      if (freshGame.winner !== null && !freshGame.combatLocked) {
+        const hidden = typeof document !== "undefined" && document.hidden;
+        pendingResultOverlayRecoveryRef.current = hidden;
+        setShowResultOverlay(!hidden);
+      } else {
+        pendingResultOverlayRecoveryRef.current = false;
+        setShowResultOverlay(false);
+      }
       setGame(freshGame);
     },
     [
@@ -2180,11 +2187,16 @@ export const Battle: React.FC<BattleProps> = ({
       setGame((prev) => {
         if (prev.winner !== null || prev.openingIntroStep !== "done") return prev;
         if (prev.setupVersion !== game.setupVersion || prev.turn !== game.turn || prev.turnDeadlineAt !== game.turnDeadlineAt) return prev;
+        const nextTitle = getTurnMessageTitle(prev.turn);
+        const hasDuplicateTurnMessage =
+          (prev.currentMessage?.kind === "turn" && prev.currentMessage.title === nextTitle) ||
+          prev.messageQueue.some((entry) => entry.kind === "turn" && entry.title === nextTitle);
+        if (hasDuplicateTurnMessage) return prev;
         return {
           ...prev,
           messageQueue: [
             ...prev.messageQueue,
-            { title: getTurnMessageTitle(prev.turn), detail: "", kind: "turn" },
+            { title: nextTitle, detail: "", kind: "turn" },
           ],
         };
       });
