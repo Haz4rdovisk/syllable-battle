@@ -2161,7 +2161,7 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     if (introPhase !== "done") {
-      presentedTurnKeyRef.current = getTurnCycleKey(game);
+      presentedTurnKeyRef.current = `${game.setupVersion}:intro`;
       setTurnPresentationLocked(false);
       return;
     }
@@ -2635,7 +2635,6 @@ export const Battle: React.FC<BattleProps> = ({
                       className={cn(
                         "h-16 min-w-[188px] gap-0 rounded-[1.35rem] px-5 font-black",
                         mulliganButtonClass,
-                        !mulliganDisabled && "animate-[pulse_4.6s_ease-in-out_infinite]",
                       )}
                       disabled={mulliganDisabled}
                       onClick={handleMulligan}
@@ -2670,7 +2669,6 @@ export const Battle: React.FC<BattleProps> = ({
                   className={cn(
                     "flex h-[112px] w-[244px] items-center justify-between gap-0 rounded-[1.6rem] px-7 font-black",
                     mulliganButtonClass,
-                    !mulliganDisabled && "animate-[pulse_4.6s_ease-in-out_infinite]",
                   )}
                   disabled={mulliganDisabled}
                   onClick={handleMulligan}
@@ -2682,7 +2680,7 @@ export const Battle: React.FC<BattleProps> = ({
                   </div>
                   <div className="relative -translate-x-2 flex min-w-0 flex-1 flex-col items-center text-center">
                     <span className="font-serif text-[18px] font-black uppercase tracking-[0.08em] text-amber-50">Trocar</span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/85">Ate x3 cartas</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/85">Ate 3 cartas</span>
                   </div>
                 </Button>
               </div>

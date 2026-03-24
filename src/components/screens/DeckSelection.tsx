@@ -156,13 +156,13 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
           initial="hidden"
           animate="show"
           exit={{ opacity: 0, y: -14, transition: { duration: 0.28, ease: "easeInOut" } }}
-          className="grid shrink-0 grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3"
+          className="grid shrink-0 grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-2.5"
         >
           {DECKS.map((deck) => (
             <motion.div
               key={deck.id}
               variants={deckCardVariants}
-              className="relative"
+              className="relative mx-auto w-full max-w-[340px] lg:max-w-[324px]"
             >
               <motion.div
                 whileHover={
@@ -200,12 +200,12 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
               >
                 <div
                   className={cn(
-                    "relative z-10 flex h-[300px] flex-col rounded-[36px] border-2 border-[#d4af37]/40 bg-gradient-to-br p-6 sm:h-[400px] sm:p-8",
+                    "relative z-10 flex h-[292px] flex-col rounded-[36px] border-2 border-[#d4af37]/40 bg-gradient-to-br p-5 sm:h-[340px] sm:p-6",
                     deck.color,
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-6xl drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)]">{deck.emoji}</div>
+                    <div className="text-5xl drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] sm:text-[3.35rem]">{deck.emoji}</div>
                     <div className="flex flex-col items-end gap-2">
                       <div className="rounded-full border border-amber-400/20 bg-black/30 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-amber-200">
                         {deck.targets.length} CARTAS
@@ -218,14 +218,14 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-8 space-y-3">
-                    <h3 className="text-3xl font-serif font-black text-amber-100 transition-colors group-hover:text-amber-400">
+                  <div className="mt-6 space-y-2.5">
+                    <h3 className="text-[2rem] font-serif font-black text-amber-100 transition-colors group-hover:text-amber-400 sm:text-[2.15rem]">
                       {deck.name}
                     </h3>
-                    <p className="text-sm font-serif italic leading-relaxed text-amber-100/60">"{deck.description}"</p>
+                    <p className="text-[13px] font-serif italic leading-relaxed text-amber-100/60 sm:text-sm">"{deck.description}"</p>
                   </div>
 
-                  <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-6">
+                  <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-5">
                     <div className="flex -space-x-3">
                       {deck.targets.slice(0, 4).map((target, index) => (
                         <div
