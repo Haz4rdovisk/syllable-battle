@@ -5,6 +5,8 @@ import { DeckSelection } from "./components/screens/DeckSelection";
 import { Lobby } from "./components/screens/Lobby";
 import { Battle } from "./components/screens/Battle";
 import { ProfileSetup } from "./components/screens/ProfileSetup";
+import { BattleLayoutEditor } from "./components/screens/BattleLayoutEditor";
+import { BattleLayoutPreview } from "./components/screens/BattleLayoutPreview";
 import { DECKS } from "./data/decks";
 import { BattleRoomSession, BattleRoomState, createBattleRoomService } from "./lib/battleRoomSession";
 import { SseBattleRoomConnector } from "./lib/battleRoomSseConnector";
@@ -13,6 +15,7 @@ import { makeInitialGame } from "./logic/gameLogic";
 
 type Screen = "menu" | "deck-selection" | "lobby" | "battle";
 type SoloDeckStep = "player" | "enemy";
+type DevSceneMode = "layout-editor" | "layout-preview" | null;
 const MOCK_ROOM_LATENCY_MS = 180;
 const MOCK_ROOM_DELIVERED_MS = 60;
 const ENABLE_LOCAL_MULTIPLAYER_MOCK = true;
@@ -28,6 +31,14 @@ function compareBattleActions(a: BattleSubmittedAction, b: BattleSubmittedAction
 }
 
 export default function App() {
+  const devSceneMode: DevSceneMode = ((): DevSceneMode => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("battle-layout-editor") === "1") return "layout-editor";
+    if (params.get("battle-layout-preview") === "1") return "layout-preview";
+    return null;
+  })();
+
   const [playerProfile, setPlayerProfile] = useState<PlayerProfile | null>(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -369,7 +380,11 @@ export default function App() {
       </div>
 
       <main className="relative z-10 h-full w-full overflow-hidden">
-        {!playerProfile || isEditingProfile ? (
+        {devSceneMode === "layout-editor" ? (
+          <BattleLayoutEditor />
+        ) : devSceneMode === "layout-preview" ? (
+          <BattleLayoutPreview />
+        ) : !playerProfile || isEditingProfile ? (
           <ProfileSetup
             initialProfile={playerProfile}
             isEditing={!!playerProfile && isEditingProfile}

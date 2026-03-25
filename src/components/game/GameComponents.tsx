@@ -95,7 +95,20 @@ const rarityColor = (rarity: string) => {
   return "bg-rose-800";
 };
 
-export const TRAVEL_TARGET_CARD_SIZE = { width: 126, height: 176 };
+export const getTravelTargetCardSize = (
+  viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280,
+  viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900,
+) => ({
+  width: Math.min(148, Math.max(102, viewportWidth * 0.11)),
+  height: Math.min(212, Math.max(156, viewportHeight * 0.19)),
+});
+
+const travelTargetCardSizeStyle = {
+  width:
+    "clamp(var(--battle-target-card-min-width,102px), 11vw, var(--battle-target-card-max-width,148px))",
+  height:
+    "clamp(var(--battle-target-card-min-height,156px), 19vh, var(--battle-target-card-max-height,212px))",
+} as React.CSSProperties;
 
 export const getTravelSyllableCardSize = (
   viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280,
@@ -107,16 +120,28 @@ export const getTravelSyllableCardSize = (
 
 const getTravelSize = (kind: TravelCardVisualKind) => {
   if (kind === "target" || kind === "target-back") {
-    return TRAVEL_TARGET_CARD_SIZE;
+    return getTravelTargetCardSize();
   }
 
   return getTravelSyllableCardSize();
 };
 
-export const CardBackCard: React.FC<{ floating?: boolean }> = ({ floating = false }) => (
+type BattleCardSizePreset = "default" | "hand-desktop" | "hand-mobile";
+
+const battleCardSizePresetClass: Record<BattleCardSizePreset, string> = {
+  default: "h-[clamp(110px,16vh,150px)] w-[clamp(80px,12vw,110px)]",
+  "hand-desktop": "h-[150px] w-[110px]",
+  "hand-mobile": "h-[120px] w-[86px]",
+};
+
+export const CardBackCard: React.FC<{
+  floating?: boolean;
+  sizePreset?: BattleCardSizePreset;
+}> = ({ floating = false, sizePreset = "default" }) => (
   <div
     className={cn(
-      "relative h-[clamp(110px,16vh,150px)] w-[clamp(80px,12vw,110px)] overflow-hidden rounded-xl border-2 border-amber-300/40 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800 shadow-[0_10px_20px_rgba(0,0,0,0.45)]",
+      "relative overflow-hidden rounded-xl border-2 border-amber-300/40 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800 shadow-[0_10px_20px_rgba(0,0,0,0.45)]",
+      battleCardSizePresetClass[sizePreset],
       floating && "shadow-[0_14px_28px_rgba(0,0,0,0.45)]",
     )}
   >
@@ -134,7 +159,10 @@ const TravelCardVisual: React.FC<{ motion: BoardTravelMotion }> = ({ motion }) =
 
   if (motion.kind === "target-back") {
     return (
-      <div className="relative h-[176px] w-[126px] overflow-hidden rounded-[1.2rem] border-2 border-amber-300/40 bg-gradient-to-br from-amber-950 via-amber-900 to-stone-950 shadow-[0_18px_34px_rgba(0,0,0,0.45)]">
+      <div
+        className="relative overflow-hidden rounded-[1.2rem] border-2 border-amber-300/40 bg-gradient-to-br from-amber-950 via-amber-900 to-stone-950 shadow-[0_18px_34px_rgba(0,0,0,0.45)]"
+        style={travelTargetCardSizeStyle}
+      >
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/exclusive-paper.png')] opacity-25" />
         <div className="absolute inset-2 rounded-[1rem] border border-amber-200/25" />
         <div className="absolute inset-x-4 top-4 h-7 rounded-full border border-amber-200/20" />
@@ -147,7 +175,10 @@ const TravelCardVisual: React.FC<{ motion: BoardTravelMotion }> = ({ motion }) =
     const damage = motion.rarity ? RARITY_DAMAGE[normalizeRarity(motion.rarity)] : 0;
 
     return (
-      <div className="card-base relative flex h-[176px] w-[126px] flex-col overflow-hidden rounded-[1.2rem] shadow-[0_18px_34px_rgba(0,0,0,0.45)]">
+      <div
+        className="card-base relative flex flex-col overflow-hidden rounded-[1.2rem] shadow-[0_18px_34px_rgba(0,0,0,0.45)]"
+        style={travelTargetCardSizeStyle}
+      >
         <div
           className={cn(
             "flex h-9 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white",
@@ -263,6 +294,7 @@ interface TargetCardProps {
   canClick: boolean;
   onClick: () => void;
   playerHand?: Syllable[];
+  fitParent?: boolean;
 }
 
 export const TargetCard: React.FC<TargetCardProps> = ({
@@ -273,6 +305,7 @@ export const TargetCard: React.FC<TargetCardProps> = ({
   canClick,
   onClick,
   playerHand = [],
+  fitParent = false,
 }) => {
   const normalizeSyllable = (value: Syllable) => value.trim().toUpperCase();
   const countOccurrences = (values: Syllable[]) => {
@@ -324,7 +357,9 @@ export const TargetCard: React.FC<TargetCardProps> = ({
       whileTap={canClick ? { scale: 0.98 } : {}}
       className={cn(
         "card-base group relative flex flex-col p-0 text-left shadow-xl transition-all",
-        "h-[clamp(164px,20vh,220px)] w-[clamp(108px,13.5vw,156px)]",
+        fitParent
+          ? "h-full w-full"
+          : "h-[clamp(var(--battle-target-card-min-height,156px),19vh,var(--battle-target-card-max-height,212px))] w-[clamp(var(--battle-target-card-min-width,102px),11vw,var(--battle-target-card-max-width,148px))]",
         target.entering && "animate-[cardEnter_.9s_ease-out]",
         target.attacking && "animate-[cardAttack_1.3s_ease-out]",
         target.leaving && "animate-[cardLeave_1.0s_ease-in_forwards]",
@@ -334,26 +369,38 @@ export const TargetCard: React.FC<TargetCardProps> = ({
     >
       <div
         className={cn(
-          "flex h-8 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white sm:h-10 sm:text-[11px]",
+          "flex items-center justify-between border-b-2 border-[#d4af37] px-[clamp(0.55rem,0.8vw,0.75rem)] text-[clamp(0.5rem,0.7vw,0.68rem)] font-black uppercase text-white",
           rarityColor(target.rarity),
         )}
+        style={{ minHeight: "clamp(2rem, 3.4vh, 2.5rem)" }}
       >
         <span>{normalizeRarity(target.rarity)}</span>
         <div className="flex items-center gap-1.5">
-          <Swords className="h-4 w-4 sm:h-5 sm:w-5" />
+          <Swords className="h-[clamp(0.8rem,1.1vw,1.2rem)] w-[clamp(0.8rem,1.1vw,1.2rem)]" />
           <span>{damage}</span>
         </div>
       </div>
 
-      <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-2">
-        <div className="text-4xl drop-shadow-2xl sm:text-6xl">{target.emoji}</div>
-        <div className="absolute bottom-2 right-3 text-[10px] font-bold text-amber-900/40 sm:text-[12px]">
+      <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-[clamp(0.35rem,0.8vw,0.5rem)]">
+        <div
+          className="drop-shadow-2xl"
+          style={{ fontSize: "clamp(2.2rem, 4.8vw, 3.75rem)" }}
+        >
+          {target.emoji}
+        </div>
+        <div
+          className="absolute bottom-2 right-3 font-bold text-amber-900/40"
+          style={{ fontSize: "clamp(0.55rem, 0.8vw, 0.75rem)" }}
+        >
           {target.progress.length}/{target.syllables.length}
         </div>
       </div>
 
-      <div className="shrink-0 bg-parchment/85 px-3 py-1.5 sm:px-4 sm:py-2">
-        <div className="truncate text-center font-serif text-[11px] font-black tracking-tight text-amber-950 sm:text-sm md:text-base">
+      <div className="shrink-0 bg-parchment/85 px-[clamp(0.55rem,0.9vw,1rem)] py-[clamp(0.35rem,0.7vw,0.5rem)]">
+        <div
+          className="truncate text-center font-serif font-black tracking-tight text-amber-950"
+          style={{ fontSize: "clamp(0.65rem, 0.95vw, 1rem)" }}
+        >
           {target.name}
         </div>
 
@@ -376,7 +423,7 @@ export const TargetCard: React.FC<TargetCardProps> = ({
               <div
                 key={`${syllable}-${i}`}
                 className={cn(
-                  "rounded-md border-2 px-1.5 py-0.5 text-[9px] font-black leading-none transition-all sm:text-[11px]",
+                  "rounded-md border-2 px-[clamp(0.28rem,0.4vw,0.38rem)] py-0.5 font-black leading-none transition-all",
                   isDone
                     ? "border-emerald-700 bg-emerald-100 text-emerald-900"
                     : isSelectedMatch || isPendingMatch
@@ -385,6 +432,7 @@ export const TargetCard: React.FC<TargetCardProps> = ({
                         ? "border-amber-500 bg-amber-200 text-amber-900"
                         : "border-amber-900/20 bg-amber-900/5 text-amber-900/40",
                 )}
+                style={{ fontSize: "clamp(0.48rem, 0.7vw, 0.68rem)" }}
               >
                 {syllable}
               </div>
@@ -405,8 +453,7 @@ export const TargetMotionLayer: React.FC<TargetMotionLayerProps> = ({
   return (
     <div className="pointer-events-none fixed inset-0 z-[115] overflow-hidden">
       {motions.map((targetMotion) => {
-          const width = TRAVEL_TARGET_CARD_SIZE.width;
-          const height = TRAVEL_TARGET_CARD_SIZE.height;
+          const { width, height } = getTravelTargetCardSize();
           const startX = targetMotion.origin.left + targetMotion.origin.width / 2 - width / 2;
           const startY = targetMotion.origin.top + targetMotion.origin.height / 2 - height / 2;
           const endX = targetMotion.destination.left + targetMotion.destination.width / 2 - width / 2;
@@ -494,12 +541,16 @@ export const CardPile: React.FC<{
   color: string;
   variant?: "deck" | "target";
   anchorRef?: React.Ref<HTMLDivElement>;
+  fitParent?: boolean;
+  className?: string;
 }> = ({
   label,
   count,
   color,
   variant = "deck",
   anchorRef,
+  fitParent = false,
+  className,
 }) => {
   const [prevCount, setPrevCount] = React.useState(count);
   const [isChanging, setIsChanging] = React.useState(false);
@@ -518,92 +569,113 @@ export const CardPile: React.FC<{
   const visibleBackLayers = Math.max(0, layers - 1);
 
   return (
-    <div className="group flex cursor-help flex-col items-center gap-2 perspective-1000">
+    <div
+      data-battle-visual-root="true"
+      className={cn(
+        "group cursor-help perspective-1000",
+        fitParent
+          ? "flex h-full w-full min-w-0 flex-col items-center justify-between gap-2"
+          : "flex h-[190px] w-[120px] flex-col items-center justify-between gap-2",
+        className,
+      )}
+    >
       <div
         ref={anchorRef}
-        className="relative h-[clamp(110px,16vh,150px)] w-[clamp(80px,12vw,110px)] transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1"
-      >
-        {[...Array(visibleBackLayers)].map((_, i) => {
-          const depth = visibleBackLayers - i;
-
-          return (
-          <div
-            key={i}
-            className={cn(
-              "absolute inset-0 rounded-xl shadow-sm",
-              isDeckVariant
-                ? "border border-amber-300/18 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
-                : "border border-amber-300/22 bg-gradient-to-br from-rose-950 via-red-950 to-stone-950",
-            )}
-            style={{
-              transform: `translateY(${-depth * 2.5}px) translateX(${depth * 0.8}px)`,
-              zIndex: i,
-            }}
-          />
-          );
-        })}
-
-        <motion.div
-          animate={isChanging ? { scale: [1, 1.05, 1], y: [0, -12, 0], rotate: [0, -1.5, 0] } : {}}
-          className={cn(
-            "absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-xl border-2 shadow-2xl transition-all",
-            isDeckVariant
-              ? "border-amber-300/40 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
-              : cn("border-amber-300/30", color),
-          )}
-        >
-          <div
-            className={cn(
-              "absolute inset-0 opacity-25",
-              isDeckVariant
-                ? "bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"
-                : "bg-[url('https://www.transparenttextures.com/patterns/exclusive-paper.png')]",
-            )}
-          />
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-1.5",
-              isDeckVariant
-                ? "rounded-lg border border-amber-200/20"
-                : "rounded-lg border border-amber-200/18",
-            )}
-          />
-          <div
-            className={cn(
-              "pointer-events-none absolute",
-              isDeckVariant
-                ? "inset-4 rounded-full border border-amber-200/15"
-                : "inset-4 rounded-xl border border-amber-200/12",
-            )}
-          />
-
-          {isDeckVariant ? (
-            <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-200/30" />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/15 bg-white/5 backdrop-blur-sm">
-              <div className="h-4 w-4 rotate-45 border border-white/30" />
-            </div>
-          )}
-
-          {isChanging && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.5, y: 0 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.5, 1.7, 2.2], y: -48 }}
-              className="pointer-events-none absolute z-30 text-2xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
-            >
-              {count > prevCount ? `+${count - prevCount}` : `-${prevCount - count}`}
-            </motion.div>
-          )}
-        </motion.div>
-
-        {count === 0 && (
-          <div className="absolute inset-0 rounded-lg border-2 border-dashed border-white/10 bg-black/20" />
+        className={cn(
+          "relative w-full min-w-0 flex-1 overflow-visible transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1",
         )}
+      >
+        <div className="absolute inset-0 flex items-center justify-center overflow-visible">
+          <div className="relative h-full aspect-[11/15]">
+            {[...Array(visibleBackLayers)].map((_, i) => {
+              const depth = visibleBackLayers - i;
+
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "absolute inset-0 rounded-xl shadow-sm",
+                    isDeckVariant
+                      ? "border border-amber-300/18 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
+                      : "border border-amber-300/22 bg-gradient-to-br from-rose-950 via-red-950 to-stone-950",
+                  )}
+                  style={{
+                    transform: `translateY(${-depth * 2.5}px) translateX(${depth * 0.8}px)`,
+                    zIndex: i,
+                  }}
+                />
+              );
+            })}
+
+            <motion.div
+              animate={isChanging ? { scale: [1, 1.05, 1], y: [0, -12, 0], rotate: [0, -1.5, 0] } : {}}
+              className={cn(
+                "absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-xl border-2 shadow-2xl transition-all",
+                isDeckVariant
+                  ? "border-amber-300/40 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
+                  : cn("border-amber-300/30", color),
+              )}
+            >
+              <div
+                className={cn(
+                  "absolute inset-0 opacity-25",
+                  isDeckVariant
+                    ? "bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"
+                    : "bg-[url('https://www.transparenttextures.com/patterns/exclusive-paper.png')]",
+                )}
+              />
+              <div
+                className={cn(
+                  "pointer-events-none absolute inset-1.5",
+                  isDeckVariant
+                    ? "rounded-lg border border-amber-200/20"
+                    : "rounded-lg border border-amber-200/18",
+                )}
+              />
+              <div
+                className={cn(
+                  "pointer-events-none absolute",
+                  isDeckVariant
+                    ? "inset-4 rounded-full border border-amber-200/15"
+                    : "inset-4 rounded-xl border border-amber-200/12",
+                )}
+              />
+
+              {isDeckVariant ? (
+                <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-200/30" />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/15 bg-white/5 backdrop-blur-sm">
+                  <div className="h-4 w-4 rotate-45 border border-white/30" />
+                </div>
+              )}
+
+              {isChanging && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5, y: 0 }}
+                  animate={{ opacity: [0, 1, 0], scale: [0.5, 1.7, 2.2], y: -48 }}
+                  className="pointer-events-none absolute z-30 text-2xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+                >
+                  {count > prevCount ? `+${count - prevCount}` : `-${prevCount - count}`}
+                </motion.div>
+              )}
+            </motion.div>
+
+            {count === 0 && (
+              <div className="absolute inset-0 rounded-lg border-2 border-dashed border-white/10 bg-black/20" />
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="mt-2 flex flex-col items-center">
-        <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-white/40">{label}</div>
-        <div className="rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs font-black text-amber-200 shadow-xl backdrop-blur-md">
+      <div className="flex shrink-0 flex-col items-center">
+        <div
+          className="mb-1 text-[10px] font-black uppercase tracking-widest text-white/40"
+        >
+          {label}
+        </div>
+        <div
+          className="rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs font-black text-amber-200 shadow-xl backdrop-blur-md"
+        >
           {count}
         </div>
       </div>
@@ -621,6 +693,7 @@ interface SyllableCardProps {
   attentionPulse?: boolean;
   onClick: () => void;
   style?: React.CSSProperties;
+  sizePreset?: BattleCardSizePreset;
 }
 
 export const SyllableCard: React.FC<SyllableCardProps> = ({
@@ -633,6 +706,7 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
   attentionPulse = false,
   onClick,
   style,
+  sizePreset = "default",
 }) => {
   const disabledVisual = disabled && !floating && !newlyDrawn;
 
@@ -670,7 +744,8 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
       disabled={disabled}
       style={style}
       className={cn(
-        "relative flex h-[clamp(110px,16vh,150px)] w-[clamp(80px,12vw,110px)] flex-col items-center justify-center overflow-hidden rounded-xl border-2 font-serif font-black shadow-2xl transition-all",
+        "relative flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 font-serif font-black shadow-2xl transition-all",
+        battleCardSizePresetClass[sizePreset],
         selected
           ? "z-40 border-amber-400 bg-amber-100 text-amber-950 ring-4 ring-amber-400/50"
           : playable
@@ -694,6 +769,8 @@ interface PlayerPortraitProps {
   flashDamage?: number;
   avatar?: string;
   isLocal?: boolean;
+  className?: string;
+  showDamagePopup?: boolean;
 }
 
 export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
@@ -703,6 +780,8 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
   flashDamage = 0,
   avatar,
   isLocal = false,
+  className,
+  showDamagePopup = true,
 }) => {
   const displayLabel = label;
   const portraitAvatar = avatar ?? (isLocal ? "\u{1F9D9}\u200D\u2642\uFE0F" : "\u{1F479}");
@@ -710,6 +789,7 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
 
   return (
     <motion.div
+      data-battle-visual-root="true"
       animate={
         flashDamage > 0
           ? {
@@ -719,15 +799,16 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
           : {}
       }
       className={cn(
-        "relative z-20 inline-flex min-w-[172px] items-center gap-2 rounded-full border-4 px-2 py-1.5 pr-3 transition-all duration-500 sm:min-w-[236px] sm:gap-3 sm:border-8 sm:px-2 sm:py-2 sm:pr-5",
+        "relative z-20 flex h-full w-full min-w-0 items-center gap-3 overflow-hidden rounded-full border-4 px-3 py-2 transition-all duration-500",
         active
-          ? "scale-110 border-amber-400 bg-amber-900/60 shadow-[0_0_40px_rgba(251,191,36,0.4)]"
+          ? "border-amber-400 bg-amber-900/60 shadow-[0_0_40px_rgba(251,191,36,0.4)]"
           : "border-[#3e2723] bg-black/60",
         flashDamage > 0 && "z-[130] border-rose-500 bg-rose-900/60",
+        className,
       )}
     >
       <AnimatePresence>
-        {flashDamage > 0 && (
+        {showDamagePopup && flashDamage > 0 && (
           <motion.div
             key="damage-popup"
             initial={{ opacity: 0, y: 0, scale: 0.5 }}
@@ -757,23 +838,28 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
 
       <div
         className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-full border-4 bg-gradient-to-b from-slate-700 to-slate-900 text-xl shadow-2xl transition-all sm:h-16 sm:w-16 sm:border-8 sm:text-3xl",
+          "grid shrink-0 place-items-center rounded-full border-4 bg-gradient-to-b from-slate-700 to-slate-900 text-[1.6rem] shadow-2xl transition-all",
           active ? "border-amber-400" : "border-[#3e2723]",
           flashDamage > 0 && "scale-110 border-rose-500",
         )}
+        style={{
+          height: "100%",
+          aspectRatio: "1 / 1",
+          maxHeight: "64px",
+        }}
       >
         {portraitAvatar}
       </div>
-      <div className="flex flex-1 flex-col items-center justify-center text-center leading-none">
+      <div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center leading-none">
         <div className="flex items-center justify-center">
-          <div className="max-w-[104px] px-1 text-center font-serif text-[8px] font-black uppercase leading-tight tracking-[0.16em] text-amber-100/60 sm:max-w-[140px] sm:text-[10px]">
+          <div className="w-full truncate px-1 text-center font-serif text-[10px] font-black uppercase leading-tight tracking-[0.16em] text-amber-100/60">
             {displayLabel}
           </div>
         </div>
-        <div className="mt-1 flex items-center justify-center gap-1 sm:mt-1 sm:gap-1.5">
+        <div className="mt-1 flex items-center justify-center gap-1">
           <span
             className={cn(
-              "text-[1.45rem] font-black leading-none transition-colors sm:text-[2.1rem]",
+              "text-[2rem] font-black leading-none transition-colors",
               flashDamage > 0 ? "scale-125 text-white" : "text-rose-500",
             )}
           >

@@ -1,7 +1,9 @@
 import React from "react";
 import { motion } from "motion/react";
 import { Syllable } from "../../types/game";
-import { TargetCard, TRAVEL_TARGET_CARD_SIZE, VisualTargetEntity, ZoneAnchorSnapshot } from "../game/GameComponents";
+import { TargetCard, getTravelTargetCardSize, VisualTargetEntity, ZoneAnchorSnapshot } from "../game/GameComponents";
+
+const noopDivRef = () => {};
 
 export interface BattleFieldIncomingTarget {
   id: string;
@@ -27,40 +29,44 @@ export interface BattleFieldLaneSlot {
 
 interface BattleFieldLaneProps {
   presentation: "player" | "enemy";
-  containerRef: (node: HTMLDivElement | null) => void;
-  sectionClassName: string;
+  containerRef?: (node: HTMLDivElement | null) => void;
+  sectionClassName?: string;
   slots: BattleFieldLaneSlot[];
 }
 
 export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
   presentation,
-  containerRef,
-  sectionClassName,
+  containerRef = noopDivRef,
+  sectionClassName = "w-full",
   slots,
 }) => {
   const incomingRotate = presentation === "player" ? 12 : -12;
+  const travelTargetSize = getTravelTargetCardSize();
 
   return (
-    <section className={sectionClassName}>
+    <section
+      data-battle-visual-root="true"
+      className={`absolute inset-0 ${sectionClassName}`}
+    >
       <div
         ref={containerRef}
-        className="mx-auto grid w-full max-w-[300px] grid-cols-2 place-items-start justify-items-center gap-3 lg:max-w-[380px] lg:gap-5"
+        className="mx-auto grid h-full w-full max-w-[var(--battle-board-lane-max-width-mobile)] grid-cols-2 items-stretch justify-items-stretch gap-3 lg:max-w-[var(--battle-board-lane-max-width-desktop)] lg:gap-4"
       >
         {slots.map((slot) => {
           const startX =
             slot.incomingTarget && slot.slotRect
-              ? slot.incomingTarget.origin.left + slot.incomingTarget.origin.width / 2 - slot.slotRect.left - TRAVEL_TARGET_CARD_SIZE.width / 2
+              ? slot.incomingTarget.origin.left + slot.incomingTarget.origin.width / 2 - slot.slotRect.left - travelTargetSize.width / 2
               : 0;
           const startY =
             slot.incomingTarget && slot.slotRect
-              ? slot.incomingTarget.origin.top + slot.incomingTarget.origin.height / 2 - slot.slotRect.top - TRAVEL_TARGET_CARD_SIZE.height / 2
+              ? slot.incomingTarget.origin.top + slot.incomingTarget.origin.height / 2 - slot.slotRect.top - travelTargetSize.height / 2
               : 0;
 
           return (
             <div
               key={slot.key}
               ref={slot.slotRef}
-              className="relative flex min-h-[clamp(164px,20vh,220px)] w-[clamp(108px,13.5vw,156px)] items-start justify-center overflow-visible"
+              className="relative flex h-full w-full items-start justify-center overflow-visible"
             >
               {slot.displayedTarget ? (
                 <motion.div
@@ -73,7 +79,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
                       : { type: "spring", stiffness: 80, damping: 18 }
                   }
                   onAnimationComplete={() => slot.incomingTarget ? slot.onIncomingTargetComplete?.(slot.incomingTarget) : undefined}
-                  className="absolute left-0 top-0 origin-center"
+                  className="absolute inset-0 origin-center"
                 >
                   <TargetCard
                     target={slot.displayedTarget.target}
@@ -83,6 +89,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
                     canClick={slot.canClick}
                     onClick={slot.onClick}
                     playerHand={presentation === "player" ? slot.playerHand ?? [] : []}
+                    fitParent
                   />
                 </motion.div>
               ) : null}
