@@ -9,7 +9,6 @@ import {
 import {
   BattleEditableElementKey,
   BattleElementAnchor,
-  BattleElementEasing,
   BattleElementPropertyConfig,
   BattleLayoutConfig,
   BattleLayoutOverrides,
@@ -85,13 +84,6 @@ const anchorOptions: Array<{ value: BattleElementAnchor; label: string }> = [
   { value: "bottom-left", label: "Base esquerda" },
   { value: "bottom", label: "Base" },
   { value: "bottom-right", label: "Base direita" },
-];
-
-const easingOptions: Array<{ value: BattleElementEasing; label: string }> = [
-  { value: "ease-out", label: "Ease out" },
-  { value: "ease-in-out", label: "Ease in-out" },
-  { value: "ease-in", label: "Ease in" },
-  { value: "linear", label: "Linear" },
 ];
 
 const actionVisualStateOptions: Array<{
@@ -1856,44 +1848,6 @@ export const BattleLayoutEditor: React.FC = () => {
       ]
     : [];
 
-  const animationPropertyControls: LayoutNumberControl[] =
-    activeElementKey && activeElementConfig && !isMultiSelection
-    ? [
-        {
-          label: "Offset X de entrada",
-          min: -EDITOR_SLIDE_RANGE,
-          max: EDITOR_SLIDE_RANGE,
-          step: 2,
-          value: activeElementConfig.slideX,
-          onChange: (value) => updateElementProperty(activeElementKey, "slideX", value),
-        },
-        {
-          label: "Offset Y de entrada",
-          min: -EDITOR_SLIDE_RANGE,
-          max: EDITOR_SLIDE_RANGE,
-          step: 2,
-          value: activeElementConfig.slideY,
-          onChange: (value) => updateElementProperty(activeElementKey, "slideY", value),
-        },
-        {
-          label: "Duracao da entrada",
-          min: 0,
-          max: 2,
-          step: 0.05,
-          value: activeElementConfig.duration,
-          onChange: (value) => updateElementProperty(activeElementKey, "duration", value),
-        },
-        {
-          label: "Atraso da entrada",
-          min: 0,
-          max: 1.2,
-          step: 0.05,
-          value: activeElementConfig.delay,
-          onChange: (value) => updateElementProperty(activeElementKey, "delay", value),
-        },
-      ]
-    : [];
-
   const multiSelectionControls: LayoutNumberControl[] =
     selectedElementKeys.length > 1 && primarySelectedElementConfig
       ? [
@@ -2289,21 +2243,6 @@ export const BattleLayoutEditor: React.FC = () => {
                         }
                       />
                     </div>
-                  </section>
-
-                  <section className="space-y-3 rounded-3xl border border-amber-900/12 bg-white/30 p-3">
-                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
-                      Animacao
-                    </div>
-                    {animationPropertyControls.map((control) => (
-                      <LayoutControl key={control.label} {...control} />
-                    ))}
-                    <SelectControl
-                      label="Easing"
-                      value={activeElementConfig.easing}
-                      options={easingOptions}
-                      onChange={(value) => updateElementProperty(activeElementKey!, "easing", value)}
-                    />
                   </section>
 
                   <section className="space-y-3 rounded-3xl border border-amber-900/12 bg-white/30 p-3">
