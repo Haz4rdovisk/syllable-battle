@@ -16,20 +16,94 @@ export interface BattleFlowTimings {
   mulliganSettleMs: number;
 }
 
-export const getPlayerHandLayout = (total: number, index: number, desktop: boolean) => {
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const resolveHandSpacing = (
+  total: number,
+  desktop: boolean,
+  laneWidth: number | null | undefined,
+  compactSpacing: number,
+  defaultSpacing: number,
+) => {
+  if (total <= 1) return 0;
+
+  if (!laneWidth || laneWidth <= 0) {
+    return total > 5 ? compactSpacing : defaultSpacing;
+  }
+
+  const cardWidth = desktop ? 110 : 86;
+  const edgePadding = desktop ? 28 : 16;
+  const availableSpacing = (laneWidth - edgePadding * 2 - cardWidth) / (total - 1);
+  const minSpacing = desktop ? 56 : 42;
+  const maxSpacing = total > 5 ? compactSpacing : defaultSpacing;
+
+  return clamp(availableSpacing, minSpacing, maxSpacing);
+};
+
+export const getPlayerHandLayout = (
+  total: number,
+  index: number,
+  desktop: boolean,
+  laneWidth?: number | null,
+) => {
   const mid = (total - 1) / 2;
   const offset = index - mid;
-  const spacing = total > 5 ? (desktop ? 88 : 64) : desktop ? 116 : 76;
+  const spacing = resolveHandSpacing(total, desktop, laneWidth, desktop ? 88 : 64, desktop ? 116 : 76);
   const y = Math.abs(offset) * (desktop ? 10 : 7);
   return { x: offset * spacing, y, rotate: offset * 5, scale: 1 };
 };
 
-export const getEnemyHandLayout = (total: number, index: number, desktop: boolean) => {
+export const getEnemyHandLayout = (
+  total: number,
+  index: number,
+  desktop: boolean,
+  laneWidth?: number | null,
+) => {
   const mid = (total - 1) / 2;
   const offset = index - mid;
-  const spacing = total > 5 ? (desktop ? 86 : 64) : desktop ? 108 : 72;
+  const spacing = resolveHandSpacing(total, desktop, laneWidth, desktop ? 86 : 64, desktop ? 108 : 72);
   const y = Math.abs(offset) * (desktop ? -10 : -7);
   return { x: offset * spacing, y, rotate: offset * -5, scale: 1 };
+};
+
+export const getBattleHandFrame = (
+  presentation: "local" | "remote",
+  total: number,
+  desktop: boolean,
+) => {
+  if (total <= 0) {
+    return {
+      width: desktop ? 220 : 180,
+      height: desktop ? 150 : 120,
+    };
+  }
+
+  const getLayout =
+    presentation === "local" ? getPlayerHandLayout : getEnemyHandLayout;
+  const cardWidth = desktop ? 110 : 86;
+  const cardHeight = desktop ? 150 : 120;
+
+  const bounds = Array.from({ length: total }, (_, index) =>
+    getLayout(total, index, desktop, null),
+  ).reduce(
+    (acc, layout) => ({
+      minX: Math.min(acc.minX, layout.x - cardWidth / 2),
+      maxX: Math.max(acc.maxX, layout.x + cardWidth / 2),
+      minY: Math.min(acc.minY, layout.y),
+      maxY: Math.max(acc.maxY, layout.y),
+    }),
+    {
+      minX: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    },
+  );
+
+  return {
+    width: Math.round(bounds.maxX - bounds.minX + (desktop ? 24 : 16)),
+    height: Math.round(cardHeight + (bounds.maxY - bounds.minY) + (desktop ? 22 : 16)),
+  };
 };
 
 export const getPlayedCardCommitDelayMs = (flow: BattleFlowTimings) => flow.cardToFieldMs + flow.cardSettleMs;

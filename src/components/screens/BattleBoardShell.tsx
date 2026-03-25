@@ -1,4 +1,7 @@
 import React from "react";
+import { BattleLayoutConfig } from "./BattleLayoutConfig";
+import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
+import { getBattleDesktopShellSlots } from "./BattleSceneSpace";
 
 interface BattleBoardShellProps {
   leftSidebar: React.ReactNode;
@@ -10,59 +13,57 @@ interface BattleBoardShellProps {
   centerControlMobile: React.ReactNode;
   rightSidebar: React.ReactNode;
   footerMobileHand: React.ReactNode;
+  layout?: BattleLayoutConfig;
 }
 
 export const BattleBoardShell: React.FC<BattleBoardShellProps> = ({
   leftSidebar,
-  centerTopMobile,
   centerTopDesktop,
   boardSurface,
   centerBottomDesktop,
-  centerBottomMobile,
-  centerControlMobile,
   rightSidebar,
-  footerMobileHand,
+  layout = battleActiveLayoutConfig,
 }) => {
+  const shellSlots = getBattleDesktopShellSlots(layout);
+
+  const shellVars = {
+    "--battle-shell-left-x": `${shellSlots.leftSidebar.x}px`,
+    "--battle-shell-left-width": `${shellSlots.leftSidebar.width}px`,
+    "--battle-shell-right-x": `${shellSlots.rightSidebar.x}px`,
+    "--battle-shell-right-width": `${shellSlots.rightSidebar.width}px`,
+    "--battle-shell-center-x": `${shellSlots.centerTop.x}px`,
+    "--battle-shell-center-width": `${shellSlots.centerTop.width}px`,
+    "--battle-shell-top-height": `${shellSlots.centerTop.height}px`,
+    "--battle-shell-board-top": `${shellSlots.board.y}px`,
+    "--battle-shell-board-height": `${shellSlots.board.height}px`,
+    "--battle-shell-bottom-y": `${shellSlots.centerBottom.y}px`,
+    "--battle-shell-bottom-height": `${shellSlots.centerBottom.height}px`,
+    "--battle-shell-mobile-footer-pad": `${layout.shell.mobileFooterHandTopPadding}px`,
+  } as React.CSSProperties;
+
   return (
-    <>
-      <section className="grid min-h-0 flex-1 gap-2 lg:hidden">
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0">
-          {centerTopMobile}
-
-          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
-            {centerTopDesktop}
-            {boardSurface}
-            {centerBottomDesktop}
-            {centerBottomMobile}
-          </div>
-
-          {centerControlMobile}
-        </div>
-      </section>
-
-      <section className="hidden min-h-0 flex-1 lg:grid lg:grid-cols-[252px_minmax(0,1fr)_252px] lg:gap-3">
+    <section className="relative min-h-0 flex-1" style={shellVars}>
+      <div className="absolute bottom-0 left-[var(--battle-shell-left-x)] top-0 z-20 w-[var(--battle-shell-left-width)]">
         {leftSidebar}
+      </div>
 
-        <div className="relative min-h-0">
-          <div className="absolute inset-x-0 top-0 z-20 h-[128px]">
-            {centerTopDesktop}
-          </div>
-
-          <div className="absolute inset-x-0 top-[124px] bottom-[142px] min-h-0">
-            {boardSurface}
-          </div>
-
-          <div className="absolute inset-x-0 bottom-0 z-20 h-[152px]">
-            {centerBottomDesktop}
-          </div>
-        </div>
-
+      <div className="absolute bottom-0 left-[var(--battle-shell-right-x)] top-0 z-20 w-[var(--battle-shell-right-width)]">
         {rightSidebar}
-      </section>
+      </div>
 
-      <section className="mt-auto px-0 pt-7 lg:hidden">
-        <div>{footerMobileHand}</div>
-      </section>
-    </>
+      <div className="absolute left-[var(--battle-shell-center-x)] top-0 z-20 h-[var(--battle-shell-top-height)] min-h-0 w-[var(--battle-shell-center-width)]">
+        {centerTopDesktop}
+      </div>
+
+      <div className="absolute left-[var(--battle-shell-center-x)] top-[var(--battle-shell-board-top)] min-h-0 h-[var(--battle-shell-board-height)] w-[var(--battle-shell-center-width)]">
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="min-h-0 flex-1">{boardSurface}</div>
+        </div>
+      </div>
+
+      <div className="absolute left-[var(--battle-shell-center-x)] top-[var(--battle-shell-bottom-y)] z-20 h-[var(--battle-shell-bottom-height)] min-h-0 w-[var(--battle-shell-center-width)]">
+        {centerBottomDesktop}
+      </div>
+    </section>
   );
 };

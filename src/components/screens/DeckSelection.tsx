@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/button";
 import { Deck, normalizeRarity } from "../../types/game";
 import { DECKS } from "../../data/decks";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, Variants } from "motion/react";
 import { ChevronLeft, Info, BookOpen, X, Swords } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
@@ -92,7 +92,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
     return () => window.clearTimeout(settleTimeout);
   }, [selectionPhaseKey]);
 
-  const deckGridVariants = {
+  const deckGridVariants: Variants = {
     hidden: {},
     show: {
       transition: {
@@ -102,13 +102,13 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
     },
   };
 
-  const deckCardVariants = {
+  const deckCardVariants: Variants = {
     hidden: { opacity: 0, y: 30, scale: 0.965 },
     show: {
       opacity: 1,
       y: 0,
       scale: 1,
-      transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+      transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
     },
   };
 
