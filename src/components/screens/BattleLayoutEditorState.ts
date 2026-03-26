@@ -99,6 +99,7 @@ export interface BattleLayoutEditorPreviewState {
   animationRunId: number;
   animationAnchorTool: BattleLayoutPreviewAnimationAnchorKey | null;
   animationAnchors: BattleLayoutPreviewAnimationAnchors;
+  animationDebugEnabled: boolean;
 }
 
 export interface BattleEditorGroup {
@@ -239,6 +240,7 @@ export function normalizeBattleLayoutEditorPreviewState(
       ? Math.max(0, Math.round(state.animationRunId))
       : 0,
     animationAnchorTool: state.animationAnchorTool ?? null,
+    animationDebugEnabled: state.animationDebugEnabled ?? false,
     animationAnchors: {
       openingTargetEntry0Origin: clampAnimationPoint(
         state.animationAnchors?.openingTargetEntry0Origin,

@@ -32,6 +32,7 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
   animationPreset: "none",
   animationRunId: 0,
   animationAnchorTool: null,
+  animationDebugEnabled: false,
   animationAnchors: {
     openingTargetEntry0Origin: null,
     openingTargetEntry1Origin: null,
@@ -83,6 +84,8 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
       animationRunId: parsed.animationRunId ?? defaultPreviewState.animationRunId,
       animationAnchorTool:
         parsed.animationAnchorTool ?? defaultPreviewState.animationAnchorTool,
+      animationDebugEnabled:
+        parsed.animationDebugEnabled ?? defaultPreviewState.animationDebugEnabled,
       animationAnchors: {
         openingTargetEntry0Origin:
           parsed.animationAnchors?.openingTargetEntry0Origin ??
@@ -199,6 +202,7 @@ export const BattleLayoutPreview: React.FC = () => {
       animationRunId={previewState.animationRunId}
       animationAnchorTool={previewState.animationAnchorTool}
       animationAnchors={previewState.animationAnchors}
+      animationDebugEnabled={previewState.animationDebugEnabled}
     />
   );
 };

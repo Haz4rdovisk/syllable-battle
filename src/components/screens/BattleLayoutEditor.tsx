@@ -580,6 +580,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       animationPreset: "none",
       animationRunId: 0,
       animationAnchorTool: null,
+      animationDebugEnabled: false,
       animationAnchors: defaultAnimationAnchors,
     });
   }
@@ -613,6 +614,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         animationPreset: "none",
         animationRunId: 0,
         animationAnchorTool: null,
+        animationDebugEnabled: false,
         animationAnchors: defaultAnimationAnchors,
       });
     }
@@ -637,6 +639,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         animationPreset: "none",
         animationRunId: 0,
         animationAnchorTool: null,
+        animationDebugEnabled: false,
         animationAnchors: defaultAnimationAnchors,
       });
     }
@@ -667,6 +670,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       animationPreset: parsed.animationPreset ?? "none",
       animationRunId: 0,
       animationAnchorTool: null,
+      animationDebugEnabled: parsed.animationDebugEnabled ?? false,
       animationAnchors: {
         openingTargetEntry0Origin:
           parsed.animationAnchors?.openingTargetEntry0Origin ?? null,
@@ -716,6 +720,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       animationPreset: "none",
       animationRunId: 0,
       animationAnchorTool: null,
+      animationDebugEnabled: false,
       animationAnchors: defaultAnimationAnchors,
     });
   }
@@ -773,6 +778,9 @@ export const BattleLayoutEditor: React.FC = () => {
   const [animationAnchorTool, setAnimationAnchorTool] = useState<
     BattleLayoutPreviewAnimationAnchorKey | null
   >(initialPreviewState.animationAnchorTool ?? null);
+  const [animationDebugEnabled, setAnimationDebugEnabled] = useState(
+    initialPreviewState.animationDebugEnabled ?? false,
+  );
   const [animationAnchors, setAnimationAnchors] = useState<BattleLayoutPreviewAnimationAnchors>(
     initialPreviewState.animationAnchors ?? {
       openingTargetEntry0Origin:
@@ -1080,6 +1088,7 @@ export const BattleLayoutEditor: React.FC = () => {
       animationPreset,
       animationRunId,
       animationAnchorTool,
+      animationDebugEnabled,
       animationAnchors,
     });
     window.localStorage.setItem(
@@ -1117,6 +1126,7 @@ export const BattleLayoutEditor: React.FC = () => {
     animationPreset,
     animationRunId,
     animationAnchorTool,
+    animationDebugEnabled,
     animationAnchors,
   ]);
 
@@ -3111,6 +3121,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 setAnimationMode("idle");
                 setAnimationRunId((current) => current + 1);
                 setAnimationAnchorTool(null);
+                setAnimationDebugEnabled(false);
                 setAnimationSet(event.target.value as BattleLayoutPreviewAnimationSet);
                 setAnimationPreset("none");
               }}
@@ -3133,6 +3144,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 setAnimationMode("idle");
                 setAnimationRunId((current) => current + 1);
                 setAnimationAnchorTool(null);
+                setAnimationDebugEnabled(false);
                 setAnimationPreset(event.target.value as BattleLayoutPreviewAnimationPreset);
               }}
               className="rounded-xl border border-emerald-900/12 bg-white/80 px-3 py-2 text-sm font-semibold text-emerald-950 outline-none"
@@ -3219,6 +3231,21 @@ export const BattleLayoutEditor: React.FC = () => {
             ) : null}
           </div>
           <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setAnimationDebugEnabled((current) => !current);
+              }}
+              disabled={isAnimationFeatureDisabled}
+              className={cn(
+                "flex-1 rounded-xl border border-cyan-300/20 text-cyan-50",
+                animationDebugEnabled
+                  ? "bg-cyan-800 hover:bg-cyan-700"
+                  : "bg-cyan-950 hover:bg-cyan-900",
+              )}
+            >
+              Sonda
+            </Button>
             <Button
               type="button"
               onClick={() => {

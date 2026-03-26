@@ -148,6 +148,7 @@ export const BattleSceneFixtureView: React.FC<{
   animationRunId?: number;
   animationAnchorTool?: BattleLayoutPreviewAnimationAnchorKey | null;
   animationAnchors?: BattleLayoutPreviewAnimationAnchors;
+  animationDebugEnabled?: boolean;
 }> = ({
   fixture = midTurnBattleFixture,
   layout = battleActiveLayoutConfig,
@@ -167,6 +168,7 @@ export const BattleSceneFixtureView: React.FC<{
   animationPreset = "none",
   animationRunId = 0,
   animationAnchorTool = null,
+  animationDebugEnabled = false,
   animationAnchors = {
     openingTargetEntry0Origin: null,
     openingTargetEntry1Origin: null,
@@ -250,11 +252,27 @@ export const BattleSceneFixtureView: React.FC<{
   const [previewPlayerStableCards, setPreviewPlayerStableCards] = useState<
     BattleHandLaneCard[]
   >(defaultPlayerStableCards);
+  const [previewFreshCardIds, setPreviewFreshCardIds] = useState<string[]>([]);
   const [incomingPreviewHands, setIncomingPreviewHands] = useState<
     Record<typeof PLAYER | typeof ENEMY, BattleHandLaneIncomingCard[]>
   >({
     [PLAYER]: [],
     [ENEMY]: [],
+  });
+  const [previewPostPlayDebug, setPreviewPostPlayDebug] = useState<{
+    removedIndex: number | null;
+    drawSourceIndex: number | null;
+    removedCardLabel: string | null;
+    drawnCardLabel: string | null;
+    committedCardLabel: string | null;
+    phase: "idle" | "setup" | "incoming" | "committed";
+  }>({
+    removedIndex: null,
+    drawSourceIndex: null,
+    removedCardLabel: null,
+    drawnCardLabel: null,
+    committedCardLabel: null,
+    phase: "idle",
   });
 
   const clearAnimationTimers = useCallback(() => {
@@ -278,14 +296,32 @@ export const BattleSceneFixtureView: React.FC<{
       [ENEMY]: [],
     });
     setPreviewPlayerStableCards(defaultPlayerStableCards);
+    setPreviewFreshCardIds([]);
     setIncomingPreviewHands({
       [PLAYER]: [],
       [ENEMY]: [],
+    });
+    setPreviewPostPlayDebug({
+      removedIndex: null,
+      drawSourceIndex: null,
+      removedCardLabel: null,
+      drawnCardLabel: null,
+      committedCardLabel: null,
+      phase: "idle",
     });
   }, [clearAnimationTimers, defaultPlayerStableCards]);
 
   useEffect(() => {
     setPreviewPlayerStableCards(defaultPlayerStableCards);
+    setPreviewFreshCardIds([]);
+    setPreviewPostPlayDebug({
+      removedIndex: null,
+      drawSourceIndex: null,
+      removedCardLabel: null,
+      drawnCardLabel: null,
+      committedCardLabel: null,
+      phase: "idle",
+    });
   }, [defaultPlayerStableCards]);
 
   const readElementSnapshot = useCallback((elementKey: BattleEditableElementKey) => {
@@ -334,8 +370,17 @@ export const BattleSceneFixtureView: React.FC<{
       if (incomingCard.side === PLAYER) {
         setPreviewPlayerStableCards((current) => [
           ...current,
-          incomingCard.card,
+          {
+            ...incomingCard.card,
+            skipEntryAnimation: true,
+          },
         ]);
+        setPreviewFreshCardIds([incomingCard.card.id]);
+        setPreviewPostPlayDebug((current) => ({
+          ...current,
+          committedCardLabel: `${incomingCard.card.syllable}#${incomingCard.card.id}`,
+          phase: "committed",
+        }));
       }
     },
     [],
@@ -731,7 +776,16 @@ export const BattleSceneFixtureView: React.FC<{
         [PLAYER]: [],
         [ENEMY]: [],
       });
-      setPreviewPlayerStableCards(defaultPlayerStableCards.slice(0, 4));
+      setPreviewFreshCardIds([]);
+      const removedIndex =
+        fixture.selectedIndexes?.[0] ?? Math.max(0, defaultPlayerStableCards.length - 1);
+      const drawSourceIndex =
+        removedIndex === defaultPlayerStableCards.length - 1
+          ? 0
+          : defaultPlayerStableCards.length - 1;
+      setPreviewPlayerStableCards(
+        defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
+      );
       const origin =
         getAnimationAnchorPoint("post-play-hand-draw-origin")
           ? {
@@ -741,11 +795,26 @@ export const BattleSceneFixtureView: React.FC<{
               height: 0,
             }
           : readElementSnapshot("playerDeck");
-      const drawnCard = defaultPlayerStableCards[4];
+      const drawnCard = defaultPlayerStableCards[drawSourceIndex];
+      const removedCard = defaultPlayerStableCards[removedIndex] ?? null;
 
       if (origin && drawnCard) {
+        setPreviewPostPlayDebug({
+          removedIndex,
+          drawSourceIndex,
+          removedCardLabel: removedCard
+            ? `${removedCard.syllable}#${removedCard.id}`
+            : null,
+          drawnCardLabel: `${drawnCard.syllable}#${drawnCard.id}`,
+          committedCardLabel: null,
+          phase: "setup",
+        });
         const timer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;
+          setPreviewPostPlayDebug((current) => ({
+            ...current,
+            phase: "incoming",
+          }));
           setIncomingPreviewHands({
             [PLAYER]: [
               {
@@ -766,6 +835,17 @@ export const BattleSceneFixtureView: React.FC<{
           });
         }, 0);
         animationTimersRef.current.push(timer);
+      } else {
+        setPreviewPostPlayDebug({
+          removedIndex,
+          drawSourceIndex,
+          removedCardLabel: removedCard
+            ? `${removedCard.syllable}#${removedCard.id}`
+            : null,
+          drawnCardLabel: drawnCard ? `${drawnCard.syllable}#${drawnCard.id}` : null,
+          committedCardLabel: null,
+          phase: "setup",
+        });
       }
 
       const totalMs =
@@ -1031,6 +1111,21 @@ export const BattleSceneFixtureView: React.FC<{
             );
           })
         : null}
+      {editorMode && animationDebugEnabled ? (
+        <div className="pointer-events-none absolute bottom-3 right-3 z-[90] max-w-[360px] rounded-lg border border-cyan-300/20 bg-black/75 px-3 py-2 font-mono text-[10px] leading-tight text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
+          <div>{`set:${animationSet} preset:${animationPreset} mode:${animationMode}`}</div>
+          <div>{`run:${animationRunId} phase:${previewPostPlayDebug.phase}`}</div>
+          <div>{`removedIndex:${previewPostPlayDebug.removedIndex ?? "-"} drawSource:${previewPostPlayDebug.drawSourceIndex ?? "-"}`}</div>
+          <div>{`removedCard:${previewPostPlayDebug.removedCardLabel ?? "-"}`}</div>
+          <div>{`drawnCard:${previewPostPlayDebug.drawnCardLabel ?? "-"}`}</div>
+          <div>{`committed:${previewPostPlayDebug.committedCardLabel ?? "-"}`}</div>
+          <div>{`fixtureHand:[${defaultPlayerStableCards.map((card) => `${card.syllable}#${card.id}`).join(",")}]`}</div>
+          <div>{`stableLocal:[${previewPlayerStableCards.map((card) => `${card.syllable}${card.skipEntryAnimation ? "*" : ""}`).join(",")}]`}</div>
+          <div>{`incomingLocal:[${incomingPreviewHands[PLAYER].map((card) => `${card.card.syllable}#${card.card.id}@${card.finalIndex}/${card.finalTotal}`).join(",")}]`}</div>
+          <div>{`fresh:[${previewFreshCardIds.join(",")}]`}</div>
+          <div>{`fixtureSelected:[${fixture.selectedIndexes?.join(",") ?? ""}]`}</div>
+        </div>
+      ) : null}
       <main className="relative z-10 flex h-full min-h-0 flex-col">
         <BattleEditableElement
           element="shell"
@@ -1236,6 +1331,7 @@ export const BattleSceneFixtureView: React.FC<{
                     showPlayableHints={fixture.showPlayableHints ?? true}
                     selectedIndexes={fixture.selectedIndexes ?? []}
                     targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
+                    freshCardIds={previewFreshCardIds}
                   />
                 </div>
               </BattleEditableElement>
@@ -1402,6 +1498,7 @@ export const BattleSceneFixtureView: React.FC<{
                 showPlayableHints={fixture.showPlayableHints ?? true}
                 selectedIndexes={fixture.selectedIndexes ?? []}
                 targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
+                freshCardIds={previewFreshCardIds}
               />
             </BattleEditableElement>
           }
