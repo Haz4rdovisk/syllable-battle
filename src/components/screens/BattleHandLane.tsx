@@ -48,6 +48,9 @@ export interface BattleHandLaneOutgoingCard {
   initialTotal: number;
   delayMs: number;
   durationMs: number;
+  destinationMode?: "deck-bottom" | "zone-center";
+  endRotate?: number;
+  endScale?: number;
 }
 
 export interface BattleHandLaneProps {
@@ -345,21 +348,39 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
               isDesktop,
               laneWidth,
             );
-            const deckBottomX =
+            const baseLeft = hostRect.width / 2 - cardSize.width / 2;
+            const baseTop = hostRect.height - bottomOffset - cardSize.height;
+            const destinationCenterX =
               outgoingCard.destination.left +
               outgoingCard.destination.width / 2 -
               hostRect.left -
               cardSize.width / 2;
+            const destinationCenterY =
+              outgoingCard.destination.top +
+              outgoingCard.destination.height / 2 -
+              hostRect.top -
+              cardSize.height / 2;
+            const deckBottomX = destinationCenterX;
             const deckBottomY =
               outgoingCard.destination.top +
               outgoingCard.destination.height -
               Math.max(10, outgoingCard.destination.height * 0.16) -
               hostRect.top -
               cardSize.height * 0.82;
-            const baseLeft = hostRect.width / 2 - cardSize.width / 2;
-            const baseTop = hostRect.height - bottomOffset - cardSize.height;
-            const endX = deckBottomX - baseLeft;
-            const endY = deckBottomY - baseTop;
+            const endX =
+              (outgoingCard.destinationMode === "zone-center" ? destinationCenterX : deckBottomX) - baseLeft;
+            const endY =
+              (outgoingCard.destinationMode === "zone-center" ? destinationCenterY : deckBottomY) - baseTop;
+            const endScale =
+              outgoingCard.endScale ??
+              (outgoingCard.destinationMode === "zone-center"
+                ? 1
+                : clampScale(
+                    Math.min(
+                      outgoingCard.destination.width / cardSize.width,
+                      outgoingCard.destination.height / cardSize.height,
+                    ),
+                  ));
             return (
               <motion.div
                 key={outgoingCard.id}
@@ -378,13 +399,8 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                 animate={{
                   x: endX,
                   y: endY,
-                  rotate: isLocalPresentation ? 4 : -4,
-                  scale: clampScale(
-                    Math.min(
-                      outgoingCard.destination.width / cardSize.width,
-                      outgoingCard.destination.height / cardSize.height,
-                    ),
-                  ),
+                  rotate: outgoingCard.endRotate ?? (isLocalPresentation ? 4 : -4),
+                  scale: endScale,
                   opacity: 1,
                 }}
                 transition={{

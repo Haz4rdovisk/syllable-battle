@@ -2003,22 +2003,32 @@ export const Battle: React.FC<BattleProps> = ({
       const result = resolvePlayInternal(move.handIndex, move.targetIndex);
       if (!result) return;
 
+      const stableBeforePlay = stableHandsRef.current[side];
+      const playedCardLayout = {
+        index: move.handIndex,
+        total: stableBeforePlay.length,
+      };
       const [playedStableCard] = removeStableCards(side, [move.handIndex]);
       lockTargetSlot(side, move.targetIndex, true);
       setPendingTargetPlacement(side, move.targetIndex, result.playedCard);
 
       if (playedStableCard) {
-        queueStableCardTravel(playedStableCard, {
-          from: zoneIdForSide(side, "hand"),
-          to: zoneIdForSide(side, "field"),
-          kind: side === localPlayerIndex ? "syllable" : "card-back",
-          originOverride: selectedCardOrigin ?? undefined,
-          destinationOverride: snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`) ?? undefined,
-          durationMs: FLOW.cardToFieldMs,
-          arcHeight: side === localPlayerIndex ? 82 : 86,
-          selectedVisual: side === localPlayerIndex,
-          playableVisual: false,
-        });
+        const destination = snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`);
+        if (destination) {
+          appendOutgoingCard(side, {
+            id: `play-${playedStableCard.id}-${move.targetIndex}`,
+            side,
+            card: playedStableCard,
+            destination,
+            initialIndex: playedCardLayout.index,
+            initialTotal: playedCardLayout.total,
+            delayMs: 0,
+            durationMs: FLOW.cardToFieldMs,
+            destinationMode: "zone-center",
+            endRotate: side === localPlayerIndex ? 8 : -8,
+            endScale: 1,
+          });
+        }
       }
 
       applyResolvedPlayFlow({
