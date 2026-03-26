@@ -2790,6 +2790,7 @@ export const Battle: React.FC<BattleProps> = ({
       playerHand: [],
     };
   });
+  const enemyFieldHasOutgoingTarget = outgoingTargets[remotePlayerIndex].length > 0;
   const playerFieldSlots = Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
     const visualTarget = stableTargets[localPlayerIndex][idx];
     const incomingTarget = incomingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
@@ -2822,6 +2823,7 @@ export const Battle: React.FC<BattleProps> = ({
       playerHand: me.hand,
     };
   });
+  const playerFieldHasOutgoingTarget = outgoingTargets[localPlayerIndex].length > 0;
   const sceneViewModel: BattleSceneViewModel = {
     board: createBattleBoardSurfaceViewModel({
       enemyFieldSlots,
@@ -3060,11 +3062,12 @@ export const Battle: React.FC<BattleProps> = ({
             </BattleEditableElement>
           }
           />
-        <BattleEditableElement
-          element="enemyField"
-          layout={activeBattleLayout}
-          className="absolute left-0 top-0 z-10"
-        >
+          <BattleEditableElement
+            element="enemyField"
+            layout={activeBattleLayout}
+            className="absolute left-0 top-0"
+            zIndexOverride={enemyFieldHasOutgoingTarget ? 90 : undefined}
+          >
           <div style={boardVars}>
             <BattleFieldLane
               presentation="enemy"
@@ -3074,11 +3077,12 @@ export const Battle: React.FC<BattleProps> = ({
             />
           </div>
         </BattleEditableElement>
-        <BattleEditableElement
-          element="playerField"
-          layout={activeBattleLayout}
-          className="absolute left-0 top-0 z-10"
-        >
+          <BattleEditableElement
+            element="playerField"
+            layout={activeBattleLayout}
+            className="absolute left-0 top-0"
+            zIndexOverride={playerFieldHasOutgoingTarget ? 90 : undefined}
+          >
           <div style={boardVars}>
             <BattleFieldLane
               presentation="player"

@@ -91,6 +91,7 @@ export interface BattleEditableElementProps {
     height: number;
   }>;
   className?: string;
+  zIndexOverride?: number;
   children: React.ReactNode;
 }
 
@@ -109,6 +110,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   previewSelectable = true,
   snapTargets = [],
   className,
+  zIndexOverride,
   children,
 }) => {
   const config = layout.elements[element];
@@ -175,7 +177,9 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
         ? `${Math.max(0, resolvedConfig.height)}px`
         : undefined,
     opacity: resolvedConfig.opacity / 100,
-    zIndex: resolvedConfig.zIndex === 0 ? undefined : resolvedConfig.zIndex,
+    zIndex:
+      zIndexOverride ??
+      (resolvedConfig.zIndex === 0 ? undefined : resolvedConfig.zIndex),
     transformOrigin: anchorToTransformOrigin[resolvedConfig.anchor],
   };
   const resolvedFrame = getBattleEditorFrame(

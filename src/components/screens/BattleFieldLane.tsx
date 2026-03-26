@@ -139,7 +139,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
                     ],
                   }}
                   onAnimationComplete={() => slot.onOutgoingTargetComplete?.(slot.outgoingTarget!)}
-                  className="absolute inset-0 origin-center"
+                  className="absolute inset-0 z-30 origin-center"
                 >
                   <TargetCard
                     target={slot.displayedTarget.target}
