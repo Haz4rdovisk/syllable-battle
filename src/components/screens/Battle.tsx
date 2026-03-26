@@ -857,6 +857,35 @@ export const Battle: React.FC<BattleProps> = ({
     },
     [activeBattleLayout.animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOrigin],
   );
+  const handPlayTargetPointsByIndex = useMemo(
+    () => ({
+      0: activeBattleLayout.animations.handPlayTarget0Destination,
+      1: activeBattleLayout.animations.handPlayTarget1Destination,
+      2: activeBattleLayout.animations.handPlayTarget2Destination,
+      3: activeBattleLayout.animations.handPlayTarget3Destination,
+    }),
+    [
+      activeBattleLayout.animations.handPlayTarget0Destination,
+      activeBattleLayout.animations.handPlayTarget1Destination,
+      activeBattleLayout.animations.handPlayTarget2Destination,
+      activeBattleLayout.animations.handPlayTarget3Destination,
+    ],
+  );
+  const getHandPlayTargetDestinationSnapshot = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, targetIndex: number) => {
+      if (side !== localPlayerIndex) return null;
+      if (
+        targetIndex !== 0 &&
+        targetIndex !== 1 &&
+        targetIndex !== 2 &&
+        targetIndex !== 3
+      ) {
+        return null;
+      }
+      return snapshotSceneAnimationOrigin(handPlayTargetPointsByIndex[targetIndex]);
+    },
+    [handPlayTargetPointsByIndex, localPlayerIndex, snapshotSceneAnimationOrigin],
+  );
   const mulliganReturnPointsByCount = useMemo(
     () => ({
       1: activeBattleLayout.animations.mulliganReturn1Destination,
@@ -2244,7 +2273,9 @@ export const Battle: React.FC<BattleProps> = ({
       setPendingTargetPlacement(side, move.targetIndex, result.playedCard);
 
       if (playedStableCard) {
-        const destination = snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`);
+        const destination =
+          getHandPlayTargetDestinationSnapshot(side, move.targetIndex) ??
+          snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`);
         if (destination) {
           appendOutgoingCard(side, {
             id: `play-${playedStableCard.id}-${move.targetIndex}`,

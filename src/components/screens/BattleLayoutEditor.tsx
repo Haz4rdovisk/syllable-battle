@@ -180,6 +180,8 @@ const OPENING_TARGET_ENTRY_DURATION_MS = 780;
 const OPENING_TARGET_ENTRY_SETTLE_MS = 560;
 const POST_PLAY_HAND_DRAW_DURATION_MS = 940;
 const POST_PLAY_HAND_DRAW_SETTLE_MS = 220;
+const HAND_PLAY_TARGET_DURATION_MS = 660;
+const HAND_PLAY_TARGET_SETTLE_MS = 180;
 const MULLIGAN_RETURN_DURATION_MS = 760;
 const MULLIGAN_RETURN_STAGGER_MS = 110;
 const MULLIGAN_DRAW_START_DELAY_MS = 220;
@@ -200,12 +202,22 @@ const openingTargetEntryAnchorToolByPreset: Partial<
   "opening-target-entry-2": "opening-target-entry-2-origin",
   "opening-target-entry-3": "opening-target-entry-3-origin",
 };
+const handPlayTargetDestinationAnchorToolByPreset = {
+  "hand-play-target-0": "hand-play-target-0-destination",
+  "hand-play-target-1": "hand-play-target-1-destination",
+  "hand-play-target-2": "hand-play-target-2-destination",
+  "hand-play-target-3": "hand-play-target-3-destination",
+} as const;
 const defaultAnimationAnchors: BattleLayoutPreviewAnimationAnchors = {
   openingTargetEntry0Origin: null,
   openingTargetEntry1Origin: null,
   openingTargetEntry2Origin: null,
   openingTargetEntry3Origin: null,
   postPlayHandDrawOrigin: null,
+  handPlayTarget0Destination: null,
+  handPlayTarget1Destination: null,
+  handPlayTarget2Destination: null,
+  handPlayTarget3Destination: null,
   mulliganReturn1Destination: null,
   mulliganReturn2Destination: null,
   mulliganReturn3Destination: null,
@@ -232,6 +244,10 @@ const animationSetOptions: Array<{
   {
     value: "post-play-hand-draw",
     label: "Compra para mao - Pos jogada",
+  },
+  {
+    value: "hand-play-target",
+    label: "Play da mao para alvo",
   },
   {
     value: "mulligan-hand-return",
@@ -261,6 +277,13 @@ const animationPresetOptionsBySet: Record<
   "post-play-hand-draw": [
     { value: "none", label: "None" },
     { value: "post-play-hand-draw", label: "Compra" },
+  ],
+  "hand-play-target": [
+    { value: "none", label: "None" },
+    { value: "hand-play-target-0", label: "Alvo 0" },
+    { value: "hand-play-target-1", label: "Alvo 1" },
+    { value: "hand-play-target-2", label: "Alvo 2" },
+    { value: "hand-play-target-3", label: "Alvo 3" },
   ],
   "mulligan-hand-return": [
     { value: "none", label: "None" },
@@ -341,6 +364,11 @@ const getAnimationModeForAction = (
       ? "post-play-hand-draw-loop"
       : "post-play-hand-draw-play-once";
   }
+  if (animationSet === "hand-play-target") {
+    return kind === "loop"
+      ? "hand-play-target-loop"
+      : "hand-play-target-play-once";
+  }
   if (animationSet === "mulligan-hand-return") {
     return kind === "loop"
       ? "mulligan-hand-return-loop"
@@ -366,6 +394,9 @@ const getAnimationPreviewDurationMs = (
   if (preset === "none") return 0;
   if (animationSet === "post-play-hand-draw") {
     return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
+  }
+  if (animationSet === "hand-play-target") {
+    return HAND_PLAY_TARGET_DURATION_MS + HAND_PLAY_TARGET_SETTLE_MS;
   }
   if (animationSet === "mulligan-hand-return") {
     const count = getMulliganCountFromPreset(preset) ?? 0;
@@ -416,6 +447,14 @@ const getAnimationAnchorStateKey = (
       return "openingTargetEntry3Origin";
     case "post-play-hand-draw-origin":
       return "postPlayHandDrawOrigin";
+    case "hand-play-target-0-destination":
+      return "handPlayTarget0Destination";
+    case "hand-play-target-1-destination":
+      return "handPlayTarget1Destination";
+    case "hand-play-target-2-destination":
+      return "handPlayTarget2Destination";
+    case "hand-play-target-3-destination":
+      return "handPlayTarget3Destination";
     case "mulligan-hand-return-1-destination":
       return "mulliganReturn1Destination";
     case "mulligan-hand-return-2-destination":
@@ -456,6 +495,16 @@ const getTargetAttackIndexFromPreset = (
   if (preset === "target-attack-1") return 1;
   if (preset === "target-attack-2") return 2;
   if (preset === "target-attack-3") return 3;
+  return null;
+};
+
+const getHandPlayTargetIndexFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 0 | 1 | 2 | 3 | null => {
+  if (preset === "hand-play-target-0") return 0;
+  if (preset === "hand-play-target-1") return 1;
+  if (preset === "hand-play-target-2") return 2;
+  if (preset === "hand-play-target-3") return 3;
   return null;
 };
 
@@ -794,6 +843,14 @@ const readInitialBattleLayoutEditorPreviewState = () => {
           parsed.animationAnchors?.openingTargetEntry3Origin ?? null,
         postPlayHandDrawOrigin:
           parsed.animationAnchors?.postPlayHandDrawOrigin ?? null,
+        handPlayTarget0Destination:
+          parsed.animationAnchors?.handPlayTarget0Destination ?? null,
+        handPlayTarget1Destination:
+          parsed.animationAnchors?.handPlayTarget1Destination ?? null,
+        handPlayTarget2Destination:
+          parsed.animationAnchors?.handPlayTarget2Destination ?? null,
+        handPlayTarget3Destination:
+          parsed.animationAnchors?.handPlayTarget3Destination ?? null,
         mulliganReturn1Destination:
           parsed.animationAnchors?.mulliganReturn1Destination ?? null,
         mulliganReturn2Destination:
@@ -917,6 +974,14 @@ export const BattleLayoutEditor: React.FC = () => {
         initialPreviewState.layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
       postPlayHandDrawOrigin:
         initialPreviewState.layoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
+      handPlayTarget0Destination:
+        initialPreviewState.layoutOverrides.animations?.handPlayTarget0Destination ?? null,
+      handPlayTarget1Destination:
+        initialPreviewState.layoutOverrides.animations?.handPlayTarget1Destination ?? null,
+      handPlayTarget2Destination:
+        initialPreviewState.layoutOverrides.animations?.handPlayTarget2Destination ?? null,
+      handPlayTarget3Destination:
+        initialPreviewState.layoutOverrides.animations?.handPlayTarget3Destination ?? null,
       mulliganReturn1Destination:
         initialPreviewState.layoutOverrides.animations?.mulliganReturn1Destination ?? null,
       mulliganReturn2Destination:
@@ -1019,6 +1084,10 @@ export const BattleLayoutEditor: React.FC = () => {
     }
     return openingTargetEntryAnchorToolByPreset[animationPreset] ?? null;
   }, [animationPreset, animationSet]);
+  const getSelectedHandPlayTargetDestinationAnchorTool = useCallback(() => {
+    if (animationSet !== "hand-play-target") return null;
+    return handPlayTargetDestinationAnchorToolByPreset[animationPreset] ?? null;
+  }, [animationPreset, animationSet]);
   const getSelectedMulliganReturnDestinationAnchorTool = useCallback(() => {
     if (animationSet !== "mulligan-hand-return") return null;
     return mulliganReturnDestinationAnchorToolByPreset[animationPreset] ?? null;
@@ -1070,6 +1139,16 @@ export const BattleLayoutEditor: React.FC = () => {
         );
       } else if (anchorTool === "post-play-hand-draw-origin") {
         anchorRect = getBattleElementSceneRect("playerDeck", layout);
+      } else if (anchorTool.startsWith("hand-play-target-")) {
+        const targetIndex = getHandPlayTargetIndexFromPreset(animationPreset) ?? 0;
+        const fieldRect = getBattleElementSceneRect("playerField", layout);
+        anchorRect = {
+          ...fieldRect,
+          x: fieldRect.x + (fieldRect.width / 2) * (targetIndex % 2) + fieldRect.width / 4,
+          y: fieldRect.y + fieldRect.height / 2,
+          width: 0,
+          height: 0,
+        };
       } else if (anchorTool.startsWith("mulligan-hand-draw-")) {
         anchorRect = getBattleElementSceneRect("playerDeck", layout);
       } else if (anchorTool.startsWith("mulligan-hand-return-")) {
@@ -1120,18 +1199,22 @@ export const BattleLayoutEditor: React.FC = () => {
   const isAnimationFeatureDisabled = animationPreset === "none";
   const animationPresetOptions = animationPresetOptionsBySet[animationSet];
   const selectedAnimationOriginAnchorTool = getSelectedAnimationOriginAnchorTool();
+  const selectedHandPlayTargetDestinationAnchorTool =
+    getSelectedHandPlayTargetDestinationAnchorTool();
   const selectedMulliganReturnDestinationAnchorTool =
     getSelectedMulliganReturnDestinationAnchorTool();
   const selectedTargetAttackImpactAnchorTool = getSelectedTargetAttackImpactAnchorTool();
   const selectedTargetAttackDestinationAnchorTool = getSelectedTargetAttackDestinationAnchorTool();
   const isIndividualAnimationPreset =
     selectedAnimationOriginAnchorTool !== null ||
+    selectedHandPlayTargetDestinationAnchorTool !== null ||
     selectedMulliganReturnDestinationAnchorTool !== null ||
     selectedTargetAttackImpactAnchorTool !== null ||
     selectedTargetAttackDestinationAnchorTool !== null;
   const isOriginAnchorAvailable = selectedAnimationOriginAnchorTool !== null;
   const isImpactAnchorAvailable = selectedTargetAttackImpactAnchorTool !== null;
   const isDestinationAnchorAvailable =
+    selectedHandPlayTargetDestinationAnchorTool !== null ||
     selectedMulliganReturnDestinationAnchorTool !== null ||
     selectedTargetAttackDestinationAnchorTool !== null;
 
@@ -1151,6 +1234,14 @@ export const BattleLayoutEditor: React.FC = () => {
         layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
       postPlayHandDrawOrigin:
         layoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
+      handPlayTarget0Destination:
+        layoutOverrides.animations?.handPlayTarget0Destination ?? null,
+      handPlayTarget1Destination:
+        layoutOverrides.animations?.handPlayTarget1Destination ?? null,
+      handPlayTarget2Destination:
+        layoutOverrides.animations?.handPlayTarget2Destination ?? null,
+      handPlayTarget3Destination:
+        layoutOverrides.animations?.handPlayTarget3Destination ?? null,
       mulliganReturn1Destination:
         layoutOverrides.animations?.mulliganReturn1Destination ?? null,
       mulliganReturn2Destination:
@@ -1304,6 +1395,7 @@ export const BattleLayoutEditor: React.FC = () => {
     const isPlayOnceMode =
       animationMode === "opening-target-entry-play-once" ||
       animationMode === "post-play-hand-draw-play-once" ||
+      animationMode === "hand-play-target-play-once" ||
       animationMode === "target-attack-play-once";
     if (!isPlayOnceMode) return;
 
@@ -3373,6 +3465,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 type="button"
                 onClick={() => {
                   const destinationAnchorTool =
+                    selectedHandPlayTargetDestinationAnchorTool ??
                     selectedMulliganReturnDestinationAnchorTool ??
                     selectedTargetAttackDestinationAnchorTool;
                   ensureAnimationAnchor(destinationAnchorTool);
@@ -3387,7 +3480,8 @@ export const BattleLayoutEditor: React.FC = () => {
                 className={cn(
                   "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
                   animationAnchorTool ===
-                    (selectedMulliganReturnDestinationAnchorTool ??
+                    (selectedHandPlayTargetDestinationAnchorTool ??
+                      selectedMulliganReturnDestinationAnchorTool ??
                       selectedTargetAttackDestinationAnchorTool)
                     ? "bg-sky-800 hover:bg-sky-700"
                     : "bg-sky-950 hover:bg-sky-900",

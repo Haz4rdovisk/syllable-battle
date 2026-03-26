@@ -22,6 +22,8 @@ export type BattleLayoutPreviewAnimationMode =
   | "opening-target-entry-loop"
   | "post-play-hand-draw-play-once"
   | "post-play-hand-draw-loop"
+  | "hand-play-target-play-once"
+  | "hand-play-target-loop"
   | "mulligan-hand-return-play-once"
   | "mulligan-hand-return-loop"
   | "mulligan-hand-draw-play-once"
@@ -31,6 +33,7 @@ export type BattleLayoutPreviewAnimationMode =
 export type BattleLayoutPreviewAnimationSet =
   | "opening-target-entry-first-round"
   | "post-play-hand-draw"
+  | "hand-play-target"
   | "mulligan-hand-return"
   | "mulligan-hand-draw"
   | "target-attack";
@@ -42,6 +45,10 @@ export type BattleLayoutPreviewAnimationPreset =
   | "opening-target-entry-3"
   | "opening-target-entry-simultaneous"
   | "post-play-hand-draw"
+  | "hand-play-target-0"
+  | "hand-play-target-1"
+  | "hand-play-target-2"
+  | "hand-play-target-3"
   | "mulligan-hand-return-1"
   | "mulligan-hand-return-2"
   | "mulligan-hand-return-3"
@@ -58,6 +65,10 @@ export type BattleLayoutPreviewAnimationAnchorKey =
   | "opening-target-entry-2-origin"
   | "opening-target-entry-3-origin"
   | "post-play-hand-draw-origin"
+  | "hand-play-target-0-destination"
+  | "hand-play-target-1-destination"
+  | "hand-play-target-2-destination"
+  | "hand-play-target-3-destination"
   | "mulligan-hand-return-1-destination"
   | "mulligan-hand-return-2-destination"
   | "mulligan-hand-return-3-destination"
@@ -82,6 +93,10 @@ export interface BattleLayoutPreviewAnimationAnchors {
   openingTargetEntry2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
   openingTargetEntry3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
   postPlayHandDrawOrigin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  handPlayTarget0Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
+  handPlayTarget1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
+  handPlayTarget2Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
+  handPlayTarget3Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   mulliganReturn1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   mulliganReturn2Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   mulliganReturn3Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
@@ -136,7 +151,7 @@ export const BATTLE_LAYOUT_EDITOR_STATE_KEY =
   "syllable-battle:battle-layout-editor-state";
 export const BATTLE_LAYOUT_MODEL_VERSION_KEY =
   "syllable-battle:battle-layout-model-version";
-export const BATTLE_LAYOUT_MODEL_VERSION = 5;
+export const BATTLE_LAYOUT_MODEL_VERSION = 6;
 export const BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY =
   "syllable-battle:battle-layout-active-overrides";
 export const BATTLE_LAYOUT_EDITOR_ELEMENT_CLIPBOARD_KEY =
@@ -280,6 +295,18 @@ export function normalizeBattleLayoutEditorPreviewState(
       ),
       postPlayHandDrawOrigin: clampAnimationPoint(
         state.animationAnchors?.postPlayHandDrawOrigin,
+      ),
+      handPlayTarget0Destination: clampAnimationPoint(
+        state.animationAnchors?.handPlayTarget0Destination,
+      ),
+      handPlayTarget1Destination: clampAnimationPoint(
+        state.animationAnchors?.handPlayTarget1Destination,
+      ),
+      handPlayTarget2Destination: clampAnimationPoint(
+        state.animationAnchors?.handPlayTarget2Destination,
+      ),
+      handPlayTarget3Destination: clampAnimationPoint(
+        state.animationAnchors?.handPlayTarget3Destination,
       ),
       mulliganReturn1Destination: clampAnimationPoint(
         state.animationAnchors?.mulliganReturn1Destination,
