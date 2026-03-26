@@ -110,16 +110,16 @@ export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
       "y": 574
     },
     "targetAttack2Destination": {
-      "x": 100,
-      "y": 130
+      "x": 98,
+      "y": 104
     },
     "targetAttack3Impact": {
       "x": 886,
       "y": 587
     },
     "targetAttack3Destination": {
-      "x": 100,
-      "y": 130
+      "x": 99,
+      "y": 103
     }
   }
 };

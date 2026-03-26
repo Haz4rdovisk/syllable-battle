@@ -11,6 +11,7 @@ import {
   BattleHandLane,
   BattleHandLaneCard,
   BattleHandLaneIncomingCard,
+  BattleHandLaneOutgoingCard,
 } from "./BattleHandLane";
 import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
@@ -61,6 +62,12 @@ const FIXTURE_TARGET_ATTACK_TRAVEL_MS = 1140;
 const FIXTURE_TARGET_ATTACK_PAUSE_MS = 260;
 const FIXTURE_TARGET_ATTACK_EXIT_MS = 960;
 const FIXTURE_TARGET_ATTACK_LOOP_GAP_MS = 680;
+const FIXTURE_MULLIGAN_RETURN_DURATION_MS = 760;
+const FIXTURE_MULLIGAN_RETURN_STAGGER_MS = 110;
+const FIXTURE_MULLIGAN_RETURN_SETTLE_MS = 260;
+const FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS = 680;
+const FIXTURE_MULLIGAN_DRAW_STAGGER_MS =
+  FIXTURE_POST_PLAY_DRAW_DURATION_MS + FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
 const openingTargetEntryAnchorToolByPreset: Partial<
   Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
 > = {
@@ -94,6 +101,30 @@ type FixtureOutgoingTarget = NonNullable<
   React.ComponentProps<typeof BattleFieldLane>["slots"][number]["outgoingTarget"]
 > & {
   slotIndex: number;
+};
+
+const getMulliganCountFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 1 | 2 | 3 | null => {
+  if (
+    preset === "mulligan-hand-return-1" ||
+    preset === "mulligan-hand-draw-1"
+  ) {
+    return 1;
+  }
+  if (
+    preset === "mulligan-hand-return-2" ||
+    preset === "mulligan-hand-draw-2"
+  ) {
+    return 2;
+  }
+  if (
+    preset === "mulligan-hand-return-3" ||
+    preset === "mulligan-hand-draw-3"
+  ) {
+    return 3;
+  }
+  return null;
 };
 
 export type BattleScenePreviewFocusArea =
@@ -175,6 +206,12 @@ export const BattleSceneFixtureView: React.FC<{
     openingTargetEntry2Origin: null,
     openingTargetEntry3Origin: null,
     postPlayHandDrawOrigin: null,
+    mulliganReturn1Destination: null,
+    mulliganReturn2Destination: null,
+    mulliganReturn3Destination: null,
+    mulliganDraw1Origin: null,
+    mulliganDraw2Origin: null,
+    mulliganDraw3Origin: null,
     targetAttack0Impact: null,
     targetAttack1Impact: null,
     targetAttack2Impact: null,
@@ -259,6 +296,12 @@ export const BattleSceneFixtureView: React.FC<{
     [PLAYER]: [],
     [ENEMY]: [],
   });
+  const [outgoingPreviewHands, setOutgoingPreviewHands] = useState<
+    Record<typeof PLAYER | typeof ENEMY, BattleHandLaneOutgoingCard[]>
+  >({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
   const [previewPostPlayDebug, setPreviewPostPlayDebug] = useState<{
     removedIndex: number | null;
     drawSourceIndex: number | null;
@@ -301,6 +344,10 @@ export const BattleSceneFixtureView: React.FC<{
       [PLAYER]: [],
       [ENEMY]: [],
     });
+    setOutgoingPreviewHands({
+      [PLAYER]: [],
+      [ENEMY]: [],
+    });
     setPreviewPostPlayDebug({
       removedIndex: null,
       drawSourceIndex: null,
@@ -314,6 +361,10 @@ export const BattleSceneFixtureView: React.FC<{
   useEffect(() => {
     setPreviewPlayerStableCards(defaultPlayerStableCards);
     setPreviewFreshCardIds([]);
+    setOutgoingPreviewHands({
+      [PLAYER]: [],
+      [ENEMY]: [],
+    });
     setPreviewPostPlayDebug({
       removedIndex: null,
       drawSourceIndex: null,
@@ -410,6 +461,18 @@ export const BattleSceneFixtureView: React.FC<{
           return animationAnchors.openingTargetEntry3Origin;
         case "post-play-hand-draw-origin":
           return animationAnchors.postPlayHandDrawOrigin;
+        case "mulligan-hand-return-1-destination":
+          return animationAnchors.mulliganReturn1Destination;
+        case "mulligan-hand-return-2-destination":
+          return animationAnchors.mulliganReturn2Destination;
+        case "mulligan-hand-return-3-destination":
+          return animationAnchors.mulliganReturn3Destination;
+        case "mulligan-hand-draw-1-origin":
+          return animationAnchors.mulliganDraw1Origin;
+        case "mulligan-hand-draw-2-origin":
+          return animationAnchors.mulliganDraw2Origin;
+        case "mulligan-hand-draw-3-origin":
+          return animationAnchors.mulliganDraw3Origin;
         case "target-attack-0-impact":
           return animationAnchors.targetAttack0Impact;
         case "target-attack-1-impact":
@@ -444,6 +507,32 @@ export const BattleSceneFixtureView: React.FC<{
             },
           ]
         : [];
+    }
+
+    if (animationSet === "mulligan-hand-draw") {
+      const anchor =
+        animationPreset === "mulligan-hand-draw-1"
+          ? ("mulligan-hand-draw-1-origin" as const)
+          : animationPreset === "mulligan-hand-draw-2"
+            ? ("mulligan-hand-draw-2-origin" as const)
+            : animationPreset === "mulligan-hand-draw-3"
+              ? ("mulligan-hand-draw-3-origin" as const)
+              : null;
+      const point = getAnimationAnchorPoint(anchor);
+      return point && anchor ? [{ label: "O", anchor, point }] : [];
+    }
+
+    if (animationSet === "mulligan-hand-return") {
+      const anchor =
+        animationPreset === "mulligan-hand-return-1"
+          ? ("mulligan-hand-return-1-destination" as const)
+          : animationPreset === "mulligan-hand-return-2"
+            ? ("mulligan-hand-return-2-destination" as const)
+            : animationPreset === "mulligan-hand-return-3"
+              ? ("mulligan-hand-return-3-destination" as const)
+              : null;
+      const point = getAnimationAnchorPoint(anchor);
+      return point && anchor ? [{ label: "D", anchor, point }] : [];
     }
 
     if (animationSet === "target-attack") {
@@ -538,6 +627,8 @@ export const BattleSceneFixtureView: React.FC<{
       `${card.syllable}#${card.id}${card.skipEntryAnimation ? "*" : ""}`;
     const formatIncomingHand = (card: BattleHandLaneIncomingCard) =>
       `${card.card.syllable}#${card.card.id}@${card.finalIndex}/${card.finalTotal} from ${formatSnapshot(card.origin)}`;
+    const formatOutgoingHand = (card: BattleHandLaneOutgoingCard) =>
+      `${card.card.syllable}#${card.card.id}@${card.initialIndex}/${card.initialTotal} -> ${formatSnapshot(card.destination)}`;
     const formatTarget = (entity: VisualTargetEntity | null | undefined) =>
       entity
         ? `${entity.target.name}#${entity.id}@${entity.side[0]}${entity.slotIndex}`
@@ -558,6 +649,7 @@ export const BattleSceneFixtureView: React.FC<{
       `anchors:[${visibleAnimationAnchors.map(({ label, anchor, point }) => `${label}:${anchor}@${formatPoint(point)}`).join(" | ")}]`,
       `playerStable:[${previewPlayerStableCards.map(formatHandCard).join(",")}]`,
       `playerIncoming:[${incomingPreviewHands[PLAYER].map(formatIncomingHand).join(" | ")}]`,
+      `playerOutgoing:[${outgoingPreviewHands[PLAYER].map(formatOutgoingHand).join(" | ")}]`,
       `enemyIncoming:[${incomingPreviewHands[ENEMY].map(formatIncomingHand).join(" | ")}]`,
       `fresh:[${previewFreshCardIds.join(",")}]`,
       `playerSlots:[${fixture.scene.board.playerFieldSlots.map((slot, index) => `${index}:${formatTarget(slot.displayedTarget)}`).join(" | ")}]`,
@@ -632,6 +724,7 @@ export const BattleSceneFixtureView: React.FC<{
     hiddenStableTargets,
     incomingPreviewHands,
     incomingPreviewTargets,
+    outgoingPreviewHands,
     outgoingPreviewTargets,
     previewFreshCardIds,
     previewPlayerStableCards,
@@ -729,6 +822,14 @@ export const BattleSceneFixtureView: React.FC<{
       animationSet === "post-play-hand-draw" &&
       (animationMode === "post-play-hand-draw-loop" ||
         animationMode === "post-play-hand-draw-play-once");
+    const isMulliganReturnAnimation =
+      animationSet === "mulligan-hand-return" &&
+      (animationMode === "mulligan-hand-return-loop" ||
+        animationMode === "mulligan-hand-return-play-once");
+    const isMulliganDrawAnimation =
+      animationSet === "mulligan-hand-draw" &&
+      (animationMode === "mulligan-hand-draw-loop" ||
+        animationMode === "mulligan-hand-draw-play-once");
     const isTargetAttackAnimation =
       animationSet === "target-attack" &&
       (animationMode === "target-attack-loop" ||
@@ -738,6 +839,8 @@ export const BattleSceneFixtureView: React.FC<{
       animationPreset === "none" ||
       (!isOpeningTargetEntryAnimation &&
         !isPostPlayHandDrawAnimation &&
+        !isMulliganReturnAnimation &&
+        !isMulliganDrawAnimation &&
         !isTargetAttackAnimation)
     ) {
       resetPreviewAnimation();
@@ -978,6 +1081,148 @@ export const BattleSceneFixtureView: React.FC<{
       }
     };
 
+    const startMulliganReturnLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      setIncomingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setOutgoingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setPreviewFreshCardIds([]);
+      const count = getMulliganCountFromPreset(animationPreset);
+      if (!count) return;
+      const removedCards = defaultPlayerStableCards.slice(0, count);
+      const remainingCards = defaultPlayerStableCards.slice(count);
+      setPreviewPlayerStableCards(remainingCards);
+      const destinationAnchor =
+        animationPreset === "mulligan-hand-return-1"
+          ? "mulligan-hand-return-1-destination"
+          : animationPreset === "mulligan-hand-return-2"
+            ? "mulligan-hand-return-2-destination"
+            : "mulligan-hand-return-3-destination";
+      const destination =
+        getAnimationAnchorPoint(destinationAnchor)
+          ? {
+              left: getAnimationAnchorPoint(destinationAnchor)!.x,
+              top: getAnimationAnchorPoint(destinationAnchor)!.y,
+              width: 0,
+              height: 0,
+            }
+          : readElementSnapshot("playerDeck");
+      if (!destination) return;
+      setOutgoingPreviewHands({
+        [PLAYER]: removedCards.map((card, index) => ({
+          id: `fixture-mulligan-return-${animationRunId}-${generation}-${index}`,
+          side: PLAYER,
+          card,
+          destination,
+          initialIndex: index,
+          initialTotal: defaultPlayerStableCards.length,
+          delayMs: index * FIXTURE_MULLIGAN_RETURN_STAGGER_MS,
+          durationMs: FIXTURE_MULLIGAN_RETURN_DURATION_MS,
+        })),
+        [ENEMY]: [],
+      });
+
+      const totalMs =
+        Math.max(0, (count - 1) * FIXTURE_MULLIGAN_RETURN_STAGGER_MS) +
+        FIXTURE_MULLIGAN_RETURN_DURATION_MS +
+        FIXTURE_MULLIGAN_RETURN_SETTLE_MS;
+      if (animationMode === "mulligan-hand-return-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startMulliganReturnLoop();
+        }, totalMs + FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, totalMs + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
+    const startMulliganDrawLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      setIncomingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setOutgoingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setPreviewFreshCardIds([]);
+      const count = getMulliganCountFromPreset(animationPreset);
+      if (!count) return;
+      const removedCards = defaultPlayerStableCards.slice(0, count);
+      const remainingCards = defaultPlayerStableCards.slice(count);
+      setPreviewPlayerStableCards(remainingCards);
+      const originAnchor =
+        animationPreset === "mulligan-hand-draw-1"
+          ? "mulligan-hand-draw-1-origin"
+          : animationPreset === "mulligan-hand-draw-2"
+            ? "mulligan-hand-draw-2-origin"
+            : "mulligan-hand-draw-3-origin";
+      const origin =
+        getAnimationAnchorPoint(originAnchor)
+          ? {
+              left: getAnimationAnchorPoint(originAnchor)!.x,
+              top: getAnimationAnchorPoint(originAnchor)!.y,
+              width: 0,
+              height: 0,
+            }
+          : readElementSnapshot("playerDeck");
+      if (!origin) return;
+      removedCards.forEach((card, index) => {
+        const timer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          setIncomingPreviewHands((current) => ({
+            ...current,
+            [PLAYER]: [
+              ...current[PLAYER],
+              {
+                id: `fixture-mulligan-draw-${animationRunId}-${generation}-${index}`,
+                side: PLAYER,
+                card: {
+                  ...card,
+                  id: `${card.id}-mulligan-incoming-${generation}-${index}`,
+                },
+                origin,
+                finalIndex: remainingCards.length + index,
+                finalTotal: remainingCards.length + count,
+                delayMs: 0,
+                durationMs: FIXTURE_POST_PLAY_DRAW_DURATION_MS,
+              },
+            ],
+          }));
+        }, index * FIXTURE_MULLIGAN_DRAW_STAGGER_MS);
+        animationTimersRef.current.push(timer);
+      });
+
+      const totalMs =
+        Math.max(0, (count - 1) * FIXTURE_MULLIGAN_DRAW_STAGGER_MS) +
+        FIXTURE_POST_PLAY_DRAW_DURATION_MS +
+        FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
+      if (animationMode === "mulligan-hand-draw-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startMulliganDrawLoop();
+        }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, totalMs + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
     const startTargetAttackLoop = () => {
       if (loopGenerationRef.current !== generation) return;
       setOutgoingPreviewTargets({
@@ -1072,6 +1317,10 @@ export const BattleSceneFixtureView: React.FC<{
       startOpeningLoop();
     } else if (isPostPlayHandDrawAnimation) {
       startPostPlayHandDrawLoop();
+    } else if (isMulliganReturnAnimation) {
+      startMulliganReturnLoop();
+    } else if (isMulliganDrawAnimation) {
+      startMulliganDrawLoop();
     } else if (isTargetAttackAnimation) {
       startTargetAttackLoop();
     }
@@ -1429,8 +1678,15 @@ export const BattleSceneFixtureView: React.FC<{
                     presentation="local"
                     stableCards={previewPlayerStableCards}
                     incomingCards={incomingPreviewHands[PLAYER]}
+                    outgoingCards={outgoingPreviewHands[PLAYER]}
                     scale="desktop"
                     onIncomingCardComplete={handleIncomingPreviewHandComplete}
+                    onOutgoingCardComplete={(outgoingCard) => {
+                      setOutgoingPreviewHands((current) => ({
+                        ...current,
+                        [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
+                      }));
+                    }}
                     canInteract={true}
                     showTurnHighlights={true}
                     showPlayableHints={fixture.showPlayableHints ?? true}
@@ -1596,8 +1852,15 @@ export const BattleSceneFixtureView: React.FC<{
                 presentation="local"
                 stableCards={previewPlayerStableCards}
                 incomingCards={incomingPreviewHands[PLAYER]}
+                outgoingCards={outgoingPreviewHands[PLAYER]}
                 scale="mobile"
                 onIncomingCardComplete={handleIncomingPreviewHandComplete}
+                onOutgoingCardComplete={(outgoingCard) => {
+                  setOutgoingPreviewHands((current) => ({
+                    ...current,
+                    [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
+                  }));
+                }}
                 canInteract={true}
                 showTurnHighlights={true}
                 showPlayableHints={fixture.showPlayableHints ?? true}

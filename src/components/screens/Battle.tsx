@@ -234,6 +234,7 @@ interface PendingMulliganDraw {
   syllable: Syllable;
   finalIndex: number;
   finalTotal: number;
+  originOverride: ZoneAnchorSnapshot | null;
 }
 
 interface BattleProps {
@@ -855,6 +856,48 @@ export const Battle: React.FC<BattleProps> = ({
     },
     [activeBattleLayout.animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOrigin],
   );
+  const getMulliganHandReturnDestinationSnapshot = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, count: number) => {
+      if (side !== localPlayerIndex) return null;
+      const configuredPoint =
+        count === 1
+          ? activeBattleLayout.animations.mulliganReturn1Destination
+          : count === 2
+            ? activeBattleLayout.animations.mulliganReturn2Destination
+            : count === 3
+              ? activeBattleLayout.animations.mulliganReturn3Destination
+              : null;
+      return snapshotSceneAnimationOrigin(configuredPoint);
+    },
+    [
+      activeBattleLayout.animations.mulliganReturn1Destination,
+      activeBattleLayout.animations.mulliganReturn2Destination,
+      activeBattleLayout.animations.mulliganReturn3Destination,
+      localPlayerIndex,
+      snapshotSceneAnimationOrigin,
+    ],
+  );
+  const getMulliganHandDrawOriginSnapshot = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, count: number) => {
+      if (side !== localPlayerIndex) return null;
+      const configuredPoint =
+        count === 1
+          ? activeBattleLayout.animations.mulliganDraw1Origin
+          : count === 2
+            ? activeBattleLayout.animations.mulliganDraw2Origin
+            : count === 3
+              ? activeBattleLayout.animations.mulliganDraw3Origin
+              : null;
+      return snapshotSceneAnimationOrigin(configuredPoint);
+    },
+    [
+      activeBattleLayout.animations.mulliganDraw1Origin,
+      activeBattleLayout.animations.mulliganDraw2Origin,
+      activeBattleLayout.animations.mulliganDraw3Origin,
+      localPlayerIndex,
+      snapshotSceneAnimationOrigin,
+    ],
+  );
 
   const setStableTargetSlot = useCallback(
     (
@@ -1066,6 +1109,7 @@ export const Battle: React.FC<BattleProps> = ({
         durationMs: FLOW.drawTravelMs,
         finalTotalOverride: nextDraw.finalTotal,
         finalIndexBase: nextDraw.finalIndex,
+        originOverride: nextDraw.originOverride,
       });
       return true;
     },
@@ -2093,7 +2137,9 @@ export const Battle: React.FC<BattleProps> = ({
       drawn: drawnCards,
     }).forEach(emitBattleEvent);
 
-    const deckDestination = snapshotZone(zoneIdForSide(side, "deck"));
+    const deckDestination =
+      getMulliganHandReturnDestinationSnapshot(side, removedStableCards.length) ??
+      snapshotZone(zoneIdForSide(side, "deck"));
     if (deckDestination) {
       removedStableCards.forEach((card, index) => {
         const layout = removedCardLayouts[index];
@@ -2119,6 +2165,7 @@ export const Battle: React.FC<BattleProps> = ({
       syllable,
       finalIndex: Math.min(HAND_LAYOUT_SLOT_COUNT - 1, remainingStableCount + index),
       finalTotal: Math.min(HAND_LAYOUT_SLOT_COUNT, remainingStableCount + drawnCards.length),
+      originOverride: getMulliganHandDrawOriginSnapshot(side, drawnCards.length),
     }));
     pendingMulliganDrawQueuesRef.current = {
       ...pendingMulliganDrawQueuesRef.current,
@@ -2131,6 +2178,7 @@ export const Battle: React.FC<BattleProps> = ({
         durationMs: FLOW.drawTravelMs,
         finalTotalOverride: plannedDraws[0].finalTotal,
         finalIndexBase: plannedDraws[0].finalIndex,
+        originOverride: plannedDraws[0].originOverride,
       });
     }
 

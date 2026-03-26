@@ -39,6 +39,12 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
     openingTargetEntry2Origin: null,
     openingTargetEntry3Origin: null,
     postPlayHandDrawOrigin: null,
+    mulliganReturn1Destination: null,
+    mulliganReturn2Destination: null,
+    mulliganReturn3Destination: null,
+    mulliganDraw1Origin: null,
+    mulliganDraw2Origin: null,
+    mulliganDraw3Origin: null,
     targetAttack0Impact: null,
     targetAttack1Impact: null,
     targetAttack2Impact: null,
@@ -102,6 +108,24 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
         postPlayHandDrawOrigin:
           parsed.animationAnchors?.postPlayHandDrawOrigin ??
           defaultPreviewState.animationAnchors.postPlayHandDrawOrigin,
+        mulliganReturn1Destination:
+          parsed.animationAnchors?.mulliganReturn1Destination ??
+          defaultPreviewState.animationAnchors.mulliganReturn1Destination,
+        mulliganReturn2Destination:
+          parsed.animationAnchors?.mulliganReturn2Destination ??
+          defaultPreviewState.animationAnchors.mulliganReturn2Destination,
+        mulliganReturn3Destination:
+          parsed.animationAnchors?.mulliganReturn3Destination ??
+          defaultPreviewState.animationAnchors.mulliganReturn3Destination,
+        mulliganDraw1Origin:
+          parsed.animationAnchors?.mulliganDraw1Origin ??
+          defaultPreviewState.animationAnchors.mulliganDraw1Origin,
+        mulliganDraw2Origin:
+          parsed.animationAnchors?.mulliganDraw2Origin ??
+          defaultPreviewState.animationAnchors.mulliganDraw2Origin,
+        mulliganDraw3Origin:
+          parsed.animationAnchors?.mulliganDraw3Origin ??
+          defaultPreviewState.animationAnchors.mulliganDraw3Origin,
         targetAttack0Impact:
           parsed.animationAnchors?.targetAttack0Impact ??
           defaultPreviewState.animationAnchors.targetAttack0Impact,

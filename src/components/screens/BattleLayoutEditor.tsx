@@ -200,6 +200,12 @@ const defaultAnimationAnchors: BattleLayoutPreviewAnimationAnchors = {
   openingTargetEntry2Origin: null,
   openingTargetEntry3Origin: null,
   postPlayHandDrawOrigin: null,
+  mulliganReturn1Destination: null,
+  mulliganReturn2Destination: null,
+  mulliganReturn3Destination: null,
+  mulliganDraw1Origin: null,
+  mulliganDraw2Origin: null,
+  mulliganDraw3Origin: null,
   targetAttack0Impact: null,
   targetAttack1Impact: null,
   targetAttack2Impact: null,
@@ -222,6 +228,14 @@ const animationSetOptions: Array<{
     label: "Compra para mao - Pos jogada",
   },
   {
+    value: "mulligan-hand-return",
+    label: "Mulligan - Saida",
+  },
+  {
+    value: "mulligan-hand-draw",
+    label: "Mulligan - Compra",
+  },
+  {
     value: "target-attack",
     label: "Ataque de alvos",
   },
@@ -241,6 +255,18 @@ const animationPresetOptionsBySet: Record<
   "post-play-hand-draw": [
     { value: "none", label: "None" },
     { value: "post-play-hand-draw", label: "Compra" },
+  ],
+  "mulligan-hand-return": [
+    { value: "none", label: "None" },
+    { value: "mulligan-hand-return-1", label: "Saida 1" },
+    { value: "mulligan-hand-return-2", label: "Saida 2" },
+    { value: "mulligan-hand-return-3", label: "Saida 3" },
+  ],
+  "mulligan-hand-draw": [
+    { value: "none", label: "None" },
+    { value: "mulligan-hand-draw-1", label: "Compra 1" },
+    { value: "mulligan-hand-draw-2", label: "Compra 2" },
+    { value: "mulligan-hand-draw-3", label: "Compra 3" },
   ],
   "target-attack": [
     { value: "none", label: "None" },
@@ -273,6 +299,16 @@ const getAnimationModeForAction = (
       ? "post-play-hand-draw-loop"
       : "post-play-hand-draw-play-once";
   }
+  if (animationSet === "mulligan-hand-return") {
+    return kind === "loop"
+      ? "mulligan-hand-return-loop"
+      : "mulligan-hand-return-play-once";
+  }
+  if (animationSet === "mulligan-hand-draw") {
+    return kind === "loop"
+      ? "mulligan-hand-draw-loop"
+      : "mulligan-hand-draw-play-once";
+  }
   if (animationSet === "target-attack") {
     return kind === "loop" ? "target-attack-loop" : "target-attack-play-once";
   }
@@ -288,6 +324,28 @@ const getAnimationPreviewDurationMs = (
   if (preset === "none") return 0;
   if (animationSet === "post-play-hand-draw") {
     return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
+  }
+  if (animationSet === "mulligan-hand-return") {
+    const count =
+      preset === "mulligan-hand-return-1"
+        ? 1
+        : preset === "mulligan-hand-return-2"
+          ? 2
+          : preset === "mulligan-hand-return-3"
+            ? 3
+            : 0;
+    return Math.max(0, (count - 1) * 110) + 760 + 260;
+  }
+  if (animationSet === "mulligan-hand-draw") {
+    const count =
+      preset === "mulligan-hand-draw-1"
+        ? 1
+        : preset === "mulligan-hand-draw-2"
+          ? 2
+          : preset === "mulligan-hand-draw-3"
+            ? 3
+            : 0;
+    return Math.max(0, (count - 1) * (940 + 220)) + 940 + 260;
   }
   if (animationSet === "target-attack") {
     return (
@@ -316,6 +374,18 @@ const getAnimationAnchorStateKey = (
       return "openingTargetEntry3Origin";
     case "post-play-hand-draw-origin":
       return "postPlayHandDrawOrigin";
+    case "mulligan-hand-return-1-destination":
+      return "mulliganReturn1Destination";
+    case "mulligan-hand-return-2-destination":
+      return "mulliganReturn2Destination";
+    case "mulligan-hand-return-3-destination":
+      return "mulliganReturn3Destination";
+    case "mulligan-hand-draw-1-origin":
+      return "mulliganDraw1Origin";
+    case "mulligan-hand-draw-2-origin":
+      return "mulliganDraw2Origin";
+    case "mulligan-hand-draw-3-origin":
+      return "mulliganDraw3Origin";
     case "target-attack-0-impact":
       return "targetAttack0Impact";
     case "target-attack-1-impact":
@@ -682,6 +752,18 @@ const readInitialBattleLayoutEditorPreviewState = () => {
           parsed.animationAnchors?.openingTargetEntry3Origin ?? null,
         postPlayHandDrawOrigin:
           parsed.animationAnchors?.postPlayHandDrawOrigin ?? null,
+        mulliganReturn1Destination:
+          parsed.animationAnchors?.mulliganReturn1Destination ?? null,
+        mulliganReturn2Destination:
+          parsed.animationAnchors?.mulliganReturn2Destination ?? null,
+        mulliganReturn3Destination:
+          parsed.animationAnchors?.mulliganReturn3Destination ?? null,
+        mulliganDraw1Origin:
+          parsed.animationAnchors?.mulliganDraw1Origin ?? null,
+        mulliganDraw2Origin:
+          parsed.animationAnchors?.mulliganDraw2Origin ?? null,
+        mulliganDraw3Origin:
+          parsed.animationAnchors?.mulliganDraw3Origin ?? null,
         targetAttack0Impact:
           parsed.animationAnchors?.targetAttack0Impact ?? null,
         targetAttack1Impact:
@@ -793,6 +875,18 @@ export const BattleLayoutEditor: React.FC = () => {
         initialPreviewState.layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
       postPlayHandDrawOrigin:
         initialPreviewState.layoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
+      mulliganReturn1Destination:
+        initialPreviewState.layoutOverrides.animations?.mulliganReturn1Destination ?? null,
+      mulliganReturn2Destination:
+        initialPreviewState.layoutOverrides.animations?.mulliganReturn2Destination ?? null,
+      mulliganReturn3Destination:
+        initialPreviewState.layoutOverrides.animations?.mulliganReturn3Destination ?? null,
+      mulliganDraw1Origin:
+        initialPreviewState.layoutOverrides.animations?.mulliganDraw1Origin ?? null,
+      mulliganDraw2Origin:
+        initialPreviewState.layoutOverrides.animations?.mulliganDraw2Origin ?? null,
+      mulliganDraw3Origin:
+        initialPreviewState.layoutOverrides.animations?.mulliganDraw3Origin ?? null,
       targetAttack0Impact:
         initialPreviewState.layoutOverrides.animations?.targetAttack0Impact ?? null,
       targetAttack1Impact:
@@ -878,7 +972,26 @@ export const BattleLayoutEditor: React.FC = () => {
         ? ("post-play-hand-draw-origin" as const)
         : null;
     }
+    if (animationSet === "mulligan-hand-draw") {
+      return animationPreset === "mulligan-hand-draw-1"
+        ? ("mulligan-hand-draw-1-origin" as const)
+        : animationPreset === "mulligan-hand-draw-2"
+          ? ("mulligan-hand-draw-2-origin" as const)
+          : animationPreset === "mulligan-hand-draw-3"
+            ? ("mulligan-hand-draw-3-origin" as const)
+            : null;
+    }
     return openingTargetEntryAnchorToolByPreset[animationPreset] ?? null;
+  }, [animationPreset, animationSet]);
+  const getSelectedMulliganReturnDestinationAnchorTool = useCallback(() => {
+    if (animationSet !== "mulligan-hand-return") return null;
+    return animationPreset === "mulligan-hand-return-1"
+      ? ("mulligan-hand-return-1-destination" as const)
+      : animationPreset === "mulligan-hand-return-2"
+        ? ("mulligan-hand-return-2-destination" as const)
+        : animationPreset === "mulligan-hand-return-3"
+          ? ("mulligan-hand-return-3-destination" as const)
+          : null;
   }, [animationPreset, animationSet]);
   const getSelectedTargetAttackImpactAnchorTool = useCallback(() => {
     const attackIndex = getTargetAttackIndexFromPreset(animationPreset);
@@ -927,6 +1040,10 @@ export const BattleLayoutEditor: React.FC = () => {
         );
       } else if (anchorTool === "post-play-hand-draw-origin") {
         anchorRect = getBattleElementSceneRect("playerDeck", layout);
+      } else if (anchorTool.startsWith("mulligan-hand-draw-")) {
+        anchorRect = getBattleElementSceneRect("playerDeck", layout);
+      } else if (anchorTool.startsWith("mulligan-hand-return-")) {
+        anchorRect = getBattleElementSceneRect("playerDeck", layout);
       } else if (anchorTool.includes("-impact")) {
         const attackIndex = getTargetAttackIndexFromPreset(animationPreset) ?? 0;
         const side = attackIndex >= 2 ? ENEMY : PLAYER;
@@ -973,15 +1090,19 @@ export const BattleLayoutEditor: React.FC = () => {
   const isAnimationFeatureDisabled = animationPreset === "none";
   const animationPresetOptions = animationPresetOptionsBySet[animationSet];
   const selectedAnimationOriginAnchorTool = getSelectedAnimationOriginAnchorTool();
+  const selectedMulliganReturnDestinationAnchorTool =
+    getSelectedMulliganReturnDestinationAnchorTool();
   const selectedTargetAttackImpactAnchorTool = getSelectedTargetAttackImpactAnchorTool();
   const selectedTargetAttackDestinationAnchorTool = getSelectedTargetAttackDestinationAnchorTool();
   const isIndividualAnimationPreset =
     selectedAnimationOriginAnchorTool !== null ||
+    selectedMulliganReturnDestinationAnchorTool !== null ||
     selectedTargetAttackImpactAnchorTool !== null ||
     selectedTargetAttackDestinationAnchorTool !== null;
   const isOriginAnchorAvailable = selectedAnimationOriginAnchorTool !== null;
   const isImpactAnchorAvailable = selectedTargetAttackImpactAnchorTool !== null;
   const isDestinationAnchorAvailable =
+    selectedMulliganReturnDestinationAnchorTool !== null ||
     selectedTargetAttackDestinationAnchorTool !== null;
 
   useEffect(() => {
@@ -1000,6 +1121,18 @@ export const BattleLayoutEditor: React.FC = () => {
         layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
       postPlayHandDrawOrigin:
         layoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
+      mulliganReturn1Destination:
+        layoutOverrides.animations?.mulliganReturn1Destination ?? null,
+      mulliganReturn2Destination:
+        layoutOverrides.animations?.mulliganReturn2Destination ?? null,
+      mulliganReturn3Destination:
+        layoutOverrides.animations?.mulliganReturn3Destination ?? null,
+      mulliganDraw1Origin:
+        layoutOverrides.animations?.mulliganDraw1Origin ?? null,
+      mulliganDraw2Origin:
+        layoutOverrides.animations?.mulliganDraw2Origin ?? null,
+      mulliganDraw3Origin:
+        layoutOverrides.animations?.mulliganDraw3Origin ?? null,
       targetAttack0Impact:
         layoutOverrides.animations?.targetAttack0Impact ?? null,
       targetAttack1Impact:
@@ -3209,18 +3342,23 @@ export const BattleLayoutEditor: React.FC = () => {
               <Button
                 type="button"
                 onClick={() => {
-                  ensureAnimationAnchor(selectedTargetAttackDestinationAnchorTool);
+                  const destinationAnchorTool =
+                    selectedMulliganReturnDestinationAnchorTool ??
+                    selectedTargetAttackDestinationAnchorTool;
+                  ensureAnimationAnchor(destinationAnchorTool);
                   setAnimationMode("idle");
                   setAnimationRunId((current) => current + 1);
                   setAnimationAnchorTool((current) =>
-                    current === selectedTargetAttackDestinationAnchorTool
+                    current === destinationAnchorTool
                       ? null
-                      : selectedTargetAttackDestinationAnchorTool,
+                      : destinationAnchorTool,
                   );
                 }}
                 className={cn(
                   "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
-                  animationAnchorTool === selectedTargetAttackDestinationAnchorTool
+                  animationAnchorTool ===
+                    (selectedMulliganReturnDestinationAnchorTool ??
+                      selectedTargetAttackDestinationAnchorTool)
                     ? "bg-sky-800 hover:bg-sky-700"
                     : "bg-sky-950 hover:bg-sky-900",
                 )}

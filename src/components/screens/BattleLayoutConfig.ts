@@ -140,6 +140,12 @@ export interface BattleAnimationLayoutConfig {
   openingTargetEntry2Origin: BattleAnimationAnchorPoint | null;
   openingTargetEntry3Origin: BattleAnimationAnchorPoint | null;
   postPlayHandDrawOrigin: BattleAnimationAnchorPoint | null;
+  mulliganReturn1Destination: BattleAnimationAnchorPoint | null;
+  mulliganReturn2Destination: BattleAnimationAnchorPoint | null;
+  mulliganReturn3Destination: BattleAnimationAnchorPoint | null;
+  mulliganDraw1Origin: BattleAnimationAnchorPoint | null;
+  mulliganDraw2Origin: BattleAnimationAnchorPoint | null;
+  mulliganDraw3Origin: BattleAnimationAnchorPoint | null;
   targetAttack0Impact: BattleAnimationAnchorPoint | null;
   targetAttack1Impact: BattleAnimationAnchorPoint | null;
   targetAttack2Impact: BattleAnimationAnchorPoint | null;
@@ -246,6 +252,12 @@ const defaultAnimationLayout: BattleAnimationLayoutConfig = {
   openingTargetEntry2Origin: null,
   openingTargetEntry3Origin: null,
   postPlayHandDrawOrigin: null,
+  mulliganReturn1Destination: null,
+  mulliganReturn2Destination: null,
+  mulliganReturn3Destination: null,
+  mulliganDraw1Origin: null,
+  mulliganDraw2Origin: null,
+  mulliganDraw3Origin: null,
   targetAttack0Impact: null,
   targetAttack1Impact: null,
   targetAttack2Impact: null,
