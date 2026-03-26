@@ -19,7 +19,7 @@ import { BattleActionButton } from "./BattleActionButton";
 import { BattleEditableElementKey, BattleLayoutConfig } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattleEditableElement } from "./BattleEditableElement";
-import { PlayerPortrait } from "../game/GameComponents";
+import { PlayerPortrait, VisualTargetEntity, ZoneAnchorSnapshot } from "../game/GameComponents";
 import {
   BattleSceneFixtureData,
   BattleSceneFixtureHandCard,
@@ -525,6 +525,119 @@ export const BattleSceneFixtureView: React.FC<{
       },
     ];
   }, [animationPreset, animationSet, getAnimationAnchorPoint]);
+
+  const debugLines = useMemo(() => {
+    const formatPoint = (
+      point: { x: number; y: number } | null | undefined,
+    ) => (point ? `${point.x},${point.y}` : "-");
+    const formatSnapshot = (snapshot: ZoneAnchorSnapshot | null | undefined) =>
+      snapshot
+        ? `${Math.round(snapshot.left)},${Math.round(snapshot.top)} ${Math.round(snapshot.width)}x${Math.round(snapshot.height)}`
+        : "-";
+    const formatHandCard = (card: BattleHandLaneCard) =>
+      `${card.syllable}#${card.id}${card.skipEntryAnimation ? "*" : ""}`;
+    const formatIncomingHand = (card: BattleHandLaneIncomingCard) =>
+      `${card.card.syllable}#${card.card.id}@${card.finalIndex}/${card.finalTotal} from ${formatSnapshot(card.origin)}`;
+    const formatTarget = (entity: VisualTargetEntity | null | undefined) =>
+      entity
+        ? `${entity.target.name}#${entity.id}@${entity.side[0]}${entity.slotIndex}`
+        : "-";
+    const formatIncomingTarget = (target: FixtureIncomingTarget) =>
+      `${formatTarget(target.entity)} from ${formatSnapshot(target.origin)} d:${target.delayMs ?? 0} t:${target.durationMs ?? 0}`;
+    const formatOutgoingTarget = (target: FixtureOutgoingTarget) =>
+      `${formatTarget(target.entity)} impact:${formatSnapshot(target.impactDestination ?? null)} -> ${formatSnapshot(target.destination)} w:${target.windupMs ?? 0} a:${target.attackMs ?? 0} p:${target.pauseMs ?? 0} e:${target.exitMs ?? 0}`;
+    const formatHiddenFlags = (flags: boolean[] | undefined) =>
+      flags && flags.length > 0
+        ? flags.map((flag, index) => `${index}:${flag ? "1" : "0"}`).join(" ")
+        : "-";
+
+    const lines = [
+      `set:${animationSet} preset:${animationPreset} mode:${animationMode}`,
+      `run:${animationRunId} loopGen:${loopGenerationRef.current} timers:${animationTimersRef.current.length}`,
+      `anchorTool:${animationAnchorTool ?? "-"} selected:[${fixture.selectedIndexes?.join(",") ?? ""}]`,
+      `anchors:[${visibleAnimationAnchors.map(({ label, anchor, point }) => `${label}:${anchor}@${formatPoint(point)}`).join(" | ")}]`,
+      `playerStable:[${previewPlayerStableCards.map(formatHandCard).join(",")}]`,
+      `playerIncoming:[${incomingPreviewHands[PLAYER].map(formatIncomingHand).join(" | ")}]`,
+      `enemyIncoming:[${incomingPreviewHands[ENEMY].map(formatIncomingHand).join(" | ")}]`,
+      `fresh:[${previewFreshCardIds.join(",")}]`,
+      `playerSlots:[${fixture.scene.board.playerFieldSlots.map((slot, index) => `${index}:${formatTarget(slot.displayedTarget)}`).join(" | ")}]`,
+      `enemySlots:[${fixture.scene.board.enemyFieldSlots.map((slot, index) => `${index}:${formatTarget(slot.displayedTarget)}`).join(" | ")}]`,
+      `hiddenPlayer:${formatHiddenFlags(hiddenStableTargets[PLAYER])}`,
+      `hiddenEnemy:${formatHiddenFlags(hiddenStableTargets[ENEMY])}`,
+      `incomingTargetsP:[${incomingPreviewTargets[PLAYER].map(formatIncomingTarget).join(" || ")}]`,
+      `incomingTargetsE:[${incomingPreviewTargets[ENEMY].map(formatIncomingTarget).join(" || ")}]`,
+      `outgoingTargetsP:[${outgoingPreviewTargets[PLAYER].map(formatOutgoingTarget).join(" || ")}]`,
+      `outgoingTargetsE:[${outgoingPreviewTargets[ENEMY].map(formatOutgoingTarget).join(" || ")}]`,
+    ];
+
+    if (animationSet === "post-play-hand-draw") {
+      lines.push(`phase:${previewPostPlayDebug.phase}`);
+      lines.push(
+        `removedIndex:${previewPostPlayDebug.removedIndex ?? "-"} drawSource:${previewPostPlayDebug.drawSourceIndex ?? "-"}`,
+      );
+      lines.push(`removedCard:${previewPostPlayDebug.removedCardLabel ?? "-"}`);
+      lines.push(`drawnCard:${previewPostPlayDebug.drawnCardLabel ?? "-"}`);
+      lines.push(`committed:${previewPostPlayDebug.committedCardLabel ?? "-"}`);
+      lines.push(
+        `fixtureHand:[${defaultPlayerStableCards
+          .map((card) => `${card.syllable}#${card.id}`)
+          .join(",")}]`,
+      );
+      lines.push(
+        `drawOrigin:${formatPoint(getAnimationAnchorPoint("post-play-hand-draw-origin"))}`,
+      );
+    }
+
+    if (animationSet === "opening-target-entry-first-round") {
+      lines.push(
+        `openingPreset:${animationPreset === "opening-target-entry-simultaneous" ? "simultaneous" : "single"}`,
+      );
+    }
+
+    if (animationSet === "target-attack") {
+      lines.push(
+        `impactAnchors:[${[
+          "target-attack-0-impact",
+          "target-attack-1-impact",
+          "target-attack-2-impact",
+          "target-attack-3-impact",
+        ]
+          .map((anchor) => `${anchor}:${formatPoint(getAnimationAnchorPoint(anchor as BattleLayoutPreviewAnimationAnchorKey))}`)
+          .join(" | ")}]`,
+      );
+      lines.push(
+        `destAnchors:[${[
+          "target-attack-0-destination",
+          "target-attack-1-destination",
+          "target-attack-2-destination",
+          "target-attack-3-destination",
+        ]
+          .map((anchor) => `${anchor}:${formatPoint(getAnimationAnchorPoint(anchor as BattleLayoutPreviewAnimationAnchorKey))}`)
+          .join(" | ")}]`,
+      );
+    }
+
+    return lines;
+  }, [
+    animationAnchorTool,
+    animationMode,
+    animationPreset,
+    animationRunId,
+    animationSet,
+    defaultPlayerStableCards,
+    fixture.scene.board.enemyFieldSlots,
+    fixture.scene.board.playerFieldSlots,
+    fixture.selectedIndexes,
+    getAnimationAnchorPoint,
+    hiddenStableTargets,
+    incomingPreviewHands,
+    incomingPreviewTargets,
+    outgoingPreviewTargets,
+    previewFreshCardIds,
+    previewPlayerStableCards,
+    previewPostPlayDebug,
+    visibleAnimationAnchors,
+  ]);
 
   const postAnimationAnchorUpdate = useCallback(
     (
@@ -1113,17 +1226,9 @@ export const BattleSceneFixtureView: React.FC<{
         : null}
       {editorMode && animationDebugEnabled ? (
         <div className="pointer-events-none absolute bottom-3 right-3 z-[90] max-w-[360px] rounded-lg border border-cyan-300/20 bg-black/75 px-3 py-2 font-mono text-[10px] leading-tight text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
-          <div>{`set:${animationSet} preset:${animationPreset} mode:${animationMode}`}</div>
-          <div>{`run:${animationRunId} phase:${previewPostPlayDebug.phase}`}</div>
-          <div>{`removedIndex:${previewPostPlayDebug.removedIndex ?? "-"} drawSource:${previewPostPlayDebug.drawSourceIndex ?? "-"}`}</div>
-          <div>{`removedCard:${previewPostPlayDebug.removedCardLabel ?? "-"}`}</div>
-          <div>{`drawnCard:${previewPostPlayDebug.drawnCardLabel ?? "-"}`}</div>
-          <div>{`committed:${previewPostPlayDebug.committedCardLabel ?? "-"}`}</div>
-          <div>{`fixtureHand:[${defaultPlayerStableCards.map((card) => `${card.syllable}#${card.id}`).join(",")}]`}</div>
-          <div>{`stableLocal:[${previewPlayerStableCards.map((card) => `${card.syllable}${card.skipEntryAnimation ? "*" : ""}`).join(",")}]`}</div>
-          <div>{`incomingLocal:[${incomingPreviewHands[PLAYER].map((card) => `${card.card.syllable}#${card.card.id}@${card.finalIndex}/${card.finalTotal}`).join(",")}]`}</div>
-          <div>{`fresh:[${previewFreshCardIds.join(",")}]`}</div>
-          <div>{`fixtureSelected:[${fixture.selectedIndexes?.join(",") ?? ""}]`}</div>
+          {debugLines.map((line) => (
+            <div key={line}>{line}</div>
+          ))}
         </div>
       ) : null}
       <main className="relative z-10 flex h-full min-h-0 flex-col">
