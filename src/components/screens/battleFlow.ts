@@ -40,31 +40,34 @@ const resolveHandSpacing = (
   return clamp(availableSpacing, minSpacing, maxSpacing);
 };
 
-export const getPlayerHandLayout = (
+export const getBattleHandLayout = (
+  presentation: "local" | "remote",
   total: number,
   index: number,
   desktop: boolean,
   laneWidth?: number | null,
 ) => {
+  const direction = presentation === "local" ? 1 : -1;
   const mid = (total - 1) / 2;
   const offset = index - mid;
   const spacing = resolveHandSpacing(total, desktop, laneWidth, desktop ? 88 : 64, desktop ? 116 : 76);
-  const y = Math.abs(offset) * (desktop ? 10 : 7);
-  return { x: offset * spacing, y, rotate: offset * 5, scale: 1 };
+  const y = Math.abs(offset) * (desktop ? 10 : 7) * direction;
+  return { x: offset * spacing, y, rotate: offset * 5 * direction, scale: 1 };
 };
+
+export const getPlayerHandLayout = (
+  total: number,
+  index: number,
+  desktop: boolean,
+  laneWidth?: number | null,
+) => getBattleHandLayout("local", total, index, desktop, laneWidth);
 
 export const getEnemyHandLayout = (
   total: number,
   index: number,
   desktop: boolean,
   laneWidth?: number | null,
-) => {
-  const mid = (total - 1) / 2;
-  const offset = index - mid;
-  const spacing = resolveHandSpacing(total, desktop, laneWidth, desktop ? 86 : 64, desktop ? 108 : 72);
-  const y = Math.abs(offset) * (desktop ? -10 : -7);
-  return { x: offset * spacing, y, rotate: offset * -5, scale: 1 };
-};
+) => getBattleHandLayout("remote", total, index, desktop, laneWidth);
 
 export const getBattleHandFrame = (
   presentation: "local" | "remote",
@@ -79,7 +82,8 @@ export const getBattleHandFrame = (
   }
 
   const getLayout =
-    presentation === "local" ? getPlayerHandLayout : getEnemyHandLayout;
+    (totalCards: number, layoutIndex: number, isDesktop: boolean, width?: number | null) =>
+      getBattleHandLayout(presentation, totalCards, layoutIndex, isDesktop, width);
   const cardWidth = desktop ? 110 : 86;
   const cardHeight = desktop ? 150 : 120;
 
@@ -108,10 +112,15 @@ export const getBattleHandFrame = (
 
 export const getPlayedCardCommitDelayMs = (flow: BattleFlowTimings) => flow.cardToFieldMs + flow.cardSettleMs;
 
-export const getPlayDrawStartDelayMs = (flow: BattleFlowTimings) => flow.cardToFieldMs + flow.cardSettleMs;
+export const getPlayDrawStartDelayMs = (flow: BattleFlowTimings) =>
+  flow.cardToFieldMs + flow.cardSettleMs + flow.drawSettleMs;
 
 export const getPlayFinishDelayMs = (flow: BattleFlowTimings) =>
-  flow.cardToFieldMs + flow.cardSettleMs + flow.drawTravelMs + flow.turnHandoffMs;
+  flow.cardToFieldMs +
+  flow.cardSettleMs +
+  flow.drawSettleMs +
+  flow.drawTravelMs +
+  flow.turnHandoffMs;
 
 export const getMulliganDrawStartDelayMs = (flow: BattleFlowTimings, returnedCount: number) =>
   flow.mulliganReturnMs + Math.max(0, returnedCount - 1) * flow.mulliganReturnStaggerMs + flow.mulliganDrawDelayMs;

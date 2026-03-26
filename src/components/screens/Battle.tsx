@@ -861,7 +861,7 @@ export const Battle: React.FC<BattleProps> = ({
         }
 
         appendIncomingCard(side, {
-          id: `incoming-${visualCard.id}`,
+          id: visualCard.id,
           side,
           card: visualCard,
           origin,
@@ -1580,7 +1580,7 @@ export const Battle: React.FC<BattleProps> = ({
       FLOW.targetExitMs +
       FLOW.replacementGapMs;
     const combatResolveEndMs = replacementDelayMs + FLOW.targetEnterMs;
-    const drawStartDelayMs = impactDelayMs + FLOW.impactPauseMs + 120;
+    const drawStartDelayMs = impactDelayMs + FLOW.impactPauseMs + FLOW.drawSettleMs;
     const drawTotalMs =
       (result.drawnCards.length > 0 ? FLOW.drawTravelMs : 0) +
       Math.max(0, result.drawnCards.length - 1) * FLOW.drawStaggerMs;

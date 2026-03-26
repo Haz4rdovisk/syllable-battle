@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { GameState, Syllable } from "../../types/game";
 import { canPlace } from "../../logic/gameLogic";
-import { CardBackCard, getTravelSyllableCardSize, SyllableCard } from "../game/GameComponents";
+import { CardBackCard, SyllableCard } from "../game/GameComponents";
 import { cn } from "../../lib/utils";
-import { getEnemyHandLayout, getPlayerHandLayout } from "./battleFlow";
+import { getBattleHandLayout } from "./battleFlow";
 
 const HAND_LAYOUT_SLOT_COUNT = 5;
+const clampScale = (value: number, min = 0.72, max = 1.24) =>
+  Math.min(max, Math.max(min, value));
 
 export interface BattleHandLaneCard {
   id: string;
@@ -80,8 +82,10 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   const [laneWidth, setLaneWidth] = useState<number | null>(null);
   const [laneHeight, setLaneHeight] = useState<number | null>(null);
   const totalCards = Math.min(HAND_LAYOUT_SLOT_COUNT, stableCards.length + incomingCards.length);
-  const getLayout = isLocalPresentation ? getPlayerHandLayout : getEnemyHandLayout;
+  const getLayout = (total: number, index: number, desktop: boolean, width?: number | null) =>
+    getBattleHandLayout(presentation, total, index, desktop, width);
   const sizePreset = isDesktop ? "hand-desktop" : "hand-mobile";
+  const cardWidth = isDesktop ? 110 : 86;
   const cardBaseHeight = isDesktop ? 150 : 120;
   const resolvedLaneHeight = laneWidth
     ? Math.min(
@@ -194,9 +198,10 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                 onMouseEnter={() => onHoverCard?.(i)}
                 onMouseLeave={() => onHoverCard?.(null)}
                 ref={bindCardRef?.(card.id, scale)}
-                className={cn("absolute bottom-0", isLocalPresentation && "cursor-pointer")}
+                className={cn("absolute left-0 top-0", isLocalPresentation && "cursor-pointer")}
                 style={{
-                  bottom: `${bottomOffset}px`,
+                  left: `calc(50% - ${cardWidth / 2}px)`,
+                  top: `calc(100% - ${bottomOffset + cardBaseHeight}px)`,
                   zIndex: isLocalPresentation && hoveredCardIndex === i ? 100 : i,
                 }}
               >
@@ -222,30 +227,67 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
         {hostRef.current &&
           incomingCards.map((incomingCard) => {
             const hostRect = hostRef.current!.getBoundingClientRect();
-            const cardSize = getTravelSyllableCardSize();
+            const cardSize = isDesktop
+              ? { width: 110, height: 150 }
+              : { width: 86, height: 120 };
             const layout = getLayout(
               incomingCard.finalTotal,
               incomingCard.finalIndex,
               isDesktop,
               laneWidth,
             );
-            const startX = incomingCard.origin.left + incomingCard.origin.width / 2 - hostRect.left - cardSize.width / 2;
-            const startY = incomingCard.origin.top + incomingCard.origin.height / 2 - hostRect.top - cardSize.height / 2;
-            const endX = hostRect.width / 2 - cardSize.width / 2 + layout.x;
-            const endY = hostRect.height - bottomOffset - cardSize.height + layout.y;
-
+            const deckExitX =
+              incomingCard.origin.left +
+              incomingCard.origin.width / 2 -
+              hostRect.left -
+              cardSize.width / 2;
+            const deckExitY =
+              incomingCard.origin.top +
+              Math.max(8, incomingCard.origin.height * 0.14) -
+              hostRect.top -
+              cardSize.height * 0.18;
+            const baseLeft = hostRect.width / 2 - cardSize.width / 2;
+            const baseTop = hostRect.height - bottomOffset - cardSize.height;
+            const startX = deckExitX - baseLeft;
+            const startY = deckExitY - baseTop;
+            const startScale =
+              cardSize.width > 0 && cardSize.height > 0
+                ? clampScale(
+                    Math.min(
+                      incomingCard.origin.width / cardSize.width,
+                      incomingCard.origin.height / cardSize.height,
+                    ),
+                  )
+                : 0.92;
+            const startRotate = isLocalPresentation ? 3 : -3;
             return (
               <motion.div
                 key={incomingCard.id}
-                initial={{ x: startX, y: startY, rotate: 0, scale: 0.94, opacity: 0 }}
-                animate={{ x: endX, y: endY, rotate: layout.rotate, scale: 1, opacity: 1 }}
+                className="pointer-events-none absolute left-0 top-0 z-[120]"
+                style={{
+                  left: `calc(50% - ${cardSize.width / 2}px)`,
+                  top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
+                }}
+                initial={{
+                  x: startX,
+                  y: startY,
+                  rotate: startRotate,
+                  scale: startScale,
+                  opacity: 0,
+                }}
+                animate={{
+                  x: layout.x,
+                  y: layout.y,
+                  rotate: layout.rotate,
+                  scale: 1,
+                  opacity: 1,
+                }}
                 transition={{
                   delay: incomingCard.delayMs / 1000,
                   duration: incomingCard.durationMs / 1000,
-                  ease: [0.22, 1, 0.36, 1],
+                  ease: [0.18, 0.9, 0.22, 1],
                 }}
                 onAnimationComplete={() => onIncomingCardComplete?.(incomingCard)}
-                className="pointer-events-none absolute left-0 top-0 z-[120]"
               >
                 {isLocalPresentation ? (
                   <SyllableCard
