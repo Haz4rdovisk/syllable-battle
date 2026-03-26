@@ -205,8 +205,6 @@ const openingTargetEntryAnchorToolByPreset: Partial<
 const handPlayTargetDestinationAnchorToolByPreset = {
   "hand-play-target-0": "hand-play-target-0-destination",
   "hand-play-target-1": "hand-play-target-1-destination",
-  "hand-play-target-2": "hand-play-target-2-destination",
-  "hand-play-target-3": "hand-play-target-3-destination",
 } as const;
 const defaultAnimationAnchors: BattleLayoutPreviewAnimationAnchors = {
   openingTargetEntry0Origin: null,
@@ -282,8 +280,6 @@ const animationPresetOptionsBySet: Record<
     { value: "none", label: "None" },
     { value: "hand-play-target-0", label: "Alvo 0" },
     { value: "hand-play-target-1", label: "Alvo 1" },
-    { value: "hand-play-target-2", label: "Alvo 2" },
-    { value: "hand-play-target-3", label: "Alvo 3" },
   ],
   "mulligan-hand-return": [
     { value: "none", label: "None" },
@@ -500,11 +496,9 @@ const getTargetAttackIndexFromPreset = (
 
 const getHandPlayTargetIndexFromPreset = (
   preset: BattleLayoutPreviewAnimationPreset,
-): 0 | 1 | 2 | 3 | null => {
+): 0 | 1 | null => {
   if (preset === "hand-play-target-0") return 0;
   if (preset === "hand-play-target-1") return 1;
-  if (preset === "hand-play-target-2") return 2;
-  if (preset === "hand-play-target-3") return 3;
   return null;
 };
 

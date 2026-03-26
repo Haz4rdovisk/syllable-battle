@@ -101,8 +101,6 @@ const handPlayTargetDestinationAnchorToolByPreset: Partial<
 > = {
   "hand-play-target-0": "hand-play-target-0-destination",
   "hand-play-target-1": "hand-play-target-1-destination",
-  "hand-play-target-2": "hand-play-target-2-destination",
-  "hand-play-target-3": "hand-play-target-3-destination",
 };
 type FixtureIncomingTarget = BattleFieldIncomingTarget & {
   side: typeof PLAYER | typeof ENEMY;
@@ -141,11 +139,9 @@ const getMulliganCountFromPreset = (
 
 const getHandPlayTargetIndexFromPreset = (
   preset: BattleLayoutPreviewAnimationPreset,
-): 0 | 1 | 2 | 3 | null => {
+): 0 | 1 | null => {
   if (preset === "hand-play-target-0") return 0;
   if (preset === "hand-play-target-1") return 1;
-  if (preset === "hand-play-target-2") return 2;
-  if (preset === "hand-play-target-3") return 3;
   return null;
 };
 
@@ -277,6 +273,7 @@ export const BattleSceneFixtureView: React.FC<{
   },
 }) => {
   const isPureOverview = focusArea === "overview";
+  const isHandPlayTargetEditorSet = animationSet === "hand-play-target";
   const shellSlots = getBattleDesktopShellSlots(layout);
   const boardVars = getBattleBoardSurfaceVars(layout);
   const stageMetrics = getBattleStageMetrics(viewportWidth, viewportHeight);
@@ -343,6 +340,9 @@ export const BattleSceneFixtureView: React.FC<{
   const [previewPlayerStableCards, setPreviewPlayerStableCards] = useState<
     BattleHandLaneCard[]
   >(defaultPlayerStableCards);
+  const [previewSelectedIndexes, setPreviewSelectedIndexes] = useState<number[]>(
+    fixture.selectedIndexes ?? [],
+  );
   const [previewPendingTargetPlacements, setPreviewPendingTargetPlacements] =
     useState<Record<typeof PLAYER | typeof ENEMY, Array<Syllable | null>>>({
       [PLAYER]: [],
@@ -411,6 +411,7 @@ export const BattleSceneFixtureView: React.FC<{
       [PLAYER]: [],
       [ENEMY]: [],
     });
+    setPreviewSelectedIndexes(fixture.selectedIndexes ?? []);
     setPreviewPostPlayDebug({
       removedIndex: null,
       drawSourceIndex: null,
@@ -428,6 +429,7 @@ export const BattleSceneFixtureView: React.FC<{
       [PLAYER]: [],
       [ENEMY]: [],
     });
+    setPreviewSelectedIndexes(fixture.selectedIndexes ?? []);
     setPreviewPostPlayDebug({
       removedIndex: null,
       drawSourceIndex: null,
@@ -436,7 +438,7 @@ export const BattleSceneFixtureView: React.FC<{
       committedCardLabel: null,
       phase: "idle",
     });
-  }, [defaultPlayerStableCards]);
+  }, [defaultPlayerStableCards, fixture.selectedIndexes]);
 
   const readElementSnapshot = useCallback((elementKey: BattleEditableElementKey) => {
     if (typeof document === "undefined") return null;
@@ -724,7 +726,7 @@ export const BattleSceneFixtureView: React.FC<{
     const lines = [
       `set:${animationSet} preset:${animationPreset} mode:${animationMode}`,
       `run:${animationRunId} loopGen:${loopGenerationRef.current} timers:${animationTimersRef.current.length}`,
-      `anchorTool:${animationAnchorTool ?? "-"} selected:[${fixture.selectedIndexes?.join(",") ?? ""}]`,
+      `anchorTool:${animationAnchorTool ?? "-"} selected:[${previewSelectedIndexes.join(",")}]`,
       `anchors:[${visibleAnimationAnchors.map(({ label, anchor, point }) => `${label}:${anchor}@${formatPoint(point)}`).join(" | ")}]`,
       `playerStable:[${previewPlayerStableCards.map(formatHandCard).join(",")}]`,
       `playerIncoming:[${incomingPreviewHands[PLAYER].map(formatIncomingHand).join(" | ")}]`,
@@ -844,7 +846,6 @@ export const BattleSceneFixtureView: React.FC<{
     defaultPlayerStableCards,
     fixture.scene.board.enemyFieldSlots,
     fixture.scene.board.playerFieldSlots,
-    fixture.selectedIndexes,
     getAnimationAnchorPoint,
     hiddenStableTargets,
     incomingPreviewHands,
@@ -855,6 +856,7 @@ export const BattleSceneFixtureView: React.FC<{
     previewFreshCardIds,
     previewPlayerStableCards,
     previewPostPlayDebug,
+    previewSelectedIndexes,
     visibleAnimationAnchors,
   ]);
 
@@ -1228,7 +1230,9 @@ export const BattleSceneFixtureView: React.FC<{
         [ENEMY]: [],
       });
       const removedIndex =
-        fixture.selectedIndexes?.[0] ?? Math.max(0, defaultPlayerStableCards.length - 1);
+        previewSelectedIndexes[0] ??
+        fixture.selectedIndexes?.[0] ??
+        Math.max(0, defaultPlayerStableCards.length - 1);
       const targetIndex = getHandPlayTargetIndexFromPreset(animationPreset) ?? 0;
       const playedCard = defaultPlayerStableCards[removedIndex] ?? null;
       setPreviewPlayerStableCards(
@@ -1919,7 +1923,8 @@ export const BattleSceneFixtureView: React.FC<{
                 snapThreshold={snapThreshold}
                 previewAnimations={editorMode}
                 editorMode={editorMode}
-                selected={isSelected("bottomHand")}
+                selected={isSelected("bottomHand") && !isHandPlayTargetEditorSet}
+                previewSelectable={!isHandPlayTargetEditorSet}
                 snapTargets={snapTargets}
                 className={cn("flex items-end justify-center", getPreviewAreaClass(focusArea, ["bottomHand"]))}
               >
@@ -1942,9 +1947,16 @@ export const BattleSceneFixtureView: React.FC<{
                     canInteract={true}
                     showTurnHighlights={true}
                     showPlayableHints={fixture.showPlayableHints ?? true}
-                    selectedIndexes={fixture.selectedIndexes ?? []}
+                    selectedIndexes={previewSelectedIndexes}
                     targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
                     freshCardIds={previewFreshCardIds}
+                    onCardClick={
+                      animationSet === "hand-play-target"
+                        ? (index) => {
+                            setPreviewSelectedIndexes([index]);
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               </BattleEditableElement>
@@ -2095,7 +2107,8 @@ export const BattleSceneFixtureView: React.FC<{
               viewportHeight={viewportHeight}
               previewAnimations={editorMode}
               editorMode={editorMode}
-              selected={isSelected("bottomHand")}
+              selected={isSelected("bottomHand") && !isHandPlayTargetEditorSet}
+              previewSelectable={!isHandPlayTargetEditorSet}
               snapTargets={snapTargets}
               className={cn("transition-all duration-200", getPreviewAreaClass(focusArea, ["bottomHand"]))}
             >
@@ -2117,9 +2130,16 @@ export const BattleSceneFixtureView: React.FC<{
                 canInteract={true}
                 showTurnHighlights={true}
                 showPlayableHints={fixture.showPlayableHints ?? true}
-                selectedIndexes={fixture.selectedIndexes ?? []}
+                selectedIndexes={previewSelectedIndexes}
                 targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
                 freshCardIds={previewFreshCardIds}
+                onCardClick={
+                  animationSet === "hand-play-target"
+                    ? (index) => {
+                        setPreviewSelectedIndexes([index]);
+                      }
+                    : undefined
+                }
               />
             </BattleEditableElement>
           }

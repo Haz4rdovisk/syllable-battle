@@ -237,6 +237,14 @@ export function normalizeBattleLayoutEditorPreviewState(
   const normalizedSelection = normalizeLegacySelection(
     state.selectedElements as string[] | undefined,
   );
+  const normalizedAnimationSet =
+    state.animationSet ?? "opening-target-entry-first-round";
+  const normalizedAnimationPreset =
+    normalizedAnimationSet === "hand-play-target" &&
+    (state.animationPreset === "hand-play-target-2" ||
+      state.animationPreset === "hand-play-target-3")
+      ? "none"
+      : state.animationPreset ?? "none";
 
   const clampAnimationPoint = (
     point: BattleLayoutPreviewAnimationAnchorPoint | null | undefined,
@@ -272,9 +280,9 @@ export function normalizeBattleLayoutEditorPreviewState(
     actionVisualState: state.actionVisualState ?? "normal",
     statusVisualState: state.statusVisualState ?? "normal",
     chroniclesVisualState: state.chroniclesVisualState ?? "normal",
-    animationSet: state.animationSet ?? "opening-target-entry-first-round",
+    animationSet: normalizedAnimationSet,
     animationMode: state.animationMode ?? "idle",
-    animationPreset: state.animationPreset ?? "none",
+    animationPreset: normalizedAnimationPreset,
     animationRunId: Number.isFinite(state.animationRunId)
       ? Math.max(0, Math.round(state.animationRunId))
       : 0,

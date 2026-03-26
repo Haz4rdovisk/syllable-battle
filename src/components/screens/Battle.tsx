@@ -861,25 +861,16 @@ export const Battle: React.FC<BattleProps> = ({
     () => ({
       0: activeBattleLayout.animations.handPlayTarget0Destination,
       1: activeBattleLayout.animations.handPlayTarget1Destination,
-      2: activeBattleLayout.animations.handPlayTarget2Destination,
-      3: activeBattleLayout.animations.handPlayTarget3Destination,
     }),
     [
       activeBattleLayout.animations.handPlayTarget0Destination,
       activeBattleLayout.animations.handPlayTarget1Destination,
-      activeBattleLayout.animations.handPlayTarget2Destination,
-      activeBattleLayout.animations.handPlayTarget3Destination,
     ],
   );
   const getHandPlayTargetDestinationSnapshot = useCallback(
     (side: typeof PLAYER | typeof ENEMY, targetIndex: number) => {
       if (side !== localPlayerIndex) return null;
-      if (
-        targetIndex !== 0 &&
-        targetIndex !== 1 &&
-        targetIndex !== 2 &&
-        targetIndex !== 3
-      ) {
+      if (targetIndex !== 0 && targetIndex !== 1) {
         return null;
       }
       return snapshotSceneAnimationOrigin(handPlayTargetPointsByIndex[targetIndex]);
