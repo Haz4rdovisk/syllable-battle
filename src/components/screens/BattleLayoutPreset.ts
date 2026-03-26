@@ -50,11 +50,11 @@ export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
     },
     "playerTargetDeck": {
       "y": 320,
-      "x": 580
+      "x": 700
     },
     "playerDeck": {
       "y": 320,
-      "x": 700
+      "x": 580
     },
     "status": {
       "x": 630,
