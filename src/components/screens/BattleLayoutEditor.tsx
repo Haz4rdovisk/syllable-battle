@@ -345,7 +345,8 @@ const getAnimationPreviewDurationMs = (
           : preset === "mulligan-hand-draw-3"
             ? 3
             : 0;
-    return Math.max(0, (count - 1) * (940 + 220)) + 940 + 260;
+    const startDelayMs = 760 + Math.max(0, count - 1) * 110 + 220;
+    return startDelayMs + Math.max(0, (count - 1) * (940 + 220)) + 940 + 260;
   }
   if (animationSet === "target-attack") {
     return (

@@ -66,6 +66,7 @@ const FIXTURE_MULLIGAN_RETURN_DURATION_MS = 760;
 const FIXTURE_MULLIGAN_RETURN_STAGGER_MS = 110;
 const FIXTURE_MULLIGAN_RETURN_SETTLE_MS = 260;
 const FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS = 680;
+const FIXTURE_MULLIGAN_DRAW_START_DELAY_MS = 220;
 const FIXTURE_MULLIGAN_DRAW_STAGGER_MS =
   FIXTURE_POST_PLAY_DRAW_DURATION_MS + FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
 const openingTargetEntryAnchorToolByPreset: Partial<
@@ -614,6 +615,18 @@ export const BattleSceneFixtureView: React.FC<{
       },
     ];
   }, [animationPreset, animationSet, getAnimationAnchorPoint]);
+
+  const previewReservedSlots = useMemo(() => {
+    const count = getMulliganCountFromPreset(animationPreset);
+    if (!count) return 0;
+    if (animationSet === "mulligan-hand-return") {
+      return count;
+    }
+    if (animationSet === "mulligan-hand-draw") {
+      return Math.max(0, count - incomingPreviewHands[PLAYER].length);
+    }
+    return 0;
+  }, [animationPreset, animationSet, incomingPreviewHands]);
 
   const debugLines = useMemo(() => {
     const formatPoint = (
@@ -1178,6 +1191,10 @@ export const BattleSceneFixtureView: React.FC<{
             }
           : readElementSnapshot("playerDeck");
       if (!origin) return;
+      const startDelayMs =
+        FIXTURE_MULLIGAN_RETURN_DURATION_MS +
+        Math.max(0, count - 1) * FIXTURE_MULLIGAN_RETURN_STAGGER_MS +
+        FIXTURE_MULLIGAN_DRAW_START_DELAY_MS;
       removedCards.forEach((card, index) => {
         const timer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;
@@ -1200,11 +1217,12 @@ export const BattleSceneFixtureView: React.FC<{
               },
             ],
           }));
-        }, index * FIXTURE_MULLIGAN_DRAW_STAGGER_MS);
+        }, startDelayMs + index * FIXTURE_MULLIGAN_DRAW_STAGGER_MS);
         animationTimersRef.current.push(timer);
       });
 
       const totalMs =
+        startDelayMs +
         Math.max(0, (count - 1) * FIXTURE_MULLIGAN_DRAW_STAGGER_MS) +
         FIXTURE_POST_PLAY_DRAW_DURATION_MS +
         FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
@@ -1679,6 +1697,7 @@ export const BattleSceneFixtureView: React.FC<{
                     stableCards={previewPlayerStableCards}
                     incomingCards={incomingPreviewHands[PLAYER]}
                     outgoingCards={outgoingPreviewHands[PLAYER]}
+                    reservedSlots={previewReservedSlots}
                     scale="desktop"
                     onIncomingCardComplete={handleIncomingPreviewHandComplete}
                     onOutgoingCardComplete={(outgoingCard) => {
@@ -1853,6 +1872,7 @@ export const BattleSceneFixtureView: React.FC<{
                 stableCards={previewPlayerStableCards}
                 incomingCards={incomingPreviewHands[PLAYER]}
                 outgoingCards={outgoingPreviewHands[PLAYER]}
+                reservedSlots={previewReservedSlots}
                 scale="mobile"
                 onIncomingCardComplete={handleIncomingPreviewHandComplete}
                 onOutgoingCardComplete={(outgoingCard) => {
