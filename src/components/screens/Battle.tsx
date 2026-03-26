@@ -211,6 +211,7 @@ interface OutgoingTargetCard {
   side: typeof PLAYER | typeof ENEMY;
   slotIndex: number;
   entity: VisualTargetEntity;
+  impactDestination?: ZoneAnchorSnapshot | null;
   destination: ZoneAnchorSnapshot;
   delayMs: number;
   windupMs: number;
@@ -845,6 +846,15 @@ export const Battle: React.FC<BattleProps> = ({
     },
     [],
   );
+  const getPostPlayHandDrawOriginSnapshot = useCallback(
+    (side: typeof PLAYER | typeof ENEMY) => {
+      if (side !== localPlayerIndex) return null;
+      return snapshotSceneAnimationOrigin(
+        activeBattleLayout.animations.postPlayHandDrawOrigin,
+      );
+    },
+    [activeBattleLayout.animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOrigin],
+  );
 
   const setStableTargetSlot = useCallback(
     (
@@ -1003,11 +1013,13 @@ export const Battle: React.FC<BattleProps> = ({
         durationMs?: number;
         finalTotalOverride?: number;
         finalIndexBase?: number;
+        originOverride?: ZoneAnchorSnapshot | null;
       },
     ) => {
       if (cards.length === 0) return;
 
-      const origin = snapshotZone(zoneIdForSide(side, "deck"));
+      const origin =
+        config?.originOverride ?? snapshotZone(zoneIdForSide(side, "deck"));
       const stableCount = stableHandsRef.current[side].length;
       const incomingCount = incomingHandsRef.current[side].length;
       const baseCount = stableCount + incomingCount;
@@ -1786,7 +1798,27 @@ export const Battle: React.FC<BattleProps> = ({
       const stableTarget = stableTargetsRef.current[side][result.completedSlot];
       const origin = snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${result.completedSlot}`);
       const activeDeckSlot = isDesktopViewport ? "desktop" : "mobile";
+      const attackIndex = side * CONFIG.targetsInPlay + result.completedSlot;
+      const configuredImpact =
+        attackIndex === 0
+          ? activeBattleLayout.animations.targetAttack0Impact
+          : attackIndex === 1
+            ? activeBattleLayout.animations.targetAttack1Impact
+            : attackIndex === 2
+              ? activeBattleLayout.animations.targetAttack2Impact
+              : activeBattleLayout.animations.targetAttack3Impact;
+      const configuredDestination =
+        attackIndex === 0
+          ? activeBattleLayout.animations.targetAttack0Destination
+          : attackIndex === 1
+            ? activeBattleLayout.animations.targetAttack1Destination
+            : attackIndex === 2
+              ? activeBattleLayout.animations.targetAttack2Destination
+              : activeBattleLayout.animations.targetAttack3Destination;
+      const impactDestination =
+        snapshotSceneAnimationOrigin(configuredImpact) ?? null;
       const destination =
+        snapshotSceneAnimationOrigin(configuredDestination) ??
         snapshotZoneSlot(zoneIdForSide(side, "targetDeck"), activeDeckSlot) ??
         snapshotZone(zoneIdForSide(side, "targetDeck"));
 
@@ -1803,6 +1835,7 @@ export const Battle: React.FC<BattleProps> = ({
         side,
         slotIndex: result.completedSlot,
         entity: stableTarget,
+        impactDestination,
         destination,
         delayMs: 0,
         windupMs: FLOW.attackWindupMs + TARGET_ATTACK_WINDUP_EXTRA_MS,
@@ -1811,7 +1844,7 @@ export const Battle: React.FC<BattleProps> = ({
         exitMs: FLOW.targetExitMs + TARGET_ATTACK_EXIT_EXTRA_MS,
       });
     },
-    [appendOutgoingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot],
+    [activeBattleLayout.animations, appendOutgoingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotSceneAnimationOrigin, snapshotZone, snapshotZoneSlot],
   );
 
   const queueReplacementTargetArrival = useCallback(
@@ -1910,6 +1943,7 @@ export const Battle: React.FC<BattleProps> = ({
         initialDelayMs: drawStartDelayMs,
         staggerMs: FLOW.drawStaggerMs,
         durationMs: FLOW.drawTravelMs,
+        originOverride: getPostPlayHandDrawOriginSnapshot(result.actorIndex),
       });
     }
 
@@ -1995,6 +2029,7 @@ export const Battle: React.FC<BattleProps> = ({
         initialDelayMs: getPlayDrawStartDelayMs(FLOW),
         staggerMs: FLOW.drawStaggerMs,
         durationMs: FLOW.drawTravelMs,
+        originOverride: getPostPlayHandDrawOriginSnapshot(side),
       });
     }
 

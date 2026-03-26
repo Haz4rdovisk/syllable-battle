@@ -84,6 +84,42 @@ export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
     "openingTargetEntry3Origin": {
       "x": 118,
       "y": 103
+    },
+    "postPlayHandDrawOrigin": {
+      "x": 1444,
+      "y": 658
+    },
+    "targetAttack0Impact": {
+      "x": 711,
+      "y": 332
+    },
+    "targetAttack0Destination": {
+      "x": 1500,
+      "y": 770
+    },
+    "targetAttack1Impact": {
+      "x": 886,
+      "y": 344
+    },
+    "targetAttack1Destination": {
+      "x": 1500,
+      "y": 770
+    },
+    "targetAttack2Impact": {
+      "x": 717,
+      "y": 574
+    },
+    "targetAttack2Destination": {
+      "x": 100,
+      "y": 130
+    },
+    "targetAttack3Impact": {
+      "x": 886,
+      "y": 587
+    },
+    "targetAttack3Destination": {
+      "x": 100,
+      "y": 130
     }
   }
 };

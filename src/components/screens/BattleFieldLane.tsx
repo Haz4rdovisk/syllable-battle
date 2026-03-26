@@ -17,6 +17,7 @@ export interface BattleFieldOutgoingTarget {
   id: string;
   side: 0 | 1;
   entity: VisualTargetEntity;
+  impactDestination?: ZoneAnchorSnapshot | null;
   destination: ZoneAnchorSnapshot;
   delayMs: number;
   windupMs: number;
@@ -99,7 +100,22 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
                   ),
                 )
               : 0.88;
-          const outgoingImpactY = presentation === "player" ? -118 : 118;
+          const outgoingImpactX =
+            slot.outgoingTarget?.impactDestination && slot.slotRect
+              ? slot.outgoingTarget.impactDestination.left +
+                slot.outgoingTarget.impactDestination.width / 2 -
+                slot.slotRect.left -
+                slot.slotRect.width / 2
+              : 0;
+          const outgoingImpactY =
+            slot.outgoingTarget?.impactDestination && slot.slotRect
+              ? slot.outgoingTarget.impactDestination.top +
+                slot.outgoingTarget.impactDestination.height / 2 -
+                slot.slotRect.top -
+                slot.slotRect.height / 2
+              : presentation === "player"
+                ? -118
+                : 118;
           const outgoingImpactRotate = presentation === "player" ? -8 : 8;
           const outgoingEndRotate = presentation === "player" ? 10 : -10;
           const outgoingTotalMs = slot.outgoingTarget
@@ -121,7 +137,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
                   initial={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
                   animate={{
                     opacity: [1, 1, 1, 1, 1],
-                    x: [0, 0, 0, 0, outgoingEndX],
+                    x: [0, 0, outgoingImpactX, outgoingImpactX, outgoingEndX],
                     y: [0, 0, outgoingImpactY, outgoingImpactY, outgoingEndY],
                     rotate: [0, 0, outgoingImpactRotate, outgoingImpactRotate, outgoingEndRotate],
                     scale: [1, 1, 1.02, 1.02, outgoingEndScale],

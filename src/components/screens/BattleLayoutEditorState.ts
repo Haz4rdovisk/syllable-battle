@@ -19,21 +19,41 @@ export type BattleChroniclesVisualState = "normal" | "highlighted" | "selected";
 export type BattleLayoutPreviewAnimationMode =
   | "idle"
   | "opening-target-entry-play-once"
-  | "opening-target-entry-loop";
+  | "opening-target-entry-loop"
+  | "post-play-hand-draw-play-once"
+  | "post-play-hand-draw-loop"
+  | "target-attack-play-once"
+  | "target-attack-loop";
 export type BattleLayoutPreviewAnimationSet =
-  "opening-target-entry-first-round";
+  | "opening-target-entry-first-round"
+  | "post-play-hand-draw"
+  | "target-attack";
 export type BattleLayoutPreviewAnimationPreset =
   | "none"
   | "opening-target-entry-0"
   | "opening-target-entry-1"
   | "opening-target-entry-2"
   | "opening-target-entry-3"
-  | "opening-target-entry-simultaneous";
+  | "opening-target-entry-simultaneous"
+  | "post-play-hand-draw"
+  | "target-attack-0"
+  | "target-attack-1"
+  | "target-attack-2"
+  | "target-attack-3";
 export type BattleLayoutPreviewAnimationAnchorKey =
   | "opening-target-entry-0-origin"
   | "opening-target-entry-1-origin"
   | "opening-target-entry-2-origin"
-  | "opening-target-entry-3-origin";
+  | "opening-target-entry-3-origin"
+  | "post-play-hand-draw-origin"
+  | "target-attack-0-impact"
+  | "target-attack-1-impact"
+  | "target-attack-2-impact"
+  | "target-attack-3-impact"
+  | "target-attack-0-destination"
+  | "target-attack-1-destination"
+  | "target-attack-2-destination"
+  | "target-attack-3-destination";
 export interface BattleLayoutPreviewAnimationAnchorPoint {
   x: number;
   y: number;
@@ -43,6 +63,15 @@ export interface BattleLayoutPreviewAnimationAnchors {
   openingTargetEntry1Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
   openingTargetEntry2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
   openingTargetEntry3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  postPlayHandDrawOrigin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack0Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack1Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack2Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack3Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack0Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack2Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
+  targetAttack3Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
 }
 export type BattleLayoutPreviewResolutionOption = {
   label: string;
@@ -82,7 +111,7 @@ export const BATTLE_LAYOUT_EDITOR_STATE_KEY =
   "syllable-battle:battle-layout-editor-state";
 export const BATTLE_LAYOUT_MODEL_VERSION_KEY =
   "syllable-battle:battle-layout-model-version";
-export const BATTLE_LAYOUT_MODEL_VERSION = 3;
+export const BATTLE_LAYOUT_MODEL_VERSION = 4;
 export const BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY =
   "syllable-battle:battle-layout-active-overrides";
 export const BATTLE_LAYOUT_EDITOR_ELEMENT_CLIPBOARD_KEY =
@@ -169,6 +198,18 @@ export function normalizeBattleLayoutEditorPreviewState(
     state.selectedElements as string[] | undefined,
   );
 
+  const clampAnimationPoint = (
+    point: BattleLayoutPreviewAnimationAnchorPoint | null | undefined,
+  ): BattleLayoutPreviewAnimationAnchorPoint | null =>
+    point &&
+    Number.isFinite(point.x) &&
+    Number.isFinite(point.y)
+      ? {
+          x: Math.max(0, Math.min(BATTLE_STAGE_WIDTH, Math.round(point.x))),
+          y: Math.max(0, Math.min(BATTLE_STAGE_HEIGHT, Math.round(point.y))),
+        }
+      : null;
+
   return {
     ...state,
     focusArea: normalizedFocusArea,
@@ -199,90 +240,45 @@ export function normalizeBattleLayoutEditorPreviewState(
       : 0,
     animationAnchorTool: state.animationAnchorTool ?? null,
     animationAnchors: {
-      openingTargetEntry0Origin:
-        state.animationAnchors?.openingTargetEntry0Origin &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry0Origin.x) &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry0Origin.y)
-          ? {
-              x: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_WIDTH,
-                  Math.round(state.animationAnchors.openingTargetEntry0Origin.x),
-                ),
-              ),
-              y: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_HEIGHT,
-                  Math.round(state.animationAnchors.openingTargetEntry0Origin.y),
-                ),
-              ),
-            }
-          : null,
-      openingTargetEntry1Origin:
-        state.animationAnchors?.openingTargetEntry1Origin &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry1Origin.x) &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry1Origin.y)
-          ? {
-              x: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_WIDTH,
-                  Math.round(state.animationAnchors.openingTargetEntry1Origin.x),
-                ),
-              ),
-              y: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_HEIGHT,
-                  Math.round(state.animationAnchors.openingTargetEntry1Origin.y),
-                ),
-              ),
-            }
-          : null,
-      openingTargetEntry2Origin:
-        state.animationAnchors?.openingTargetEntry2Origin &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry2Origin.x) &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry2Origin.y)
-          ? {
-              x: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_WIDTH,
-                  Math.round(state.animationAnchors.openingTargetEntry2Origin.x),
-                ),
-              ),
-              y: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_HEIGHT,
-                  Math.round(state.animationAnchors.openingTargetEntry2Origin.y),
-                ),
-              ),
-            }
-          : null,
-      openingTargetEntry3Origin:
-        state.animationAnchors?.openingTargetEntry3Origin &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry3Origin.x) &&
-        Number.isFinite(state.animationAnchors.openingTargetEntry3Origin.y)
-          ? {
-              x: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_WIDTH,
-                  Math.round(state.animationAnchors.openingTargetEntry3Origin.x),
-                ),
-              ),
-              y: Math.max(
-                0,
-                Math.min(
-                  BATTLE_STAGE_HEIGHT,
-                  Math.round(state.animationAnchors.openingTargetEntry3Origin.y),
-                ),
-              ),
-            }
-          : null,
+      openingTargetEntry0Origin: clampAnimationPoint(
+        state.animationAnchors?.openingTargetEntry0Origin,
+      ),
+      openingTargetEntry1Origin: clampAnimationPoint(
+        state.animationAnchors?.openingTargetEntry1Origin,
+      ),
+      openingTargetEntry2Origin: clampAnimationPoint(
+        state.animationAnchors?.openingTargetEntry2Origin,
+      ),
+      openingTargetEntry3Origin: clampAnimationPoint(
+        state.animationAnchors?.openingTargetEntry3Origin,
+      ),
+      postPlayHandDrawOrigin: clampAnimationPoint(
+        state.animationAnchors?.postPlayHandDrawOrigin,
+      ),
+      targetAttack0Impact: clampAnimationPoint(
+        state.animationAnchors?.targetAttack0Impact,
+      ),
+      targetAttack1Impact: clampAnimationPoint(
+        state.animationAnchors?.targetAttack1Impact,
+      ),
+      targetAttack2Impact: clampAnimationPoint(
+        state.animationAnchors?.targetAttack2Impact,
+      ),
+      targetAttack3Impact: clampAnimationPoint(
+        state.animationAnchors?.targetAttack3Impact,
+      ),
+      targetAttack0Destination: clampAnimationPoint(
+        state.animationAnchors?.targetAttack0Destination,
+      ),
+      targetAttack1Destination: clampAnimationPoint(
+        state.animationAnchors?.targetAttack1Destination,
+      ),
+      targetAttack2Destination: clampAnimationPoint(
+        state.animationAnchors?.targetAttack2Destination,
+      ),
+      targetAttack3Destination: clampAnimationPoint(
+        state.animationAnchors?.targetAttack3Destination,
+      ),
     },
   };
 }

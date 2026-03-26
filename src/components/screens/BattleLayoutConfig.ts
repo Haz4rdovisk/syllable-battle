@@ -139,6 +139,15 @@ export interface BattleAnimationLayoutConfig {
   openingTargetEntry1Origin: BattleAnimationAnchorPoint | null;
   openingTargetEntry2Origin: BattleAnimationAnchorPoint | null;
   openingTargetEntry3Origin: BattleAnimationAnchorPoint | null;
+  postPlayHandDrawOrigin: BattleAnimationAnchorPoint | null;
+  targetAttack0Impact: BattleAnimationAnchorPoint | null;
+  targetAttack1Impact: BattleAnimationAnchorPoint | null;
+  targetAttack2Impact: BattleAnimationAnchorPoint | null;
+  targetAttack3Impact: BattleAnimationAnchorPoint | null;
+  targetAttack0Destination: BattleAnimationAnchorPoint | null;
+  targetAttack1Destination: BattleAnimationAnchorPoint | null;
+  targetAttack2Destination: BattleAnimationAnchorPoint | null;
+  targetAttack3Destination: BattleAnimationAnchorPoint | null;
 }
 
 export interface BattleLayoutConfig {
@@ -236,6 +245,15 @@ const defaultAnimationLayout: BattleAnimationLayoutConfig = {
   openingTargetEntry1Origin: null,
   openingTargetEntry2Origin: null,
   openingTargetEntry3Origin: null,
+  postPlayHandDrawOrigin: null,
+  targetAttack0Impact: null,
+  targetAttack1Impact: null,
+  targetAttack2Impact: null,
+  targetAttack3Impact: null,
+  targetAttack0Destination: null,
+  targetAttack1Destination: null,
+  targetAttack2Destination: null,
+  targetAttack3Destination: null,
 };
 
 const getBattleBoardFrame = (board: BattleBoardLayoutConfig) => ({

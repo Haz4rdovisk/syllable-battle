@@ -7,7 +7,11 @@ import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurf
 import { BattlePillOverlay } from "./BattlePillOverlay";
 import { BattleFieldLane } from "./BattleFieldLane";
 import { BattleFieldIncomingTarget } from "./BattleFieldLane";
-import { BattleHandLane } from "./BattleHandLane";
+import {
+  BattleHandLane,
+  BattleHandLaneCard,
+  BattleHandLaneIncomingCard,
+} from "./BattleHandLane";
 import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleStatusPanel } from "./BattleStatusPanel";
@@ -18,6 +22,7 @@ import { BattleEditableElement } from "./BattleEditableElement";
 import { PlayerPortrait } from "../game/GameComponents";
 import {
   BattleSceneFixtureData,
+  BattleSceneFixtureHandCard,
   midTurnBattleFixture,
 } from "./BattleSceneFixtures";
 import { cn } from "../../lib/utils";
@@ -48,6 +53,14 @@ const FIXTURE_TARGET_ENTER_STAGGER_MS = 220;
 const FIXTURE_TARGET_ENTER_SETTLE_MS = 560;
 const FIXTURE_TARGET_LOOP_GAP_MS = 680;
 const FIXTURE_TARGET_ENTER_DURATION_MS = 780;
+const FIXTURE_POST_PLAY_DRAW_DURATION_MS = 940;
+const FIXTURE_POST_PLAY_DRAW_SETTLE_MS = 220;
+const FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS = 680;
+const FIXTURE_TARGET_ATTACK_WINDUP_MS = 310;
+const FIXTURE_TARGET_ATTACK_TRAVEL_MS = 1140;
+const FIXTURE_TARGET_ATTACK_PAUSE_MS = 260;
+const FIXTURE_TARGET_ATTACK_EXIT_MS = 960;
+const FIXTURE_TARGET_ATTACK_LOOP_GAP_MS = 680;
 const openingTargetEntryAnchorToolByPreset: Partial<
   Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
 > = {
@@ -56,10 +69,31 @@ const openingTargetEntryAnchorToolByPreset: Partial<
   "opening-target-entry-2": "opening-target-entry-2-origin",
   "opening-target-entry-3": "opening-target-entry-3-origin",
 };
+const targetAttackImpactAnchorToolByPreset: Partial<
+  Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
+> = {
+  "target-attack-0": "target-attack-0-impact",
+  "target-attack-1": "target-attack-1-impact",
+  "target-attack-2": "target-attack-2-impact",
+  "target-attack-3": "target-attack-3-impact",
+};
+const targetAttackDestinationAnchorToolByPreset: Partial<
+  Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
+> = {
+  "target-attack-0": "target-attack-0-destination",
+  "target-attack-1": "target-attack-1-destination",
+  "target-attack-2": "target-attack-2-destination",
+  "target-attack-3": "target-attack-3-destination",
+};
 type FixtureIncomingTarget = BattleFieldIncomingTarget & {
   side: typeof PLAYER | typeof ENEMY;
   slotIndex: number;
   entryIndex: number;
+};
+type FixtureOutgoingTarget = NonNullable<
+  React.ComponentProps<typeof BattleFieldLane>["slots"][number]["outgoingTarget"]
+> & {
+  slotIndex: number;
 };
 
 export type BattleScenePreviewFocusArea =
@@ -138,6 +172,15 @@ export const BattleSceneFixtureView: React.FC<{
     openingTargetEntry1Origin: null,
     openingTargetEntry2Origin: null,
     openingTargetEntry3Origin: null,
+    postPlayHandDrawOrigin: null,
+    targetAttack0Impact: null,
+    targetAttack1Impact: null,
+    targetAttack2Impact: null,
+    targetAttack3Impact: null,
+    targetAttack0Destination: null,
+    targetAttack1Destination: null,
+    targetAttack2Destination: null,
+    targetAttack3Destination: null,
   },
 }) => {
   const isPureOverview = focusArea === "overview";
@@ -159,6 +202,27 @@ export const BattleSceneFixtureView: React.FC<{
     [PLAYER]: [],
     [ENEMY]: [],
   });
+  const createPreviewHandCard = useCallback(
+    (
+      handCard: BattleSceneFixtureHandCard,
+      side: typeof PLAYER | typeof ENEMY,
+      key: string,
+    ): BattleHandLaneCard => ({
+      id: `fixture-hand-${side}-${key}`,
+      syllable: handCard.syllable,
+      side,
+      hidden: side === ENEMY,
+      skipEntryAnimation: false,
+    }),
+    [],
+  );
+  const defaultPlayerStableCards = useMemo(
+    () =>
+      fixture.playerHand.map((handCard, index) =>
+        createPreviewHandCard(handCard, PLAYER, `stable-${index}`),
+      ),
+    [createPreviewHandCard, fixture.playerHand],
+  );
   const anchorDragRef = useRef<{
     anchor: BattleLayoutPreviewAnimationAnchorKey;
     stageRoot: HTMLElement;
@@ -173,6 +237,21 @@ export const BattleSceneFixtureView: React.FC<{
   });
   const [hiddenStableTargets, setHiddenStableTargets] = useState<
     Record<typeof PLAYER | typeof ENEMY, boolean[]>
+  >({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
+  const [outgoingPreviewTargets, setOutgoingPreviewTargets] = useState<
+    Record<typeof PLAYER | typeof ENEMY, FixtureOutgoingTarget[]>
+  >({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
+  const [previewPlayerStableCards, setPreviewPlayerStableCards] = useState<
+    BattleHandLaneCard[]
+  >(defaultPlayerStableCards);
+  const [incomingPreviewHands, setIncomingPreviewHands] = useState<
+    Record<typeof PLAYER | typeof ENEMY, BattleHandLaneIncomingCard[]>
   >({
     [PLAYER]: [],
     [ENEMY]: [],
@@ -194,7 +273,20 @@ export const BattleSceneFixtureView: React.FC<{
       [PLAYER]: [],
       [ENEMY]: [],
     });
-  }, [clearAnimationTimers]);
+    setOutgoingPreviewTargets({
+      [PLAYER]: [],
+      [ENEMY]: [],
+    });
+    setPreviewPlayerStableCards(defaultPlayerStableCards);
+    setIncomingPreviewHands({
+      [PLAYER]: [],
+      [ENEMY]: [],
+    });
+  }, [clearAnimationTimers, defaultPlayerStableCards]);
+
+  useEffect(() => {
+    setPreviewPlayerStableCards(defaultPlayerStableCards);
+  }, [defaultPlayerStableCards]);
 
   const readElementSnapshot = useCallback((elementKey: BattleEditableElementKey) => {
     if (typeof document === "undefined") return null;
@@ -231,26 +323,114 @@ export const BattleSceneFixtureView: React.FC<{
     }));
     updateHiddenStableTarget(incomingTarget.side, incomingTarget.slotIndex, false);
   }, [updateHiddenStableTarget]);
+  const handleIncomingPreviewHandComplete = useCallback(
+    (incomingCard: BattleHandLaneIncomingCard) => {
+      setIncomingPreviewHands((current) => ({
+        ...current,
+        [incomingCard.side]: current[incomingCard.side].filter(
+          (item) => item.id !== incomingCard.id,
+        ),
+      }));
+      if (incomingCard.side === PLAYER) {
+        setPreviewPlayerStableCards((current) => [
+          ...current,
+          incomingCard.card,
+        ]);
+      }
+    },
+    [],
+  );
+  const handleOutgoingPreviewTargetComplete = useCallback(
+    (outgoingTarget: FixtureOutgoingTarget) => {
+      setOutgoingPreviewTargets((current) => ({
+        ...current,
+        [outgoingTarget.side]: current[outgoingTarget.side].filter(
+          (item) => item.id !== outgoingTarget.id,
+        ),
+      }));
+    },
+    [],
+  );
 
   const getAnimationAnchorPoint = useCallback(
     (anchor: BattleLayoutPreviewAnimationAnchorKey | null) => {
-      if (anchor === "opening-target-entry-0-origin") {
-        return animationAnchors.openingTargetEntry0Origin;
+      switch (anchor) {
+        case "opening-target-entry-0-origin":
+          return animationAnchors.openingTargetEntry0Origin;
+        case "opening-target-entry-1-origin":
+          return animationAnchors.openingTargetEntry1Origin;
+        case "opening-target-entry-2-origin":
+          return animationAnchors.openingTargetEntry2Origin;
+        case "opening-target-entry-3-origin":
+          return animationAnchors.openingTargetEntry3Origin;
+        case "post-play-hand-draw-origin":
+          return animationAnchors.postPlayHandDrawOrigin;
+        case "target-attack-0-impact":
+          return animationAnchors.targetAttack0Impact;
+        case "target-attack-1-impact":
+          return animationAnchors.targetAttack1Impact;
+        case "target-attack-2-impact":
+          return animationAnchors.targetAttack2Impact;
+        case "target-attack-3-impact":
+          return animationAnchors.targetAttack3Impact;
+        case "target-attack-0-destination":
+          return animationAnchors.targetAttack0Destination;
+        case "target-attack-1-destination":
+          return animationAnchors.targetAttack1Destination;
+        case "target-attack-2-destination":
+          return animationAnchors.targetAttack2Destination;
+        case "target-attack-3-destination":
+          return animationAnchors.targetAttack3Destination;
+        default:
+          return null;
       }
-      if (anchor === "opening-target-entry-1-origin") {
-        return animationAnchors.openingTargetEntry1Origin;
-      }
-      if (anchor === "opening-target-entry-2-origin") {
-        return animationAnchors.openingTargetEntry2Origin;
-      }
-      if (anchor === "opening-target-entry-3-origin") {
-        return animationAnchors.openingTargetEntry3Origin;
-      }
-      return null;
     },
     [animationAnchors],
   );
   const visibleAnimationAnchors = useMemo(() => {
+    if (animationSet === "post-play-hand-draw") {
+      const point = getAnimationAnchorPoint("post-play-hand-draw-origin");
+      return point
+        ? [
+            {
+              label: "O",
+              anchor: "post-play-hand-draw-origin" as BattleLayoutPreviewAnimationAnchorKey,
+              point,
+            },
+          ]
+        : [];
+    }
+
+    if (animationSet === "target-attack") {
+      const impactAnchor =
+        targetAttackImpactAnchorToolByPreset[animationPreset] ?? null;
+      const destinationAnchor =
+        targetAttackDestinationAnchorToolByPreset[animationPreset] ?? null;
+      const entries = [
+        impactAnchor
+          ? {
+              label: "I",
+              anchor: impactAnchor,
+              point: getAnimationAnchorPoint(impactAnchor),
+            }
+          : null,
+        destinationAnchor
+          ? {
+              label: "D",
+              anchor: destinationAnchor,
+              point: getAnimationAnchorPoint(destinationAnchor),
+            }
+          : null,
+      ].filter(
+        (entry): entry is {
+          label: string;
+          anchor: BattleLayoutPreviewAnimationAnchorKey;
+          point: NonNullable<ReturnType<typeof getAnimationAnchorPoint>>;
+        } => Boolean(entry?.point),
+      );
+      return entries;
+    }
+
     if (animationPreset === "opening-target-entry-simultaneous") {
       return (
         [
@@ -299,7 +479,7 @@ export const BattleSceneFixtureView: React.FC<{
         point: selectedPoint,
       },
     ];
-  }, [animationPreset, getAnimationAnchorPoint]);
+  }, [animationPreset, animationSet, getAnimationAnchorPoint]);
 
   const postAnimationAnchorUpdate = useCallback(
     (
@@ -383,11 +563,24 @@ export const BattleSceneFixtureView: React.FC<{
   }, [editorMode, getScenePointFromClient, postAnimationAnchorUpdate]);
 
   useEffect(() => {
+    const isOpeningTargetEntryAnimation =
+      animationSet === "opening-target-entry-first-round" &&
+      (animationMode === "opening-target-entry-loop" ||
+        animationMode === "opening-target-entry-play-once");
+    const isPostPlayHandDrawAnimation =
+      animationSet === "post-play-hand-draw" &&
+      (animationMode === "post-play-hand-draw-loop" ||
+        animationMode === "post-play-hand-draw-play-once");
+    const isTargetAttackAnimation =
+      animationSet === "target-attack" &&
+      (animationMode === "target-attack-loop" ||
+        animationMode === "target-attack-play-once");
+
     if (
-      animationSet !== "opening-target-entry-first-round" ||
       animationPreset === "none" ||
-      animationMode !== "opening-target-entry-loop" &&
-      animationMode !== "opening-target-entry-play-once"
+      (!isOpeningTargetEntryAnimation &&
+        !isPostPlayHandDrawAnimation &&
+        !isTargetAttackAnimation)
     ) {
       resetPreviewAnimation();
       return;
@@ -425,7 +618,10 @@ export const BattleSceneFixtureView: React.FC<{
       }
 
       const presetIndexMap: Record<
-        Exclude<BattleLayoutPreviewAnimationPreset, "opening-target-entry-simultaneous" | "none">,
+        | "opening-target-entry-0"
+        | "opening-target-entry-1"
+        | "opening-target-entry-2"
+        | "opening-target-entry-3",
         number
       > = {
         "opening-target-entry-0": 0,
@@ -438,7 +634,7 @@ export const BattleSceneFixtureView: React.FC<{
       return selectedTarget ? [selectedTarget] : [];
     };
 
-    const startLoop = () => {
+    const startOpeningLoop = () => {
       if (loopGenerationRef.current !== generation) return;
 
       setIncomingPreviewTargets({
@@ -517,7 +713,7 @@ export const BattleSceneFixtureView: React.FC<{
       if (animationMode === "opening-target-entry-loop") {
         const restartTimer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;
-          startLoop();
+          startOpeningLoop();
         }, totalMs + FIXTURE_TARGET_LOOP_GAP_MS);
         animationTimersRef.current.push(restartTimer);
       } else {
@@ -529,12 +725,168 @@ export const BattleSceneFixtureView: React.FC<{
       }
     };
 
-    startLoop();
+    const startPostPlayHandDrawLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      setIncomingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setPreviewPlayerStableCards(defaultPlayerStableCards.slice(0, 4));
+      const origin =
+        getAnimationAnchorPoint("post-play-hand-draw-origin")
+          ? {
+              left: getAnimationAnchorPoint("post-play-hand-draw-origin")!.x,
+              top: getAnimationAnchorPoint("post-play-hand-draw-origin")!.y,
+              width: 0,
+              height: 0,
+            }
+          : readElementSnapshot("playerDeck");
+      const drawnCard = defaultPlayerStableCards[4];
+
+      if (origin && drawnCard) {
+        const timer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          setIncomingPreviewHands({
+            [PLAYER]: [
+              {
+                id: `fixture-post-play-draw-${animationRunId}-${generation}`,
+                side: PLAYER,
+                card: {
+                  ...drawnCard,
+                  id: `${drawnCard.id}-incoming-${generation}`,
+                },
+                origin,
+                finalIndex: 4,
+                finalTotal: 5,
+                delayMs: 0,
+                durationMs: FIXTURE_POST_PLAY_DRAW_DURATION_MS,
+              },
+            ],
+            [ENEMY]: [],
+          });
+        }, 0);
+        animationTimersRef.current.push(timer);
+      }
+
+      const totalMs =
+        FIXTURE_POST_PLAY_DRAW_DURATION_MS + FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
+      if (animationMode === "post-play-hand-draw-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startPostPlayHandDrawLoop();
+        }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, totalMs + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
+    const startTargetAttackLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      setOutgoingPreviewTargets({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      const attackIndex =
+        animationPreset === "target-attack-0"
+          ? 0
+          : animationPreset === "target-attack-1"
+            ? 1
+            : animationPreset === "target-attack-2"
+              ? 2
+              : 3;
+      const side = attackIndex >= 2 ? ENEMY : PLAYER;
+      const slotIndex = attackIndex % 2;
+      const slot =
+        side === PLAYER
+          ? fixture.scene.board.playerFieldSlots[slotIndex]
+          : fixture.scene.board.enemyFieldSlots[slotIndex];
+      const entity = slot?.displayedTarget ?? null;
+      const impactPoint =
+        getAnimationAnchorPoint(
+          targetAttackImpactAnchorToolByPreset[animationPreset] ?? null,
+        );
+      const destinationPoint =
+        getAnimationAnchorPoint(
+          targetAttackDestinationAnchorToolByPreset[animationPreset] ?? null,
+        );
+      const destination =
+        destinationPoint
+          ? {
+              left: destinationPoint.x,
+              top: destinationPoint.y,
+              width: 0,
+              height: 0,
+            }
+          : readElementSnapshot(side === PLAYER ? "playerTargetDeck" : "enemyTargetDeck");
+      if (!entity || !destination) {
+        return;
+      }
+      const outgoingTarget: FixtureOutgoingTarget = {
+        id: `fixture-target-attack-${animationRunId}-${generation}-${side}-${slotIndex}`,
+        side,
+        slotIndex,
+        entity,
+        impactDestination: impactPoint
+          ? {
+              left: impactPoint.x,
+              top: impactPoint.y,
+              width: 0,
+              height: 0,
+            }
+          : null,
+        destination,
+        delayMs: 0,
+        windupMs: FIXTURE_TARGET_ATTACK_WINDUP_MS,
+        attackMs: FIXTURE_TARGET_ATTACK_TRAVEL_MS,
+        pauseMs: FIXTURE_TARGET_ATTACK_PAUSE_MS,
+        exitMs: FIXTURE_TARGET_ATTACK_EXIT_MS,
+      };
+      const timer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        setOutgoingPreviewTargets((current) => ({
+          ...current,
+          [side]: [outgoingTarget],
+        }));
+      }, 0);
+      animationTimersRef.current.push(timer);
+
+      const totalMs =
+        FIXTURE_TARGET_ATTACK_WINDUP_MS +
+        FIXTURE_TARGET_ATTACK_TRAVEL_MS +
+        FIXTURE_TARGET_ATTACK_PAUSE_MS +
+        FIXTURE_TARGET_ATTACK_EXIT_MS;
+      if (animationMode === "target-attack-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startTargetAttackLoop();
+        }, totalMs + FIXTURE_TARGET_ATTACK_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, totalMs + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
+    if (isOpeningTargetEntryAnimation) {
+      startOpeningLoop();
+    } else if (isPostPlayHandDrawAnimation) {
+      startPostPlayHandDrawLoop();
+    } else if (isTargetAttackAnimation) {
+      startTargetAttackLoop();
+    }
 
     return () => {
       clearAnimationTimers();
     };
-  }, [animationAnchors, animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, fixture.scene.board.enemyFieldSlots, fixture.scene.board.playerFieldSlots, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
+  }, [animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, defaultPlayerStableCards, fixture.scene.board.enemyFieldSlots, fixture.scene.board.playerFieldSlots, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
 
   useEffect(() => () => resetPreviewAnimation(), [resetPreviewAnimation]);
 
@@ -550,17 +902,24 @@ export const BattleSceneFixtureView: React.FC<{
       fixture.scene.board.enemyFieldSlots.map((slot, slotIndex) => {
         const incomingTarget =
           incomingPreviewTargets[ENEMY].find((target) => target.slotIndex === slotIndex) ?? null;
+        const outgoingTarget =
+          outgoingPreviewTargets[ENEMY].find((target) => target.slotIndex === slotIndex) ?? null;
         const displayStable = !(hiddenStableTargets[ENEMY]?.[slotIndex] ?? false);
         return {
           ...slot,
           slotRef: createSlotRef(ENEMY, slotIndex),
-          displayedTarget: incomingTarget?.entity ?? (displayStable ? slot.displayedTarget : null),
+          displayedTarget:
+            outgoingTarget?.entity ??
+            incomingTarget?.entity ??
+            (displayStable ? slot.displayedTarget : null),
           incomingTarget,
+          outgoingTarget,
           slotRect: slotNodesRef.current[ENEMY][slotIndex]?.getBoundingClientRect() ?? null,
           onIncomingTargetComplete: handleIncomingPreviewTargetComplete,
+          onOutgoingTargetComplete: handleOutgoingPreviewTargetComplete,
         };
       }),
-    [createSlotRef, fixture.scene.board.enemyFieldSlots, handleIncomingPreviewTargetComplete, hiddenStableTargets, incomingPreviewTargets],
+    [createSlotRef, fixture.scene.board.enemyFieldSlots, handleIncomingPreviewTargetComplete, handleOutgoingPreviewTargetComplete, hiddenStableTargets, incomingPreviewTargets, outgoingPreviewTargets],
   );
 
   const playerFieldSlots = useMemo(
@@ -568,17 +927,24 @@ export const BattleSceneFixtureView: React.FC<{
       fixture.scene.board.playerFieldSlots.map((slot, slotIndex) => {
         const incomingTarget =
           incomingPreviewTargets[PLAYER].find((target) => target.slotIndex === slotIndex) ?? null;
+        const outgoingTarget =
+          outgoingPreviewTargets[PLAYER].find((target) => target.slotIndex === slotIndex) ?? null;
         const displayStable = !(hiddenStableTargets[PLAYER]?.[slotIndex] ?? false);
         return {
           ...slot,
           slotRef: createSlotRef(PLAYER, slotIndex),
-          displayedTarget: incomingTarget?.entity ?? (displayStable ? slot.displayedTarget : null),
+          displayedTarget:
+            outgoingTarget?.entity ??
+            incomingTarget?.entity ??
+            (displayStable ? slot.displayedTarget : null),
           incomingTarget,
+          outgoingTarget,
           slotRect: slotNodesRef.current[PLAYER][slotIndex]?.getBoundingClientRect() ?? null,
           onIncomingTargetComplete: handleIncomingPreviewTargetComplete,
+          onOutgoingTargetComplete: handleOutgoingPreviewTargetComplete,
         };
       }),
-    [createSlotRef, fixture.scene.board.playerFieldSlots, handleIncomingPreviewTargetComplete, hiddenStableTargets, incomingPreviewTargets],
+    [createSlotRef, fixture.scene.board.playerFieldSlots, handleIncomingPreviewTargetComplete, handleOutgoingPreviewTargetComplete, hiddenStableTargets, incomingPreviewTargets, outgoingPreviewTargets],
   );
   const snapTargets = (
     Object.entries(layout.elements) as Array<[BattleEditableElementKey, (typeof layout.elements)[BattleEditableElementKey]]>
@@ -636,13 +1002,14 @@ export const BattleSceneFixtureView: React.FC<{
       {editorMode
         ? visibleAnimationAnchors.map(({ label, anchor, point }) => {
             const isInteractive =
-              animationPreset !== "opening-target-entry-simultaneous" &&
+              !(animationSet === "opening-target-entry-first-round" &&
+                animationPreset === "opening-target-entry-simultaneous") &&
               animationAnchorTool === anchor;
             return (
               <button
                 key={`${anchor}-${label}`}
                 type="button"
-                aria-label={`Ancora de origem ${label}`}
+                aria-label={`Ancora de animacao ${label}`}
                 onMouseDown={isInteractive ? beginAnimationAnchorDrag(anchor) : undefined}
                 className={cn(
                   "absolute z-[65] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sky-300 bg-sky-500/20 shadow-[0_0_26px_rgba(56,189,248,0.35)] transition-opacity",
@@ -860,8 +1227,10 @@ export const BattleSceneFixtureView: React.FC<{
                   <BattleHandLane
                     side={0}
                     presentation="local"
-                    stableCards={fixture.playerHand}
+                    stableCards={previewPlayerStableCards}
+                    incomingCards={incomingPreviewHands[PLAYER]}
                     scale="desktop"
+                    onIncomingCardComplete={handleIncomingPreviewHandComplete}
                     canInteract={true}
                     showTurnHighlights={true}
                     showPlayableHints={fixture.showPlayableHints ?? true}
@@ -1024,8 +1393,10 @@ export const BattleSceneFixtureView: React.FC<{
               <BattleHandLane
                 side={0}
                 presentation="local"
-                stableCards={fixture.playerHand}
+                stableCards={previewPlayerStableCards}
+                incomingCards={incomingPreviewHands[PLAYER]}
                 scale="mobile"
+                onIncomingCardComplete={handleIncomingPreviewHandComplete}
                 canInteract={true}
                 showTurnHighlights={true}
                 showPlayableHints={fixture.showPlayableHints ?? true}

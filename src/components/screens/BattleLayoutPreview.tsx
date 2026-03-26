@@ -37,6 +37,15 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
     openingTargetEntry1Origin: null,
     openingTargetEntry2Origin: null,
     openingTargetEntry3Origin: null,
+    postPlayHandDrawOrigin: null,
+    targetAttack0Impact: null,
+    targetAttack1Impact: null,
+    targetAttack2Impact: null,
+    targetAttack3Impact: null,
+    targetAttack0Destination: null,
+    targetAttack1Destination: null,
+    targetAttack2Destination: null,
+    targetAttack3Destination: null,
   },
 };
 
@@ -87,6 +96,33 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
         openingTargetEntry3Origin:
           parsed.animationAnchors?.openingTargetEntry3Origin ??
           defaultPreviewState.animationAnchors.openingTargetEntry3Origin,
+        postPlayHandDrawOrigin:
+          parsed.animationAnchors?.postPlayHandDrawOrigin ??
+          defaultPreviewState.animationAnchors.postPlayHandDrawOrigin,
+        targetAttack0Impact:
+          parsed.animationAnchors?.targetAttack0Impact ??
+          defaultPreviewState.animationAnchors.targetAttack0Impact,
+        targetAttack1Impact:
+          parsed.animationAnchors?.targetAttack1Impact ??
+          defaultPreviewState.animationAnchors.targetAttack1Impact,
+        targetAttack2Impact:
+          parsed.animationAnchors?.targetAttack2Impact ??
+          defaultPreviewState.animationAnchors.targetAttack2Impact,
+        targetAttack3Impact:
+          parsed.animationAnchors?.targetAttack3Impact ??
+          defaultPreviewState.animationAnchors.targetAttack3Impact,
+        targetAttack0Destination:
+          parsed.animationAnchors?.targetAttack0Destination ??
+          defaultPreviewState.animationAnchors.targetAttack0Destination,
+        targetAttack1Destination:
+          parsed.animationAnchors?.targetAttack1Destination ??
+          defaultPreviewState.animationAnchors.targetAttack1Destination,
+        targetAttack2Destination:
+          parsed.animationAnchors?.targetAttack2Destination ??
+          defaultPreviewState.animationAnchors.targetAttack2Destination,
+        targetAttack3Destination:
+          parsed.animationAnchors?.targetAttack3Destination ??
+          defaultPreviewState.animationAnchors.targetAttack3Destination,
       },
     };
   } catch {
