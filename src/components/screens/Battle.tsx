@@ -25,13 +25,9 @@ import {
   TargetCard,
   PlayerPortrait,
   CardPile,
-  BoardTravelLayer,
-  BoardTravelMotion,
   BoardZoneId,
   ZoneAnchorSnapshot,
   VisualTargetEntity,
-  TargetMotionLayer,
-  TargetTransitMotion,
 } from "../game/GameComponents";
 import { BattleBoardShell } from "./BattleBoardShell";
 import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurface";
@@ -337,7 +333,6 @@ export const Battle: React.FC<BattleProps> = ({
     initialGameRef.current.turnDeadlineAt ? Math.max(0, initialGameRef.current.turnDeadlineAt - Date.now()) : TURN_TIMER.limitMs,
   );
   const [enemyHandPulse, setEnemyHandPulse] = useState(false);
-  const [travelMotions, setTravelMotions] = useState<BoardTravelMotion[]>([]);
   const [showResultOverlay, setShowResultOverlay] = useState(false);
   const [introPhase, setIntroPhase] = useState<BattleIntroPhase>(initialGameRef.current.openingIntroStep);
   const [openingTurnSide, setOpeningTurnSide] = useState<typeof PLAYER | typeof ENEMY>(initialGameRef.current.turn as typeof PLAYER | typeof ENEMY);
@@ -359,8 +354,6 @@ export const Battle: React.FC<BattleProps> = ({
   const gameRef = useRef<GameState>(initialGameRef.current);
   const zoneNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
   const handCardNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
-  const travelMotionsRef = useRef<BoardTravelMotion[]>(travelMotions);
-  const travelMotionIdRef = useRef(0);
   const handCardIdRef = useRef(0);
   const battleEventIdRef = useRef(0);
   const battleEventsRef = useRef<BattleEvent[]>([]);
@@ -459,8 +452,6 @@ export const Battle: React.FC<BattleProps> = ({
     [ENEMY]: [],
   });
   const outgoingTargetsRef = useRef(outgoingTargets);
-  const [targetMotions, setTargetMotions] = useState<TargetTransitMotion[]>([]);
-  const targetMotionsRef = useRef<TargetTransitMotion[]>([]);
   const [lockedTargetSlots, setLockedTargetSlots] = useState<LockedTargetSlotsState>({
     [PLAYER]: Array(CONFIG.targetsInPlay).fill(false),
     [ENEMY]: Array(CONFIG.targetsInPlay).fill(false),
@@ -629,11 +620,6 @@ export const Battle: React.FC<BattleProps> = ({
     [],
   );
 
-  const commitTargetMotions = useCallback((nextMotions: TargetTransitMotion[]) => {
-    targetMotionsRef.current = nextMotions;
-    setTargetMotions(nextMotions);
-  }, []);
-
   const commitLockedTargetSlots = useCallback((nextLockedSlots: LockedTargetSlotsState) => {
     lockedTargetSlotsRef.current = nextLockedSlots;
     setLockedTargetSlots(nextLockedSlots);
@@ -642,11 +628,6 @@ export const Battle: React.FC<BattleProps> = ({
   const commitPendingTargetPlacements = useCallback((nextPending: PendingTargetPlacementsState) => {
     pendingTargetPlacementsRef.current = nextPending;
     setPendingTargetPlacements(nextPending);
-  }, []);
-
-  const commitTravelMotions = useCallback((nextMotions: BoardTravelMotion[]) => {
-    travelMotionsRef.current = nextMotions;
-    setTravelMotions(nextMotions);
   }, []);
 
   const reconcileStableSide = useCallback(
@@ -1017,22 +998,6 @@ export const Battle: React.FC<BattleProps> = ({
     [commitPendingTargetPlacements],
   );
 
-  const appendTargetMotion = useCallback(
-    (motion: TargetTransitMotion) => {
-      const current = targetMotionsRef.current;
-      commitTargetMotions([...current, motion]);
-    },
-    [commitTargetMotions],
-  );
-
-  const removeTargetMotion = useCallback(
-    (motionId: string) => {
-      const current = targetMotionsRef.current;
-      commitTargetMotions(current.filter((motion) => motion.id !== motionId));
-    },
-    [commitTargetMotions],
-  );
-
   const appendIncomingTarget = useCallback(
     (side: typeof PLAYER | typeof ENEMY, incomingTarget: IncomingTargetCard) => {
       const current = incomingTargetsRef.current;
@@ -1075,50 +1040,6 @@ export const Battle: React.FC<BattleProps> = ({
       });
     },
     [commitOutgoingTargets],
-  );
-
-  // Battle resolve as zonas nomeadas em snapshots absolutos e agenda a ordem dos eventos.
-  const queueZoneTravel = useCallback(
-    (
-      motion: Omit<BoardTravelMotion, "id" | "origin" | "destination">,
-    ) => {
-      const origin = motion.originOverride ?? snapshotZone(motion.from);
-      const destination = motion.destinationOverride ?? snapshotZone(motion.to);
-
-      if (!origin || !destination) return null;
-
-      const id = `travel-${travelMotionIdRef.current++}`;
-      commitTravelMotions([
-        ...travelMotionsRef.current,
-        {
-          ...motion,
-          id,
-          origin,
-          destination,
-        },
-      ]);
-      return id;
-    },
-    [commitTravelMotions, snapshotZone],
-  );
-
-  const handleTravelMotionComplete = useCallback((id: string) => {
-    commitTravelMotions(travelMotionsRef.current.filter((motion) => motion.id !== id));
-  }, [commitTravelMotions]);
-
-  const queueStableCardTravel = useCallback(
-    (
-      card: VisualHandCard,
-      config: Omit<BoardTravelMotion, "id" | "origin" | "destination" | "entityId" | "label" | "side">,
-    ) => {
-      return queueZoneTravel({
-        ...config,
-        entityId: card.id,
-        label: card.syllable,
-        side: card.side === PLAYER ? "player" : "enemy",
-      });
-    },
-    [queueZoneTravel],
   );
 
   const queueHandDrawBatch = useCallback(
@@ -1297,12 +1218,10 @@ export const Battle: React.FC<BattleProps> = ({
         [PLAYER]: Array(CONFIG.targetsInPlay).fill(null),
         [ENEMY]: Array(CONFIG.targetsInPlay).fill(null),
       });
-      commitTargetMotions([]);
       commitLockedTargetSlots({
         [PLAYER]: Array(CONFIG.targetsInPlay).fill(false),
         [ENEMY]: Array(CONFIG.targetsInPlay).fill(false),
       });
-      commitTravelMotions([]);
       setFreshCardIds([]);
       commitStableHands(preservedStableHands);
       commitStableTargets(shouldRunIntro ? createEmptyStableTargets() : buildStableTargets(freshGame));
@@ -1338,8 +1257,6 @@ export const Battle: React.FC<BattleProps> = ({
       commitOutgoingTargets,
       commitLockedTargetSlots,
       commitPendingTargetPlacements,
-      commitTargetMotions,
-      commitTravelMotions,
       commitStableHands,
       commitStableTargets,
       createEmptyStableTargets,
@@ -1395,20 +1312,6 @@ export const Battle: React.FC<BattleProps> = ({
           player: incomingTargets[PLAYER].map((target) => `${target.slotIndex}:${target.entity.target.name}`),
           enemy: incomingTargets[ENEMY].map((target) => `${target.slotIndex}:${target.entity.target.name}`),
         },
-        targetMotions: targetMotions.map((motion) => ({
-          id: motion.id,
-          type: motion.type,
-          side: motion.side,
-          slotIndex: motion.slotIndex,
-          name: motion.entity.target.name,
-        })),
-        travelMotions: travelMotions.map((motion) => ({
-          id: motion.id,
-          kind: motion.kind,
-          label: motion.label,
-          from: motion.from,
-          to: motion.to,
-        })),
         mulliganDebug,
       }),
       logSnapshot: () => console.log(window.__battleDev?.snapshot()),
@@ -1463,8 +1366,6 @@ export const Battle: React.FC<BattleProps> = ({
     remotePlayerIndex,
     roomTransportKind,
     stableHands,
-    targetMotions,
-    travelMotions,
   ]);
 
   useEffect(() => {
@@ -1788,12 +1689,10 @@ export const Battle: React.FC<BattleProps> = ({
 
   const hasBlockingVisuals = useCallback(
     () =>
-      travelMotionsRef.current.length > 0 ||
       incomingHandsRef.current[PLAYER].length > 0 ||
       incomingHandsRef.current[ENEMY].length > 0 ||
       incomingTargetsRef.current[PLAYER].length > 0 ||
-      incomingTargetsRef.current[ENEMY].length > 0 ||
-      targetMotionsRef.current.length > 0,
+      incomingTargetsRef.current[ENEMY].length > 0,
     [],
   );
 
@@ -1888,16 +1787,6 @@ export const Battle: React.FC<BattleProps> = ({
     localSide,
     mode,
   ]);
-
-  const handleTargetMotionComplete = useCallback(
-    (motionId: string) => {
-      const motion = targetMotionsRef.current.find((item) => item.id === motionId);
-      if (!motion) return;
-
-      removeTargetMotion(motionId);
-    },
-    [removeTargetMotion],
-  );
 
   const handleOutgoingTargetComplete = useCallback(
     (outgoingTarget: BattleFieldOutgoingTarget & { side: typeof PLAYER | typeof ENEMY }) => {
@@ -2757,8 +2646,6 @@ export const Battle: React.FC<BattleProps> = ({
     isSnapshotCheckpointClear,
     localSide,
     mode,
-    targetMotions,
-    travelMotions,
   ]);
 
   useEffect(() => {
@@ -2828,8 +2715,6 @@ export const Battle: React.FC<BattleProps> = ({
     incomingHands,
     incomingTargets,
     introPhase,
-    targetMotions,
-    travelMotions,
   ]);
 
   const introActive = introPhase !== "done";
@@ -3072,8 +2957,8 @@ export const Battle: React.FC<BattleProps> = ({
   };
   return (
     <BattleSceneView
-      travelLayer={<BoardTravelLayer motions={travelMotions} onMotionComplete={handleTravelMotionComplete} />}
-      targetLayer={<TargetMotionLayer motions={targetMotions} onMotionComplete={handleTargetMotionComplete} />}
+      travelLayer={null}
+      targetLayer={null}
       exitControls={
         <div className="absolute bottom-4 left-5 z-30 flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onExit} className="h-9 rounded-lg border border-white/5 px-3 text-amber-100/60 hover:bg-white/10 hover:text-amber-100">
@@ -3365,9 +3250,7 @@ export const Battle: React.FC<BattleProps> = ({
               <div>{`incomingLocal:[${incomingHands[localPlayerIndex].map((card) => `${card.card.syllable}@${card.finalIndex}/${card.finalTotal}`).join(",")}] outgoingLocal:[${outgoingHands[localPlayerIndex].map((card) => card.card.syllable).join(",")}] pendingLocal:${pendingMulliganDrawCounts[localPlayerIndex]}`}</div>
               <div>{`stableRemote:[${stableHands[remotePlayerIndex].map((card) => card.syllable).join(",")}]`}</div>
               <div>{`logicRemote:[${game.players[remotePlayerIndex].hand.join(",")}] incomingRemote:[${incomingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] outgoingRemote:[${outgoingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] pendingRemote:${pendingMulliganDrawCounts[remotePlayerIndex]}`}</div>
-              <div>{`travel:${travelMotions.length} targetMotion:${targetMotions.length} incomingTargetP:${incomingTargets[PLAYER].length} incomingTargetE:${incomingTargets[ENEMY].length} outgoingTargetP:${outgoingTargets[PLAYER].length} outgoingTargetE:${outgoingTargets[ENEMY].length}`}</div>
-              <div>{`travelDetails:[${travelMotions.map((motion) => `${motion.kind}:${motion.label}:${motion.from}->${motion.to}`).join(" | ")}]`}</div>
-              <div>{`targetDetails:[${targetMotions.map((motion) => `${motion.type}:${motion.entity.target.name}:${motion.side}:${motion.slotIndex}`).join(" | ")}]`}</div>
+              <div>{`incomingTargetP:${incomingTargets[PLAYER].length} incomingTargetE:${incomingTargets[ENEMY].length} outgoingTargetP:${outgoingTargets[PLAYER].length} outgoingTargetE:${outgoingTargets[ENEMY].length}`}</div>
               <div>{`pendingPlaceLocal:[${pendingTargetPlacements[localPlayerIndex].map((value) => value ?? "-").join(",")}] lockedLocal:[${lockedTargetSlots[localPlayerIndex].map((value) => (value ? 1 : 0)).join(",")}]`}</div>
               <div>{`mSource:${mulliganDebug.source} clearIncoming:${mulliganDebug.clearIncomingHand ? 1 : 0} extId:${mulliganDebug.externalActionId ?? "-"}`}</div>
               <div>{`mRequestedIdx:[${mulliganDebug.requestedIndexes.join(",")}] mRequested:[${mulliganDebug.requestedSyllables.join(",")}]`}</div>

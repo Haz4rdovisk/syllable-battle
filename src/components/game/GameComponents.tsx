@@ -28,62 +28,11 @@ export interface ZoneAnchorSnapshot {
   height: number;
 }
 
-export interface BoardTravelMotion {
-  id: string;
-  entityId?: string;
-  from: BoardZoneId;
-  to: BoardZoneId;
-  kind: TravelCardVisualKind;
-  origin: ZoneAnchorSnapshot;
-  destination: ZoneAnchorSnapshot;
-  label?: string;
-  emoji?: string;
-  rarity?: string;
-  delayMs?: number;
-  durationMs?: number;
-  arcHeight?: number;
-  side?: "player" | "enemy";
-  originOverride?: ZoneAnchorSnapshot;
-  destinationOverride?: ZoneAnchorSnapshot;
-  originRotate?: number;
-  destinationRotate?: number;
-  originScale?: number;
-  destinationScale?: number;
-  selectedVisual?: boolean;
-  playableVisual?: boolean;
-}
-
 export interface VisualTargetEntity {
   id: string;
   side: "player" | "enemy";
   slotIndex: number;
   target: UITarget;
-}
-
-export interface TargetTransitMotion {
-  id: string;
-  type: "enter" | "attack-exit";
-  side: "player" | "enemy";
-  slotIndex: number;
-  entity: VisualTargetEntity;
-  origin: ZoneAnchorSnapshot;
-  destination: ZoneAnchorSnapshot;
-  delayMs?: number;
-  durationMs?: number;
-  windupMs?: number;
-  attackMs?: number;
-  pauseMs?: number;
-  exitMs?: number;
-}
-
-interface BoardTravelLayerProps {
-  motions: BoardTravelMotion[];
-  onMotionComplete: (id: string) => void;
-}
-
-interface TargetMotionLayerProps {
-  motions: TargetTransitMotion[];
-  onMotionComplete: (id: string) => void;
 }
 
 const rarityColor = (rarity: string) => {
@@ -104,15 +53,6 @@ export const getTravelTargetCardSize = (
   height: Math.min(212, Math.max(156, viewportHeight * 0.19)),
 });
 
-const travelTargetCardSizeStyle = {
-  width:
-    "clamp(var(--battle-target-card-min-width,102px), 11vw, var(--battle-target-card-max-width,148px))",
-  height:
-    "clamp(var(--battle-target-card-min-height,156px), 19vh, var(--battle-target-card-max-height,212px))",
-} as React.CSSProperties;
-
-const clampTargetMotionScale = (value: number) => Math.min(1.5, Math.max(0.55, value));
-
 export const getTravelSyllableCardSize = (
   viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280,
   viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900,
@@ -120,14 +60,6 @@ export const getTravelSyllableCardSize = (
   width: Math.min(110, Math.max(80, viewportWidth * 0.12)),
   height: Math.min(150, Math.max(110, viewportHeight * 0.16)),
 });
-
-const getTravelSize = (kind: TravelCardVisualKind) => {
-  if (kind === "target" || kind === "target-back") {
-    return getTravelTargetCardSize();
-  }
-
-  return getTravelSyllableCardSize();
-};
 
 type BattleCardSizePreset = "default" | "hand-desktop" | "hand-mobile";
 
@@ -154,140 +86,6 @@ export const CardBackCard: React.FC<{
     <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-200/30" />
   </div>
 );
-
-const TravelCardVisual: React.FC<{ motion: BoardTravelMotion }> = ({ motion }) => {
-  if (motion.kind === "card-back") {
-    return <CardBackCard floating={true} />;
-  }
-
-  if (motion.kind === "target-back") {
-    return (
-      <div
-        className="relative overflow-hidden rounded-[1.2rem] border-2 border-amber-300/40 bg-gradient-to-br from-amber-950 via-amber-900 to-stone-950 shadow-[0_18px_34px_rgba(0,0,0,0.45)]"
-        style={travelTargetCardSizeStyle}
-      >
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/exclusive-paper.png')] opacity-25" />
-        <div className="absolute inset-2 rounded-[1rem] border border-amber-200/25" />
-        <div className="absolute inset-x-4 top-4 h-7 rounded-full border border-amber-200/20" />
-        <div className="absolute bottom-4 left-1/2 h-10 w-10 -translate-x-1/2 rotate-45 border border-amber-200/20" />
-      </div>
-    );
-  }
-
-  if (motion.kind === "target") {
-    const damage = motion.rarity ? RARITY_DAMAGE[normalizeRarity(motion.rarity)] : 0;
-
-    return (
-      <div
-        className="card-base relative flex flex-col overflow-hidden rounded-[1.2rem] shadow-[0_18px_34px_rgba(0,0,0,0.45)]"
-        style={travelTargetCardSizeStyle}
-      >
-        <div
-          className={cn(
-            "flex h-9 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white",
-            rarityColor(motion.rarity ?? "comum"),
-          )}
-        >
-          <span>{normalizeRarity(motion.rarity ?? "comum")}</span>
-          <div className="flex items-center gap-1.5">
-            <Swords className="h-4 w-4" />
-            <span>{damage}</span>
-          </div>
-        </div>
-
-        <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-2">
-          <div className="text-5xl drop-shadow-2xl">{motion.emoji ?? "✨"}</div>
-        </div>
-
-        <div className="shrink-0 bg-parchment/85 px-3 py-2">
-          <div className="truncate text-center font-serif text-sm font-black tracking-tight text-amber-950">
-            {motion.label ?? "ALVO"}
-          </div>
-        </div>
-
-        <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
-      </div>
-    );
-  }
-
-  return (
-    <SyllableCard
-      syllable={motion.label ?? "?"}
-      selected={Boolean(motion.selectedVisual)}
-      playable={Boolean(motion.playableVisual)}
-      disabled={true}
-      floating={true}
-      newlyDrawn={motion.to === "playerHand"}
-      onClick={() => {}}
-    />
-  );
-};
-
-export const BoardTravelLayer: React.FC<BoardTravelLayerProps> = ({
-  motions,
-  onMotionComplete,
-}) => {
-  // GameComponents só recebe origem/destino já resolvidos e cuida da leitura visual da trajetória.
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[120] overflow-hidden">
-      <AnimatePresence initial={false}>
-        {motions.map((travelMotion) => {
-          const { width, height } = getTravelSize(travelMotion.kind);
-          const startX = travelMotion.origin.left + travelMotion.origin.width / 2 - width / 2;
-          const startY = travelMotion.origin.top + travelMotion.origin.height / 2 - height / 2;
-          const endX = travelMotion.destination.left + travelMotion.destination.width / 2 - width / 2;
-          const endY = travelMotion.destination.top + travelMotion.destination.height / 2 - height / 2;
-          const deltaX = endX - startX;
-          const deltaY = endY - startY;
-          const arcHeight =
-            travelMotion.arcHeight ??
-            Math.max(72, Math.min(180, Math.abs(deltaX) * 0.18 + Math.abs(deltaY) * 0.12 + 56));
-          const enemyTravel = travelMotion.side === "enemy";
-          const handToFieldTravel =
-            (travelMotion.from === "playerHand" || travelMotion.from === "enemyHand") &&
-            (travelMotion.to === "playerField" || travelMotion.to === "enemyField");
-          const startTilt =
-            travelMotion.originRotate ??
-            (travelMotion.kind === "card-back" || travelMotion.kind === "target-back"
-              ? enemyTravel
-                ? 12
-                : -12
-              : enemyTravel
-                ? -6
-                : 6);
-          const endTilt = travelMotion.destinationRotate ?? (enemyTravel ? -2 : 2);
-          const startScale = travelMotion.originScale ?? 0.86;
-          const endScale = travelMotion.destinationScale ?? 0.94;
-
-          return (
-            <motion.div
-              key={travelMotion.id}
-              data-card-entity-id={travelMotion.entityId}
-              initial={{ opacity: handToFieldTravel ? 1 : 0, x: startX, y: startY, rotate: startTilt, scale: startScale }}
-              animate={{
-                opacity: handToFieldTravel ? [1, 1, 1, 0.98] : [0, 1, 1, 0.98],
-                x: [startX, startX + deltaX * 0.45, endX],
-                y: [startY, startY - arcHeight, endY],
-                rotate: [startTilt, (startTilt + endTilt) / 2, endTilt],
-                scale: [startScale, Math.max(startScale, endScale) + 0.1, endScale],
-              }}
-              exit={{ opacity: 0 }}
-              transition={{
-                duration: (travelMotion.durationMs ?? 780) / 1000,
-                delay: (travelMotion.delayMs ?? 0) / 1000,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              onAnimationComplete={() => onMotionComplete(travelMotion.id)}
-              className="absolute left-0 top-0 will-change-transform"
-            >
-              <TravelCardVisual motion={travelMotion} />
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
-    </div>
-  );
-};
 
 interface TargetCardProps {
   target: UITarget;
@@ -440,138 +238,6 @@ export const TargetCard: React.FC<TargetCardProps> = ({
 
       <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
     </motion.button>
-  );
-};
-
-export const TargetMotionLayer: React.FC<TargetMotionLayerProps> = ({
-  motions,
-  onMotionComplete,
-}) => {
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[115] overflow-hidden">
-      {motions.map((targetMotion) => {
-          const { width, height } = getTravelTargetCardSize();
-          const startX = targetMotion.origin.left + targetMotion.origin.width / 2 - width / 2;
-          const startY = targetMotion.origin.top + targetMotion.origin.height / 2 - height / 2;
-          const endX = targetMotion.destination.left + targetMotion.destination.width / 2 - width / 2;
-          const endY = targetMotion.destination.top + targetMotion.destination.height / 2 - height / 2;
-          const startScale = clampTargetMotionScale(
-            Math.min(targetMotion.origin.width / width, targetMotion.origin.height / height),
-          );
-          const endScale = clampTargetMotionScale(
-            Math.min(targetMotion.destination.width / width, targetMotion.destination.height / height),
-          );
-
-          if (targetMotion.type === "enter") {
-            const startRotate = targetMotion.side === "player" ? 12 : -12;
-            return (
-              <motion.div
-                key={targetMotion.id}
-                data-target-entity-id={targetMotion.entity.id}
-                initial={{ opacity: 1, x: startX, y: startY, rotate: startRotate, scale: startScale }}
-                animate={{
-                  opacity: [1, 1, 1, 1],
-                  x: [startX, startX, endX, endX],
-                  y: [startY, startY, endY, endY],
-                  rotate: [startRotate, startRotate, 0, 0],
-                  scale: [startScale, startScale, Math.max(startScale, endScale) + 0.02, endScale],
-                }}
-                transition={{
-                  duration: (targetMotion.durationMs ?? 920) / 1000,
-                  delay: (targetMotion.delayMs ?? 0) / 1000,
-                  ease: [0.22, 1, 0.36, 1],
-                  times: [0, 0.18, 0.72, 1],
-                }}
-                onAnimationComplete={() => onMotionComplete(targetMotion.id)}
-                className="absolute left-0 top-0 will-change-transform"
-              >
-                <TargetCard
-                  target={targetMotion.entity.target}
-                  selectedCard={null}
-                  isPlayerSide={targetMotion.side === "player"}
-                  canClick={false}
-                  onClick={() => {}}
-                />
-              </motion.div>
-            );
-          }
-
-          const windupMs = targetMotion.windupMs ?? 310;
-          const attackMs = targetMotion.attackMs ?? 760;
-          const pauseMs = targetMotion.pauseMs ?? 180;
-          const exitMs = targetMotion.exitMs ?? 780;
-          const totalMs = windupMs + attackMs + pauseMs + exitMs;
-          const originWidth = Math.max(1, targetMotion.origin.width);
-          const originHeight = Math.max(1, targetMotion.origin.height);
-          const destinationWidth = Math.max(1, targetMotion.destination.width);
-          const destinationHeight = Math.max(1, targetMotion.destination.height);
-          const motionStartX = targetMotion.origin.left;
-          const motionStartY = targetMotion.origin.top;
-          const motionEndX = targetMotion.destination.left;
-          const motionEndY = targetMotion.destination.top;
-          const impactX = motionStartX;
-          const impactY = motionStartY + (targetMotion.side === "player" ? -118 : 118);
-          const impactRotate = targetMotion.side === "player" ? -8 : 8;
-          const endRotate = targetMotion.side === "player" ? 10 : -10;
-
-          return (
-            <motion.div
-              key={targetMotion.id}
-              data-target-entity-id={targetMotion.entity.id}
-              style={{
-                width: originWidth,
-                height: originHeight,
-                transformOrigin: "center center",
-              }}
-              initial={{
-                opacity: 1,
-                x: motionStartX,
-                y: motionStartY,
-                width: originWidth,
-                height: originHeight,
-                rotate: 0,
-              }}
-              animate={{
-                opacity: [1, 1, 1, 1, 1],
-                x: [motionStartX, motionStartX, impactX, impactX, motionEndX],
-                y: [motionStartY, motionStartY, impactY, impactY, motionEndY],
-                width: [originWidth, originWidth, originWidth, originWidth, destinationWidth],
-                height: [originHeight, originHeight, originHeight, originHeight, destinationHeight],
-                rotate: [
-                  0,
-                  0,
-                  impactRotate,
-                  impactRotate,
-                  endRotate,
-                ],
-              }}
-              transition={{
-                duration: totalMs / 1000,
-                delay: (targetMotion.delayMs ?? 0) / 1000,
-                ease: [0.22, 1, 0.36, 1],
-                times: [
-                  0,
-                  windupMs / totalMs,
-                  (windupMs + attackMs) / totalMs,
-                  (windupMs + attackMs + pauseMs) / totalMs,
-                  1,
-                ],
-              }}
-              onAnimationComplete={() => onMotionComplete(targetMotion.id)}
-              className="absolute left-0 top-0 will-change-transform"
-            >
-              <TargetCard
-                target={targetMotion.entity.target}
-                selectedCard={null}
-                isPlayerSide={targetMotion.side === "player"}
-                canClick={false}
-                onClick={() => {}}
-                fitParent
-              />
-            </motion.div>
-          );
-        })}
-    </div>
   );
 };
 
