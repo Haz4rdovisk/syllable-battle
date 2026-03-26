@@ -38,7 +38,7 @@ import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurf
 import { BattlePillOverlay } from "./BattlePillOverlay";
 import { useActiveBattleLayoutConfig } from "./BattleActiveLayout";
 import { BattleFieldLane } from "./BattleFieldLane";
-import { BattleHandLane } from "./BattleHandLane";
+import { BattleHandLane, BattleHandLaneOutgoingCard } from "./BattleHandLane";
 import { BattleSceneViewModel, createBattleBoardSurfaceViewModel } from "./BattleSceneViewModel";
 import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
 import { BattleStatusPanel } from "./BattleStatusPanel";
@@ -196,6 +196,22 @@ interface IncomingTargetCard {
   origin: ZoneAnchorSnapshot;
   delayMs: number;
   durationMs: number;
+}
+
+interface MulliganDebugState {
+  source: string;
+  requestedIndexes: number[];
+  requestedSyllables: string[];
+  removedStableCards: string[];
+  drawnCards: string[];
+  externalActionId: string | null;
+  clearIncomingHand: boolean;
+}
+
+interface PendingMulliganDraw {
+  syllable: Syllable;
+  finalIndex: number;
+  finalTotal: number;
 }
 
 interface BattleProps {
@@ -395,6 +411,20 @@ export const Battle: React.FC<BattleProps> = ({
     [ENEMY]: [],
   });
   const incomingHandsRef = useRef(incomingHands);
+  const [outgoingHands, setOutgoingHands] = useState<Record<typeof PLAYER | typeof ENEMY, BattleHandLaneOutgoingCard[]>>({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
+  const outgoingHandsRef = useRef(outgoingHands);
+  const [pendingMulliganDrawCounts, setPendingMulliganDrawCounts] = useState<Record<typeof PLAYER | typeof ENEMY, number>>({
+    [PLAYER]: 0,
+    [ENEMY]: 0,
+  });
+  const pendingMulliganDrawCountsRef = useRef(pendingMulliganDrawCounts);
+  const pendingMulliganDrawQueuesRef = useRef<Record<typeof PLAYER | typeof ENEMY, PendingMulliganDraw[]>>({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
   const [incomingTargets, setIncomingTargets] = useState<Record<typeof PLAYER | typeof ENEMY, IncomingTargetCard[]>>({
     [PLAYER]: [],
     [ENEMY]: [],
@@ -413,6 +443,15 @@ export const Battle: React.FC<BattleProps> = ({
   });
   const pendingTargetPlacementsRef = useRef(pendingTargetPlacements);
   const [freshCardIds, setFreshCardIds] = useState<string[]>([]);
+  const [mulliganDebug, setMulliganDebug] = useState<MulliganDebugState>({
+    source: "idle",
+    requestedIndexes: [],
+    requestedSyllables: [],
+    removedStableCards: [],
+    drawnCards: [],
+    externalActionId: null,
+    clearIncomingHand: false,
+  });
   gameRef.current = game;
   const previousEnemyHandSignatureRef = useRef<string>("");
   const lastHiddenAtRef = useRef<number | null>(null);
@@ -529,6 +568,22 @@ export const Battle: React.FC<BattleProps> = ({
     [],
   );
 
+  const commitOutgoingHands = useCallback(
+    (nextHands: Record<typeof PLAYER | typeof ENEMY, BattleHandLaneOutgoingCard[]>) => {
+      outgoingHandsRef.current = nextHands;
+      setOutgoingHands(nextHands);
+    },
+    [],
+  );
+
+  const commitPendingMulliganDrawCounts = useCallback(
+    (nextCounts: Record<typeof PLAYER | typeof ENEMY, number>) => {
+      pendingMulliganDrawCountsRef.current = nextCounts;
+      setPendingMulliganDrawCounts(nextCounts);
+    },
+    [],
+  );
+
   const commitIncomingTargets = useCallback(
     (nextTargets: Record<typeof PLAYER | typeof ENEMY, IncomingTargetCard[]>) => {
       incomingTargetsRef.current = nextTargets;
@@ -635,6 +690,17 @@ export const Battle: React.FC<BattleProps> = ({
     [commitIncomingHands],
   );
 
+  const appendOutgoingCard = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, outgoingCard: BattleHandLaneOutgoingCard) => {
+      const current = outgoingHandsRef.current;
+      commitOutgoingHands({
+        ...current,
+        [side]: [...current[side], outgoingCard],
+      });
+    },
+    [commitOutgoingHands],
+  );
+
   const removeIncomingCard = useCallback(
     (side: typeof PLAYER | typeof ENEMY, id: string) => {
       const current = incomingHandsRef.current;
@@ -644,6 +710,17 @@ export const Battle: React.FC<BattleProps> = ({
       });
     },
     [commitIncomingHands],
+  );
+
+  const removeOutgoingCard = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, id: string) => {
+      const current = outgoingHandsRef.current;
+      commitOutgoingHands({
+        ...current,
+        [side]: current[side].filter((card) => card.id !== id),
+      });
+    },
+    [commitOutgoingHands],
   );
 
   const markFreshCard = useCallback((cardId: string) => {
@@ -843,7 +920,13 @@ export const Battle: React.FC<BattleProps> = ({
     (
       side: typeof PLAYER | typeof ENEMY,
       cards: Syllable[],
-      config?: { initialDelayMs?: number; staggerMs?: number; durationMs?: number },
+      config?: {
+        initialDelayMs?: number;
+        staggerMs?: number;
+        durationMs?: number;
+        finalTotalOverride?: number;
+        finalIndexBase?: number;
+      },
     ) => {
       if (cards.length === 0) return;
 
@@ -851,7 +934,8 @@ export const Battle: React.FC<BattleProps> = ({
       const stableCount = stableHandsRef.current[side].length;
       const incomingCount = incomingHandsRef.current[side].length;
       const baseCount = stableCount + incomingCount;
-      const finalTotal = Math.min(HAND_LAYOUT_SLOT_COUNT, baseCount + cards.length);
+      const finalTotal = config?.finalTotalOverride ?? Math.min(HAND_LAYOUT_SLOT_COUNT, baseCount + cards.length);
+      const finalIndexBase = config?.finalIndexBase ?? baseCount;
 
       cards.forEach((card, index) => {
         const visualCard = createVisualHandCard(card, side);
@@ -865,7 +949,7 @@ export const Battle: React.FC<BattleProps> = ({
           side,
           card: visualCard,
           origin,
-          finalIndex: Math.min(HAND_LAYOUT_SLOT_COUNT - 1, baseCount + index),
+          finalIndex: Math.min(HAND_LAYOUT_SLOT_COUNT - 1, finalIndexBase + index),
           finalTotal,
           delayMs: (config?.initialDelayMs ?? 0) + index * (config?.staggerMs ?? 130),
           durationMs: config?.durationMs ?? 940,
@@ -875,6 +959,30 @@ export const Battle: React.FC<BattleProps> = ({
     [appendIncomingCard, appendStableCard, createVisualHandCard, snapshotZone],
   );
 
+  const startNextMulliganDraw = useCallback(
+    (
+      side: typeof PLAYER | typeof ENEMY,
+      options?: { initialDelayMs?: number },
+    ) => {
+      const queue = pendingMulliganDrawQueuesRef.current[side];
+      if (queue.length === 0) return false;
+      const [nextDraw, ...rest] = queue;
+      pendingMulliganDrawQueuesRef.current = {
+        ...pendingMulliganDrawQueuesRef.current,
+        [side]: rest,
+      };
+      queueHandDrawBatch(side, [nextDraw.syllable], {
+        initialDelayMs: options?.initialDelayMs ?? 0,
+        staggerMs: 0,
+        durationMs: FLOW.drawTravelMs,
+        finalTotalOverride: nextDraw.finalTotal,
+        finalIndexBase: nextDraw.finalIndex,
+      });
+      return true;
+    },
+    [queueHandDrawBatch],
+  );
+
   const commitIncomingCardToHand = useCallback(
     (incomingCard: IncomingHandCard) => {
       removeIncomingCard(incomingCard.side, incomingCard.id);
@@ -882,8 +990,25 @@ export const Battle: React.FC<BattleProps> = ({
       if (incomingCard.side === PLAYER) {
         markFreshCard(incomingCard.card.id);
       }
+      const currentPending = pendingMulliganDrawCountsRef.current[incomingCard.side];
+      if (currentPending > 0) {
+        commitPendingMulliganDrawCounts({
+          ...pendingMulliganDrawCountsRef.current,
+          [incomingCard.side]: currentPending - 1,
+        });
+      }
+      if (pendingMulliganDrawQueuesRef.current[incomingCard.side].length > 0) {
+        startNextMulliganDraw(incomingCard.side, { initialDelayMs: FLOW.drawSettleMs });
+      }
     },
-    [appendStableCard, markFreshCard, removeIncomingCard],
+    [appendStableCard, commitPendingMulliganDrawCounts, markFreshCard, removeIncomingCard, startNextMulliganDraw],
+  );
+
+  const handleOutgoingCardComplete = useCallback(
+    (outgoingCard: BattleHandLaneOutgoingCard) => {
+      removeOutgoingCard(outgoingCard.side, outgoingCard.id);
+    },
+    [removeOutgoingCard],
   );
 
   const buildBattleSnapshotSignature = useCallback(
@@ -940,6 +1065,18 @@ export const Battle: React.FC<BattleProps> = ({
         [PLAYER]: [],
         [ENEMY]: [],
       });
+      commitOutgoingHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      commitPendingMulliganDrawCounts({
+        [PLAYER]: 0,
+        [ENEMY]: 0,
+      });
+      pendingMulliganDrawQueuesRef.current = {
+        [PLAYER]: [],
+        [ENEMY]: [],
+      };
       commitIncomingTargets({
         [PLAYER]: [],
         [ENEMY]: [],
@@ -983,6 +1120,8 @@ export const Battle: React.FC<BattleProps> = ({
       clearVisualTimers,
       cloneInitialGame,
       commitIncomingHands,
+      commitOutgoingHands,
+      commitPendingMulliganDrawCounts,
       commitIncomingTargets,
       commitLockedTargetSlots,
       commitPendingTargetPlacements,
@@ -1015,6 +1154,51 @@ export const Battle: React.FC<BattleProps> = ({
     if (!import.meta.env.DEV) return;
 
     window.__battleDev = {
+      snapshot: () => ({
+        openingIntroStep: game.openingIntroStep,
+        turn: game.turn,
+        localPlayerIndex,
+        remotePlayerIndex,
+        mode,
+        roomTransportKind: roomTransportKind ?? "none",
+        winner: game.winner,
+        combatLocked: game.combatLocked,
+        actedThisTurn: game.actedThisTurn,
+        currentMessage: game.currentMessage?.title ?? null,
+        selectedHandIndexes: [...game.selectedHandIndexes],
+        selectedSyllables: game.selectedHandIndexes.map(
+          (index) => stableHands[localPlayerIndex][index]?.syllable ?? `missing:${index}`,
+        ),
+        localHand: [...game.players[localPlayerIndex].hand],
+        remoteHand: [...game.players[remotePlayerIndex].hand],
+        stableLocalHand: stableHands[localPlayerIndex].map((card) => card.syllable),
+        stableRemoteHand: stableHands[remotePlayerIndex].map((card) => card.syllable),
+        incomingLocalHand: incomingHands[localPlayerIndex].map((card) => card.card.syllable),
+        incomingRemoteHand: incomingHands[remotePlayerIndex].map((card) => card.card.syllable),
+        outgoingLocalHand: outgoingHands[localPlayerIndex].map((card) => card.card.syllable),
+        outgoingRemoteHand: outgoingHands[remotePlayerIndex].map((card) => card.card.syllable),
+        pendingMulliganDrawCounts: { ...pendingMulliganDrawCountsRef.current },
+        incomingTargets: {
+          player: incomingTargets[PLAYER].map((target) => `${target.slotIndex}:${target.entity.target.name}`),
+          enemy: incomingTargets[ENEMY].map((target) => `${target.slotIndex}:${target.entity.target.name}`),
+        },
+        targetMotions: targetMotions.map((motion) => ({
+          id: motion.id,
+          type: motion.type,
+          side: motion.side,
+          slotIndex: motion.slotIndex,
+          name: motion.entity.target.name,
+        })),
+        travelMotions: travelMotions.map((motion) => ({
+          id: motion.id,
+          kind: motion.kind,
+          label: motion.label,
+          from: motion.from,
+          to: motion.to,
+        })),
+        mulliganDebug,
+      }),
+      logSnapshot: () => console.log(window.__battleDev?.snapshot()),
       damage: (side, amount = 10) => {
         if (mode === "multiplayer") {
           console.warn("[battleDev] O helper de dano está desativado no multiplayer para não dessincronizar a sala.");
@@ -1055,7 +1239,20 @@ export const Battle: React.FC<BattleProps> = ({
     return () => {
       delete window.__battleDev;
     };
-  }, [localPlayerIndex, mode, remotePlayerIndex]);
+  }, [
+    game,
+    incomingHands,
+    incomingTargets,
+    localPlayerIndex,
+    mode,
+    mulliganDebug,
+    outgoingHands,
+    remotePlayerIndex,
+    roomTransportKind,
+    stableHands,
+    targetMotions,
+    travelMotions,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1304,8 +1501,8 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     const pendingCounts = {
-      [PLAYER]: incomingHands[PLAYER].length,
-      [ENEMY]: incomingHands[ENEMY].length,
+      [PLAYER]: incomingHands[PLAYER].length + pendingMulliganDrawCounts[PLAYER],
+      [ENEMY]: incomingHands[ENEMY].length + pendingMulliganDrawCounts[ENEMY],
     };
 
     const expectedPlayerStable = game.players[PLAYER].hand.length - pendingCounts[PLAYER];
@@ -1333,7 +1530,7 @@ export const Battle: React.FC<BattleProps> = ({
     if (nextHands[PLAYER] !== current[PLAYER] || nextHands[ENEMY] !== current[ENEMY]) {
       commitStableHands(nextHands);
     }
-  }, [commitStableHands, game, incomingHands, reconcileStableSide, stableHands]);
+  }, [commitStableHands, game, incomingHands, pendingMulliganDrawCounts, reconcileStableSide, stableHands]);
 
   useEffect(() => {
     if (introPhase !== "done") return;
@@ -1727,10 +1924,14 @@ export const Battle: React.FC<BattleProps> = ({
   const applyResolvedMulliganFlow = ({
     side,
     removedStableCards,
+    removedCardLayouts,
+    remainingStableCount,
     drawnCards,
   }: {
     side: typeof PLAYER | typeof ENEMY;
     removedStableCards: VisualHandCard[];
+    removedCardLayouts: Array<{ index: number; total: number }>;
+    remainingStableCount: number;
     drawnCards: Syllable[];
   }) => {
     createMulliganResolutionEvents({
@@ -1740,22 +1941,46 @@ export const Battle: React.FC<BattleProps> = ({
       drawn: drawnCards,
     }).forEach(emitBattleEvent);
 
-    removedStableCards.forEach((card, index) => {
-      queueStableCardTravel(card, {
-        from: zoneIdForSide(side, "hand"),
-        to: zoneIdForSide(side, "deck"),
-        kind: side === localPlayerIndex ? "syllable" : "card-back",
-        delayMs: index * FLOW.mulliganReturnStaggerMs,
-        durationMs: FLOW.mulliganReturnMs,
-        arcHeight: 92,
+    const deckDestination = snapshotZone(zoneIdForSide(side, "deck"));
+    if (deckDestination) {
+      removedStableCards.forEach((card, index) => {
+        const layout = removedCardLayouts[index];
+        if (!layout) return;
+        appendOutgoingCard(side, {
+          id: `outgoing-${card.id}-${index}`,
+          side,
+          card,
+          destination: deckDestination,
+          initialIndex: layout.index,
+          initialTotal: layout.total,
+          delayMs: index * FLOW.mulliganReturnStaggerMs,
+          durationMs: FLOW.mulliganReturnMs,
+        });
       });
-    });
+    }
 
-    queueHandDrawBatch(side, drawnCards, {
-      initialDelayMs: getMulliganDrawStartDelayMs(FLOW, removedStableCards.length),
-      staggerMs: FLOW.drawStaggerMs,
-      durationMs: FLOW.drawTravelMs,
+    commitPendingMulliganDrawCounts({
+      ...pendingMulliganDrawCountsRef.current,
+      [side]: pendingMulliganDrawCountsRef.current[side] + drawnCards.length,
     });
+    const plannedDraws = drawnCards.map((syllable, index) => ({
+      syllable,
+      finalIndex: Math.min(HAND_LAYOUT_SLOT_COUNT - 1, remainingStableCount + index),
+      finalTotal: Math.min(HAND_LAYOUT_SLOT_COUNT, remainingStableCount + drawnCards.length),
+    }));
+    pendingMulliganDrawQueuesRef.current = {
+      ...pendingMulliganDrawQueuesRef.current,
+      [side]: plannedDraws.slice(1),
+    };
+    if (plannedDraws.length > 0) {
+      queueHandDrawBatch(side, [plannedDraws[0].syllable], {
+        initialDelayMs: getMulliganDrawStartDelayMs(FLOW, removedStableCards.length),
+        staggerMs: 0,
+        durationMs: FLOW.drawTravelMs,
+        finalTotalOverride: plannedDraws[0].finalTotal,
+        finalIndexBase: plannedDraws[0].finalIndex,
+      });
+    }
 
     const t = setTimeout(finalizeTurn, getMulliganFinishDelayMs(FLOW, removedStableCards.length, drawnCards.length));
     actionTimersRef.current.push(t);
@@ -1807,7 +2032,19 @@ export const Battle: React.FC<BattleProps> = ({
 
     if (move.type === "mulligan") {
       const selectedIndexes = [...move.handIndexes].sort((a, b) => b - a);
+      const requestedSyllables = selectedIndexes.map(
+        (index) => stableHandsRef.current[side][index]?.syllable ?? `missing:${index}`,
+      );
+      const stableBeforeRemoval = stableHandsRef.current[side];
+      const removedCardLayouts = [...selectedIndexes]
+        .sort((a, b) => a - b)
+        .map((index) => ({
+          index,
+          total: stableBeforeRemoval.length,
+        }));
+      const resolution = resolveBattleMulliganAction(gameRef.current, side, selectedIndexes, CONFIG.handSize);
       const removedStableCards = removeStableCards(side, selectedIndexes);
+      const remainingStableCount = stableHandsRef.current[side].length;
       const returnedCountForLog = removedStableCards.length;
 
       if (clearIncomingHand) {
@@ -1815,12 +2052,21 @@ export const Battle: React.FC<BattleProps> = ({
           ...incomingHandsRef.current,
           [side]: [],
         });
+        commitOutgoingHands({
+          ...outgoingHandsRef.current,
+          [side]: [],
+        });
+        commitPendingMulliganDrawCounts({
+          ...pendingMulliganDrawCountsRef.current,
+          [side]: 0,
+        });
+        pendingMulliganDrawQueuesRef.current = {
+          ...pendingMulliganDrawQueuesRef.current,
+          [side]: [],
+        };
       }
 
-      let drawnCards: Syllable[] = [];
       setGame((prev) => {
-        const resolution = resolveBattleMulliganAction(prev, side, selectedIndexes, CONFIG.handSize);
-        drawnCards = [...resolution.drawnCards];
         return {
           ...prev,
           players: resolution.nextPlayers as any,
@@ -1832,10 +2078,22 @@ export const Battle: React.FC<BattleProps> = ({
         };
       });
 
+      setMulliganDebug({
+        source: "executeBattleTurnAction",
+        requestedIndexes: [...selectedIndexes],
+        requestedSyllables,
+        removedStableCards: removedStableCards.map((card) => card.syllable),
+        drawnCards: [...resolution.drawnCards],
+        externalActionId: null,
+        clearIncomingHand: Boolean(clearIncomingHand),
+      });
+
       applyResolvedMulliganFlow({
         side,
         removedStableCards,
-        drawnCards,
+        removedCardLayouts,
+        remainingStableCount,
+        drawnCards: resolution.drawnCards,
       });
       return;
     }
@@ -1858,17 +2116,21 @@ export const Battle: React.FC<BattleProps> = ({
 
       const sequence = actionSequenceRef.current[side];
       actionSequenceRef.current[side] += 1;
+      const id = `battle-action-${side === PLAYER ? "player" : "enemy"}-${gameRef.current.setupVersion}-${battleActionIdRef.current++}`;
       onActionRequested({
-        id: `battle-action-${side === PLAYER ? "player" : "enemy"}-${gameRef.current.setupVersion}-${battleActionIdRef.current++}`,
+        id,
         setupVersion: gameRef.current.setupVersion,
         sequence,
         turn: gameRef.current.turn,
         side: side === PLAYER ? "player" : "enemy",
         action,
       });
+      if (roomTransportKind === "remote" && side === localPlayerIndex) {
+        processedExternalActionIdsRef.current.add(id);
+      }
       return true;
     },
-    [mode, onActionRequested],
+    [localPlayerIndex, mode, onActionRequested, roomTransportKind],
   );
 
   const shouldExecuteLocallyAfterRequest = useCallback(
@@ -1948,6 +2210,17 @@ export const Battle: React.FC<BattleProps> = ({
 
     clearAllTimers();
     const selectedIndexes = [...new Set<number>(game.selectedHandIndexes)].sort((a, b) => b - a);
+    const requestedSyllables = selectedIndexes
+      .map((index) => stableHandsRef.current[localPlayerIndex][index]?.syllable ?? `missing:${index}`);
+    setMulliganDebug({
+      source: "handleMulligan",
+      requestedIndexes: [...selectedIndexes],
+      requestedSyllables,
+      removedStableCards: [],
+      drawnCards: [],
+      externalActionId: null,
+      clearIncomingHand: true,
+    });
     dispatchBattleAction({
       side: localPlayerIndex,
       move: {
@@ -2001,6 +2274,19 @@ export const Battle: React.FC<BattleProps> = ({
     if (pendingExternalAction.turn !== gameRef.current.turn) return;
 
     const side = pendingExternalAction.side === "player" ? PLAYER : ENEMY;
+    if (pendingExternalAction.action.type === "mulligan") {
+      setMulliganDebug({
+        source: "pendingExternalAction",
+        requestedIndexes: [...pendingExternalAction.action.handIndexes],
+        requestedSyllables: pendingExternalAction.action.handIndexes.map(
+          (index) => stableHandsRef.current[side][index]?.syllable ?? `missing:${index}`,
+        ),
+        removedStableCards: [],
+        drawnCards: [],
+        externalActionId: pendingExternalAction.id,
+        clearIncomingHand: side === localPlayerIndex,
+      });
+    }
     processedExternalActionIdsRef.current.add(pendingExternalAction.id);
     onExternalActionConsumed?.(pendingExternalAction.id);
 
@@ -2284,6 +2570,9 @@ export const Battle: React.FC<BattleProps> = ({
   const mulliganSelectionInvalid =
     game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan;
   const mulliganDisabled = !canSwap || mulliganSelectionInvalid;
+  const selectedStableSyllables = game.selectedHandIndexes.map(
+    (index) => stableHands[localPlayerIndex][index]?.syllable ?? `missing:${index}`,
+  );
   const mulliganButtonClass =
     "group relative overflow-hidden rounded-[1.6rem] border-4 border-[#d4af37] bg-[#4a1d24] text-amber-50 shadow-[0_18px_38px_rgba(0,0,0,0.42)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_46px_rgba(0,0,0,0.5)] before:absolute before:inset-0 before:bg-[url('https://www.transparenttextures.com/patterns/leather.png')] before:opacity-35 disabled:border-[#8a6a25] disabled:bg-[#3f2327] disabled:text-amber-100/45 disabled:shadow-none disabled:hover:translate-y-0";
 
@@ -2293,9 +2582,15 @@ export const Battle: React.FC<BattleProps> = ({
       presentation="local"
       stableCards={stableHands[localPlayerIndex]}
       incomingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? incomingHands[localPlayerIndex] : []}
+      outgoingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? outgoingHands[localPlayerIndex] : []}
+      reservedSlots={Math.max(
+        0,
+        pendingMulliganDrawCounts[localPlayerIndex] - incomingHands[localPlayerIndex].length,
+      )}
       scale={scale}
       anchorRef={bindZoneRef("playerHand", `layout-${scale}`)}
       onIncomingCardComplete={commitIncomingCardToHand}
+      onOutgoingCardComplete={handleOutgoingCardComplete}
       hoveredCardIndex={hoveredCardIndex}
       onHoverCard={setHoveredCardIndex}
       selectedIndexes={game.selectedHandIndexes}
@@ -2339,10 +2634,16 @@ export const Battle: React.FC<BattleProps> = ({
       presentation="remote"
       stableCards={stableHands[remotePlayerIndex]}
       incomingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? incomingHands[remotePlayerIndex] : []}
+      outgoingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? outgoingHands[remotePlayerIndex] : []}
+      reservedSlots={Math.max(
+        0,
+        pendingMulliganDrawCounts[remotePlayerIndex] - incomingHands[remotePlayerIndex].length,
+      )}
       scale={scale}
       pulse={enemyHandPulse}
       anchorRef={bindZoneRef("enemyHand", `layout-${scale}`)}
       onIncomingCardComplete={commitIncomingCardToHand}
+      onOutgoingCardComplete={handleOutgoingCardComplete}
     />
   );
 
@@ -2751,6 +3052,26 @@ export const Battle: React.FC<BattleProps> = ({
             }
             layout={activeBattleLayout}
           />
+          {import.meta.env.DEV ? (
+            <div className="pointer-events-none absolute bottom-3 right-3 z-[80] rounded-md border border-white/10 bg-black/70 px-3 py-2 font-mono text-[10px] leading-tight text-emerald-200">
+              <div>{`turn:${game.turn} local:${localPlayerIndex} remote:${remotePlayerIndex} intro:${game.openingIntroStep} winner:${game.winner ?? "-"}`}</div>
+              <div>{`mode:${mode} transport:${roomTransportKind ?? "none"} msg:${game.currentMessage?.title ?? "-"} ext:${pendingExternalAction?.id ?? "-"} auth:${authoritativeBattleSnapshot ? 1 : 0}`}</div>
+              <div>{`swap:${canSwap ? 1 : 0} disabled:${mulliganDisabled ? 1 : 0} acted:${game.actedThisTurn ? 1 : 0} combat:${game.combatLocked ? 1 : 0} clock:${turnClock}`}</div>
+              <div>{`selectedIdx:[${game.selectedHandIndexes.join(",")}] selected:[${selectedStableSyllables.join(",")}]`}</div>
+              <div>{`stableLocal:[${stableHands[localPlayerIndex].map((card) => card.syllable).join(",")}]`}</div>
+              <div>{`logicLocal:[${game.players[localPlayerIndex].hand.join(",")}] fresh:[${freshCardIds.join(",")}]`}</div>
+              <div>{`incomingLocal:[${incomingHands[localPlayerIndex].map((card) => `${card.card.syllable}@${card.finalIndex}/${card.finalTotal}`).join(",")}] outgoingLocal:[${outgoingHands[localPlayerIndex].map((card) => card.card.syllable).join(",")}] pendingLocal:${pendingMulliganDrawCounts[localPlayerIndex]}`}</div>
+              <div>{`stableRemote:[${stableHands[remotePlayerIndex].map((card) => card.syllable).join(",")}]`}</div>
+              <div>{`logicRemote:[${game.players[remotePlayerIndex].hand.join(",")}] incomingRemote:[${incomingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] outgoingRemote:[${outgoingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] pendingRemote:${pendingMulliganDrawCounts[remotePlayerIndex]}`}</div>
+              <div>{`travel:${travelMotions.length} targetMotion:${targetMotions.length} incomingTargetP:${incomingTargets[PLAYER].length} incomingTargetE:${incomingTargets[ENEMY].length}`}</div>
+              <div>{`travelDetails:[${travelMotions.map((motion) => `${motion.kind}:${motion.label}:${motion.from}->${motion.to}`).join(" | ")}]`}</div>
+              <div>{`targetDetails:[${targetMotions.map((motion) => `${motion.type}:${motion.entity.target.name}:${motion.side}:${motion.slotIndex}`).join(" | ")}]`}</div>
+              <div>{`pendingPlaceLocal:[${pendingTargetPlacements[localPlayerIndex].map((value) => value ?? "-").join(",")}] lockedLocal:[${lockedTargetSlots[localPlayerIndex].map((value) => (value ? 1 : 0)).join(",")}]`}</div>
+              <div>{`mSource:${mulliganDebug.source} clearIncoming:${mulliganDebug.clearIncomingHand ? 1 : 0} extId:${mulliganDebug.externalActionId ?? "-"}`}</div>
+              <div>{`mRequestedIdx:[${mulliganDebug.requestedIndexes.join(",")}] mRequested:[${mulliganDebug.requestedSyllables.join(",")}]`}</div>
+              <div>{`mRemoved:[${mulliganDebug.removedStableCards.join(",")}] mDrawn:[${mulliganDebug.drawnCards.join(",")}]`}</div>
+            </div>
+          ) : null}
         </BattleEditableElement>
       </main>
 

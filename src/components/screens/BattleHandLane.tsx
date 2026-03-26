@@ -34,15 +34,34 @@ export interface BattleHandLaneIncomingCard {
   durationMs: number;
 }
 
+export interface BattleHandLaneOutgoingCard {
+  id: string;
+  side: 0 | 1;
+  card: BattleHandLaneCard;
+  destination: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  initialIndex: number;
+  initialTotal: number;
+  delayMs: number;
+  durationMs: number;
+}
+
 export interface BattleHandLaneProps {
   side?: 0 | 1;
   presentation: "local" | "remote";
   stableCards?: BattleHandLaneCard[];
   incomingCards?: BattleHandLaneIncomingCard[];
+  outgoingCards?: BattleHandLaneOutgoingCard[];
+  reservedSlots?: number;
   scale: "desktop" | "mobile";
   pulse?: boolean;
   anchorRef?: React.Ref<HTMLDivElement>;
   onIncomingCardComplete?: (incomingCard: BattleHandLaneIncomingCard) => void;
+  onOutgoingCardComplete?: (outgoingCard: BattleHandLaneOutgoingCard) => void;
   hoveredCardIndex?: number | null;
   onHoverCard?: (index: number | null) => void;
   selectedIndexes?: number[];
@@ -63,7 +82,10 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   pulse = false,
   anchorRef,
   incomingCards = [],
+  outgoingCards = [],
+  reservedSlots = 0,
   onIncomingCardComplete,
+  onOutgoingCardComplete,
   hoveredCardIndex = null,
   onHoverCard,
   selectedIndexes = [],
@@ -81,7 +103,10 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [laneWidth, setLaneWidth] = useState<number | null>(null);
   const [laneHeight, setLaneHeight] = useState<number | null>(null);
-  const totalCards = Math.min(HAND_LAYOUT_SLOT_COUNT, stableCards.length + incomingCards.length);
+  const totalCards = Math.min(
+    HAND_LAYOUT_SLOT_COUNT,
+    stableCards.length + incomingCards.length + Math.max(0, reservedSlots),
+  );
   const getLayout = (total: number, index: number, desktop: boolean, width?: number | null) =>
     getBattleHandLayout(presentation, total, index, desktop, width);
   const sizePreset = isDesktop ? "hand-desktop" : "hand-mobile";
@@ -295,6 +320,86 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                     selected={false}
                     playable={showPlayableHints}
                     newlyDrawn={showTurnHighlights}
+                    attentionPulse={false}
+                    floating={true}
+                    disabled={true}
+                    onClick={() => {}}
+                    sizePreset={sizePreset}
+                  />
+                ) : (
+                  <CardBackCard floating={true} sizePreset={sizePreset} />
+                )}
+              </motion.div>
+            );
+          })}
+
+        {hostRef.current &&
+          outgoingCards.map((outgoingCard) => {
+            const hostRect = hostRef.current!.getBoundingClientRect();
+            const cardSize = isDesktop
+              ? { width: 110, height: 150 }
+              : { width: 86, height: 120 };
+            const layout = getLayout(
+              outgoingCard.initialTotal,
+              outgoingCard.initialIndex,
+              isDesktop,
+              laneWidth,
+            );
+            const deckBottomX =
+              outgoingCard.destination.left +
+              outgoingCard.destination.width / 2 -
+              hostRect.left -
+              cardSize.width / 2;
+            const deckBottomY =
+              outgoingCard.destination.top +
+              outgoingCard.destination.height -
+              Math.max(10, outgoingCard.destination.height * 0.16) -
+              hostRect.top -
+              cardSize.height * 0.82;
+            const baseLeft = hostRect.width / 2 - cardSize.width / 2;
+            const baseTop = hostRect.height - bottomOffset - cardSize.height;
+            const endX = deckBottomX - baseLeft;
+            const endY = deckBottomY - baseTop;
+            return (
+              <motion.div
+                key={outgoingCard.id}
+                className="pointer-events-none absolute left-0 top-0 z-[118]"
+                style={{
+                  left: `calc(50% - ${cardSize.width / 2}px)`,
+                  top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
+                }}
+                initial={{
+                  x: layout.x,
+                  y: layout.y,
+                  rotate: layout.rotate,
+                  scale: 1,
+                  opacity: 1,
+                }}
+                animate={{
+                  x: endX,
+                  y: endY,
+                  rotate: isLocalPresentation ? 4 : -4,
+                  scale: clampScale(
+                    Math.min(
+                      outgoingCard.destination.width / cardSize.width,
+                      outgoingCard.destination.height / cardSize.height,
+                    ),
+                  ),
+                  opacity: 1,
+                }}
+                transition={{
+                  delay: outgoingCard.delayMs / 1000,
+                  duration: outgoingCard.durationMs / 1000,
+                  ease: [0.18, 0.9, 0.22, 1],
+                }}
+                onAnimationComplete={() => onOutgoingCardComplete?.(outgoingCard)}
+              >
+                {isLocalPresentation ? (
+                  <SyllableCard
+                    syllable={outgoingCard.card.syllable}
+                    selected={false}
+                    playable={false}
+                    newlyDrawn={false}
                     attentionPulse={false}
                     floating={true}
                     disabled={true}

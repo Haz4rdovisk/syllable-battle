@@ -127,8 +127,8 @@ export const getMulliganDrawStartDelayMs = (flow: BattleFlowTimings, returnedCou
 
 export const getMulliganFinishDelayMs = (flow: BattleFlowTimings, returnedCount: number, drawnCount: number) =>
   getMulliganDrawStartDelayMs(flow, returnedCount) +
-  flow.drawTravelMs +
-  Math.max(0, drawnCount - 1) * flow.drawStaggerMs +
+  Math.max(0, drawnCount) * flow.drawTravelMs +
+  Math.max(0, drawnCount - 1) * flow.drawSettleMs +
   flow.mulliganTurnHandoffMs;
 
 export const getBotMulliganIndexes = (hand: Syllable[], maxReturns: number) => {
