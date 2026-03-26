@@ -67,8 +67,10 @@ const FIXTURE_MULLIGAN_RETURN_STAGGER_MS = 110;
 const FIXTURE_MULLIGAN_RETURN_SETTLE_MS = 260;
 const FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS = 680;
 const FIXTURE_MULLIGAN_DRAW_START_DELAY_MS = 220;
+const FIXTURE_MULLIGAN_DRAW_DURATION_MS = FIXTURE_POST_PLAY_DRAW_DURATION_MS;
+const FIXTURE_MULLIGAN_DRAW_SETTLE_MS = FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
 const FIXTURE_MULLIGAN_DRAW_STAGGER_MS =
-  FIXTURE_POST_PLAY_DRAW_DURATION_MS + FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
+  FIXTURE_MULLIGAN_DRAW_DURATION_MS + FIXTURE_MULLIGAN_DRAW_SETTLE_MS;
 const openingTargetEntryAnchorToolByPreset: Partial<
   Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
 > = {
@@ -126,6 +128,34 @@ const getMulliganCountFromPreset = (
     return 3;
   }
   return null;
+};
+
+const mulliganDrawOriginAnchorToolByPreset = {
+  "mulligan-hand-draw-1": "mulligan-hand-draw-1-origin",
+  "mulligan-hand-draw-2": "mulligan-hand-draw-2-origin",
+  "mulligan-hand-draw-3": "mulligan-hand-draw-3-origin",
+} as const;
+
+const mulliganReturnDestinationAnchorToolByPreset = {
+  "mulligan-hand-return-1": "mulligan-hand-return-1-destination",
+  "mulligan-hand-return-2": "mulligan-hand-return-2-destination",
+  "mulligan-hand-return-3": "mulligan-hand-return-3-destination",
+} as const;
+
+const getMulliganPreviewReservedSlots = (
+  animationSet: BattleLayoutPreviewAnimationSet,
+  animationPreset: BattleLayoutPreviewAnimationPreset,
+  incomingCount: number,
+) => {
+  const count = getMulliganCountFromPreset(animationPreset);
+  if (!count) return 0;
+  if (animationSet === "mulligan-hand-return") {
+    return count;
+  }
+  if (animationSet === "mulligan-hand-draw") {
+    return Math.max(0, count - incomingCount);
+  }
+  return 0;
 };
 
 export type BattleScenePreviewFocusArea =
@@ -511,27 +541,14 @@ export const BattleSceneFixtureView: React.FC<{
     }
 
     if (animationSet === "mulligan-hand-draw") {
-      const anchor =
-        animationPreset === "mulligan-hand-draw-1"
-          ? ("mulligan-hand-draw-1-origin" as const)
-          : animationPreset === "mulligan-hand-draw-2"
-            ? ("mulligan-hand-draw-2-origin" as const)
-            : animationPreset === "mulligan-hand-draw-3"
-              ? ("mulligan-hand-draw-3-origin" as const)
-              : null;
+      const anchor = mulliganDrawOriginAnchorToolByPreset[animationPreset] ?? null;
       const point = getAnimationAnchorPoint(anchor);
       return point && anchor ? [{ label: "O", anchor, point }] : [];
     }
 
     if (animationSet === "mulligan-hand-return") {
       const anchor =
-        animationPreset === "mulligan-hand-return-1"
-          ? ("mulligan-hand-return-1-destination" as const)
-          : animationPreset === "mulligan-hand-return-2"
-            ? ("mulligan-hand-return-2-destination" as const)
-            : animationPreset === "mulligan-hand-return-3"
-              ? ("mulligan-hand-return-3-destination" as const)
-              : null;
+        mulliganReturnDestinationAnchorToolByPreset[animationPreset] ?? null;
       const point = getAnimationAnchorPoint(anchor);
       return point && anchor ? [{ label: "D", anchor, point }] : [];
     }
@@ -617,15 +634,11 @@ export const BattleSceneFixtureView: React.FC<{
   }, [animationPreset, animationSet, getAnimationAnchorPoint]);
 
   const previewReservedSlots = useMemo(() => {
-    const count = getMulliganCountFromPreset(animationPreset);
-    if (!count) return 0;
-    if (animationSet === "mulligan-hand-return") {
-      return count;
-    }
-    if (animationSet === "mulligan-hand-draw") {
-      return Math.max(0, count - incomingPreviewHands[PLAYER].length);
-    }
-    return 0;
+    return getMulliganPreviewReservedSlots(
+      animationSet,
+      animationPreset,
+      incomingPreviewHands[PLAYER].length,
+    );
   }, [animationPreset, animationSet, incomingPreviewHands]);
 
   const debugLines = useMemo(() => {
@@ -654,6 +667,12 @@ export const BattleSceneFixtureView: React.FC<{
       flags && flags.length > 0
         ? flags.map((flag, index) => `${index}:${flag ? "1" : "0"}`).join(" ")
         : "-";
+    const mulliganCount = getMulliganCountFromPreset(animationPreset);
+    const mulliganReservedSlots = getMulliganPreviewReservedSlots(
+      animationSet,
+      animationPreset,
+      incomingPreviewHands[PLAYER].length,
+    );
 
     const lines = [
       `set:${animationSet} preset:${animationPreset} mode:${animationMode}`,
@@ -696,6 +715,34 @@ export const BattleSceneFixtureView: React.FC<{
     if (animationSet === "opening-target-entry-first-round") {
       lines.push(
         `openingPreset:${animationPreset === "opening-target-entry-simultaneous" ? "simultaneous" : "single"}`,
+      );
+    }
+
+    if (
+      animationSet === "mulligan-hand-return" ||
+      animationSet === "mulligan-hand-draw"
+    ) {
+      lines.push(
+        `mulliganCount:${mulliganCount ?? "-"} reservedSlots:${mulliganReservedSlots}`,
+      );
+      lines.push(
+        `remainingStableCount:${previewPlayerStableCards.length} plannedIncomingCount:${Math.max(0, (mulliganCount ?? 0) - incomingPreviewHands[PLAYER].length)}`,
+      );
+      lines.push(
+        `mulliganReturnAnchor:${formatPoint(
+          getAnimationAnchorPoint(
+            mulliganReturnDestinationAnchorToolByPreset[
+              animationPreset
+            ] ?? null,
+          ),
+        )}`,
+      );
+      lines.push(
+        `mulliganDrawAnchor:${formatPoint(
+          getAnimationAnchorPoint(
+            mulliganDrawOriginAnchorToolByPreset[animationPreset] ?? null,
+          ),
+        )}`,
       );
     }
 
@@ -1094,8 +1141,7 @@ export const BattleSceneFixtureView: React.FC<{
       }
     };
 
-    const startMulliganReturnLoop = () => {
-      if (loopGenerationRef.current !== generation) return;
+    const resetMulliganPreviewHandAnimationState = () => {
       setIncomingPreviewHands({
         [PLAYER]: [],
         [ENEMY]: [],
@@ -1105,26 +1151,78 @@ export const BattleSceneFixtureView: React.FC<{
         [ENEMY]: [],
       });
       setPreviewFreshCardIds([]);
+    };
+
+    const getMulliganPreviewHandState = () => {
       const count = getMulliganCountFromPreset(animationPreset);
-      if (!count) return;
-      const removedCards = defaultPlayerStableCards.slice(0, count);
-      const remainingCards = defaultPlayerStableCards.slice(count);
-      setPreviewPlayerStableCards(remainingCards);
+      if (!count) return null;
+      return {
+        count,
+        removedCards: defaultPlayerStableCards.slice(0, count),
+        remainingCards: defaultPlayerStableCards.slice(count),
+      };
+    };
+
+    const buildAnimationAnchorSnapshot = (
+      anchorKey: BattleLayoutPreviewAnimationAnchorKey | null | undefined,
+    ) => {
+      const point = anchorKey ? getAnimationAnchorPoint(anchorKey) : null;
+      return point
+        ? {
+            left: point.x,
+            top: point.y,
+            width: 0,
+            height: 0,
+          }
+        : null;
+    };
+
+    const getMulliganReturnDestination = () => {
       const destinationAnchor =
-        animationPreset === "mulligan-hand-return-1"
-          ? "mulligan-hand-return-1-destination"
-          : animationPreset === "mulligan-hand-return-2"
-            ? "mulligan-hand-return-2-destination"
-            : "mulligan-hand-return-3-destination";
-      const destination =
-        getAnimationAnchorPoint(destinationAnchor)
-          ? {
-              left: getAnimationAnchorPoint(destinationAnchor)!.x,
-              top: getAnimationAnchorPoint(destinationAnchor)!.y,
-              width: 0,
-              height: 0,
-            }
-          : readElementSnapshot("playerDeck");
+        mulliganReturnDestinationAnchorToolByPreset[animationPreset];
+      return (
+        buildAnimationAnchorSnapshot(destinationAnchor) ??
+        readElementSnapshot("playerDeck")
+      );
+    };
+
+    const getMulliganDrawOrigin = () => {
+      const originAnchor = mulliganDrawOriginAnchorToolByPreset[animationPreset];
+      return (
+        buildAnimationAnchorSnapshot(originAnchor) ??
+        readElementSnapshot("playerDeck")
+      );
+    };
+
+    const scheduleMulliganPreviewCompletion = (
+      totalMs: number,
+      loopMode: boolean,
+      restart: () => void,
+      gapMs: number,
+    ) => {
+      if (loopMode) {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          restart();
+        }, totalMs + gapMs);
+        animationTimersRef.current.push(restartTimer);
+        return;
+      }
+      const cleanupTimer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        resetPreviewAnimation();
+      }, totalMs + 40);
+      animationTimersRef.current.push(cleanupTimer);
+    };
+
+    const startMulliganReturnLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      resetMulliganPreviewHandAnimationState();
+      const handState = getMulliganPreviewHandState();
+      if (!handState) return;
+      const { count, removedCards, remainingCards } = handState;
+      setPreviewPlayerStableCards(remainingCards);
+      const destination = getMulliganReturnDestination();
       if (!destination) return;
       setOutgoingPreviewHands({
         [PLAYER]: removedCards.map((card, index) => ({
@@ -1144,52 +1242,22 @@ export const BattleSceneFixtureView: React.FC<{
         Math.max(0, (count - 1) * FIXTURE_MULLIGAN_RETURN_STAGGER_MS) +
         FIXTURE_MULLIGAN_RETURN_DURATION_MS +
         FIXTURE_MULLIGAN_RETURN_SETTLE_MS;
-      if (animationMode === "mulligan-hand-return-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startMulliganReturnLoop();
-        }, totalMs + FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      scheduleMulliganPreviewCompletion(
+        totalMs,
+        animationMode === "mulligan-hand-return-loop",
+        startMulliganReturnLoop,
+        FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS,
+      );
     };
 
     const startMulliganDrawLoop = () => {
       if (loopGenerationRef.current !== generation) return;
-      setIncomingPreviewHands({
-        [PLAYER]: [],
-        [ENEMY]: [],
-      });
-      setOutgoingPreviewHands({
-        [PLAYER]: [],
-        [ENEMY]: [],
-      });
-      setPreviewFreshCardIds([]);
-      const count = getMulliganCountFromPreset(animationPreset);
-      if (!count) return;
-      const removedCards = defaultPlayerStableCards.slice(0, count);
-      const remainingCards = defaultPlayerStableCards.slice(count);
+      resetMulliganPreviewHandAnimationState();
+      const handState = getMulliganPreviewHandState();
+      if (!handState) return;
+      const { count, removedCards, remainingCards } = handState;
       setPreviewPlayerStableCards(remainingCards);
-      const originAnchor =
-        animationPreset === "mulligan-hand-draw-1"
-          ? "mulligan-hand-draw-1-origin"
-          : animationPreset === "mulligan-hand-draw-2"
-            ? "mulligan-hand-draw-2-origin"
-            : "mulligan-hand-draw-3-origin";
-      const origin =
-        getAnimationAnchorPoint(originAnchor)
-          ? {
-              left: getAnimationAnchorPoint(originAnchor)!.x,
-              top: getAnimationAnchorPoint(originAnchor)!.y,
-              width: 0,
-              height: 0,
-            }
-          : readElementSnapshot("playerDeck");
+      const origin = getMulliganDrawOrigin();
       if (!origin) return;
       const startDelayMs =
         FIXTURE_MULLIGAN_RETURN_DURATION_MS +
@@ -1213,7 +1281,7 @@ export const BattleSceneFixtureView: React.FC<{
                 finalIndex: remainingCards.length + index,
                 finalTotal: remainingCards.length + count,
                 delayMs: 0,
-                durationMs: FIXTURE_POST_PLAY_DRAW_DURATION_MS,
+                durationMs: FIXTURE_MULLIGAN_DRAW_DURATION_MS,
               },
             ],
           }));
@@ -1224,21 +1292,14 @@ export const BattleSceneFixtureView: React.FC<{
       const totalMs =
         startDelayMs +
         Math.max(0, (count - 1) * FIXTURE_MULLIGAN_DRAW_STAGGER_MS) +
-        FIXTURE_POST_PLAY_DRAW_DURATION_MS +
-        FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
-      if (animationMode === "mulligan-hand-draw-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startMulliganDrawLoop();
-        }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+        FIXTURE_MULLIGAN_DRAW_DURATION_MS +
+        FIXTURE_MULLIGAN_DRAW_SETTLE_MS;
+      scheduleMulliganPreviewCompletion(
+        totalMs,
+        animationMode === "mulligan-hand-draw-loop",
+        startMulliganDrawLoop,
+        FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
+      );
     };
 
     const startTargetAttackLoop = () => {
@@ -1492,7 +1553,7 @@ export const BattleSceneFixtureView: React.FC<{
           })
         : null}
       {editorMode && animationDebugEnabled ? (
-        <div className="pointer-events-none absolute bottom-3 right-3 z-[90] max-w-[360px] rounded-lg border border-cyan-300/20 bg-black/75 px-3 py-2 font-mono text-[10px] leading-tight text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
+        <div className="pointer-events-none absolute right-3 top-3 z-[90] max-w-[360px] rounded-lg border border-cyan-300/20 bg-black/75 px-3 py-2 font-mono text-[10px] leading-tight text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
           {debugLines.map((line) => (
             <div key={line}>{line}</div>
           ))}

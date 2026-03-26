@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import {
   GameState,
@@ -36,6 +36,7 @@ import {
 import { BattleBoardShell } from "./BattleBoardShell";
 import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurface";
 import { BattlePillOverlay } from "./BattlePillOverlay";
+import type { BattleAnimationAnchorPoint } from "./BattleLayoutConfig";
 import { useActiveBattleLayoutConfig } from "./BattleActiveLayout";
 import { BattleFieldLane, BattleFieldOutgoingTarget } from "./BattleFieldLane";
 import { BattleHandLane, BattleHandLaneOutgoingCard } from "./BattleHandLane";
@@ -856,45 +857,75 @@ export const Battle: React.FC<BattleProps> = ({
     },
     [activeBattleLayout.animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOrigin],
   );
-  const getMulliganHandReturnDestinationSnapshot = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, count: number) => {
-      if (side !== localPlayerIndex) return null;
-      const configuredPoint =
-        count === 1
-          ? activeBattleLayout.animations.mulliganReturn1Destination
-          : count === 2
-            ? activeBattleLayout.animations.mulliganReturn2Destination
-            : count === 3
-              ? activeBattleLayout.animations.mulliganReturn3Destination
-              : null;
-      return snapshotSceneAnimationOrigin(configuredPoint);
-    },
+  const mulliganReturnPointsByCount = useMemo(
+    () => ({
+      1: activeBattleLayout.animations.mulliganReturn1Destination,
+      2: activeBattleLayout.animations.mulliganReturn2Destination,
+      3: activeBattleLayout.animations.mulliganReturn3Destination,
+    }),
     [
       activeBattleLayout.animations.mulliganReturn1Destination,
       activeBattleLayout.animations.mulliganReturn2Destination,
       activeBattleLayout.animations.mulliganReturn3Destination,
+    ],
+  );
+  const mulliganDrawPointsByCount = useMemo(
+    () => ({
+      1: activeBattleLayout.animations.mulliganDraw1Origin,
+      2: activeBattleLayout.animations.mulliganDraw2Origin,
+      3: activeBattleLayout.animations.mulliganDraw3Origin,
+    }),
+    [
+      activeBattleLayout.animations.mulliganDraw1Origin,
+      activeBattleLayout.animations.mulliganDraw2Origin,
+      activeBattleLayout.animations.mulliganDraw3Origin,
+    ],
+  );
+  const getMulliganAnimationPointByCount = useCallback(
+    (
+      count: number,
+      pointsByCount: {
+        1: BattleAnimationAnchorPoint | null;
+        2: BattleAnimationAnchorPoint | null;
+        3: BattleAnimationAnchorPoint | null;
+      },
+    ) => {
+      if (count === 1 || count === 2 || count === 3) {
+        return pointsByCount[count];
+      }
+      return null;
+    },
+    [],
+  );
+  const getMulliganHandReturnDestinationSnapshot = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, count: number) => {
+      if (side !== localPlayerIndex) return null;
+      const configuredPoint = getMulliganAnimationPointByCount(
+        count,
+        mulliganReturnPointsByCount,
+      );
+      return snapshotSceneAnimationOrigin(configuredPoint);
+    },
+    [
+      getMulliganAnimationPointByCount,
       localPlayerIndex,
+      mulliganReturnPointsByCount,
       snapshotSceneAnimationOrigin,
     ],
   );
   const getMulliganHandDrawOriginSnapshot = useCallback(
     (side: typeof PLAYER | typeof ENEMY, count: number) => {
       if (side !== localPlayerIndex) return null;
-      const configuredPoint =
-        count === 1
-          ? activeBattleLayout.animations.mulliganDraw1Origin
-          : count === 2
-            ? activeBattleLayout.animations.mulliganDraw2Origin
-            : count === 3
-              ? activeBattleLayout.animations.mulliganDraw3Origin
-              : null;
+      const configuredPoint = getMulliganAnimationPointByCount(
+        count,
+        mulliganDrawPointsByCount,
+      );
       return snapshotSceneAnimationOrigin(configuredPoint);
     },
     [
-      activeBattleLayout.animations.mulliganDraw1Origin,
-      activeBattleLayout.animations.mulliganDraw2Origin,
-      activeBattleLayout.animations.mulliganDraw3Origin,
+      getMulliganAnimationPointByCount,
       localPlayerIndex,
+      mulliganDrawPointsByCount,
       snapshotSceneAnimationOrigin,
     ],
   );
@@ -3277,7 +3308,7 @@ export const Battle: React.FC<BattleProps> = ({
             layout={activeBattleLayout}
           />
           {import.meta.env.DEV ? (
-            <div className="pointer-events-none absolute bottom-3 right-3 z-[80] rounded-md border border-white/10 bg-black/70 px-3 py-2 font-mono text-[10px] leading-tight text-emerald-200">
+            <div className="pointer-events-none absolute right-3 top-3 z-[80] rounded-md border border-white/10 bg-black/70 px-3 py-2 font-mono text-[10px] leading-tight text-emerald-200">
               <div>{`turn:${game.turn} local:${localPlayerIndex} remote:${remotePlayerIndex} intro:${game.openingIntroStep} winner:${game.winner ?? "-"}`}</div>
               <div>{`mode:${mode} transport:${roomTransportKind ?? "none"} msg:${game.currentMessage?.title ?? "-"} ext:${pendingExternalAction?.id ?? "-"} auth:${authoritativeBattleSnapshot ? 1 : 0}`}</div>
               <div>{`swap:${canSwap ? 1 : 0} disabled:${mulliganDisabled ? 1 : 0} acted:${game.actedThisTurn ? 1 : 0} combat:${game.combatLocked ? 1 : 0} clock:${turnClock}`}</div>

@@ -180,6 +180,12 @@ const OPENING_TARGET_ENTRY_DURATION_MS = 780;
 const OPENING_TARGET_ENTRY_SETTLE_MS = 560;
 const POST_PLAY_HAND_DRAW_DURATION_MS = 940;
 const POST_PLAY_HAND_DRAW_SETTLE_MS = 220;
+const MULLIGAN_RETURN_DURATION_MS = 760;
+const MULLIGAN_RETURN_STAGGER_MS = 110;
+const MULLIGAN_DRAW_START_DELAY_MS = 220;
+const MULLIGAN_DRAW_DURATION_MS = POST_PLAY_HAND_DRAW_DURATION_MS;
+const MULLIGAN_DRAW_SETTLE_MS = POST_PLAY_HAND_DRAW_SETTLE_MS;
+const MULLIGAN_SETTLE_MS = 260;
 const TARGET_ATTACK_WINDUP_MS = 310;
 const TARGET_ATTACK_TRAVEL_MS = 1140;
 const TARGET_ATTACK_PAUSE_MS = 260;
@@ -277,6 +283,42 @@ const animationPresetOptionsBySet: Record<
   ],
 };
 
+const getMulliganCountFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 1 | 2 | 3 | null => {
+  if (
+    preset === "mulligan-hand-return-1" ||
+    preset === "mulligan-hand-draw-1"
+  ) {
+    return 1;
+  }
+  if (
+    preset === "mulligan-hand-return-2" ||
+    preset === "mulligan-hand-draw-2"
+  ) {
+    return 2;
+  }
+  if (
+    preset === "mulligan-hand-return-3" ||
+    preset === "mulligan-hand-draw-3"
+  ) {
+    return 3;
+  }
+  return null;
+};
+
+const mulliganDrawOriginAnchorToolByPreset = {
+  "mulligan-hand-draw-1": "mulligan-hand-draw-1-origin",
+  "mulligan-hand-draw-2": "mulligan-hand-draw-2-origin",
+  "mulligan-hand-draw-3": "mulligan-hand-draw-3-origin",
+} as const;
+
+const mulliganReturnDestinationAnchorToolByPreset = {
+  "mulligan-hand-return-1": "mulligan-hand-return-1-destination",
+  "mulligan-hand-return-2": "mulligan-hand-return-2-destination",
+  "mulligan-hand-return-3": "mulligan-hand-return-3-destination",
+} as const;
+
 const getOpeningTargetAnimationPreviewDurationMs = (
   preset: BattleLayoutPreviewAnimationPreset,
 ) => {
@@ -326,27 +368,26 @@ const getAnimationPreviewDurationMs = (
     return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
   }
   if (animationSet === "mulligan-hand-return") {
-    const count =
-      preset === "mulligan-hand-return-1"
-        ? 1
-        : preset === "mulligan-hand-return-2"
-          ? 2
-          : preset === "mulligan-hand-return-3"
-            ? 3
-            : 0;
-    return Math.max(0, (count - 1) * 110) + 760 + 260;
+    const count = getMulliganCountFromPreset(preset) ?? 0;
+    return (
+      Math.max(0, (count - 1) * MULLIGAN_RETURN_STAGGER_MS) +
+      MULLIGAN_RETURN_DURATION_MS +
+      MULLIGAN_SETTLE_MS
+    );
   }
   if (animationSet === "mulligan-hand-draw") {
-    const count =
-      preset === "mulligan-hand-draw-1"
-        ? 1
-        : preset === "mulligan-hand-draw-2"
-          ? 2
-          : preset === "mulligan-hand-draw-3"
-            ? 3
-            : 0;
-    const startDelayMs = 760 + Math.max(0, count - 1) * 110 + 220;
-    return startDelayMs + Math.max(0, (count - 1) * (940 + 220)) + 940 + 260;
+    const count = getMulliganCountFromPreset(preset) ?? 0;
+    const startDelayMs =
+      MULLIGAN_RETURN_DURATION_MS +
+      Math.max(0, count - 1) * MULLIGAN_RETURN_STAGGER_MS +
+      MULLIGAN_DRAW_START_DELAY_MS;
+    const staggerMs = MULLIGAN_DRAW_DURATION_MS + MULLIGAN_DRAW_SETTLE_MS;
+    return (
+      startDelayMs +
+      Math.max(0, (count - 1) * staggerMs) +
+      MULLIGAN_DRAW_DURATION_MS +
+      MULLIGAN_SETTLE_MS
+    );
   }
   if (animationSet === "target-attack") {
     return (
@@ -974,25 +1015,13 @@ export const BattleLayoutEditor: React.FC = () => {
         : null;
     }
     if (animationSet === "mulligan-hand-draw") {
-      return animationPreset === "mulligan-hand-draw-1"
-        ? ("mulligan-hand-draw-1-origin" as const)
-        : animationPreset === "mulligan-hand-draw-2"
-          ? ("mulligan-hand-draw-2-origin" as const)
-          : animationPreset === "mulligan-hand-draw-3"
-            ? ("mulligan-hand-draw-3-origin" as const)
-            : null;
+      return mulliganDrawOriginAnchorToolByPreset[animationPreset] ?? null;
     }
     return openingTargetEntryAnchorToolByPreset[animationPreset] ?? null;
   }, [animationPreset, animationSet]);
   const getSelectedMulliganReturnDestinationAnchorTool = useCallback(() => {
     if (animationSet !== "mulligan-hand-return") return null;
-    return animationPreset === "mulligan-hand-return-1"
-      ? ("mulligan-hand-return-1-destination" as const)
-      : animationPreset === "mulligan-hand-return-2"
-        ? ("mulligan-hand-return-2-destination" as const)
-        : animationPreset === "mulligan-hand-return-3"
-          ? ("mulligan-hand-return-3-destination" as const)
-          : null;
+    return mulliganReturnDestinationAnchorToolByPreset[animationPreset] ?? null;
   }, [animationPreset, animationSet]);
   const getSelectedTargetAttackImpactAnchorTool = useCallback(() => {
     const attackIndex = getTargetAttackIndexFromPreset(animationPreset);
