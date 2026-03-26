@@ -154,7 +154,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
                 </motion.div>
               ) : slot.displayedTarget ? (
                 <motion.div
-                  key={slot.displayedTarget.id}
+                  key={slot.incomingTarget ? `${slot.displayedTarget.id}-${slot.incomingTarget.id}` : slot.displayedTarget.id}
                   initial={slot.incomingTarget && slot.slotRect ? { opacity: 1, x: startX, y: startY, rotate: incomingRotate, scale: 0.88 } : false}
                   animate={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
                   transition={

@@ -66,6 +66,10 @@ import {
   resolveBotTurnAction,
 } from "./battleFlow";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
+import {
+  BATTLE_STAGE_HEIGHT,
+  BATTLE_STAGE_WIDTH,
+} from "./BattleSceneSpace";
 
 const PLAYER = 0;
 const ENEMY = 1;
@@ -821,6 +825,27 @@ export const Battle: React.FC<BattleProps> = ({
     };
   }, []);
 
+  const snapshotSceneAnimationOrigin = useCallback(
+    (point: { x: number; y: number } | null | undefined): ZoneAnchorSnapshot | null => {
+      if (!point || typeof document === "undefined") return null;
+      const stageRoot = document.querySelector<HTMLElement>(
+        '[data-battle-stage-root="true"]',
+      );
+      if (!stageRoot) return null;
+      const rect = stageRoot.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      const scaleX = rect.width / BATTLE_STAGE_WIDTH;
+      const scaleY = rect.height / BATTLE_STAGE_HEIGHT;
+      return {
+        left: rect.left + point.x * scaleX,
+        top: rect.top + point.y * scaleY,
+        width: 0,
+        height: 0,
+      };
+    },
+    [],
+  );
+
   const setStableTargetSlot = useCallback(
     (
       side: typeof PLAYER | typeof ENEMY,
@@ -1501,23 +1526,36 @@ export const Battle: React.FC<BattleProps> = ({
       );
 
       stagedTargets.forEach(({ side, slotIndex, target }, index) => {
-        const origin = snapshotZone(zoneIdForSide(side, "targetDeck"));
-        const entity = toVisualTarget(target, side, slotIndex);
+        const timer = setTimeout(() => {
+          const configuredOrigin =
+            index === 0
+              ? activeBattleLayout.animations.openingTargetEntry0Origin
+              : index === 1
+                ? activeBattleLayout.animations.openingTargetEntry1Origin
+                : index === 2
+                  ? activeBattleLayout.animations.openingTargetEntry2Origin
+                  : activeBattleLayout.animations.openingTargetEntry3Origin;
+          const origin =
+            snapshotSceneAnimationOrigin(configuredOrigin) ??
+            snapshotZone(zoneIdForSide(side, "targetDeck"));
+          const entity = toVisualTarget(target, side, slotIndex);
 
-        if (!origin) {
-          setStableTargetSlot(side, slotIndex, entity);
-          return;
-        }
+          if (!origin) {
+            setStableTargetSlot(side, slotIndex, entity);
+            return;
+          }
 
-        appendIncomingTarget(side, {
-          id: `opening-target-${entity.id}`,
-          side,
-          slotIndex,
-          entity,
-          origin,
-          delayMs: index * INTRO.targetEnterStaggerMs,
-          durationMs: TIMINGS.leaveMs,
-        });
+          appendIncomingTarget(side, {
+            id: `opening-target-${entity.id}`,
+            side,
+            slotIndex,
+            entity,
+            origin,
+            delayMs: 0,
+            durationMs: TIMINGS.leaveMs,
+          });
+        }, index * (TIMINGS.leaveMs + INTRO.targetEnterStaggerMs));
+        visualTimersRef.current.push(timer);
       });
 
       const settleTimer = setTimeout(() => {
@@ -1527,7 +1565,7 @@ export const Battle: React.FC<BattleProps> = ({
           openingIntroStep: "done",
           turnDeadlineAt: Date.now() + TURN_RELEASE_DELAY_MS + TURN_TIMER.limitMs,
         }));
-      }, (stagedTargets.length - 1) * INTRO.targetEnterStaggerMs + TIMINGS.leaveMs + INTRO.targetSettleMs);
+      }, (stagedTargets.length - 1) * (TIMINGS.leaveMs + INTRO.targetEnterStaggerMs) + TIMINGS.leaveMs + INTRO.targetSettleMs);
 
       visualTimersRef.current.push(settleTimer);
     };
@@ -1536,7 +1574,7 @@ export const Battle: React.FC<BattleProps> = ({
     visualTimersRef.current.push(timer);
 
     return () => clearTimeout(timer);
-  }, [appendIncomingTarget, introPhase, localPlayerIndex, localSide, mode, openingTurnSide, setStableTargetSlot, snapshotZone, toVisualTarget, zoneIdForSide]);
+  }, [activeBattleLayout.animations, appendIncomingTarget, introPhase, localPlayerIndex, localSide, mode, openingTurnSide, setStableTargetSlot, snapshotSceneAnimationOrigin, snapshotZone, toVisualTarget, zoneIdForSide]);
 
   useEffect(() => {
     const currentEnemy = game.players[remotePlayerIndex];

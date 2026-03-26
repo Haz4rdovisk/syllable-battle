@@ -27,6 +27,16 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
   actionVisualState: "normal",
   statusVisualState: "normal",
   chroniclesVisualState: "normal",
+  animationMode: "idle",
+  animationPreset: "none",
+  animationRunId: 0,
+  animationAnchorTool: null,
+  animationAnchors: {
+    openingTargetEntry0Origin: null,
+    openingTargetEntry1Origin: null,
+    openingTargetEntry2Origin: null,
+    openingTargetEntry3Origin: null,
+  },
 };
 
 function readPreviewState(): BattleLayoutEditorPreviewState {
@@ -57,6 +67,25 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
       actionVisualState: parsed.actionVisualState ?? defaultPreviewState.actionVisualState,
       statusVisualState: parsed.statusVisualState ?? defaultPreviewState.statusVisualState,
       chroniclesVisualState: parsed.chroniclesVisualState ?? defaultPreviewState.chroniclesVisualState,
+      animationMode: parsed.animationMode ?? defaultPreviewState.animationMode,
+      animationPreset: parsed.animationPreset ?? defaultPreviewState.animationPreset,
+      animationRunId: parsed.animationRunId ?? defaultPreviewState.animationRunId,
+      animationAnchorTool:
+        parsed.animationAnchorTool ?? defaultPreviewState.animationAnchorTool,
+      animationAnchors: {
+        openingTargetEntry0Origin:
+          parsed.animationAnchors?.openingTargetEntry0Origin ??
+          defaultPreviewState.animationAnchors.openingTargetEntry0Origin,
+        openingTargetEntry1Origin:
+          parsed.animationAnchors?.openingTargetEntry1Origin ??
+          defaultPreviewState.animationAnchors.openingTargetEntry1Origin,
+        openingTargetEntry2Origin:
+          parsed.animationAnchors?.openingTargetEntry2Origin ??
+          defaultPreviewState.animationAnchors.openingTargetEntry2Origin,
+        openingTargetEntry3Origin:
+          parsed.animationAnchors?.openingTargetEntry3Origin ??
+          defaultPreviewState.animationAnchors.openingTargetEntry3Origin,
+      },
     };
   } catch {
     return defaultPreviewState;
@@ -126,6 +155,11 @@ export const BattleLayoutPreview: React.FC = () => {
       actionVisualState={previewState.actionVisualState}
       statusVisualState={previewState.statusVisualState}
       chroniclesVisualState={previewState.chroniclesVisualState}
+      animationMode={previewState.animationMode}
+      animationPreset={previewState.animationPreset}
+      animationRunId={previewState.animationRunId}
+      animationAnchorTool={previewState.animationAnchorTool}
+      animationAnchors={previewState.animationAnchors}
     />
   );
 };

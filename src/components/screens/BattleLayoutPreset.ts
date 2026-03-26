@@ -67,6 +67,24 @@ export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
   "text": {
     "actionTitleDisabled": "Indisp.",
     "actionSubtitleDisabled": "Aguarde..."
+  },
+  "animations": {
+    "openingTargetEntry0Origin": {
+      "x": 1482,
+      "y": 745
+    },
+    "openingTargetEntry1Origin": {
+      "x": 1517,
+      "y": 744
+    },
+    "openingTargetEntry2Origin": {
+      "x": 85,
+      "y": 103
+    },
+    "openingTargetEntry3Origin": {
+      "x": 118,
+      "y": 103
+    }
   }
 };
 

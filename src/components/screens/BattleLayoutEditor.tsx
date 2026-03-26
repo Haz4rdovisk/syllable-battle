@@ -4,9 +4,11 @@ import {
 } from "./BattleSceneFixtureView";
 import {
   battleSceneFixtureMeta,
+  battleSceneFixtures,
   BattleSceneFixtureKey,
 } from "./BattleSceneFixtures";
 import {
+  BattleAnimationAnchorPoint,
   BattleEditableElementKey,
   BattleElementAnchor,
   BattleElementPropertyConfig,
@@ -22,6 +24,10 @@ import {
 import { readActiveBattleLayoutOverrides } from "./BattleActiveLayout";
 import {
   BattleActionVisualState,
+  BattleLayoutPreviewAnimationAnchors,
+  BattleLayoutPreviewAnimationAnchorKey,
+  BattleLayoutPreviewAnimationMode,
+  BattleLayoutPreviewAnimationPreset,
   BattleEditorGroup,
   BattleChroniclesVisualState,
   BattleLayoutPreviewDevice,
@@ -41,6 +47,7 @@ import {
   BATTLE_LAYOUT_PREVIEW_STATE_MESSAGE_TYPE,
   normalizeBattleLayoutEditorPreviewState,
 } from "./BattleLayoutEditorState";
+import { getBattleElementSceneRect } from "./BattleSceneSpace";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 
@@ -167,6 +174,39 @@ const parseViewportValue = (rawValue: string, fallback: number) => {
   return Math.max(1, Math.round(parsed));
 };
 
+const OPENING_TARGET_ENTRY_STAGGER_MS = 220;
+const OPENING_TARGET_ENTRY_DURATION_MS = 780;
+const OPENING_TARGET_ENTRY_SETTLE_MS = 560;
+const PLAYER = 0;
+const ENEMY = 1;
+const openingTargetEntryAnchorToolByPreset: Partial<
+  Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
+> = {
+  "opening-target-entry-0": "opening-target-entry-0-origin",
+  "opening-target-entry-1": "opening-target-entry-1-origin",
+  "opening-target-entry-2": "opening-target-entry-2-origin",
+  "opening-target-entry-3": "opening-target-entry-3-origin",
+};
+const defaultAnimationAnchors: BattleLayoutPreviewAnimationAnchors = {
+  openingTargetEntry0Origin: null,
+  openingTargetEntry1Origin: null,
+  openingTargetEntry2Origin: null,
+  openingTargetEntry3Origin: null,
+};
+
+const getOpeningTargetAnimationPreviewDurationMs = (
+  preset: BattleLayoutPreviewAnimationPreset,
+) => {
+  if (preset === "none") return 0;
+  const targetCount =
+    preset === "opening-target-entry-simultaneous" ? 4 : 1;
+  return (
+    Math.max(0, (targetCount - 1) * OPENING_TARGET_ENTRY_STAGGER_MS) +
+    OPENING_TARGET_ENTRY_DURATION_MS +
+    OPENING_TARGET_ENTRY_SETTLE_MS
+  );
+};
+
 const mergeBattleLayoutOverrides = (
   base: BattleLayoutOverrides,
   patch: BattleLayoutOverrides,
@@ -205,6 +245,13 @@ const mergeBattleLayoutOverrides = (
     next.text = {
       ...(base.text ?? {}),
       ...patch.text,
+    };
+  }
+
+  if (patch.animations) {
+    next.animations = {
+      ...(base.animations ?? {}),
+      ...patch.animations,
     };
   }
 
@@ -388,6 +435,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       actionVisualState: "normal",
       statusVisualState: "normal",
       chroniclesVisualState: "normal",
+      animationMode: "idle",
+      animationPreset: "none",
+      animationRunId: 0,
+      animationAnchorTool: null,
+      animationAnchors: defaultAnimationAnchors,
     });
   }
 
@@ -415,6 +467,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         actionVisualState: "normal",
         statusVisualState: "normal",
         chroniclesVisualState: "normal",
+        animationMode: "idle",
+        animationPreset: "none",
+        animationRunId: 0,
+        animationAnchorTool: null,
+        animationAnchors: defaultAnimationAnchors,
       });
     }
     const raw = window.localStorage.getItem(BATTLE_LAYOUT_EDITOR_STATE_KEY);
@@ -433,6 +490,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         actionVisualState: "normal",
         statusVisualState: "normal",
         chroniclesVisualState: "normal",
+        animationMode: "idle",
+        animationPreset: "none",
+        animationRunId: 0,
+        animationAnchorTool: null,
+        animationAnchors: defaultAnimationAnchors,
       });
     }
 
@@ -457,6 +519,20 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       actionVisualState: parsed.actionVisualState ?? "normal",
       statusVisualState: parsed.statusVisualState ?? "normal",
       chroniclesVisualState: parsed.chroniclesVisualState ?? "normal",
+      animationMode: "idle",
+      animationPreset: parsed.animationPreset ?? "none",
+      animationRunId: 0,
+      animationAnchorTool: null,
+      animationAnchors: {
+        openingTargetEntry0Origin:
+          parsed.animationAnchors?.openingTargetEntry0Origin ?? null,
+        openingTargetEntry1Origin:
+          parsed.animationAnchors?.openingTargetEntry1Origin ?? null,
+        openingTargetEntry2Origin:
+          parsed.animationAnchors?.openingTargetEntry2Origin ?? null,
+        openingTargetEntry3Origin:
+          parsed.animationAnchors?.openingTargetEntry3Origin ?? null,
+      },
     });
   } catch {
     return normalizeBattleLayoutEditorPreviewState({
@@ -473,6 +549,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       actionVisualState: "normal",
       statusVisualState: "normal",
       chroniclesVisualState: "normal",
+      animationMode: "idle",
+      animationPreset: "none",
+      animationRunId: 0,
+      animationAnchorTool: null,
+      animationAnchors: defaultAnimationAnchors,
     });
   }
 };
@@ -515,6 +596,29 @@ export const BattleLayoutEditor: React.FC = () => {
     useState<BattleChroniclesVisualState>(
       initialPreviewState.chroniclesVisualState,
     );
+  const [animationMode, setAnimationMode] =
+    useState<BattleLayoutPreviewAnimationMode>("idle");
+  const [animationPreset, setAnimationPreset] =
+    useState<BattleLayoutPreviewAnimationPreset>(
+      initialPreviewState.animationPreset ?? "none",
+    );
+  const [animationRunId, setAnimationRunId] = useState(0);
+  const [animationAnchorTool, setAnimationAnchorTool] = useState<
+    BattleLayoutPreviewAnimationAnchorKey | null
+  >(initialPreviewState.animationAnchorTool ?? null);
+  const [animationAnchors, setAnimationAnchors] = useState<BattleLayoutPreviewAnimationAnchors>(
+    initialPreviewState.animationAnchors ?? {
+      openingTargetEntry0Origin:
+        initialPreviewState.layoutOverrides.animations?.openingTargetEntry0Origin ?? null,
+      openingTargetEntry1Origin:
+        initialPreviewState.layoutOverrides.animations?.openingTargetEntry1Origin ?? null,
+      openingTargetEntry2Origin:
+        initialPreviewState.layoutOverrides.animations?.openingTargetEntry2Origin ?? null,
+      openingTargetEntry3Origin:
+        initialPreviewState.layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
+    },
+  );
+  const animationResetTimerRef = useRef<number | null>(null);
   const [presetName, setPresetName] = useState("");
   const [groupName, setGroupName] = useState("");
   const [elementPresets, setElementPresets] = useState<
@@ -575,10 +679,84 @@ export const BattleLayoutEditor: React.FC = () => {
     () => pruneBattleLayoutOverrides(layoutOverrides),
     [layoutOverrides],
   );
+  const ensureSelectedAnimationOriginAnchor = useCallback(() => {
+    const anchorTool = openingTargetEntryAnchorToolByPreset[animationPreset];
+    if (!anchorTool) return;
+    setAnimationAnchors((current) => {
+      const anchorStateKey =
+        anchorTool === "opening-target-entry-0-origin"
+          ? "openingTargetEntry0Origin"
+          : anchorTool === "opening-target-entry-1-origin"
+            ? "openingTargetEntry1Origin"
+            : anchorTool === "opening-target-entry-2-origin"
+              ? "openingTargetEntry2Origin"
+              : "openingTargetEntry3Origin";
+      if (current[anchorStateKey]) return current;
+      const fixture = battleSceneFixtures[fixtureKey] ?? battleSceneFixtures.calm;
+      const allStagedTargets = [
+        ...fixture.scene.board.playerFieldSlots.map((slot, slotIndex) => ({
+          side: PLAYER,
+          slotIndex,
+          hasTarget: Boolean(slot.displayedTarget),
+        })),
+        ...fixture.scene.board.enemyFieldSlots.map((slot, slotIndex) => ({
+          side: ENEMY,
+          slotIndex,
+          hasTarget: Boolean(slot.displayedTarget),
+        })),
+      ].filter((entry) => entry.hasTarget);
+      const entryIndex =
+        animationPreset === "opening-target-entry-0"
+          ? 0
+          : animationPreset === "opening-target-entry-1"
+            ? 1
+            : animationPreset === "opening-target-entry-2"
+              ? 2
+              : 3;
+      const selectedEntry = allStagedTargets[entryIndex];
+      const deckKey =
+        selectedEntry?.side === ENEMY ? "enemyTargetDeck" : "playerTargetDeck";
+      const deckRect = getBattleElementSceneRect(deckKey, layout);
+      const nextPoint: BattleAnimationAnchorPoint = {
+        x: Math.round(deckRect.x + deckRect.width / 2),
+        y: Math.round(deckRect.y + deckRect.height / 2),
+      };
+      setLayoutOverrides((previous) =>
+        pruneBattleLayoutOverrides({
+          ...previous,
+          animations: {
+            ...(previous.animations ?? {}),
+            [anchorStateKey]: nextPoint,
+          },
+        }),
+      );
+      return {
+        ...current,
+        [anchorStateKey]: nextPoint,
+      };
+    });
+  }, [animationPreset, fixtureKey, layout]);
+  const isAnimationFeatureDisabled = animationPreset === "none";
+  const selectedAnimationAnchorTool =
+    openingTargetEntryAnchorToolByPreset[animationPreset] ?? null;
+  const isIndividualAnimationPreset = selectedAnimationAnchorTool !== null;
 
   useEffect(() => {
     layoutOverridesRef.current = layoutOverrides;
   }, [layoutOverrides]);
+
+  useEffect(() => {
+    setAnimationAnchors({
+      openingTargetEntry0Origin:
+        layoutOverrides.animations?.openingTargetEntry0Origin ?? null,
+      openingTargetEntry1Origin:
+        layoutOverrides.animations?.openingTargetEntry1Origin ?? null,
+      openingTargetEntry2Origin:
+        layoutOverrides.animations?.openingTargetEntry2Origin ?? null,
+      openingTargetEntry3Origin:
+        layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
+    });
+  }, [layoutOverrides.animations]);
 
   const selectElements = useCallback((
     nextFocus: BattleScenePreviewFocusArea,
@@ -644,6 +822,11 @@ export const BattleLayoutEditor: React.FC = () => {
       actionVisualState,
       statusVisualState,
       chroniclesVisualState,
+      animationMode,
+      animationPreset,
+      animationRunId,
+      animationAnchorTool,
+      animationAnchors,
     });
     window.localStorage.setItem(
       BATTLE_LAYOUT_EDITOR_STATE_KEY,
@@ -675,12 +858,41 @@ export const BattleLayoutEditor: React.FC = () => {
     actionVisualState,
     statusVisualState,
     chroniclesVisualState,
+    animationMode,
+    animationPreset,
+    animationRunId,
+    animationAnchorTool,
+    animationAnchors,
   ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handleMessage = (event: MessageEvent) => {
+    if (animationResetTimerRef.current !== null) {
+      window.clearTimeout(animationResetTimerRef.current);
+      animationResetTimerRef.current = null;
+    }
+
+    if (animationMode !== "opening-target-entry-play-once") return;
+
+    animationResetTimerRef.current = window.setTimeout(() => {
+      setAnimationMode("idle");
+      setAnimationRunId((current) => current + 1);
+      animationResetTimerRef.current = null;
+    }, getOpeningTargetAnimationPreviewDurationMs(animationPreset) + 40);
+
+    return () => {
+      if (animationResetTimerRef.current !== null) {
+        window.clearTimeout(animationResetTimerRef.current);
+        animationResetTimerRef.current = null;
+      }
+    };
+  }, [animationMode, animationPreset]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+  const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       const data = event.data as
         | { type?: string; payload?: unknown }
@@ -692,11 +904,14 @@ export const BattleLayoutEditor: React.FC = () => {
               | "select-element"
               | "begin-element-edit"
               | "update-element-edit"
-              | "end-element-edit";
+              | "end-element-edit"
+              | "update-animation-anchor";
             element: BattleEditableElementKey;
             patch?: Partial<BattleElementPropertyConfig>;
             additive?: boolean;
             toggle?: boolean;
+            anchor?: BattleLayoutPreviewAnimationAnchorKey;
+            point?: { x: number; y: number };
           }
         | undefined;
       if (!payload) return;
@@ -818,6 +1033,39 @@ export const BattleLayoutEditor: React.FC = () => {
           setUndoStack((stack) => [...stack, pruneBattleLayoutOverrides(baseline)]);
           setRedoStack([]);
         }
+        return;
+      }
+
+      if (
+        payload.kind === "update-animation-anchor" &&
+        payload.point
+      ) {
+        const anchorStateKey =
+          payload.anchor === "opening-target-entry-0-origin"
+            ? "openingTargetEntry0Origin"
+            : payload.anchor === "opening-target-entry-1-origin"
+              ? "openingTargetEntry1Origin"
+              : payload.anchor === "opening-target-entry-2-origin"
+                ? "openingTargetEntry2Origin"
+                : payload.anchor === "opening-target-entry-3-origin"
+                  ? "openingTargetEntry3Origin"
+                  : null;
+        if (!anchorStateKey) return;
+        const nextPoint: BattleAnimationAnchorPoint = {
+          x: clampNumber(Math.round(payload.point.x), 0, 1600),
+          y: clampNumber(Math.round(payload.point.y), 0, 900),
+        };
+        setAnimationAnchors((current) => ({
+          ...current,
+          [anchorStateKey]: nextPoint,
+        }));
+        applyOverridesWithoutHistory({
+          ...layoutOverridesRef.current,
+          animations: {
+            ...(layoutOverridesRef.current.animations ?? {}),
+            [anchorStateKey]: nextPoint,
+          },
+        });
       }
     };
 
@@ -2593,6 +2841,100 @@ export const BattleLayoutEditor: React.FC = () => {
               {presetSaveFeedback}
             </div>
           ) : null}
+        </div>
+
+        <div className="mt-4 space-y-2 rounded-3xl border border-emerald-900/12 bg-emerald-50/45 p-3">
+          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-950/60">
+            Animacao
+          </div>
+          <p className="text-xs leading-relaxed text-emerald-950/75">
+            Entrada do alvo no campo durante a abertura do primeiro round.
+            So roda quando voce interage com estes botoes.
+          </p>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
+              Preset
+            </span>
+            <select
+              value={animationPreset}
+              onChange={(event) => {
+                setAnimationMode("idle");
+                setAnimationRunId((current) => current + 1);
+                setAnimationAnchorTool(null);
+                setAnimationPreset(event.target.value as BattleLayoutPreviewAnimationPreset);
+              }}
+              className="rounded-xl border border-emerald-900/12 bg-white/80 px-3 py-2 text-sm font-semibold text-emerald-950 outline-none"
+            >
+              <option value="none">None</option>
+              <option value="opening-target-entry-0">Entrada 0</option>
+              <option value="opening-target-entry-1">Entrada 1</option>
+              <option value="opening-target-entry-2">Entrada 2</option>
+              <option value="opening-target-entry-3">Entrada 3</option>
+              <option value="opening-target-entry-simultaneous">Simultanea</option>
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                ensureSelectedAnimationOriginAnchor();
+                setAnimationMode("idle");
+                setAnimationRunId((current) => current + 1);
+                setAnimationAnchorTool((current) =>
+                  current === selectedAnimationAnchorTool
+                    ? null
+                    : selectedAnimationAnchorTool,
+                );
+              }}
+              className={cn(
+                "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
+                animationAnchorTool === selectedAnimationAnchorTool
+                  ? "bg-sky-800 hover:bg-sky-700"
+                  : "bg-sky-950 hover:bg-sky-900",
+              )}
+              disabled={!isIndividualAnimationPreset}
+            >
+              Mover origem
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setAnimationMode("opening-target-entry-play-once");
+                setAnimationRunId((current) => current + 1);
+              }}
+              disabled={isAnimationFeatureDisabled}
+              className="flex-1 rounded-xl border border-emerald-300/20 bg-emerald-900 text-emerald-50 hover:bg-emerald-800"
+            >
+              Play
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setAnimationMode("opening-target-entry-loop");
+                setAnimationRunId((current) => current + 1);
+              }}
+              disabled={isAnimationFeatureDisabled}
+              className="flex-1 rounded-xl border border-emerald-300/20 bg-emerald-950 text-emerald-50 hover:bg-emerald-900"
+            >
+              Loop
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setAnimationMode("idle");
+                setAnimationRunId((current) => current + 1);
+              }}
+              disabled={
+                isAnimationFeatureDisabled ||
+                animationMode !== "opening-target-entry-loop"
+              }
+              className="flex-1 rounded-xl border border-amber-950/10 bg-white/70 text-emerald-950 hover:bg-white disabled:opacity-50"
+            >
+              Stop
+            </Button>
+          </div>
         </div>
 
       </aside>

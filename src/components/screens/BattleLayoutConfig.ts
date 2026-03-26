@@ -129,6 +129,18 @@ export interface BattleTextLayoutConfig {
   bodyColor: string;
 }
 
+export interface BattleAnimationAnchorPoint {
+  x: number;
+  y: number;
+}
+
+export interface BattleAnimationLayoutConfig {
+  openingTargetEntry0Origin: BattleAnimationAnchorPoint | null;
+  openingTargetEntry1Origin: BattleAnimationAnchorPoint | null;
+  openingTargetEntry2Origin: BattleAnimationAnchorPoint | null;
+  openingTargetEntry3Origin: BattleAnimationAnchorPoint | null;
+}
+
 export interface BattleLayoutConfig {
   shell: BattleShellLayoutConfig;
   board: BattleBoardLayoutConfig;
@@ -136,6 +148,7 @@ export interface BattleLayoutConfig {
   hud: BattleHudLayoutConfig;
   elements: Record<BattleEditableElementKey, BattleElementPropertyConfig>;
   text: BattleTextLayoutConfig;
+  animations: BattleAnimationLayoutConfig;
 }
 
 export type BattleLayoutOverrides = Partial<{
@@ -145,6 +158,7 @@ export type BattleLayoutOverrides = Partial<{
   hud: Partial<BattleHudLayoutConfig>;
   elements: Partial<Record<BattleEditableElementKey, Partial<BattleElementPropertyConfig>>>;
   text: Partial<BattleTextLayoutConfig>;
+  animations: Partial<BattleAnimationLayoutConfig>;
 }>;
 
 const createDefaultElementConfig = (): BattleElementPropertyConfig => ({
@@ -215,6 +229,13 @@ const defaultHudLayout: BattleHudLayoutConfig = {
   mobileActionWidth: 220,
   mobileActionHeight: 64,
   actionSlotHeight: 162,
+};
+
+const defaultAnimationLayout: BattleAnimationLayoutConfig = {
+  openingTargetEntry0Origin: null,
+  openingTargetEntry1Origin: null,
+  openingTargetEntry2Origin: null,
+  openingTargetEntry3Origin: null,
 };
 
 const getBattleBoardFrame = (board: BattleBoardLayoutConfig) => ({
@@ -562,6 +583,7 @@ export const defaultBattleLayoutConfig: BattleLayoutConfig = {
     titleColor: "#451a03",
     bodyColor: "#451a03",
   },
+  animations: defaultAnimationLayout,
 };
 
 export function createBattleLayoutConfig(
@@ -669,6 +691,10 @@ export function createBattleLayoutConfig(
     text: {
       ...defaultBattleLayoutConfig.text,
       ...overrides.text,
+    },
+    animations: {
+      ...defaultBattleLayoutConfig.animations,
+      ...overrides.animations,
     },
   };
 }

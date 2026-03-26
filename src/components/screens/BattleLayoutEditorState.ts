@@ -16,6 +16,32 @@ export type BattleActionVisualState =
   | "selected";
 export type BattleStatusVisualState = "normal" | "urgent" | "selected";
 export type BattleChroniclesVisualState = "normal" | "highlighted" | "selected";
+export type BattleLayoutPreviewAnimationMode =
+  | "idle"
+  | "opening-target-entry-play-once"
+  | "opening-target-entry-loop";
+export type BattleLayoutPreviewAnimationPreset =
+  | "none"
+  | "opening-target-entry-0"
+  | "opening-target-entry-1"
+  | "opening-target-entry-2"
+  | "opening-target-entry-3"
+  | "opening-target-entry-simultaneous";
+export type BattleLayoutPreviewAnimationAnchorKey =
+  | "opening-target-entry-0-origin"
+  | "opening-target-entry-1-origin"
+  | "opening-target-entry-2-origin"
+  | "opening-target-entry-3-origin";
+export interface BattleLayoutPreviewAnimationAnchorPoint {
+  x: number;
+  y: number;
+}
+export interface BattleLayoutPreviewAnimationAnchors {
+  openingTargetEntry0Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  openingTargetEntry1Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  openingTargetEntry2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  openingTargetEntry3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+}
 export type BattleLayoutPreviewResolutionOption = {
   label: string;
   width: number;
@@ -36,6 +62,11 @@ export interface BattleLayoutEditorPreviewState {
   actionVisualState: BattleActionVisualState;
   statusVisualState: BattleStatusVisualState;
   chroniclesVisualState: BattleChroniclesVisualState;
+  animationMode: BattleLayoutPreviewAnimationMode;
+  animationPreset: BattleLayoutPreviewAnimationPreset;
+  animationRunId: number;
+  animationAnchorTool: BattleLayoutPreviewAnimationAnchorKey | null;
+  animationAnchors: BattleLayoutPreviewAnimationAnchors;
 }
 
 export interface BattleEditorGroup {
@@ -157,5 +188,97 @@ export function normalizeBattleLayoutEditorPreviewState(
     actionVisualState: state.actionVisualState ?? "normal",
     statusVisualState: state.statusVisualState ?? "normal",
     chroniclesVisualState: state.chroniclesVisualState ?? "normal",
+    animationMode: state.animationMode ?? "idle",
+    animationPreset: state.animationPreset ?? "none",
+    animationRunId: Number.isFinite(state.animationRunId)
+      ? Math.max(0, Math.round(state.animationRunId))
+      : 0,
+    animationAnchorTool: state.animationAnchorTool ?? null,
+    animationAnchors: {
+      openingTargetEntry0Origin:
+        state.animationAnchors?.openingTargetEntry0Origin &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry0Origin.x) &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry0Origin.y)
+          ? {
+              x: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_WIDTH,
+                  Math.round(state.animationAnchors.openingTargetEntry0Origin.x),
+                ),
+              ),
+              y: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_HEIGHT,
+                  Math.round(state.animationAnchors.openingTargetEntry0Origin.y),
+                ),
+              ),
+            }
+          : null,
+      openingTargetEntry1Origin:
+        state.animationAnchors?.openingTargetEntry1Origin &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry1Origin.x) &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry1Origin.y)
+          ? {
+              x: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_WIDTH,
+                  Math.round(state.animationAnchors.openingTargetEntry1Origin.x),
+                ),
+              ),
+              y: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_HEIGHT,
+                  Math.round(state.animationAnchors.openingTargetEntry1Origin.y),
+                ),
+              ),
+            }
+          : null,
+      openingTargetEntry2Origin:
+        state.animationAnchors?.openingTargetEntry2Origin &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry2Origin.x) &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry2Origin.y)
+          ? {
+              x: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_WIDTH,
+                  Math.round(state.animationAnchors.openingTargetEntry2Origin.x),
+                ),
+              ),
+              y: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_HEIGHT,
+                  Math.round(state.animationAnchors.openingTargetEntry2Origin.y),
+                ),
+              ),
+            }
+          : null,
+      openingTargetEntry3Origin:
+        state.animationAnchors?.openingTargetEntry3Origin &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry3Origin.x) &&
+        Number.isFinite(state.animationAnchors.openingTargetEntry3Origin.y)
+          ? {
+              x: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_WIDTH,
+                  Math.round(state.animationAnchors.openingTargetEntry3Origin.x),
+                ),
+              ),
+              y: Math.max(
+                0,
+                Math.min(
+                  BATTLE_STAGE_HEIGHT,
+                  Math.round(state.animationAnchors.openingTargetEntry3Origin.y),
+                ),
+              ),
+            }
+          : null,
+    },
   };
 }
