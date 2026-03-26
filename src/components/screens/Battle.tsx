@@ -37,7 +37,7 @@ import { BattleBoardShell } from "./BattleBoardShell";
 import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurface";
 import { BattlePillOverlay } from "./BattlePillOverlay";
 import { useActiveBattleLayoutConfig } from "./BattleActiveLayout";
-import { BattleFieldLane } from "./BattleFieldLane";
+import { BattleFieldLane, BattleFieldOutgoingTarget } from "./BattleFieldLane";
 import { BattleHandLane, BattleHandLaneOutgoingCard } from "./BattleHandLane";
 import { BattleSceneViewModel, createBattleBoardSurfaceViewModel } from "./BattleSceneViewModel";
 import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
@@ -92,6 +92,10 @@ const FLOW = {
   mulliganDrawDelayMs: 220,
   mulliganSettleMs: 260,
 };
+
+const TARGET_ATTACK_WINDUP_EXTRA_MS = 90;
+const TARGET_ATTACK_TRAVEL_EXTRA_MS = 120;
+const TARGET_ATTACK_EXIT_EXTRA_MS = 180;
 
 const INTRO = {
   coinChoiceMs: 20000,
@@ -196,6 +200,19 @@ interface IncomingTargetCard {
   origin: ZoneAnchorSnapshot;
   delayMs: number;
   durationMs: number;
+}
+
+interface OutgoingTargetCard {
+  id: string;
+  side: typeof PLAYER | typeof ENEMY;
+  slotIndex: number;
+  entity: VisualTargetEntity;
+  destination: ZoneAnchorSnapshot;
+  delayMs: number;
+  windupMs: number;
+  attackMs: number;
+  pauseMs: number;
+  exitMs: number;
 }
 
 interface MulliganDebugState {
@@ -430,6 +447,11 @@ export const Battle: React.FC<BattleProps> = ({
     [ENEMY]: [],
   });
   const incomingTargetsRef = useRef(incomingTargets);
+  const [outgoingTargets, setOutgoingTargets] = useState<Record<typeof PLAYER | typeof ENEMY, OutgoingTargetCard[]>>({
+    [PLAYER]: [],
+    [ENEMY]: [],
+  });
+  const outgoingTargetsRef = useRef(outgoingTargets);
   const [targetMotions, setTargetMotions] = useState<TargetTransitMotion[]>([]);
   const targetMotionsRef = useRef<TargetTransitMotion[]>([]);
   const [lockedTargetSlots, setLockedTargetSlots] = useState<LockedTargetSlotsState>({
@@ -588,6 +610,14 @@ export const Battle: React.FC<BattleProps> = ({
     (nextTargets: Record<typeof PLAYER | typeof ENEMY, IncomingTargetCard[]>) => {
       incomingTargetsRef.current = nextTargets;
       setIncomingTargets(nextTargets);
+    },
+    [],
+  );
+
+  const commitOutgoingTargets = useCallback(
+    (nextTargets: Record<typeof PLAYER | typeof ENEMY, OutgoingTargetCard[]>) => {
+      outgoingTargetsRef.current = nextTargets;
+      setOutgoingTargets(nextTargets);
     },
     [],
   );
@@ -872,6 +902,28 @@ export const Battle: React.FC<BattleProps> = ({
     [commitIncomingTargets],
   );
 
+  const appendOutgoingTarget = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, outgoingTarget: OutgoingTargetCard) => {
+      const current = outgoingTargetsRef.current;
+      commitOutgoingTargets({
+        ...current,
+        [side]: [...current[side], outgoingTarget],
+      });
+    },
+    [commitOutgoingTargets],
+  );
+
+  const removeOutgoingTarget = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, id: string) => {
+      const current = outgoingTargetsRef.current;
+      commitOutgoingTargets({
+        ...current,
+        [side]: current[side].filter((target) => target.id !== id),
+      });
+    },
+    [commitOutgoingTargets],
+  );
+
   // Battle resolve as zonas nomeadas em snapshots absolutos e agenda a ordem dos eventos.
   const queueZoneTravel = useCallback(
     (
@@ -1081,6 +1133,10 @@ export const Battle: React.FC<BattleProps> = ({
         [PLAYER]: [],
         [ENEMY]: [],
       });
+      commitOutgoingTargets({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
       commitPendingTargetPlacements({
         [PLAYER]: Array(CONFIG.targetsInPlay).fill(null),
         [ENEMY]: Array(CONFIG.targetsInPlay).fill(null),
@@ -1123,6 +1179,7 @@ export const Battle: React.FC<BattleProps> = ({
       commitOutgoingHands,
       commitPendingMulliganDrawCounts,
       commitIncomingTargets,
+      commitOutgoingTargets,
       commitLockedTargetSlots,
       commitPendingTargetPlacements,
       commitTargetMotions,
@@ -1673,6 +1730,13 @@ export const Battle: React.FC<BattleProps> = ({
     [removeTargetMotion],
   );
 
+  const handleOutgoingTargetComplete = useCallback(
+    (outgoingTarget: BattleFieldOutgoingTarget & { side: typeof PLAYER | typeof ENEMY }) => {
+      removeOutgoingTarget(outgoingTarget.side, outgoingTarget.id);
+    },
+    [removeOutgoingTarget],
+  );
+
   const queueCompletedTargetDeparture = useCallback(
     (result: {
       actorIndex: 0 | 1;
@@ -1683,7 +1747,10 @@ export const Battle: React.FC<BattleProps> = ({
       const side = result.actorIndex;
       const stableTarget = stableTargetsRef.current[side][result.completedSlot];
       const origin = snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${result.completedSlot}`);
-      const destination = snapshotZone(zoneIdForSide(side, "discard"));
+      const activeDeckSlot = isDesktopViewport ? "desktop" : "mobile";
+      const destination =
+        snapshotZoneSlot(zoneIdForSide(side, "targetDeck"), activeDeckSlot) ??
+        snapshotZone(zoneIdForSide(side, "targetDeck"));
 
       if (!stableTarget || !origin || !destination) {
         setStableTargetSlot(side, result.completedSlot, null);
@@ -1693,20 +1760,20 @@ export const Battle: React.FC<BattleProps> = ({
 
       lockTargetSlot(side, result.completedSlot, true);
       setStableTargetSlot(side, result.completedSlot, null);
-      appendTargetMotion({
+      appendOutgoingTarget(side, {
         id: `target-motion-${stableTarget.id}-depart`,
-        type: "attack-exit",
-        side: side === localPlayerIndex ? "player" : "enemy",
+        side,
         slotIndex: result.completedSlot,
         entity: stableTarget,
-        origin,
         destination,
-        attackMs: TIMINGS.attackMs - 280,
-        pauseMs: 220,
-        exitMs: TIMINGS.leaveMs,
+        delayMs: 0,
+        windupMs: FLOW.attackWindupMs + TARGET_ATTACK_WINDUP_EXTRA_MS,
+        attackMs: FLOW.attackTravelMs + TARGET_ATTACK_TRAVEL_EXTRA_MS,
+        pauseMs: FLOW.impactPauseMs,
+        exitMs: FLOW.targetExitMs + TARGET_ATTACK_EXIT_EXTRA_MS,
       });
     },
-    [appendTargetMotion, localPlayerIndex, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot],
+    [appendOutgoingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot],
   );
 
   const queueReplacementTargetArrival = useCallback(
@@ -1720,7 +1787,10 @@ export const Battle: React.FC<BattleProps> = ({
         return;
       }
 
-      const origin = snapshotZone(zoneIdForSide(actorIndex, "targetDeck"));
+      const activeDeckSlot = isDesktopViewport ? "desktop" : "mobile";
+      const origin =
+        snapshotZoneSlot(zoneIdForSide(actorIndex, "targetDeck"), activeDeckSlot) ??
+        snapshotZone(zoneIdForSide(actorIndex, "targetDeck"));
       const entity = toVisualTarget(logicalTarget, actorIndex, slotIndex);
 
       if (!origin) {
@@ -1739,7 +1809,7 @@ export const Battle: React.FC<BattleProps> = ({
         durationMs: TIMINGS.leaveMs,
       });
     },
-    [appendIncomingTarget, lockTargetSlot, setStableTargetSlot, snapshotZone, toVisualTarget],
+    [appendIncomingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot, toVisualTarget],
   );
 
   const commitIncomingTargetToField = useCallback(
@@ -1768,13 +1838,22 @@ export const Battle: React.FC<BattleProps> = ({
   );
 
   const startCombatSequence = (result: any) => {
-    const attackStartDelay = FLOW.cardToFieldMs + FLOW.cardSettleMs + FLOW.attackWindupMs;
-    const impactDelayMs = attackStartDelay + FLOW.attackTravelMs;
+    const attackStartDelay = FLOW.cardToFieldMs + FLOW.cardSettleMs;
+    const impactDelayMs =
+      attackStartDelay +
+      FLOW.attackWindupMs +
+      TARGET_ATTACK_WINDUP_EXTRA_MS +
+      FLOW.attackTravelMs +
+      TARGET_ATTACK_TRAVEL_EXTRA_MS;
     const replacementDelayMs =
       attackStartDelay +
+      FLOW.attackWindupMs +
+      TARGET_ATTACK_WINDUP_EXTRA_MS +
       FLOW.attackTravelMs +
+      TARGET_ATTACK_TRAVEL_EXTRA_MS +
       FLOW.impactPauseMs +
       FLOW.targetExitMs +
+      TARGET_ATTACK_EXIT_EXTRA_MS +
       FLOW.replacementGapMs;
     const combatResolveEndMs = replacementDelayMs + FLOW.targetEnterMs;
     const drawStartDelayMs = impactDelayMs + FLOW.impactPauseMs + FLOW.drawSettleMs;
@@ -2064,6 +2143,10 @@ export const Battle: React.FC<BattleProps> = ({
         });
         commitOutgoingHands({
           ...outgoingHandsRef.current,
+          [side]: [],
+        });
+        commitOutgoingTargets({
+          ...outgoingTargetsRef.current,
           [side]: [],
         });
         commitPendingMulliganDrawCounts({
@@ -2688,7 +2771,8 @@ export const Battle: React.FC<BattleProps> = ({
   const enemyFieldSlots = Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
     const visualTarget = stableTargets[remotePlayerIndex][idx];
     const incomingTarget = incomingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-    const displayedTarget = incomingTarget?.entity ?? visualTarget;
+    const outgoingTarget = outgoingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
+    const displayedTarget = outgoingTarget?.entity ?? incomingTarget?.entity ?? visualTarget;
     const slotNode = zoneNodesRef.current[zoneRefKey("enemyField", `slot-${idx}`)];
 
     return {
@@ -2696,18 +2780,21 @@ export const Battle: React.FC<BattleProps> = ({
       slotRef: bindZoneRef("enemyField", `slot-${idx}`),
       displayedTarget,
       incomingTarget,
+      outgoingTarget,
       slotRect: slotNode?.getBoundingClientRect() ?? null,
       selectedCard: null,
       canClick: false,
       onClick: () => {},
       onIncomingTargetComplete: commitIncomingTargetToField,
+      onOutgoingTargetComplete: handleOutgoingTargetComplete,
       playerHand: [],
     };
   });
   const playerFieldSlots = Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
     const visualTarget = stableTargets[localPlayerIndex][idx];
     const incomingTarget = incomingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-    const displayedTarget = incomingTarget?.entity ?? visualTarget;
+    const outgoingTarget = outgoingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
+    const displayedTarget = outgoingTarget?.entity ?? incomingTarget?.entity ?? visualTarget;
     const slotNode = zoneNodesRef.current[zoneRefKey("playerField", `slot-${idx}`)];
 
     return {
@@ -2715,6 +2802,7 @@ export const Battle: React.FC<BattleProps> = ({
       slotRef: bindZoneRef("playerField", `slot-${idx}`),
       displayedTarget,
       incomingTarget,
+      outgoingTarget,
       slotRect: slotNode?.getBoundingClientRect() ?? null,
       selectedCard,
       pendingCard: pendingTargetPlacements[localPlayerIndex][idx],
@@ -2730,6 +2818,7 @@ export const Battle: React.FC<BattleProps> = ({
       ),
       onClick: () => playOnTarget(idx),
       onIncomingTargetComplete: commitIncomingTargetToField,
+      onOutgoingTargetComplete: handleOutgoingTargetComplete,
       playerHand: me.hand,
     };
   });
@@ -3073,7 +3162,7 @@ export const Battle: React.FC<BattleProps> = ({
               <div>{`incomingLocal:[${incomingHands[localPlayerIndex].map((card) => `${card.card.syllable}@${card.finalIndex}/${card.finalTotal}`).join(",")}] outgoingLocal:[${outgoingHands[localPlayerIndex].map((card) => card.card.syllable).join(",")}] pendingLocal:${pendingMulliganDrawCounts[localPlayerIndex]}`}</div>
               <div>{`stableRemote:[${stableHands[remotePlayerIndex].map((card) => card.syllable).join(",")}]`}</div>
               <div>{`logicRemote:[${game.players[remotePlayerIndex].hand.join(",")}] incomingRemote:[${incomingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] outgoingRemote:[${outgoingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] pendingRemote:${pendingMulliganDrawCounts[remotePlayerIndex]}`}</div>
-              <div>{`travel:${travelMotions.length} targetMotion:${targetMotions.length} incomingTargetP:${incomingTargets[PLAYER].length} incomingTargetE:${incomingTargets[ENEMY].length}`}</div>
+              <div>{`travel:${travelMotions.length} targetMotion:${targetMotions.length} incomingTargetP:${incomingTargets[PLAYER].length} incomingTargetE:${incomingTargets[ENEMY].length} outgoingTargetP:${outgoingTargets[PLAYER].length} outgoingTargetE:${outgoingTargets[ENEMY].length}`}</div>
               <div>{`travelDetails:[${travelMotions.map((motion) => `${motion.kind}:${motion.label}:${motion.from}->${motion.to}`).join(" | ")}]`}</div>
               <div>{`targetDetails:[${targetMotions.map((motion) => `${motion.type}:${motion.entity.target.name}:${motion.side}:${motion.slotIndex}`).join(" | ")}]`}</div>
               <div>{`pendingPlaceLocal:[${pendingTargetPlacements[localPlayerIndex].map((value) => value ?? "-").join(",")}] lockedLocal:[${lockedTargetSlots[localPlayerIndex].map((value) => (value ? 1 : 0)).join(",")}]`}</div>

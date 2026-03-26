@@ -55,7 +55,6 @@ export const resolveBattlePlayAction = (
     damageSource = target.name;
     impactLife = Math.max(0, opponent.life - resolvedDamage);
     opponent.flashDamage = 0;
-    target.attacking = true;
     actor.syllableDeck = [...actor.syllableDeck, ...target.progress];
     completedSlot = targetIndex;
     if (impactLife <= 0) winner = currentIndex;

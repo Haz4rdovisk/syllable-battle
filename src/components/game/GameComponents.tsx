@@ -70,6 +70,7 @@ export interface TargetTransitMotion {
   destination: ZoneAnchorSnapshot;
   delayMs?: number;
   durationMs?: number;
+  windupMs?: number;
   attackMs?: number;
   pauseMs?: number;
   exitMs?: number;
@@ -109,6 +110,8 @@ const travelTargetCardSizeStyle = {
   height:
     "clamp(var(--battle-target-card-min-height,156px), 19vh, var(--battle-target-card-max-height,212px))",
 } as React.CSSProperties;
+
+const clampTargetMotionScale = (value: number) => Math.min(1.5, Math.max(0.55, value));
 
 export const getTravelSyllableCardSize = (
   viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280,
@@ -458,6 +461,12 @@ export const TargetMotionLayer: React.FC<TargetMotionLayerProps> = ({
           const startY = targetMotion.origin.top + targetMotion.origin.height / 2 - height / 2;
           const endX = targetMotion.destination.left + targetMotion.destination.width / 2 - width / 2;
           const endY = targetMotion.destination.top + targetMotion.destination.height / 2 - height / 2;
+          const startScale = clampTargetMotionScale(
+            Math.min(targetMotion.origin.width / width, targetMotion.origin.height / height),
+          );
+          const endScale = clampTargetMotionScale(
+            Math.min(targetMotion.destination.width / width, targetMotion.destination.height / height),
+          );
 
           if (targetMotion.type === "enter") {
             const startRotate = targetMotion.side === "player" ? 12 : -12;
@@ -465,13 +474,13 @@ export const TargetMotionLayer: React.FC<TargetMotionLayerProps> = ({
               <motion.div
                 key={targetMotion.id}
                 data-target-entity-id={targetMotion.entity.id}
-                initial={{ opacity: 1, x: startX, y: startY, rotate: startRotate, scale: 0.88 }}
+                initial={{ opacity: 1, x: startX, y: startY, rotate: startRotate, scale: startScale }}
                 animate={{
                   opacity: [1, 1, 1, 1],
                   x: [startX, startX, endX, endX],
                   y: [startY, startY, endY, endY],
                   rotate: [startRotate, startRotate, 0, 0],
-                  scale: [0.88, 0.88, 1.01, 1],
+                  scale: [startScale, startScale, Math.max(startScale, endScale) + 0.02, endScale],
                 }}
                 transition={{
                   duration: (targetMotion.durationMs ?? 920) / 1000,
@@ -493,30 +502,66 @@ export const TargetMotionLayer: React.FC<TargetMotionLayerProps> = ({
             );
           }
 
+          const windupMs = targetMotion.windupMs ?? 310;
           const attackMs = targetMotion.attackMs ?? 760;
           const pauseMs = targetMotion.pauseMs ?? 180;
           const exitMs = targetMotion.exitMs ?? 780;
-          const totalMs = attackMs + pauseMs + exitMs;
-          const impactX = startX + (targetMotion.side === "player" ? 0 : 0);
-          const impactY = startY + (targetMotion.side === "player" ? -118 : 118);
+          const totalMs = windupMs + attackMs + pauseMs + exitMs;
+          const originWidth = Math.max(1, targetMotion.origin.width);
+          const originHeight = Math.max(1, targetMotion.origin.height);
+          const destinationWidth = Math.max(1, targetMotion.destination.width);
+          const destinationHeight = Math.max(1, targetMotion.destination.height);
+          const motionStartX = targetMotion.origin.left;
+          const motionStartY = targetMotion.origin.top;
+          const motionEndX = targetMotion.destination.left;
+          const motionEndY = targetMotion.destination.top;
+          const impactX = motionStartX;
+          const impactY = motionStartY + (targetMotion.side === "player" ? -118 : 118);
+          const impactRotate = targetMotion.side === "player" ? -8 : 8;
+          const endRotate = targetMotion.side === "player" ? 10 : -10;
 
           return (
             <motion.div
               key={targetMotion.id}
               data-target-entity-id={targetMotion.entity.id}
-              initial={{ opacity: 1, x: startX, y: startY, rotate: 0, scale: 1 }}
+              style={{
+                width: originWidth,
+                height: originHeight,
+                transformOrigin: "center center",
+              }}
+              initial={{
+                opacity: 1,
+                x: motionStartX,
+                y: motionStartY,
+                width: originWidth,
+                height: originHeight,
+                rotate: 0,
+              }}
               animate={{
-                opacity: [1, 1, 1, 1],
-                x: [startX, impactX, impactX, endX],
-                y: [startY, impactY, impactY, endY],
-                rotate: [0, targetMotion.side === "player" ? -10 : 10, targetMotion.side === "player" ? -10 : 10, targetMotion.side === "player" ? 12 : -12],
-                scale: [1, 1.05, 1.02, 0.88],
+                opacity: [1, 1, 1, 1, 1],
+                x: [motionStartX, motionStartX, impactX, impactX, motionEndX],
+                y: [motionStartY, motionStartY, impactY, impactY, motionEndY],
+                width: [originWidth, originWidth, originWidth, originWidth, destinationWidth],
+                height: [originHeight, originHeight, originHeight, originHeight, destinationHeight],
+                rotate: [
+                  0,
+                  0,
+                  impactRotate,
+                  impactRotate,
+                  endRotate,
+                ],
               }}
               transition={{
                 duration: totalMs / 1000,
                 delay: (targetMotion.delayMs ?? 0) / 1000,
                 ease: [0.22, 1, 0.36, 1],
-                times: [0, attackMs / totalMs, (attackMs + pauseMs) / totalMs, 1],
+                times: [
+                  0,
+                  windupMs / totalMs,
+                  (windupMs + attackMs) / totalMs,
+                  (windupMs + attackMs + pauseMs) / totalMs,
+                  1,
+                ],
               }}
               onAnimationComplete={() => onMotionComplete(targetMotion.id)}
               className="absolute left-0 top-0 will-change-transform"
@@ -527,6 +572,7 @@ export const TargetMotionLayer: React.FC<TargetMotionLayerProps> = ({
                 isPlayerSide={targetMotion.side === "player"}
                 canClick={false}
                 onClick={() => {}}
+                fitParent
               />
             </motion.div>
           );
