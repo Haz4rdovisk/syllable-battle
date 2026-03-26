@@ -55,6 +55,7 @@ const FIXTURE_TARGET_ENTER_STAGGER_MS = 220;
 const FIXTURE_TARGET_ENTER_SETTLE_MS = 560;
 const FIXTURE_TARGET_LOOP_GAP_MS = 680;
 const FIXTURE_TARGET_ENTER_DURATION_MS = 780;
+const FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS = 240;
 const FIXTURE_POST_PLAY_DRAW_DURATION_MS = 940;
 const FIXTURE_POST_PLAY_DRAW_SETTLE_MS = 220;
 const FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS = 680;
@@ -79,6 +80,14 @@ const openingTargetEntryAnchorToolByPreset: Partial<
   "opening-target-entry-1": "opening-target-entry-1-origin",
   "opening-target-entry-2": "opening-target-entry-2-origin",
   "opening-target-entry-3": "opening-target-entry-3-origin",
+};
+const replacementTargetEntryAnchorToolByPreset: Partial<
+  Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
+> = {
+  "replacement-target-entry-0": "replacement-target-entry-0-origin",
+  "replacement-target-entry-1": "replacement-target-entry-1-origin",
+  "replacement-target-entry-2": "replacement-target-entry-2-origin",
+  "replacement-target-entry-3": "replacement-target-entry-3-origin",
 };
 const targetAttackImpactAnchorToolByPreset: Partial<
   Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
@@ -142,6 +151,16 @@ const getHandPlayTargetIndexFromPreset = (
 ): 0 | 1 | null => {
   if (preset === "hand-play-target-0") return 0;
   if (preset === "hand-play-target-1") return 1;
+  return null;
+};
+
+const getReplacementTargetEntryIndexFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 0 | 1 | 2 | 3 | null => {
+  if (preset === "replacement-target-entry-0") return 0;
+  if (preset === "replacement-target-entry-1") return 1;
+  if (preset === "replacement-target-entry-2") return 2;
+  if (preset === "replacement-target-entry-3") return 3;
   return null;
 };
 
@@ -251,6 +270,10 @@ export const BattleSceneFixtureView: React.FC<{
     openingTargetEntry1Origin: null,
     openingTargetEntry2Origin: null,
     openingTargetEntry3Origin: null,
+    replacementTargetEntry0Origin: null,
+    replacementTargetEntry1Origin: null,
+    replacementTargetEntry2Origin: null,
+    replacementTargetEntry3Origin: null,
     postPlayHandDrawOrigin: null,
     handPlayTarget0Destination: null,
     handPlayTarget1Destination: null,
@@ -524,6 +547,14 @@ export const BattleSceneFixtureView: React.FC<{
           return animationAnchors.openingTargetEntry2Origin;
         case "opening-target-entry-3-origin":
           return animationAnchors.openingTargetEntry3Origin;
+        case "replacement-target-entry-0-origin":
+          return animationAnchors.replacementTargetEntry0Origin;
+        case "replacement-target-entry-1-origin":
+          return animationAnchors.replacementTargetEntry1Origin;
+        case "replacement-target-entry-2-origin":
+          return animationAnchors.replacementTargetEntry2Origin;
+        case "replacement-target-entry-3-origin":
+          return animationAnchors.replacementTargetEntry3Origin;
         case "post-play-hand-draw-origin":
           return animationAnchors.postPlayHandDrawOrigin;
         case "hand-play-target-0-destination":
@@ -569,6 +600,13 @@ export const BattleSceneFixtureView: React.FC<{
     [animationAnchors],
   );
   const visibleAnimationAnchors = useMemo(() => {
+    if (animationSet === "replacement-target-entry") {
+      const anchor =
+        replacementTargetEntryAnchorToolByPreset[animationPreset] ?? null;
+      const point = getAnimationAnchorPoint(anchor);
+      return point && anchor ? [{ label: "O", anchor, point }] : [];
+    }
+
     if (animationSet === "post-play-hand-draw") {
       const point = getAnimationAnchorPoint("post-play-hand-draw-origin");
       return point
@@ -785,6 +823,19 @@ export const BattleSceneFixtureView: React.FC<{
       );
     }
 
+    if (animationSet === "replacement-target-entry") {
+      const replacementIndex =
+        getReplacementTargetEntryIndexFromPreset(animationPreset);
+      lines.push(`replacementPreset:${replacementIndex ?? "-"}`);
+      lines.push(
+        `replacementOrigin:${formatPoint(
+          getAnimationAnchorPoint(
+            replacementTargetEntryAnchorToolByPreset[animationPreset] ?? null,
+          ),
+        )}`,
+      );
+    }
+
     if (
       animationSet === "mulligan-hand-return" ||
       animationSet === "mulligan-hand-draw"
@@ -946,6 +997,10 @@ export const BattleSceneFixtureView: React.FC<{
       animationSet === "opening-target-entry-first-round" &&
       (animationMode === "opening-target-entry-loop" ||
         animationMode === "opening-target-entry-play-once");
+    const isReplacementTargetEntryAnimation =
+      animationSet === "replacement-target-entry" &&
+      (animationMode === "replacement-target-entry-loop" ||
+        animationMode === "replacement-target-entry-play-once");
     const isPostPlayHandDrawAnimation =
       animationSet === "post-play-hand-draw" &&
       (animationMode === "post-play-hand-draw-loop" ||
@@ -970,6 +1025,7 @@ export const BattleSceneFixtureView: React.FC<{
     if (
       animationPreset === "none" ||
       (!isOpeningTargetEntryAnimation &&
+        !isReplacementTargetEntryAnimation &&
         !isPostPlayHandDrawAnimation &&
         !isHandPlayTargetAnimation &&
         !isMulliganReturnAnimation &&
@@ -1108,6 +1164,101 @@ export const BattleSceneFixtureView: React.FC<{
         const restartTimer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;
           startOpeningLoop();
+        }, totalMs + FIXTURE_TARGET_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, totalMs + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
+    const startReplacementTargetEntryLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+
+      setIncomingPreviewTargets({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+
+      const replacementIndex =
+        getReplacementTargetEntryIndexFromPreset(animationPreset);
+      if (replacementIndex == null) {
+        resetPreviewAnimation();
+        return;
+      }
+      const side = replacementIndex >= 2 ? ENEMY : PLAYER;
+      const slotIndex = replacementIndex % 2;
+      const sourceSlot =
+        side === PLAYER
+          ? fixture.scene.board.playerFieldSlots[slotIndex]
+          : fixture.scene.board.enemyFieldSlots[slotIndex];
+      const entity = sourceSlot?.displayedTarget ?? null;
+
+      if (!entity) {
+        resetPreviewAnimation();
+        return;
+      }
+
+      const anchorTool =
+        replacementTargetEntryAnchorToolByPreset[animationPreset] ?? null;
+      const anchorPoint = getAnimationAnchorPoint(anchorTool);
+      const origin = anchorPoint
+        ? {
+            left: anchorPoint.x,
+            top: anchorPoint.y,
+            width: 0,
+            height: 0,
+          }
+        : readElementSnapshot(
+            side === PLAYER ? "playerTargetDeck" : "enemyTargetDeck",
+          );
+
+      if (!origin) {
+        updateHiddenStableTarget(side, slotIndex, false);
+        return;
+      }
+
+      setHiddenStableTargets({
+        [PLAYER]: fixture.scene.board.playerFieldSlots.map((slot, index) =>
+          side === PLAYER && index === slotIndex ? Boolean(slot.displayedTarget) : false,
+        ),
+        [ENEMY]: fixture.scene.board.enemyFieldSlots.map((slot, index) =>
+          side === ENEMY && index === slotIndex ? Boolean(slot.displayedTarget) : false,
+        ),
+      });
+
+      const timer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        setIncomingPreviewTargets((current) => ({
+          ...current,
+          [side]: [
+            ...current[side],
+            {
+              id: `fixture-replacement-target-${animationRunId}-${generation}-${side}-${slotIndex}`,
+              side,
+              slotIndex,
+              entryIndex: replacementIndex,
+              entity,
+              origin,
+              delayMs: 0,
+              durationMs: FIXTURE_TARGET_ENTER_DURATION_MS,
+            },
+          ],
+        }));
+      }, 0);
+      animationTimersRef.current.push(timer);
+
+      const totalMs =
+        FIXTURE_TARGET_ENTER_DURATION_MS +
+        FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS;
+
+      if (animationMode === "replacement-target-entry-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startReplacementTargetEntryLoop();
         }, totalMs + FIXTURE_TARGET_LOOP_GAP_MS);
         animationTimersRef.current.push(restartTimer);
       } else {
@@ -1564,6 +1715,8 @@ export const BattleSceneFixtureView: React.FC<{
 
     if (isOpeningTargetEntryAnimation) {
       startOpeningLoop();
+    } else if (isReplacementTargetEntryAnimation) {
+      startReplacementTargetEntryLoop();
     } else if (isPostPlayHandDrawAnimation) {
       startPostPlayHandDrawLoop();
     } else if (isHandPlayTargetAnimation) {

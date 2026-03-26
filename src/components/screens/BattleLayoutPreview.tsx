@@ -38,6 +38,10 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
     openingTargetEntry1Origin: null,
     openingTargetEntry2Origin: null,
     openingTargetEntry3Origin: null,
+    replacementTargetEntry0Origin: null,
+    replacementTargetEntry1Origin: null,
+    replacementTargetEntry2Origin: null,
+    replacementTargetEntry3Origin: null,
     postPlayHandDrawOrigin: null,
     handPlayTarget0Destination: null,
     handPlayTarget1Destination: null,
@@ -109,6 +113,18 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
         openingTargetEntry3Origin:
           parsed.animationAnchors?.openingTargetEntry3Origin ??
           defaultPreviewState.animationAnchors.openingTargetEntry3Origin,
+        replacementTargetEntry0Origin:
+          parsed.animationAnchors?.replacementTargetEntry0Origin ??
+          defaultPreviewState.animationAnchors.replacementTargetEntry0Origin,
+        replacementTargetEntry1Origin:
+          parsed.animationAnchors?.replacementTargetEntry1Origin ??
+          defaultPreviewState.animationAnchors.replacementTargetEntry1Origin,
+        replacementTargetEntry2Origin:
+          parsed.animationAnchors?.replacementTargetEntry2Origin ??
+          defaultPreviewState.animationAnchors.replacementTargetEntry2Origin,
+        replacementTargetEntry3Origin:
+          parsed.animationAnchors?.replacementTargetEntry3Origin ??
+          defaultPreviewState.animationAnchors.replacementTargetEntry3Origin,
         postPlayHandDrawOrigin:
           parsed.animationAnchors?.postPlayHandDrawOrigin ??
           defaultPreviewState.animationAnchors.postPlayHandDrawOrigin,

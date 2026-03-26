@@ -139,6 +139,10 @@ export interface BattleAnimationLayoutConfig {
   openingTargetEntry1Origin: BattleAnimationAnchorPoint | null;
   openingTargetEntry2Origin: BattleAnimationAnchorPoint | null;
   openingTargetEntry3Origin: BattleAnimationAnchorPoint | null;
+  replacementTargetEntry0Origin: BattleAnimationAnchorPoint | null;
+  replacementTargetEntry1Origin: BattleAnimationAnchorPoint | null;
+  replacementTargetEntry2Origin: BattleAnimationAnchorPoint | null;
+  replacementTargetEntry3Origin: BattleAnimationAnchorPoint | null;
   postPlayHandDrawOrigin: BattleAnimationAnchorPoint | null;
   handPlayTarget0Destination: BattleAnimationAnchorPoint | null;
   handPlayTarget1Destination: BattleAnimationAnchorPoint | null;
@@ -255,6 +259,10 @@ const defaultAnimationLayout: BattleAnimationLayoutConfig = {
   openingTargetEntry1Origin: null,
   openingTargetEntry2Origin: null,
   openingTargetEntry3Origin: null,
+  replacementTargetEntry0Origin: null,
+  replacementTargetEntry1Origin: null,
+  replacementTargetEntry2Origin: null,
+  replacementTargetEntry3Origin: null,
   postPlayHandDrawOrigin: null,
   handPlayTarget0Destination: null,
   handPlayTarget1Destination: null,

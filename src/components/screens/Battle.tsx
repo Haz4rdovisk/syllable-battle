@@ -877,6 +877,30 @@ export const Battle: React.FC<BattleProps> = ({
     },
     [handPlayTargetPointsByIndex, localPlayerIndex, snapshotSceneAnimationOrigin],
   );
+  const replacementTargetEntryPointsByIndex = useMemo(
+    () => ({
+      0: activeBattleLayout.animations.replacementTargetEntry0Origin,
+      1: activeBattleLayout.animations.replacementTargetEntry1Origin,
+      2: activeBattleLayout.animations.replacementTargetEntry2Origin,
+      3: activeBattleLayout.animations.replacementTargetEntry3Origin,
+    }),
+    [
+      activeBattleLayout.animations.replacementTargetEntry0Origin,
+      activeBattleLayout.animations.replacementTargetEntry1Origin,
+      activeBattleLayout.animations.replacementTargetEntry2Origin,
+      activeBattleLayout.animations.replacementTargetEntry3Origin,
+    ],
+  );
+  const getReplacementTargetEntryOriginSnapshot = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, slotIndex: number) => {
+      if (slotIndex !== 0 && slotIndex !== 1) return null;
+      const replacementIndex = side * CONFIG.targetsInPlay + slotIndex;
+      return snapshotSceneAnimationOrigin(
+        replacementTargetEntryPointsByIndex[replacementIndex],
+      );
+    },
+    [replacementTargetEntryPointsByIndex, snapshotSceneAnimationOrigin],
+  );
   const mulliganReturnPointsByCount = useMemo(
     () => ({
       1: activeBattleLayout.animations.mulliganReturn1Destination,
@@ -1955,6 +1979,7 @@ export const Battle: React.FC<BattleProps> = ({
 
       const activeDeckSlot = isDesktopViewport ? "desktop" : "mobile";
       const origin =
+        getReplacementTargetEntryOriginSnapshot(actorIndex, slotIndex) ??
         snapshotZoneSlot(zoneIdForSide(actorIndex, "targetDeck"), activeDeckSlot) ??
         snapshotZone(zoneIdForSide(actorIndex, "targetDeck"));
       const entity = toVisualTarget(logicalTarget, actorIndex, slotIndex);
@@ -1975,7 +2000,7 @@ export const Battle: React.FC<BattleProps> = ({
         durationMs: TIMINGS.leaveMs,
       });
     },
-    [appendIncomingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot, toVisualTarget],
+    [appendIncomingTarget, getReplacementTargetEntryOriginSnapshot, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot, toVisualTarget],
   );
 
   const commitIncomingTargetToField = useCallback(

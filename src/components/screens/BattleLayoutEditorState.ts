@@ -20,6 +20,8 @@ export type BattleLayoutPreviewAnimationMode =
   | "idle"
   | "opening-target-entry-play-once"
   | "opening-target-entry-loop"
+  | "replacement-target-entry-play-once"
+  | "replacement-target-entry-loop"
   | "post-play-hand-draw-play-once"
   | "post-play-hand-draw-loop"
   | "hand-play-target-play-once"
@@ -32,6 +34,7 @@ export type BattleLayoutPreviewAnimationMode =
   | "target-attack-loop";
 export type BattleLayoutPreviewAnimationSet =
   | "opening-target-entry-first-round"
+  | "replacement-target-entry"
   | "post-play-hand-draw"
   | "hand-play-target"
   | "mulligan-hand-return"
@@ -44,6 +47,10 @@ export type BattleLayoutPreviewAnimationPreset =
   | "opening-target-entry-2"
   | "opening-target-entry-3"
   | "opening-target-entry-simultaneous"
+  | "replacement-target-entry-0"
+  | "replacement-target-entry-1"
+  | "replacement-target-entry-2"
+  | "replacement-target-entry-3"
   | "post-play-hand-draw"
   | "hand-play-target-0"
   | "hand-play-target-1"
@@ -64,6 +71,10 @@ export type BattleLayoutPreviewAnimationAnchorKey =
   | "opening-target-entry-1-origin"
   | "opening-target-entry-2-origin"
   | "opening-target-entry-3-origin"
+  | "replacement-target-entry-0-origin"
+  | "replacement-target-entry-1-origin"
+  | "replacement-target-entry-2-origin"
+  | "replacement-target-entry-3-origin"
   | "post-play-hand-draw-origin"
   | "hand-play-target-0-destination"
   | "hand-play-target-1-destination"
@@ -92,6 +103,10 @@ export interface BattleLayoutPreviewAnimationAnchors {
   openingTargetEntry1Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
   openingTargetEntry2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
   openingTargetEntry3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  replacementTargetEntry0Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  replacementTargetEntry1Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  replacementTargetEntry2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
+  replacementTargetEntry3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
   postPlayHandDrawOrigin: BattleLayoutPreviewAnimationAnchorPoint | null;
   handPlayTarget0Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   handPlayTarget1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
@@ -300,6 +315,18 @@ export function normalizeBattleLayoutEditorPreviewState(
       ),
       openingTargetEntry3Origin: clampAnimationPoint(
         state.animationAnchors?.openingTargetEntry3Origin,
+      ),
+      replacementTargetEntry0Origin: clampAnimationPoint(
+        state.animationAnchors?.replacementTargetEntry0Origin,
+      ),
+      replacementTargetEntry1Origin: clampAnimationPoint(
+        state.animationAnchors?.replacementTargetEntry1Origin,
+      ),
+      replacementTargetEntry2Origin: clampAnimationPoint(
+        state.animationAnchors?.replacementTargetEntry2Origin,
+      ),
+      replacementTargetEntry3Origin: clampAnimationPoint(
+        state.animationAnchors?.replacementTargetEntry3Origin,
       ),
       postPlayHandDrawOrigin: clampAnimationPoint(
         state.animationAnchors?.postPlayHandDrawOrigin,

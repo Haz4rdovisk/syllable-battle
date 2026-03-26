@@ -178,6 +178,8 @@ const parseViewportValue = (rawValue: string, fallback: number) => {
 const OPENING_TARGET_ENTRY_STAGGER_MS = 220;
 const OPENING_TARGET_ENTRY_DURATION_MS = 780;
 const OPENING_TARGET_ENTRY_SETTLE_MS = 560;
+const REPLACEMENT_TARGET_ENTRY_DURATION_MS = 780;
+const REPLACEMENT_TARGET_ENTRY_SETTLE_MS = 240;
 const POST_PLAY_HAND_DRAW_DURATION_MS = 940;
 const POST_PLAY_HAND_DRAW_SETTLE_MS = 220;
 const HAND_PLAY_TARGET_DURATION_MS = 660;
@@ -202,6 +204,14 @@ const openingTargetEntryAnchorToolByPreset: Partial<
   "opening-target-entry-2": "opening-target-entry-2-origin",
   "opening-target-entry-3": "opening-target-entry-3-origin",
 };
+const replacementTargetEntryAnchorToolByPreset: Partial<
+  Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
+> = {
+  "replacement-target-entry-0": "replacement-target-entry-0-origin",
+  "replacement-target-entry-1": "replacement-target-entry-1-origin",
+  "replacement-target-entry-2": "replacement-target-entry-2-origin",
+  "replacement-target-entry-3": "replacement-target-entry-3-origin",
+};
 const handPlayTargetDestinationAnchorToolByPreset = {
   "hand-play-target-0": "hand-play-target-0-destination",
   "hand-play-target-1": "hand-play-target-1-destination",
@@ -211,6 +221,10 @@ const defaultAnimationAnchors: BattleLayoutPreviewAnimationAnchors = {
   openingTargetEntry1Origin: null,
   openingTargetEntry2Origin: null,
   openingTargetEntry3Origin: null,
+  replacementTargetEntry0Origin: null,
+  replacementTargetEntry1Origin: null,
+  replacementTargetEntry2Origin: null,
+  replacementTargetEntry3Origin: null,
   postPlayHandDrawOrigin: null,
   handPlayTarget0Destination: null,
   handPlayTarget1Destination: null,
@@ -238,6 +252,10 @@ const animationSetOptions: Array<{
   {
     value: "opening-target-entry-first-round",
     label: "Entrada de alvos - Primeiro Round",
+  },
+  {
+    value: "replacement-target-entry",
+    label: "Entrada do proximo alvo - Pos ataque",
   },
   {
     value: "post-play-hand-draw",
@@ -271,6 +289,13 @@ const animationPresetOptionsBySet: Record<
     { value: "opening-target-entry-2", label: "Entrada 2" },
     { value: "opening-target-entry-3", label: "Entrada 3" },
     { value: "opening-target-entry-simultaneous", label: "Simultanea" },
+  ],
+  "replacement-target-entry": [
+    { value: "none", label: "None" },
+    { value: "replacement-target-entry-0", label: "Entrada 0" },
+    { value: "replacement-target-entry-1", label: "Entrada 1" },
+    { value: "replacement-target-entry-2", label: "Entrada 2" },
+    { value: "replacement-target-entry-3", label: "Entrada 3" },
   ],
   "post-play-hand-draw": [
     { value: "none", label: "None" },
@@ -326,6 +351,16 @@ const getMulliganCountFromPreset = (
   return null;
 };
 
+const getReplacementTargetEntryIndexFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 0 | 1 | 2 | 3 | null => {
+  if (preset === "replacement-target-entry-0") return 0;
+  if (preset === "replacement-target-entry-1") return 1;
+  if (preset === "replacement-target-entry-2") return 2;
+  if (preset === "replacement-target-entry-3") return 3;
+  return null;
+};
+
 const mulliganDrawOriginAnchorToolByPreset = {
   "mulligan-hand-draw-1": "mulligan-hand-draw-1-origin",
   "mulligan-hand-draw-2": "mulligan-hand-draw-2-origin",
@@ -355,6 +390,11 @@ const getAnimationModeForAction = (
   animationSet: BattleLayoutPreviewAnimationSet,
   kind: "play" | "loop",
 ): BattleLayoutPreviewAnimationMode => {
+  if (animationSet === "replacement-target-entry") {
+    return kind === "loop"
+      ? "replacement-target-entry-loop"
+      : "replacement-target-entry-play-once";
+  }
   if (animationSet === "post-play-hand-draw") {
     return kind === "loop"
       ? "post-play-hand-draw-loop"
@@ -388,6 +428,9 @@ const getAnimationPreviewDurationMs = (
   preset: BattleLayoutPreviewAnimationPreset,
 ) => {
   if (preset === "none") return 0;
+  if (animationSet === "replacement-target-entry") {
+    return REPLACEMENT_TARGET_ENTRY_DURATION_MS + REPLACEMENT_TARGET_ENTRY_SETTLE_MS;
+  }
   if (animationSet === "post-play-hand-draw") {
     return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
   }
@@ -441,6 +484,14 @@ const getAnimationAnchorStateKey = (
       return "openingTargetEntry2Origin";
     case "opening-target-entry-3-origin":
       return "openingTargetEntry3Origin";
+    case "replacement-target-entry-0-origin":
+      return "replacementTargetEntry0Origin";
+    case "replacement-target-entry-1-origin":
+      return "replacementTargetEntry1Origin";
+    case "replacement-target-entry-2-origin":
+      return "replacementTargetEntry2Origin";
+    case "replacement-target-entry-3-origin":
+      return "replacementTargetEntry3Origin";
     case "post-play-hand-draw-origin":
       return "postPlayHandDrawOrigin";
     case "hand-play-target-0-destination":
@@ -835,6 +886,14 @@ const readInitialBattleLayoutEditorPreviewState = () => {
           parsed.animationAnchors?.openingTargetEntry2Origin ?? null,
         openingTargetEntry3Origin:
           parsed.animationAnchors?.openingTargetEntry3Origin ?? null,
+        replacementTargetEntry0Origin:
+          parsed.animationAnchors?.replacementTargetEntry0Origin ?? null,
+        replacementTargetEntry1Origin:
+          parsed.animationAnchors?.replacementTargetEntry1Origin ?? null,
+        replacementTargetEntry2Origin:
+          parsed.animationAnchors?.replacementTargetEntry2Origin ?? null,
+        replacementTargetEntry3Origin:
+          parsed.animationAnchors?.replacementTargetEntry3Origin ?? null,
         postPlayHandDrawOrigin:
           parsed.animationAnchors?.postPlayHandDrawOrigin ?? null,
         handPlayTarget0Destination:
@@ -966,6 +1025,14 @@ export const BattleLayoutEditor: React.FC = () => {
         initialPreviewState.layoutOverrides.animations?.openingTargetEntry2Origin ?? null,
       openingTargetEntry3Origin:
         initialPreviewState.layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
+      replacementTargetEntry0Origin:
+        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry0Origin ?? null,
+      replacementTargetEntry1Origin:
+        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry1Origin ?? null,
+      replacementTargetEntry2Origin:
+        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry2Origin ?? null,
+      replacementTargetEntry3Origin:
+        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry3Origin ?? null,
       postPlayHandDrawOrigin:
         initialPreviewState.layoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
       handPlayTarget0Destination:
@@ -1068,6 +1135,9 @@ export const BattleLayoutEditor: React.FC = () => {
     [layoutOverrides],
   );
   const getSelectedAnimationOriginAnchorTool = useCallback(() => {
+    if (animationSet === "replacement-target-entry") {
+      return replacementTargetEntryAnchorToolByPreset[animationPreset] ?? null;
+    }
     if (animationSet === "post-play-hand-draw") {
       return animationPreset === "post-play-hand-draw"
         ? ("post-play-hand-draw-origin" as const)
@@ -1129,6 +1199,13 @@ export const BattleLayoutEditor: React.FC = () => {
         const selectedEntry = allStagedTargets[entryIndex];
         anchorRect = getBattleElementSceneRect(
           selectedEntry?.side === ENEMY ? "enemyTargetDeck" : "playerTargetDeck",
+          layout,
+        );
+      } else if (anchorTool.startsWith("replacement-target-entry-")) {
+        const replacementIndex =
+          getReplacementTargetEntryIndexFromPreset(animationPreset) ?? 0;
+        anchorRect = getBattleElementSceneRect(
+          replacementIndex >= 2 ? "enemyTargetDeck" : "playerTargetDeck",
           layout,
         );
       } else if (anchorTool === "post-play-hand-draw-origin") {
@@ -1226,6 +1303,14 @@ export const BattleLayoutEditor: React.FC = () => {
         layoutOverrides.animations?.openingTargetEntry2Origin ?? null,
       openingTargetEntry3Origin:
         layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
+      replacementTargetEntry0Origin:
+        layoutOverrides.animations?.replacementTargetEntry0Origin ?? null,
+      replacementTargetEntry1Origin:
+        layoutOverrides.animations?.replacementTargetEntry1Origin ?? null,
+      replacementTargetEntry2Origin:
+        layoutOverrides.animations?.replacementTargetEntry2Origin ?? null,
+      replacementTargetEntry3Origin:
+        layoutOverrides.animations?.replacementTargetEntry3Origin ?? null,
       postPlayHandDrawOrigin:
         layoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
       handPlayTarget0Destination:
@@ -1388,6 +1473,7 @@ export const BattleLayoutEditor: React.FC = () => {
 
     const isPlayOnceMode =
       animationMode === "opening-target-entry-play-once" ||
+      animationMode === "replacement-target-entry-play-once" ||
       animationMode === "post-play-hand-draw-play-once" ||
       animationMode === "hand-play-target-play-once" ||
       animationMode === "target-attack-play-once";
