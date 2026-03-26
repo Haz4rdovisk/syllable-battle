@@ -25,6 +25,7 @@ import {
   BattleActionVisualState,
   BattleLayoutPreviewAnimationAnchors,
   BattleLayoutPreviewAnimationAnchorKey,
+  BattleLayoutPreviewAnimationSet,
   BattleChroniclesVisualState,
   BattleLayoutPreviewAnimationMode,
   BattleLayoutPreviewAnimationPreset,
@@ -107,6 +108,7 @@ export const BattleSceneFixtureView: React.FC<{
   actionVisualState?: BattleActionVisualState;
   statusVisualState?: BattleStatusVisualState;
   chroniclesVisualState?: BattleChroniclesVisualState;
+  animationSet?: BattleLayoutPreviewAnimationSet;
   animationMode?: BattleLayoutPreviewAnimationMode;
   animationPreset?: BattleLayoutPreviewAnimationPreset;
   animationRunId?: number;
@@ -126,6 +128,7 @@ export const BattleSceneFixtureView: React.FC<{
   actionVisualState = "normal",
   statusVisualState = "normal",
   chroniclesVisualState = "normal",
+  animationSet = "opening-target-entry-first-round",
   animationMode = "idle",
   animationPreset = "none",
   animationRunId = 0,
@@ -381,6 +384,7 @@ export const BattleSceneFixtureView: React.FC<{
 
   useEffect(() => {
     if (
+      animationSet !== "opening-target-entry-first-round" ||
       animationPreset === "none" ||
       animationMode !== "opening-target-entry-loop" &&
       animationMode !== "opening-target-entry-play-once"
@@ -530,7 +534,7 @@ export const BattleSceneFixtureView: React.FC<{
     return () => {
       clearAnimationTimers();
     };
-  }, [animationAnchors, animationMode, animationPreset, animationRunId, clearAnimationTimers, fixture.scene.board.enemyFieldSlots, fixture.scene.board.playerFieldSlots, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
+  }, [animationAnchors, animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, fixture.scene.board.enemyFieldSlots, fixture.scene.board.playerFieldSlots, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
 
   useEffect(() => () => resetPreviewAnimation(), [resetPreviewAnimation]);
 

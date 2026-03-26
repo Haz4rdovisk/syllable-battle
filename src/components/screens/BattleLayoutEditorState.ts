@@ -20,6 +20,8 @@ export type BattleLayoutPreviewAnimationMode =
   | "idle"
   | "opening-target-entry-play-once"
   | "opening-target-entry-loop";
+export type BattleLayoutPreviewAnimationSet =
+  "opening-target-entry-first-round";
 export type BattleLayoutPreviewAnimationPreset =
   | "none"
   | "opening-target-entry-0"
@@ -62,6 +64,7 @@ export interface BattleLayoutEditorPreviewState {
   actionVisualState: BattleActionVisualState;
   statusVisualState: BattleStatusVisualState;
   chroniclesVisualState: BattleChroniclesVisualState;
+  animationSet: BattleLayoutPreviewAnimationSet;
   animationMode: BattleLayoutPreviewAnimationMode;
   animationPreset: BattleLayoutPreviewAnimationPreset;
   animationRunId: number;
@@ -188,6 +191,7 @@ export function normalizeBattleLayoutEditorPreviewState(
     actionVisualState: state.actionVisualState ?? "normal",
     statusVisualState: state.statusVisualState ?? "normal",
     chroniclesVisualState: state.chroniclesVisualState ?? "normal",
+    animationSet: state.animationSet ?? "opening-target-entry-first-round",
     animationMode: state.animationMode ?? "idle",
     animationPreset: state.animationPreset ?? "none",
     animationRunId: Number.isFinite(state.animationRunId)

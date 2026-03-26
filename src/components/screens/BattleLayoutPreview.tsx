@@ -27,6 +27,7 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
   actionVisualState: "normal",
   statusVisualState: "normal",
   chroniclesVisualState: "normal",
+  animationSet: "opening-target-entry-first-round",
   animationMode: "idle",
   animationPreset: "none",
   animationRunId: 0,
@@ -67,6 +68,7 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
       actionVisualState: parsed.actionVisualState ?? defaultPreviewState.actionVisualState,
       statusVisualState: parsed.statusVisualState ?? defaultPreviewState.statusVisualState,
       chroniclesVisualState: parsed.chroniclesVisualState ?? defaultPreviewState.chroniclesVisualState,
+      animationSet: parsed.animationSet ?? defaultPreviewState.animationSet,
       animationMode: parsed.animationMode ?? defaultPreviewState.animationMode,
       animationPreset: parsed.animationPreset ?? defaultPreviewState.animationPreset,
       animationRunId: parsed.animationRunId ?? defaultPreviewState.animationRunId,
@@ -155,6 +157,7 @@ export const BattleLayoutPreview: React.FC = () => {
       actionVisualState={previewState.actionVisualState}
       statusVisualState={previewState.statusVisualState}
       chroniclesVisualState={previewState.chroniclesVisualState}
+      animationSet={previewState.animationSet}
       animationMode={previewState.animationMode}
       animationPreset={previewState.animationPreset}
       animationRunId={previewState.animationRunId}

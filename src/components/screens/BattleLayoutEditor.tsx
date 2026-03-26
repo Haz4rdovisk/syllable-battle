@@ -26,6 +26,7 @@ import {
   BattleActionVisualState,
   BattleLayoutPreviewAnimationAnchors,
   BattleLayoutPreviewAnimationAnchorKey,
+  BattleLayoutPreviewAnimationSet,
   BattleLayoutPreviewAnimationMode,
   BattleLayoutPreviewAnimationPreset,
   BattleEditorGroup,
@@ -192,6 +193,28 @@ const defaultAnimationAnchors: BattleLayoutPreviewAnimationAnchors = {
   openingTargetEntry1Origin: null,
   openingTargetEntry2Origin: null,
   openingTargetEntry3Origin: null,
+};
+const animationSetOptions: Array<{
+  value: BattleLayoutPreviewAnimationSet;
+  label: string;
+}> = [
+  {
+    value: "opening-target-entry-first-round",
+    label: "Entrada de alvos - Primeiro Round",
+  },
+];
+const animationPresetOptionsBySet: Record<
+  BattleLayoutPreviewAnimationSet,
+  Array<{ value: BattleLayoutPreviewAnimationPreset; label: string }>
+> = {
+  "opening-target-entry-first-round": [
+    { value: "none", label: "None" },
+    { value: "opening-target-entry-0", label: "Entrada 0" },
+    { value: "opening-target-entry-1", label: "Entrada 1" },
+    { value: "opening-target-entry-2", label: "Entrada 2" },
+    { value: "opening-target-entry-3", label: "Entrada 3" },
+    { value: "opening-target-entry-simultaneous", label: "Simultanea" },
+  ],
 };
 
 const getOpeningTargetAnimationPreviewDurationMs = (
@@ -435,6 +458,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       actionVisualState: "normal",
       statusVisualState: "normal",
       chroniclesVisualState: "normal",
+      animationSet: "opening-target-entry-first-round",
       animationMode: "idle",
       animationPreset: "none",
       animationRunId: 0,
@@ -467,6 +491,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         actionVisualState: "normal",
         statusVisualState: "normal",
         chroniclesVisualState: "normal",
+        animationSet: "opening-target-entry-first-round",
         animationMode: "idle",
         animationPreset: "none",
         animationRunId: 0,
@@ -490,6 +515,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         actionVisualState: "normal",
         statusVisualState: "normal",
         chroniclesVisualState: "normal",
+        animationSet: "opening-target-entry-first-round",
         animationMode: "idle",
         animationPreset: "none",
         animationRunId: 0,
@@ -519,6 +545,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       actionVisualState: parsed.actionVisualState ?? "normal",
       statusVisualState: parsed.statusVisualState ?? "normal",
       chroniclesVisualState: parsed.chroniclesVisualState ?? "normal",
+      animationSet: parsed.animationSet ?? "opening-target-entry-first-round",
       animationMode: "idle",
       animationPreset: parsed.animationPreset ?? "none",
       animationRunId: 0,
@@ -549,6 +576,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       actionVisualState: "normal",
       statusVisualState: "normal",
       chroniclesVisualState: "normal",
+      animationSet: "opening-target-entry-first-round",
       animationMode: "idle",
       animationPreset: "none",
       animationRunId: 0,
@@ -595,6 +623,10 @@ export const BattleLayoutEditor: React.FC = () => {
   const [chroniclesVisualState, setChroniclesVisualState] =
     useState<BattleChroniclesVisualState>(
       initialPreviewState.chroniclesVisualState,
+    );
+  const [animationSet, setAnimationSet] =
+    useState<BattleLayoutPreviewAnimationSet>(
+      initialPreviewState.animationSet ?? "opening-target-entry-first-round",
     );
   const [animationMode, setAnimationMode] =
     useState<BattleLayoutPreviewAnimationMode>("idle");
@@ -737,6 +769,7 @@ export const BattleLayoutEditor: React.FC = () => {
     });
   }, [animationPreset, fixtureKey, layout]);
   const isAnimationFeatureDisabled = animationPreset === "none";
+  const animationPresetOptions = animationPresetOptionsBySet[animationSet];
   const selectedAnimationAnchorTool =
     openingTargetEntryAnchorToolByPreset[animationPreset] ?? null;
   const isIndividualAnimationPreset = selectedAnimationAnchorTool !== null;
@@ -822,6 +855,7 @@ export const BattleLayoutEditor: React.FC = () => {
       actionVisualState,
       statusVisualState,
       chroniclesVisualState,
+      animationSet,
       animationMode,
       animationPreset,
       animationRunId,
@@ -858,6 +892,7 @@ export const BattleLayoutEditor: React.FC = () => {
     actionVisualState,
     statusVisualState,
     chroniclesVisualState,
+    animationSet,
     animationMode,
     animationPreset,
     animationRunId,
@@ -2853,6 +2888,28 @@ export const BattleLayoutEditor: React.FC = () => {
           </p>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
+              Set
+            </span>
+            <select
+              value={animationSet}
+              onChange={(event) => {
+                setAnimationMode("idle");
+                setAnimationRunId((current) => current + 1);
+                setAnimationAnchorTool(null);
+                setAnimationSet(event.target.value as BattleLayoutPreviewAnimationSet);
+                setAnimationPreset("none");
+              }}
+              className="rounded-xl border border-emerald-900/12 bg-white/80 px-3 py-2 text-sm font-semibold text-emerald-950 outline-none"
+            >
+              {animationSetOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
               Preset
             </span>
             <select
@@ -2865,12 +2922,11 @@ export const BattleLayoutEditor: React.FC = () => {
               }}
               className="rounded-xl border border-emerald-900/12 bg-white/80 px-3 py-2 text-sm font-semibold text-emerald-950 outline-none"
             >
-              <option value="none">None</option>
-              <option value="opening-target-entry-0">Entrada 0</option>
-              <option value="opening-target-entry-1">Entrada 1</option>
-              <option value="opening-target-entry-2">Entrada 2</option>
-              <option value="opening-target-entry-3">Entrada 3</option>
-              <option value="opening-target-entry-simultaneous">Simultanea</option>
+              {animationPresetOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <div className="flex gap-2">
