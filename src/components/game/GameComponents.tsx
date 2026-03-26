@@ -387,15 +387,9 @@ export const TargetCard: React.FC<TargetCardProps> = ({
       <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-[clamp(0.35rem,0.8vw,0.5rem)]">
         <div
           className="drop-shadow-2xl"
-          style={{ fontSize: "clamp(2.2rem, 4.8vw, 3.75rem)" }}
+          style={{ fontSize: "clamp(2.4rem, 5.2vw, 4rem)" }}
         >
           {target.emoji}
-        </div>
-        <div
-          className="absolute bottom-2 right-3 font-bold text-amber-900/40"
-          style={{ fontSize: "clamp(0.55rem, 0.8vw, 0.75rem)" }}
-        >
-          {target.progress.length}/{target.syllables.length}
         </div>
       </div>
 
@@ -407,7 +401,7 @@ export const TargetCard: React.FC<TargetCardProps> = ({
           {target.name}
         </div>
 
-        <div className="mt-1 flex flex-wrap justify-center gap-1 pb-1 sm:mt-1.5 sm:gap-1.5">
+        <div className="mt-1 flex translate-y-0.5 flex-wrap justify-center gap-1.25 pb-1 sm:mt-1.5 sm:translate-y-1 sm:gap-1.5">
           {target.syllables.map((syllable, i) => {
             const isDone = isSlotFilled(syllable, i);
             const isAvailableInHand = isPlayerSide && canStillFillSlot(syllable, i);
@@ -426,16 +420,16 @@ export const TargetCard: React.FC<TargetCardProps> = ({
               <div
                 key={`${syllable}-${i}`}
                 className={cn(
-                  "rounded-md border-2 px-[clamp(0.28rem,0.4vw,0.38rem)] py-0.5 font-black leading-none transition-all",
+                  "min-w-[clamp(1.74rem,2.36vw,2.18rem)] rounded-md border-2 px-[clamp(0.26rem,0.42vw,0.4rem)] py-[clamp(0.29rem,0.48vw,0.4rem)] text-center font-black leading-none transition-all",
                   isDone
-                    ? "border-emerald-700 bg-emerald-100 text-emerald-900"
+                    ? "border-emerald-700 bg-emerald-100 text-emerald-900 shadow-[0_2px_8px_rgba(5,46,22,0.16)]"
                     : isSelectedMatch || isPendingMatch
-                      ? "animate-pulse border-amber-500 bg-amber-200 text-amber-900"
+                      ? "animate-pulse border-amber-500 bg-amber-200 text-amber-900 shadow-[0_2px_10px_rgba(180,83,9,0.16)]"
                       : isAvailableInHand
-                        ? "border-amber-500 bg-amber-200 text-amber-900"
-                        : "border-amber-900/20 bg-amber-900/5 text-amber-900/40",
+                        ? "border-amber-500 bg-amber-200 text-amber-900 shadow-[0_2px_10px_rgba(180,83,9,0.16)]"
+                        : "border-amber-900/20 bg-amber-900/5 text-amber-900/50 shadow-[0_2px_8px_rgba(120,53,15,0.08)]",
                 )}
-                style={{ fontSize: "clamp(0.48rem, 0.7vw, 0.68rem)" }}
+                style={{ fontSize: "clamp(0.54rem, 0.78vw, 0.74rem)" }}
               >
                 {syllable}
               </div>
