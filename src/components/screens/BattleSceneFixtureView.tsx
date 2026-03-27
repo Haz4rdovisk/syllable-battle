@@ -3,6 +3,7 @@ import { Button } from "../ui/button";
 import { LogOut, RotateCcw } from "lucide-react";
 import { Syllable } from "../../types/game";
 import { BattleSceneView } from "./BattleSceneView";
+import { BattleBoardMessage } from "./BattleBoardMessage";
 import { BattleBoardShell } from "./BattleBoardShell";
 import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurface";
 import { BattlePillOverlay } from "./BattlePillOverlay";
@@ -3247,29 +3248,7 @@ export const BattleSceneFixtureView: React.FC<{
             <div className="flex h-full w-full items-center justify-center">
               <AnimatePresence mode="wait">
                 {previewBoardMessage ? (
-                  <motion.div
-                    key={previewBoardMessage.title}
-                    initial={{ opacity: 0, scale: 0.4, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 1.8, y: -20 }}
-                    className={cn(
-                      "paper-panel z-50 min-w-[260px] rounded-2xl border-4 px-8 py-4 shadow-[0_0_50px_rgba(0,0,0,0.5)]",
-                      previewBoardMessage.kind === "damage"
-                        ? "border-rose-900 bg-rose-50"
-                        : "border-amber-900 bg-amber-50",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "text-center font-serif text-3xl font-black uppercase tracking-tighter",
-                        previewBoardMessage.kind === "damage"
-                          ? "text-rose-900"
-                          : "text-amber-950",
-                      )}
-                    >
-                      {previewBoardMessage.title}
-                    </div>
-                  </motion.div>
+                  <BattleBoardMessage message={previewBoardMessage} />
                 ) : null}
               </AnimatePresence>
             </div>

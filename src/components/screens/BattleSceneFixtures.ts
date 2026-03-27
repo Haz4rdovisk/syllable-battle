@@ -166,7 +166,7 @@ export const midTurnBattleFixture: BattleSceneFixtureData = {
   },
   playerHand: playerHandBase,
   enemyHand: enemyHandBase,
-  selectedIndexes: [1],
+  selectedIndexes: [0],
   showPlayableHints: true,
   mulliganDisabled: false,
 };

@@ -31,6 +31,7 @@ import {
 } from "../game/GameComponents";
 import { BattleBoardShell } from "./BattleBoardShell";
 import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurface";
+import { BattleBoardMessage } from "./BattleBoardMessage";
 import { BattlePillOverlay } from "./BattlePillOverlay";
 import type {
   BattleAnimationAnchorPoint,
@@ -4211,29 +4212,7 @@ export const Battle: React.FC<BattleProps> = ({
             <div className="flex h-full w-full items-center justify-center">
               <AnimatePresence mode="wait">
                 {sceneViewModel.board.currentMessage ? (
-                  <motion.div
-                    key={sceneViewModel.board.currentMessage.title}
-                    initial={{ opacity: 0, scale: 0.4, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 1.8, y: -20 }}
-                    className={cn(
-                      "paper-panel z-50 min-w-[260px] rounded-2xl border-4 px-8 py-4 shadow-[0_0_50px_rgba(0,0,0,0.5)]",
-                      sceneViewModel.board.currentMessage.kind === "damage"
-                        ? "border-rose-900 bg-rose-50"
-                        : "border-amber-900 bg-amber-50",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "text-center font-serif text-3xl font-black uppercase tracking-tighter",
-                        sceneViewModel.board.currentMessage.kind === "damage"
-                          ? "text-rose-900"
-                          : "text-amber-950",
-                      )}
-                    >
-                      {sceneViewModel.board.currentMessage.title}
-                    </div>
-                  </motion.div>
+                  <BattleBoardMessage message={sceneViewModel.board.currentMessage} />
                 ) : null}
               </AnimatePresence>
             </div>

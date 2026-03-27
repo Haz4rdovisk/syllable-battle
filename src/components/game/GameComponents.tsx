@@ -147,6 +147,8 @@ export const TargetCard: React.FC<TargetCardProps> = ({
     isPlayerSide &&
     (placedCounts.get(normalizeSyllable(selectedCard as Syllable)) ?? 0) <
       target.syllables.filter((item) => normalizeSyllable(item) === normalizeSyllable(selectedCard as Syllable)).length;
+  const isCompleted = target.progress.length >= target.syllables.length && target.syllables.length > 0;
+  const isValidTarget = isMatch && canClick;
 
   const damage = RARITY_DAMAGE[normalizeRarity(target.rarity)];
 
@@ -164,10 +166,26 @@ export const TargetCard: React.FC<TargetCardProps> = ({
         target.entering && "animate-[cardEnter_.9s_ease-out]",
         target.attacking && "animate-[cardAttack_1.3s_ease-out]",
         target.leaving && "animate-[cardLeave_1.0s_ease-in_forwards]",
-        isMatch && "ring-4 ring-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.5)]",
-        selectedCard && isPlayerSide && !isMatch && "opacity-40 grayscale-[0.8]",
+        isCompleted && "ring-4 ring-amber-300/75 shadow-[0_0_28px_rgba(251,191,36,0.45)]",
+        isValidTarget && "z-20 -translate-y-1 ring-4 ring-emerald-300/80 shadow-[0_0_32px_rgba(52,211,153,0.45)]",
+        selectedCard && isPlayerSide && !isMatch && "opacity-35 grayscale-[0.82]",
       )}
     >
+      {(isCompleted || isValidTarget) && (
+        <div className="pointer-events-none absolute left-1/2 top-[2.5rem] z-20 -translate-x-1/2">
+          <div
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.22em] backdrop-blur-sm",
+              isCompleted
+                ? "border-amber-300/60 bg-amber-100/92 text-amber-950 shadow-[0_8px_18px_rgba(120,53,15,0.16)]"
+                : "border-emerald-300/60 bg-emerald-100/92 text-emerald-950 shadow-[0_8px_18px_rgba(5,46,22,0.16)]",
+            )}
+          >
+            {isCompleted ? "Completo" : "Valido"}
+          </div>
+        </div>
+      )}
+
       <div
         className={cn(
           "flex items-center justify-between border-b-2 border-[#d4af37] px-[clamp(0.55rem,0.8vw,0.75rem)] text-[clamp(0.5rem,0.7vw,0.68rem)] font-black uppercase text-white",
@@ -183,6 +201,12 @@ export const TargetCard: React.FC<TargetCardProps> = ({
       </div>
 
       <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-[clamp(0.35rem,0.8vw,0.5rem)]">
+        {isValidTarget ? (
+          <div className="pointer-events-none absolute inset-2 rounded-[1.2rem] border border-emerald-300/55 bg-emerald-200/8 shadow-[inset_0_0_26px_rgba(52,211,153,0.18)]" />
+        ) : null}
+        {isCompleted ? (
+          <div className="pointer-events-none absolute inset-2 rounded-[1.2rem] border border-amber-200/55 bg-amber-100/10 shadow-[inset_0_0_30px_rgba(251,191,36,0.2)]" />
+        ) : null}
         <div
           className="drop-shadow-2xl"
           style={{ fontSize: "clamp(2.4rem, 5.2vw, 4rem)" }}
@@ -222,9 +246,9 @@ export const TargetCard: React.FC<TargetCardProps> = ({
                   isDone
                     ? "border-emerald-700 bg-emerald-100 text-emerald-900 shadow-[0_2px_8px_rgba(5,46,22,0.16)]"
                     : isSelectedMatch || isPendingMatch
-                      ? "animate-pulse border-amber-500 bg-amber-200 text-amber-900 shadow-[0_2px_10px_rgba(180,83,9,0.16)]"
+                      ? "animate-pulse border-emerald-500 bg-emerald-100 text-emerald-950 shadow-[0_2px_12px_rgba(5,46,22,0.18)] ring-2 ring-emerald-300/40"
                       : isAvailableInHand
-                        ? "border-amber-500 bg-amber-200 text-amber-900 shadow-[0_2px_10px_rgba(180,83,9,0.16)]"
+                        ? "border-emerald-300/70 bg-emerald-50 text-emerald-900 shadow-[0_2px_10px_rgba(5,46,22,0.12)]"
                         : "border-amber-900/20 bg-amber-900/5 text-amber-900/50 shadow-[0_2px_8px_rgba(120,53,15,0.08)]",
                 )}
                 style={{ fontSize: "clamp(0.54rem, 0.78vw, 0.74rem)" }}
@@ -453,14 +477,22 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
         "relative flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 font-serif font-black shadow-2xl transition-all",
         battleCardSizePresetClass[sizePreset],
         selected
-          ? "z-40 border-amber-400 bg-amber-100 text-amber-950 ring-4 ring-amber-400/50"
+          ? "z-40 -translate-y-4 border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_24px_44px_rgba(120,53,15,0.26)]"
           : playable
-            ? "border-emerald-700 bg-emerald-100 text-emerald-900"
+            ? "border-emerald-700 bg-emerald-100 text-emerald-900 shadow-[0_0_20px_rgba(52,211,153,0.2)] ring-2 ring-emerald-300/30"
             : "border-amber-900/40 bg-amber-50 text-amber-900/60",
         newlyDrawn && "border-sky-300 bg-sky-50 text-sky-950 shadow-[0_0_30px_rgba(125,211,252,0.55)] ring-4 ring-sky-300/45",
         disabledVisual && "cursor-not-allowed grayscale-[0.78] saturate-50 brightness-90",
       )}
     >
+      {selected ? (
+        <div className="pointer-events-none absolute top-2 z-20 rounded-full border border-amber-400/40 bg-amber-100/92 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-amber-950 shadow-[0_8px_18px_rgba(120,53,15,0.16)]">
+          Selecionada
+        </div>
+      ) : null}
+      {playable && !selected && !disabled ? (
+        <div className="pointer-events-none absolute inset-x-3 bottom-2 z-20 h-3 rounded-full bg-[radial-gradient(circle,rgba(16,185,129,0.34)_0%,rgba(16,185,129,0)_72%)] blur-md" />
+      ) : null}
       <div className="z-10 text-2xl sm:text-4xl md:text-5xl">{syllable}</div>
       <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-25" />
       <div className="pointer-events-none absolute inset-1.5 rounded-lg border border-amber-900/15" />
@@ -513,6 +545,11 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
         className,
       )}
     >
+      {active ? (
+        <div className="pointer-events-none absolute right-3 top-1 z-30 rounded-full border border-amber-300/35 bg-amber-100/14 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-amber-100">
+          Vez
+        </div>
+      ) : null}
       <AnimatePresence>
         {showDamagePopup && flashDamage > 0 && (
           <motion.div
