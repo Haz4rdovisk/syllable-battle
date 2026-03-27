@@ -181,6 +181,7 @@ const OPENING_TARGET_ENTRY_SETTLE_MS = 560;
 const REPLACEMENT_TARGET_ENTRY_DURATION_MS = 780;
 const REPLACEMENT_TARGET_ENTRY_SETTLE_MS = 240;
 const PILL_DAMAGE_DURATION_MS = 1200;
+const PILL_TURN_DURATION_MS = 1120;
 const POST_PLAY_HAND_DRAW_DURATION_MS = 940;
 const POST_PLAY_HAND_DRAW_SETTLE_MS = 220;
 const HAND_PLAY_TARGET_DURATION_MS = 660;
@@ -257,6 +258,10 @@ const animationSetOptions: Array<{
     label: "Pill - Dano",
   },
   {
+    value: "pill-turn",
+    label: "Pill - Turno",
+  },
+  {
     value: "replacement-target-entry",
     label: "Entrada do proximo alvo - Pos ataque",
   },
@@ -309,6 +314,11 @@ const animationPresetOptionsBySet: Record<
     { value: "none", label: "None" },
     { value: "pill-damage-player", label: "Player" },
     { value: "pill-damage-enemy", label: "Inimigo" },
+  ],
+  "pill-turn": [
+    { value: "none", label: "None" },
+    { value: "pill-turn-player", label: "Seu turno" },
+    { value: "pill-turn-enemy", label: "Turno do oponente" },
   ],
   "replacement-target-entry": [
     { value: "none", label: "None" },
@@ -463,6 +473,9 @@ const getAnimationModeForAction = (
   if (animationSet === "pill-damage") {
     return kind === "loop" ? "pill-damage-loop" : "pill-damage-play-once";
   }
+  if (animationSet === "pill-turn") {
+    return kind === "loop" ? "pill-turn-loop" : "pill-turn-play-once";
+  }
   if (animationSet === "post-play-hand-draw") {
     return kind === "loop"
       ? "post-play-hand-draw-loop"
@@ -516,6 +529,9 @@ const getAnimationPreviewDurationMs = (
   }
   if (animationSet === "pill-damage") {
     return PILL_DAMAGE_DURATION_MS;
+  }
+  if (animationSet === "pill-turn") {
+    return PILL_TURN_DURATION_MS;
   }
   if (animationSet === "post-play-hand-draw") {
     return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
@@ -1580,6 +1596,7 @@ export const BattleLayoutEditor: React.FC = () => {
     const isPlayOnceMode =
       animationMode === "opening-target-entry-play-once" ||
       animationMode === "pill-damage-play-once" ||
+      animationMode === "pill-turn-play-once" ||
       animationMode === "replacement-target-entry-play-once" ||
       animationMode === "post-play-hand-draw-play-once" ||
       animationMode === "hand-play-target-play-once" ||

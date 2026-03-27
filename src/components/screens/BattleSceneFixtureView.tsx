@@ -59,6 +59,8 @@ const FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS = 240;
 const FIXTURE_PILL_DAMAGE_DURATION_MS = 1200;
 const FIXTURE_PILL_DAMAGE_LOOP_GAP_MS = 680;
 const FIXTURE_PILL_DAMAGE_AMOUNT = 2;
+const FIXTURE_PILL_TURN_DURATION_MS = 1120;
+const FIXTURE_PILL_TURN_LOOP_GAP_MS = 680;
 const FIXTURE_POST_PLAY_DRAW_DURATION_MS = 940;
 const FIXTURE_POST_PLAY_DRAW_SETTLE_MS = 220;
 const FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS = 680;
@@ -441,6 +443,12 @@ export const BattleSceneFixtureView: React.FC<{
     [PLAYER]: fixture.scene.board.playerPortrait?.flashDamage ?? 0,
     [ENEMY]: fixture.scene.board.enemyPortrait?.flashDamage ?? 0,
   });
+  const [previewPillActive, setPreviewPillActive] = useState<
+    Record<typeof PLAYER | typeof ENEMY, boolean>
+  >({
+    [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
+    [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
+  });
 
   const clearAnimationTimers = useCallback(() => {
     animationTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -489,6 +497,10 @@ export const BattleSceneFixtureView: React.FC<{
       [PLAYER]: fixture.scene.board.playerPortrait?.flashDamage ?? 0,
       [ENEMY]: fixture.scene.board.enemyPortrait?.flashDamage ?? 0,
     });
+    setPreviewPillActive({
+      [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
+      [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
+    });
   }, [clearAnimationTimers, defaultPlayerStableCards]);
 
   useEffect(() => {
@@ -510,6 +522,10 @@ export const BattleSceneFixtureView: React.FC<{
     setPreviewPillFlashDamage({
       [PLAYER]: fixture.scene.board.playerPortrait?.flashDamage ?? 0,
       [ENEMY]: fixture.scene.board.enemyPortrait?.flashDamage ?? 0,
+    });
+    setPreviewPillActive({
+      [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
+      [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
     });
   }, [defaultPlayerStableCards, fixture.selectedIndexes]);
 
@@ -951,6 +967,15 @@ export const BattleSceneFixtureView: React.FC<{
       );
     }
 
+    if (animationSet === "pill-turn") {
+      lines.push(
+        `pillTurnPreset:${animationPreset === "pill-turn-player" ? "player" : animationPreset === "pill-turn-enemy" ? "enemy" : "-"}`,
+      );
+      lines.push(
+        `pillActive:player:${previewPillActive[PLAYER] ? 1 : 0} enemy:${previewPillActive[ENEMY] ? 1 : 0}`,
+      );
+    }
+
     if (
       animationSet === "replacement-target-entry" ||
       animationSet === "target-attack-replacement-combo"
@@ -1079,6 +1104,7 @@ export const BattleSceneFixtureView: React.FC<{
     previewPlayerStableCards,
     previewPostPlayDebug,
     previewPillFlashDamage,
+    previewPillActive,
     previewSelectedIndexes,
     visibleAnimationAnchors,
   ]);
@@ -1173,6 +1199,10 @@ export const BattleSceneFixtureView: React.FC<{
       animationSet === "pill-damage" &&
       (animationMode === "pill-damage-loop" ||
         animationMode === "pill-damage-play-once");
+    const isPillTurnAnimation =
+      animationSet === "pill-turn" &&
+      (animationMode === "pill-turn-loop" ||
+        animationMode === "pill-turn-play-once");
     const isReplacementTargetEntryAnimation =
       animationSet === "replacement-target-entry" &&
       (animationMode === "replacement-target-entry-loop" ||
@@ -1214,6 +1244,7 @@ export const BattleSceneFixtureView: React.FC<{
       animationPreset === "none" ||
       (!isOpeningTargetEntryAnimation &&
         !isPillDamageAnimation &&
+        !isPillTurnAnimation &&
         !isReplacementTargetEntryAnimation &&
         !isPostPlayHandDrawAnimation &&
         !isHandPlayTargetAnimation &&
@@ -1396,6 +1427,39 @@ export const BattleSceneFixtureView: React.FC<{
           if (loopGenerationRef.current !== generation) return;
           resetPreviewAnimation();
         }, FIXTURE_PILL_DAMAGE_DURATION_MS + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
+    const startPillTurnLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      const activeSide =
+        animationPreset === "pill-turn-enemy" ? ENEMY : PLAYER;
+      setPreviewPillActive({
+        [PLAYER]: activeSide === PLAYER,
+        [ENEMY]: activeSide === ENEMY,
+      });
+
+      const resetTimer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        setPreviewPillActive({
+          [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
+          [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
+        });
+      }, FIXTURE_PILL_TURN_DURATION_MS);
+      animationTimersRef.current.push(resetTimer);
+
+      if (animationMode === "pill-turn-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startPillTurnLoop();
+        }, FIXTURE_PILL_TURN_DURATION_MS + FIXTURE_PILL_TURN_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, FIXTURE_PILL_TURN_DURATION_MS + 40);
         animationTimersRef.current.push(cleanupTimer);
       }
     };
@@ -2314,6 +2378,8 @@ export const BattleSceneFixtureView: React.FC<{
       startOpeningLoop();
     } else if (isPillDamageAnimation) {
       startPillDamageLoop();
+    } else if (isPillTurnAnimation) {
+      startPillTurnLoop();
     } else if (isReplacementTargetEntryAnimation) {
       startReplacementTargetEntryLoop();
     } else if (isPostPlayHandDrawAnimation) {
@@ -2337,7 +2403,7 @@ export const BattleSceneFixtureView: React.FC<{
     return () => {
       clearAnimationTimers();
     };
-  }, [animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, defaultPlayerStableCards, fixture.scene.board.enemyFieldSlots, fixture.scene.board.enemyPortrait?.flashDamage, fixture.scene.board.playerFieldSlots, fixture.scene.board.playerPortrait?.flashDamage, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
+  }, [animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, defaultPlayerStableCards, fixture.scene.board.enemyFieldSlots, fixture.scene.board.enemyPortrait?.active, fixture.scene.board.enemyPortrait?.flashDamage, fixture.scene.board.playerFieldSlots, fixture.scene.board.playerPortrait?.active, fixture.scene.board.playerPortrait?.flashDamage, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
 
   useEffect(() => () => resetPreviewAnimation(), [resetPreviewAnimation]);
 
@@ -2999,7 +3065,7 @@ export const BattleSceneFixtureView: React.FC<{
                 avatar={fixture.scene.board.enemyPortrait.avatar}
                 isLocal={fixture.scene.board.enemyPortrait.isLocal}
                 life={fixture.scene.board.enemyPortrait.life}
-                active={fixture.scene.board.enemyPortrait.active}
+                active={previewPillActive[ENEMY]}
                 flashDamage={previewPillFlashDamage[ENEMY]}
               />
             ) : null}
@@ -3021,7 +3087,7 @@ export const BattleSceneFixtureView: React.FC<{
                 avatar={fixture.scene.board.playerPortrait.avatar}
                 isLocal={fixture.scene.board.playerPortrait.isLocal}
                 life={fixture.scene.board.playerPortrait.life}
-                active={fixture.scene.board.playerPortrait.active}
+                active={previewPillActive[PLAYER]}
                 flashDamage={previewPillFlashDamage[PLAYER]}
               />
             ) : null}
