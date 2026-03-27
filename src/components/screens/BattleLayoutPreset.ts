@@ -130,8 +130,8 @@ export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
       "y": 770
     },
     "mulliganReturn3Destination": {
-      "x": 1380,
-      "y": 770
+      "x": 1471,
+      "y": 598
     },
     "mulliganDraw1Origin": {
       "x": 1380,

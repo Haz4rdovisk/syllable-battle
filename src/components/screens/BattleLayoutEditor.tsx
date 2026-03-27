@@ -3502,9 +3502,7 @@ export const BattleLayoutEditor: React.FC = () => {
             JSON
           </div>
           <p className="text-xs leading-relaxed text-amber-950/70">
-            Use para testar ou importar ajustes localmente no editor. Isso muda
-            apenas o estado local do perfil atual, aplica por cima do layout
-            atual e nao publica nada no projeto.
+            Aplica local e redefine a base do reset.
           </p>
           <div className="space-y-2">
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
@@ -3551,8 +3549,7 @@ export const BattleLayoutEditor: React.FC = () => {
             Animacao
           </div>
           <p className="text-xs leading-relaxed text-emerald-950/75">
-            Preview isolado das animacoes aprovadas no layout. So roda quando
-            voce interage com estes botoes.
+            Preview e ajuste de ancoras.
           </p>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
@@ -3742,9 +3739,7 @@ export const BattleLayoutEditor: React.FC = () => {
             Preset do projeto
           </div>
           <p className="text-xs leading-relaxed text-sky-950/75">
-            Quando o layout estiver aprovado, salve este estado como o preset
-            do projeto. Isso atualiza o arquivo TS base usado pelo deploy e
-            pelo reset do editor.
+            Salva o layout aprovado no preset base.
           </p>
           <Button
             type="button"
