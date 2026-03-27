@@ -337,21 +337,21 @@ const animationPresetOptionsBySet: Record<
   ],
   "hand-play-draw-combo": [
     { value: "none", label: "None" },
-    { value: "hand-play-draw-combo-0", label: "Fluxo 0" },
-    { value: "hand-play-draw-combo-1", label: "Fluxo 1" },
+    { value: "hand-play-draw-combo-0", label: "Alvo 0" },
+    { value: "hand-play-draw-combo-1", label: "Alvo 1" },
   ],
   "target-attack-replacement-combo": [
     { value: "none", label: "None" },
-    { value: "target-attack-replacement-combo-0", label: "Fluxo 0" },
-    { value: "target-attack-replacement-combo-1", label: "Fluxo 1" },
-    { value: "target-attack-replacement-combo-2", label: "Fluxo 2" },
-    { value: "target-attack-replacement-combo-3", label: "Fluxo 3" },
+    { value: "target-attack-replacement-combo-0", label: "Slot 0" },
+    { value: "target-attack-replacement-combo-1", label: "Slot 1" },
+    { value: "target-attack-replacement-combo-2", label: "Slot 2" },
+    { value: "target-attack-replacement-combo-3", label: "Slot 3" },
   ],
   "mulligan-complete-combo": [
     { value: "none", label: "None" },
-    { value: "mulligan-complete-combo-1", label: "Fluxo 1" },
-    { value: "mulligan-complete-combo-2", label: "Fluxo 2" },
-    { value: "mulligan-complete-combo-3", label: "Fluxo 3" },
+    { value: "mulligan-complete-combo-1", label: "Troca 1" },
+    { value: "mulligan-complete-combo-2", label: "Troca 2" },
+    { value: "mulligan-complete-combo-3", label: "Troca 3" },
   ],
 };
 
@@ -1378,6 +1378,10 @@ export const BattleLayoutEditor: React.FC = () => {
     selectedHandPlayTargetDestinationAnchorTool !== null ||
     selectedMulliganReturnDestinationAnchorTool !== null ||
     selectedTargetAttackDestinationAnchorTool !== null;
+  const hasAnimationAnchorControls =
+    isOriginAnchorAvailable ||
+    isImpactAnchorAvailable ||
+    isDestinationAnchorAvailable;
 
   useEffect(() => {
     layoutOverridesRef.current = layoutOverrides;
@@ -3577,87 +3581,89 @@ export const BattleLayoutEditor: React.FC = () => {
               ))}
             </select>
           </label>
-          <div className="flex gap-2">
-            {isOriginAnchorAvailable ? (
-              <Button
-                type="button"
-                onClick={() => {
-                  ensureAnimationAnchor(selectedAnimationOriginAnchorTool);
-                  setAnimationMode("idle");
-                  setAnimationRunId((current) => current + 1);
-                  setAnimationAnchorTool((current) =>
-                    current === selectedAnimationOriginAnchorTool
-                      ? null
-                      : selectedAnimationOriginAnchorTool,
-                  );
-                }}
-                className={cn(
-                  "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
-                  animationAnchorTool === selectedAnimationOriginAnchorTool
-                    ? "bg-sky-800 hover:bg-sky-700"
-                    : "bg-sky-950 hover:bg-sky-900",
-                )}
-                disabled={!isIndividualAnimationPreset}
-              >
-                Mover origem
-              </Button>
-            ) : null}
-            {isImpactAnchorAvailable ? (
-              <Button
-                type="button"
-                onClick={() => {
-                  ensureAnimationAnchor(selectedTargetAttackImpactAnchorTool);
-                  setAnimationMode("idle");
-                  setAnimationRunId((current) => current + 1);
-                  setAnimationAnchorTool((current) =>
-                    current === selectedTargetAttackImpactAnchorTool
-                      ? null
-                      : selectedTargetAttackImpactAnchorTool,
-                  );
-                }}
-                className={cn(
-                  "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
-                  animationAnchorTool === selectedTargetAttackImpactAnchorTool
-                    ? "bg-sky-800 hover:bg-sky-700"
-                    : "bg-sky-950 hover:bg-sky-900",
-                )}
-                disabled={!isImpactAnchorAvailable}
-              >
-                Mover impacto
-              </Button>
-            ) : null}
-            {isDestinationAnchorAvailable ? (
-              <Button
-                type="button"
-                onClick={() => {
-                  const destinationAnchorTool =
-                    selectedHandPlayTargetDestinationAnchorTool ??
-                    selectedMulliganReturnDestinationAnchorTool ??
-                    selectedTargetAttackDestinationAnchorTool;
-                  ensureAnimationAnchor(destinationAnchorTool);
-                  setAnimationMode("idle");
-                  setAnimationRunId((current) => current + 1);
-                  setAnimationAnchorTool((current) =>
-                    current === destinationAnchorTool
-                      ? null
-                      : destinationAnchorTool,
-                  );
-                }}
-                className={cn(
-                  "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
-                  animationAnchorTool ===
-                    (selectedHandPlayTargetDestinationAnchorTool ??
+          {hasAnimationAnchorControls ? (
+            <div className="flex gap-2">
+              {isOriginAnchorAvailable ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    ensureAnimationAnchor(selectedAnimationOriginAnchorTool);
+                    setAnimationMode("idle");
+                    setAnimationRunId((current) => current + 1);
+                    setAnimationAnchorTool((current) =>
+                      current === selectedAnimationOriginAnchorTool
+                        ? null
+                        : selectedAnimationOriginAnchorTool,
+                    );
+                  }}
+                  className={cn(
+                    "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
+                    animationAnchorTool === selectedAnimationOriginAnchorTool
+                      ? "bg-sky-800 hover:bg-sky-700"
+                      : "bg-sky-950 hover:bg-sky-900",
+                  )}
+                  disabled={!isIndividualAnimationPreset}
+                >
+                  Mover origem
+                </Button>
+              ) : null}
+              {isImpactAnchorAvailable ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    ensureAnimationAnchor(selectedTargetAttackImpactAnchorTool);
+                    setAnimationMode("idle");
+                    setAnimationRunId((current) => current + 1);
+                    setAnimationAnchorTool((current) =>
+                      current === selectedTargetAttackImpactAnchorTool
+                        ? null
+                        : selectedTargetAttackImpactAnchorTool,
+                    );
+                  }}
+                  className={cn(
+                    "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
+                    animationAnchorTool === selectedTargetAttackImpactAnchorTool
+                      ? "bg-sky-800 hover:bg-sky-700"
+                      : "bg-sky-950 hover:bg-sky-900",
+                  )}
+                  disabled={!isImpactAnchorAvailable}
+                >
+                  Mover impacto
+                </Button>
+              ) : null}
+              {isDestinationAnchorAvailable ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const destinationAnchorTool =
+                      selectedHandPlayTargetDestinationAnchorTool ??
                       selectedMulliganReturnDestinationAnchorTool ??
-                      selectedTargetAttackDestinationAnchorTool)
-                    ? "bg-sky-800 hover:bg-sky-700"
-                    : "bg-sky-950 hover:bg-sky-900",
-                )}
-                disabled={!isDestinationAnchorAvailable}
-              >
-                Mover destino
-              </Button>
-            ) : null}
-          </div>
+                      selectedTargetAttackDestinationAnchorTool;
+                    ensureAnimationAnchor(destinationAnchorTool);
+                    setAnimationMode("idle");
+                    setAnimationRunId((current) => current + 1);
+                    setAnimationAnchorTool((current) =>
+                      current === destinationAnchorTool
+                        ? null
+                        : destinationAnchorTool,
+                    );
+                  }}
+                  className={cn(
+                    "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
+                    animationAnchorTool ===
+                      (selectedHandPlayTargetDestinationAnchorTool ??
+                        selectedMulliganReturnDestinationAnchorTool ??
+                        selectedTargetAttackDestinationAnchorTool)
+                      ? "bg-sky-800 hover:bg-sky-700"
+                      : "bg-sky-950 hover:bg-sky-900",
+                  )}
+                  disabled={!isDestinationAnchorAvailable}
+                >
+                  Mover destino
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <Button
               type="button"
