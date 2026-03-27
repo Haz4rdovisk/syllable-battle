@@ -925,14 +925,23 @@ export const BattleSceneFixtureView: React.FC<{
       );
     }
 
-    if (animationSet === "replacement-target-entry") {
+    if (
+      animationSet === "replacement-target-entry" ||
+      animationSet === "target-attack-replacement-combo"
+    ) {
       const replacementIndex =
-        getReplacementTargetEntryIndexFromPreset(animationPreset);
+        animationSet === "replacement-target-entry"
+          ? getReplacementTargetEntryIndexFromPreset(animationPreset)
+          : getAttackReplacementComboIndexFromPreset(animationPreset);
+      const replacementAnchorKey =
+        replacementIndex != null
+          ? (`replacement-target-entry-${replacementIndex}-origin` as const)
+          : null;
       lines.push(`replacementPreset:${replacementIndex ?? "-"}`);
       lines.push(
         `replacementOrigin:${formatPoint(
           getAnimationAnchorPoint(
-            replacementTargetEntryAnchorToolByPreset[animationPreset] ?? null,
+            replacementAnchorKey,
           ),
         )}`,
       );
@@ -940,8 +949,21 @@ export const BattleSceneFixtureView: React.FC<{
 
     if (
       animationSet === "mulligan-hand-return" ||
-      animationSet === "mulligan-hand-draw"
+      animationSet === "mulligan-hand-draw" ||
+      animationSet === "mulligan-complete-combo"
     ) {
+      const mulliganReturnAnchor =
+        mulliganCount != null
+          ? mulliganReturnDestinationAnchorToolByPreset[
+              `mulligan-hand-return-${mulliganCount}` as const
+            ] ?? null
+          : null;
+      const mulliganDrawAnchor =
+        mulliganCount != null
+          ? mulliganDrawOriginAnchorToolByPreset[
+              `mulligan-hand-draw-${mulliganCount}` as const
+            ] ?? null
+          : null;
       lines.push(
         `mulliganCount:${mulliganCount ?? "-"} reservedSlots:${mulliganReservedSlots}`,
       );
@@ -951,22 +973,43 @@ export const BattleSceneFixtureView: React.FC<{
       lines.push(
         `mulliganReturnAnchor:${formatPoint(
           getAnimationAnchorPoint(
-            mulliganReturnDestinationAnchorToolByPreset[
-              animationPreset
-            ] ?? null,
+            mulliganReturnAnchor,
           ),
         )}`,
       );
       lines.push(
         `mulliganDrawAnchor:${formatPoint(
           getAnimationAnchorPoint(
-            mulliganDrawOriginAnchorToolByPreset[animationPreset] ?? null,
+            mulliganDrawAnchor,
           ),
         )}`,
       );
     }
 
-    if (animationSet === "target-attack") {
+    if (
+      animationSet === "target-attack" ||
+      animationSet === "target-attack-replacement-combo"
+    ) {
+      if (animationSet === "target-attack-replacement-combo") {
+        const attackIndex = getAttackReplacementComboIndexFromPreset(animationPreset);
+        const impactAnchor =
+          attackIndex != null
+            ? (`target-attack-${attackIndex}-impact` as const)
+            : null;
+        const destinationAnchor =
+          attackIndex != null
+            ? (`target-attack-${attackIndex}-destination` as const)
+            : null;
+        lines.push(`attackPreset:${attackIndex ?? "-"}`);
+        lines.push(
+          `impactAnchor:${formatPoint(getAnimationAnchorPoint(impactAnchor))}`,
+        );
+        lines.push(
+          `attackDestination:${formatPoint(
+            getAnimationAnchorPoint(destinationAnchor),
+          )}`,
+        );
+      }
       lines.push(
         `impactAnchors:[${[
           "target-attack-0-impact",

@@ -120,6 +120,54 @@ export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
     "targetAttack3Destination": {
       "x": 99,
       "y": 103
+    },
+    "mulliganReturn1Destination": {
+      "x": 1380,
+      "y": 770
+    },
+    "mulliganReturn2Destination": {
+      "x": 1380,
+      "y": 770
+    },
+    "mulliganReturn3Destination": {
+      "x": 1380,
+      "y": 770
+    },
+    "mulliganDraw1Origin": {
+      "x": 1380,
+      "y": 770
+    },
+    "mulliganDraw2Origin": {
+      "x": 1380,
+      "y": 770
+    },
+    "mulliganDraw3Origin": {
+      "x": 1380,
+      "y": 770
+    },
+    "handPlayTarget0Destination": {
+      "x": 717,
+      "y": 576
+    },
+    "handPlayTarget1Destination": {
+      "x": 883,
+      "y": 576
+    },
+    "replacementTargetEntry0Origin": {
+      "x": 1500,
+      "y": 770
+    },
+    "replacementTargetEntry1Origin": {
+      "x": 1500,
+      "y": 770
+    },
+    "replacementTargetEntry2Origin": {
+      "x": 100,
+      "y": 130
+    },
+    "replacementTargetEntry3Origin": {
+      "x": 100,
+      "y": 130
     }
   }
 };
