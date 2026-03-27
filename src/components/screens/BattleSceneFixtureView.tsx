@@ -47,6 +47,7 @@ import {
   getBattleStageMetrics,
 } from "./BattleSceneSpace";
 import { AnimatePresence, motion } from "motion/react";
+import { GameMessage } from "../../types/game";
 
 const noopRef = () => {};
 const PLAYER = 0;
@@ -61,6 +62,9 @@ const FIXTURE_PILL_DAMAGE_LOOP_GAP_MS = 680;
 const FIXTURE_PILL_DAMAGE_AMOUNT = 2;
 const FIXTURE_PILL_TURN_DURATION_MS = 1120;
 const FIXTURE_PILL_TURN_LOOP_GAP_MS = 680;
+const FIXTURE_BOARD_MESSAGE_TURN_DURATION_MS = 1120;
+const FIXTURE_BOARD_MESSAGE_INFO_DURATION_MS = 1100;
+const FIXTURE_BOARD_MESSAGE_LOOP_GAP_MS = 680;
 const FIXTURE_POST_PLAY_DRAW_DURATION_MS = 940;
 const FIXTURE_POST_PLAY_DRAW_SETTLE_MS = 220;
 const FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS = 680;
@@ -449,6 +453,9 @@ export const BattleSceneFixtureView: React.FC<{
     [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
     [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
   });
+  const [previewBoardMessage, setPreviewBoardMessage] = useState<GameMessage | null>(
+    fixture.scene.board.currentMessage ?? null,
+  );
 
   const clearAnimationTimers = useCallback(() => {
     animationTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -501,6 +508,7 @@ export const BattleSceneFixtureView: React.FC<{
       [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
       [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
     });
+    setPreviewBoardMessage(fixture.scene.board.currentMessage ?? null);
   }, [clearAnimationTimers, defaultPlayerStableCards]);
 
   useEffect(() => {
@@ -527,6 +535,7 @@ export const BattleSceneFixtureView: React.FC<{
       [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
       [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
     });
+    setPreviewBoardMessage(fixture.scene.board.currentMessage ?? null);
   }, [defaultPlayerStableCards, fixture.selectedIndexes]);
 
   const readElementSnapshot = useCallback((elementKey: BattleEditableElementKey) => {
@@ -976,6 +985,23 @@ export const BattleSceneFixtureView: React.FC<{
       );
     }
 
+    if (animationSet === "board-message") {
+      lines.push(
+        `boardMessagePreset:${
+          animationPreset === "board-message-turn-player"
+            ? "turn-player"
+            : animationPreset === "board-message-turn-enemy"
+              ? "turn-enemy"
+              : animationPreset === "board-message-round-info"
+                ? "round-info"
+                : "-"
+        }`,
+      );
+      lines.push(
+        `boardMessage:${previewBoardMessage ? `${previewBoardMessage.kind}:${previewBoardMessage.title}` : "-"}`,
+      );
+    }
+
     if (
       animationSet === "replacement-target-entry" ||
       animationSet === "target-attack-replacement-combo"
@@ -1105,6 +1131,7 @@ export const BattleSceneFixtureView: React.FC<{
     previewPostPlayDebug,
     previewPillFlashDamage,
     previewPillActive,
+    previewBoardMessage,
     previewSelectedIndexes,
     visibleAnimationAnchors,
   ]);
@@ -1203,6 +1230,10 @@ export const BattleSceneFixtureView: React.FC<{
       animationSet === "pill-turn" &&
       (animationMode === "pill-turn-loop" ||
         animationMode === "pill-turn-play-once");
+    const isBoardMessageAnimation =
+      animationSet === "board-message" &&
+      (animationMode === "board-message-loop" ||
+        animationMode === "board-message-play-once");
     const isReplacementTargetEntryAnimation =
       animationSet === "replacement-target-entry" &&
       (animationMode === "replacement-target-entry-loop" ||
@@ -1245,6 +1276,7 @@ export const BattleSceneFixtureView: React.FC<{
       (!isOpeningTargetEntryAnimation &&
         !isPillDamageAnimation &&
         !isPillTurnAnimation &&
+        !isBoardMessageAnimation &&
         !isReplacementTargetEntryAnimation &&
         !isPostPlayHandDrawAnimation &&
         !isHandPlayTargetAnimation &&
@@ -1460,6 +1492,41 @@ export const BattleSceneFixtureView: React.FC<{
           if (loopGenerationRef.current !== generation) return;
           resetPreviewAnimation();
         }, FIXTURE_PILL_TURN_DURATION_MS + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
+    const startBoardMessageLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      const previewMessage: GameMessage =
+        animationPreset === "board-message-turn-enemy"
+          ? { title: "Turno do Oponente", detail: "", kind: "turn" }
+          : animationPreset === "board-message-round-info"
+            ? { title: "Novo Round", detail: "", kind: "info" }
+            : { title: "Seu Turno", detail: "", kind: "turn" };
+      const durationMs =
+        previewMessage.kind === "info"
+          ? FIXTURE_BOARD_MESSAGE_INFO_DURATION_MS
+          : FIXTURE_BOARD_MESSAGE_TURN_DURATION_MS;
+      setPreviewBoardMessage(previewMessage);
+
+      const resetTimer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        setPreviewBoardMessage(null);
+      }, durationMs);
+      animationTimersRef.current.push(resetTimer);
+
+      if (animationMode === "board-message-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startBoardMessageLoop();
+        }, durationMs + FIXTURE_BOARD_MESSAGE_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, durationMs + 40);
         animationTimersRef.current.push(cleanupTimer);
       }
     };
@@ -2380,6 +2447,8 @@ export const BattleSceneFixtureView: React.FC<{
       startPillDamageLoop();
     } else if (isPillTurnAnimation) {
       startPillTurnLoop();
+    } else if (isBoardMessageAnimation) {
+      startBoardMessageLoop();
     } else if (isReplacementTargetEntryAnimation) {
       startReplacementTargetEntryLoop();
     } else if (isPostPlayHandDrawAnimation) {
@@ -2403,7 +2472,7 @@ export const BattleSceneFixtureView: React.FC<{
     return () => {
       clearAnimationTimers();
     };
-  }, [animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, defaultPlayerStableCards, fixture.scene.board.enemyFieldSlots, fixture.scene.board.enemyPortrait?.active, fixture.scene.board.enemyPortrait?.flashDamage, fixture.scene.board.playerFieldSlots, fixture.scene.board.playerPortrait?.active, fixture.scene.board.playerPortrait?.flashDamage, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
+  }, [animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, defaultPlayerStableCards, fixture.scene.board.currentMessage, fixture.scene.board.enemyFieldSlots, fixture.scene.board.enemyPortrait?.active, fixture.scene.board.enemyPortrait?.flashDamage, fixture.scene.board.playerFieldSlots, fixture.scene.board.playerPortrait?.active, fixture.scene.board.playerPortrait?.flashDamage, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
 
   useEffect(() => () => resetPreviewAnimation(), [resetPreviewAnimation]);
 
@@ -3029,15 +3098,15 @@ export const BattleSceneFixtureView: React.FC<{
           >
             <div className="flex h-full w-full items-center justify-center">
               <AnimatePresence mode="wait">
-                {fixture.scene.board.currentMessage ? (
+                {previewBoardMessage ? (
                   <motion.div
-                    key={fixture.scene.board.currentMessage.title}
+                    key={previewBoardMessage.title}
                     initial={{ opacity: 0, scale: 0.4, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 1.8, y: -20 }}
                     className={cn(
                       "paper-panel z-50 min-w-[260px] rounded-2xl border-4 px-8 py-4 shadow-[0_0_50px_rgba(0,0,0,0.5)]",
-                      fixture.scene.board.currentMessage.kind === "damage"
+                      previewBoardMessage.kind === "damage"
                         ? "border-rose-900 bg-rose-50"
                         : "border-amber-900 bg-amber-50",
                     )}
@@ -3045,12 +3114,12 @@ export const BattleSceneFixtureView: React.FC<{
                     <div
                       className={cn(
                         "text-center font-serif text-3xl font-black uppercase tracking-tighter",
-                        fixture.scene.board.currentMessage.kind === "damage"
+                        previewBoardMessage.kind === "damage"
                           ? "text-rose-900"
                           : "text-amber-950",
                       )}
                     >
-                      {fixture.scene.board.currentMessage.title}
+                      {previewBoardMessage.title}
                     </div>
                   </motion.div>
                 ) : null}

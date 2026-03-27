@@ -182,6 +182,8 @@ const REPLACEMENT_TARGET_ENTRY_DURATION_MS = 780;
 const REPLACEMENT_TARGET_ENTRY_SETTLE_MS = 240;
 const PILL_DAMAGE_DURATION_MS = 1200;
 const PILL_TURN_DURATION_MS = 1120;
+const BOARD_MESSAGE_TURN_DURATION_MS = 1120;
+const BOARD_MESSAGE_INFO_DURATION_MS = 1100;
 const POST_PLAY_HAND_DRAW_DURATION_MS = 940;
 const POST_PLAY_HAND_DRAW_SETTLE_MS = 220;
 const HAND_PLAY_TARGET_DURATION_MS = 660;
@@ -262,6 +264,10 @@ const animationSetOptions: Array<{
     label: "Pill - Turno",
   },
   {
+    value: "board-message",
+    label: "Mensagem - Turno/Round",
+  },
+  {
     value: "replacement-target-entry",
     label: "Entrada do proximo alvo - Pos ataque",
   },
@@ -319,6 +325,12 @@ const animationPresetOptionsBySet: Record<
     { value: "none", label: "None" },
     { value: "pill-turn-player", label: "Seu turno" },
     { value: "pill-turn-enemy", label: "Turno do oponente" },
+  ],
+  "board-message": [
+    { value: "none", label: "None" },
+    { value: "board-message-turn-player", label: "Seu turno" },
+    { value: "board-message-turn-enemy", label: "Turno do oponente" },
+    { value: "board-message-round-info", label: "Novo round" },
   ],
   "replacement-target-entry": [
     { value: "none", label: "None" },
@@ -476,6 +488,11 @@ const getAnimationModeForAction = (
   if (animationSet === "pill-turn") {
     return kind === "loop" ? "pill-turn-loop" : "pill-turn-play-once";
   }
+  if (animationSet === "board-message") {
+    return kind === "loop"
+      ? "board-message-loop"
+      : "board-message-play-once";
+  }
   if (animationSet === "post-play-hand-draw") {
     return kind === "loop"
       ? "post-play-hand-draw-loop"
@@ -532,6 +549,11 @@ const getAnimationPreviewDurationMs = (
   }
   if (animationSet === "pill-turn") {
     return PILL_TURN_DURATION_MS;
+  }
+  if (animationSet === "board-message") {
+    return preset === "board-message-round-info"
+      ? BOARD_MESSAGE_INFO_DURATION_MS
+      : BOARD_MESSAGE_TURN_DURATION_MS;
   }
   if (animationSet === "post-play-hand-draw") {
     return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
@@ -1597,6 +1619,7 @@ export const BattleLayoutEditor: React.FC = () => {
       animationMode === "opening-target-entry-play-once" ||
       animationMode === "pill-damage-play-once" ||
       animationMode === "pill-turn-play-once" ||
+      animationMode === "board-message-play-once" ||
       animationMode === "replacement-target-entry-play-once" ||
       animationMode === "post-play-hand-draw-play-once" ||
       animationMode === "hand-play-target-play-once" ||
