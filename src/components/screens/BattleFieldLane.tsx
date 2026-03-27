@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "motion/react";
 import { Syllable } from "../../types/game";
 import { TargetCard, getTravelTargetCardSize, VisualTargetEntity, ZoneAnchorSnapshot } from "../game/GameComponents";
+import { getBattleStageDomMetrics, toBattleStageLocalRect } from "./BattleSceneSpace";
 
 const noopDivRef = () => {};
 
@@ -111,6 +112,9 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
   const travelTargetSize = getTravelTargetCardSize();
   const clampMotionScale = (value: number) => Math.min(1.5, Math.max(0.55, value));
   const containerNodeRef = React.useRef<HTMLDivElement | null>(null);
+  const getStageLocalRect = <T extends { left: number; top: number; width: number; height: number }>(
+    rect: T | null | undefined,
+  ) => toBattleStageLocalRect(rect, getBattleStageDomMetrics(containerNodeRef.current));
   const fieldLaneDebugSnapshot = React.useMemo<BattleFieldLaneDebugSnapshot>(
     () => ({
       presentation,
@@ -124,56 +128,60 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
         : null,
       travelTargetSize,
       slots: slots.map((slot) => {
+        const slotRect = getStageLocalRect(slot.slotRect);
+        const incomingOrigin = getStageLocalRect(slot.incomingTarget?.origin);
+        const outgoingDestination = getStageLocalRect(slot.outgoingTarget?.destination);
+        const outgoingImpact = getStageLocalRect(slot.outgoingTarget?.impactDestination);
         const startX =
-          slot.incomingTarget && slot.slotRect
-            ? slot.incomingTarget.origin.left +
-              slot.incomingTarget.origin.width / 2 -
-              slot.slotRect.left -
+          incomingOrigin && slotRect
+            ? incomingOrigin.left +
+              incomingOrigin.width / 2 -
+              slotRect.left -
               travelTargetSize.width / 2
             : 0;
         const startY =
-          slot.incomingTarget && slot.slotRect
-            ? slot.incomingTarget.origin.top +
-              slot.incomingTarget.origin.height / 2 -
-              slot.slotRect.top -
+          incomingOrigin && slotRect
+            ? incomingOrigin.top +
+              incomingOrigin.height / 2 -
+              slotRect.top -
               travelTargetSize.height / 2
             : 0;
         const endX =
-          slot.outgoingTarget && slot.slotRect
-            ? slot.outgoingTarget.destination.left +
-              slot.outgoingTarget.destination.width / 2 -
-              slot.slotRect.left -
-              slot.slotRect.width / 2
+          outgoingDestination && slotRect
+            ? outgoingDestination.left +
+              outgoingDestination.width / 2 -
+              slotRect.left -
+              slotRect.width / 2
             : 0;
         const endY =
-          slot.outgoingTarget && slot.slotRect
-            ? slot.outgoingTarget.destination.top +
-              slot.outgoingTarget.destination.height / 2 -
-              slot.slotRect.top -
-              slot.slotRect.height / 2
+          outgoingDestination && slotRect
+            ? outgoingDestination.top +
+              outgoingDestination.height / 2 -
+              slotRect.top -
+              slotRect.height / 2
             : 0;
         const endScale =
-          slot.outgoingTarget && slot.slotRect
+          outgoingDestination && slotRect
             ? clampMotionScale(
                 Math.min(
-                  slot.outgoingTarget.destination.width / Math.max(1, slot.slotRect.width),
-                  slot.outgoingTarget.destination.height / Math.max(1, slot.slotRect.height),
+                  outgoingDestination.width / Math.max(1, slotRect.width),
+                  outgoingDestination.height / Math.max(1, slotRect.height),
                 ),
               )
             : 0.88;
         const impactX =
-          slot.outgoingTarget?.impactDestination && slot.slotRect
-            ? slot.outgoingTarget.impactDestination.left +
-              slot.outgoingTarget.impactDestination.width / 2 -
-              slot.slotRect.left -
-              slot.slotRect.width / 2
+          outgoingImpact && slotRect
+            ? outgoingImpact.left +
+              outgoingImpact.width / 2 -
+              slotRect.left -
+              slotRect.width / 2
             : 0;
         const impactY =
-          slot.outgoingTarget?.impactDestination && slot.slotRect
-            ? slot.outgoingTarget.impactDestination.top +
-              slot.outgoingTarget.impactDestination.height / 2 -
-              slot.slotRect.top -
-              slot.slotRect.height / 2
+          outgoingImpact && slotRect
+            ? outgoingImpact.top +
+              outgoingImpact.height / 2 -
+              slotRect.top -
+              slotRect.height / 2
             : presentation === "player"
               ? -118
               : 118;
@@ -241,50 +249,54 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
         className="mx-auto grid h-full w-full max-w-[var(--battle-board-lane-max-width-mobile)] grid-cols-2 items-stretch justify-items-stretch gap-3 lg:max-w-[var(--battle-board-lane-max-width-desktop)] lg:gap-4"
       >
         {slots.map((slot) => {
+          const slotRect = getStageLocalRect(slot.slotRect);
+          const incomingOrigin = getStageLocalRect(slot.incomingTarget?.origin);
+          const outgoingDestination = getStageLocalRect(slot.outgoingTarget?.destination);
+          const outgoingImpact = getStageLocalRect(slot.outgoingTarget?.impactDestination);
           const startX =
-            slot.incomingTarget && slot.slotRect
-              ? slot.incomingTarget.origin.left + slot.incomingTarget.origin.width / 2 - slot.slotRect.left - travelTargetSize.width / 2
+            incomingOrigin && slotRect
+              ? incomingOrigin.left + incomingOrigin.width / 2 - slotRect.left - travelTargetSize.width / 2
               : 0;
           const startY =
-            slot.incomingTarget && slot.slotRect
-              ? slot.incomingTarget.origin.top + slot.incomingTarget.origin.height / 2 - slot.slotRect.top - travelTargetSize.height / 2
+            incomingOrigin && slotRect
+              ? incomingOrigin.top + incomingOrigin.height / 2 - slotRect.top - travelTargetSize.height / 2
               : 0;
           const outgoingEndX =
-            slot.outgoingTarget && slot.slotRect
-              ? slot.outgoingTarget.destination.left +
-                slot.outgoingTarget.destination.width / 2 -
-                slot.slotRect.left -
-                slot.slotRect.width / 2
+            outgoingDestination && slotRect
+              ? outgoingDestination.left +
+                outgoingDestination.width / 2 -
+                slotRect.left -
+                slotRect.width / 2
               : 0;
           const outgoingEndY =
-            slot.outgoingTarget && slot.slotRect
-              ? slot.outgoingTarget.destination.top +
-                slot.outgoingTarget.destination.height / 2 -
-                slot.slotRect.top -
-                slot.slotRect.height / 2
+            outgoingDestination && slotRect
+              ? outgoingDestination.top +
+                outgoingDestination.height / 2 -
+                slotRect.top -
+                slotRect.height / 2
               : 0;
           const outgoingEndScale =
-            slot.outgoingTarget && slot.slotRect
+            outgoingDestination && slotRect
               ? clampMotionScale(
                   Math.min(
-                    slot.outgoingTarget.destination.width / Math.max(1, slot.slotRect.width),
-                    slot.outgoingTarget.destination.height / Math.max(1, slot.slotRect.height),
+                    outgoingDestination.width / Math.max(1, slotRect.width),
+                    outgoingDestination.height / Math.max(1, slotRect.height),
                   ),
                 )
               : 0.88;
           const outgoingImpactX =
-            slot.outgoingTarget?.impactDestination && slot.slotRect
-              ? slot.outgoingTarget.impactDestination.left +
-                slot.outgoingTarget.impactDestination.width / 2 -
-                slot.slotRect.left -
-                slot.slotRect.width / 2
+            outgoingImpact && slotRect
+              ? outgoingImpact.left +
+                outgoingImpact.width / 2 -
+                slotRect.left -
+                slotRect.width / 2
               : 0;
           const outgoingImpactY =
-            slot.outgoingTarget?.impactDestination && slot.slotRect
-              ? slot.outgoingTarget.impactDestination.top +
-                slot.outgoingTarget.impactDestination.height / 2 -
-                slot.slotRect.top -
-                slot.slotRect.height / 2
+            outgoingImpact && slotRect
+              ? outgoingImpact.top +
+                outgoingImpact.height / 2 -
+                slotRect.top -
+                slotRect.height / 2
               : presentation === "player"
                 ? -118
                 : 118;

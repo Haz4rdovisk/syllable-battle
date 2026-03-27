@@ -21,6 +21,13 @@ export interface BattleStageMetrics {
   isPortrait: boolean;
 }
 
+export interface BattleStageDomMetrics {
+  left: number;
+  top: number;
+  scaleX: number;
+  scaleY: number;
+}
+
 export interface BattleEditorFrame extends BattleSceneRect {
   centerX: number;
   centerY: number;
@@ -57,6 +64,60 @@ export const getBattleStageMetrics = (
     offsetX: (safeWidth - BATTLE_STAGE_WIDTH * scale) / 2,
     offsetY: (safeHeight - BATTLE_STAGE_HEIGHT * scale) / 2,
     isPortrait,
+  };
+};
+
+export const getBattleStageDomMetrics = (
+  node?: Element | null,
+): BattleStageDomMetrics | null => {
+  if (typeof document === "undefined") return null;
+
+  const stageRoot =
+    (node instanceof Element
+      ? node.closest<HTMLElement>('[data-battle-stage-root="true"]')
+      : null) ??
+    document.querySelector<HTMLElement>('[data-battle-stage-root="true"]');
+
+  if (!stageRoot) return null;
+
+  const rect = stageRoot.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const scaleX = rect.width / BATTLE_STAGE_WIDTH;
+  const scaleY = rect.height / BATTLE_STAGE_HEIGHT;
+  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) {
+    return null;
+  }
+
+  return {
+    left: rect.left,
+    top: rect.top,
+    scaleX,
+    scaleY,
+  };
+};
+
+export const toBattleStageLocalRect = <
+  T extends { left: number; top: number; width: number; height: number },
+>(
+  rect: T | null | undefined,
+  stage: BattleStageDomMetrics | null,
+) => {
+  if (!rect) return null;
+  if (!stage) {
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  return {
+    left: (rect.left - stage.left) / stage.scaleX,
+    top: (rect.top - stage.top) / stage.scaleY,
+    width: rect.width / stage.scaleX,
+    height: rect.height / stage.scaleY,
   };
 };
 
