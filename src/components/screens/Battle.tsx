@@ -518,6 +518,7 @@ export const Battle: React.FC<BattleProps> = ({
   const lastHiddenAtRef = useRef<number | null>(null);
   const needsVisibilityRecoveryRef = useRef(false);
   const pendingResultOverlayRecoveryRef = useRef(false);
+  const visibilityRecoveryFrameRef = useRef<number | null>(null);
 
   const addLog = (log: ChronicleEntry[], entry: ChronicleEntry) => [entry, ...log].slice(0, CONFIG.logSize);
   const chronicleToneForSide = useCallback(
@@ -763,6 +764,7 @@ export const Battle: React.FC<BattleProps> = ({
   const removeIncomingCard = useCallback(
     (side: typeof PLAYER | typeof ENEMY, id: string) => {
       const current = incomingHandsRef.current;
+      if (!current[side].some((card) => card.id === id)) return;
       commitIncomingHands({
         ...current,
         [side]: current[side].filter((card) => card.id !== id),
@@ -774,6 +776,7 @@ export const Battle: React.FC<BattleProps> = ({
   const removeOutgoingCard = useCallback(
     (side: typeof PLAYER | typeof ENEMY, id: string) => {
       const current = outgoingHandsRef.current;
+      if (!current[side].some((card) => card.id === id)) return;
       commitOutgoingHands({
         ...current,
         [side]: current[side].filter((card) => card.id !== id),
@@ -2088,6 +2091,9 @@ export const Battle: React.FC<BattleProps> = ({
 
   const commitIncomingCardToHand = useCallback(
     (incomingCard: IncomingHandCard) => {
+      if (!incomingHandsRef.current[incomingCard.side].some((card) => card.id === incomingCard.id)) {
+        return;
+      }
       removeIncomingCard(incomingCard.side, incomingCard.id);
       appendStableCard(incomingCard.side, incomingCard.card, { skipEntryAnimation: true });
       if (incomingCard.side === PLAYER) {
@@ -2109,6 +2115,9 @@ export const Battle: React.FC<BattleProps> = ({
 
   const handleOutgoingCardComplete = useCallback(
     (outgoingCard: BattleHandLaneOutgoingCard) => {
+      if (!outgoingHandsRef.current[outgoingCard.side].some((card) => card.id === outgoingCard.id)) {
+        return;
+      }
       removeOutgoingCard(outgoingCard.side, outgoingCard.id);
     },
     [removeOutgoingCard],
@@ -3501,13 +3510,10 @@ export const Battle: React.FC<BattleProps> = ({
   }, [authoritativeBattleSnapshot, mode]);
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    if (typeof document === "undefined" || typeof window === "undefined") return;
 
-    const handleVisibilityRecovery = () => {
-      if (document.hidden) {
-        lastHiddenAtRef.current = Date.now();
-        return;
-      }
+    const runVisibilityRecovery = () => {
+      visibilityRecoveryFrameRef.current = null;
 
       if (pendingResultOverlayRecoveryRef.current || (gameRef.current.winner !== null && !gameRef.current.combatLocked)) {
         setShowResultOverlay(true);
@@ -3584,10 +3590,32 @@ export const Battle: React.FC<BattleProps> = ({
       }
     };
 
+    const scheduleVisibilityRecovery = () => {
+      if (visibilityRecoveryFrameRef.current != null) return;
+      visibilityRecoveryFrameRef.current = window.requestAnimationFrame(runVisibilityRecovery);
+    };
+
+    const handleVisibilityRecovery = () => {
+      if (document.hidden) {
+        lastHiddenAtRef.current = Date.now();
+        if (visibilityRecoveryFrameRef.current != null) {
+          window.cancelAnimationFrame(visibilityRecoveryFrameRef.current);
+          visibilityRecoveryFrameRef.current = null;
+        }
+        return;
+      }
+
+      scheduleVisibilityRecovery();
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityRecovery);
     window.addEventListener("focus", handleVisibilityRecovery);
 
     return () => {
+      if (visibilityRecoveryFrameRef.current != null) {
+        window.cancelAnimationFrame(visibilityRecoveryFrameRef.current);
+        visibilityRecoveryFrameRef.current = null;
+      }
       document.removeEventListener("visibilitychange", handleVisibilityRecovery);
       window.removeEventListener("focus", handleVisibilityRecovery);
     };
