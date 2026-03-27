@@ -47,6 +47,57 @@ interface BattleFieldLaneProps {
   containerRef?: (node: HTMLDivElement | null) => void;
   sectionClassName?: string;
   slots: BattleFieldLaneSlot[];
+  onDebugSnapshot?: (snapshot: BattleFieldLaneDebugSnapshot) => void;
+}
+
+export interface BattleFieldLaneDebugSnapshot {
+  presentation: "player" | "enemy";
+  containerRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null;
+  travelTargetSize: {
+    width: number;
+    height: number;
+  };
+  slots: Array<{
+    key: string;
+    displayedTargetName: string | null;
+    slotRect: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    } | null;
+    selectedCard: Syllable | null;
+    pendingCard: Syllable | null | undefined;
+    incoming: {
+      id: string;
+      origin: ZoneAnchorSnapshot;
+      delayMs: number;
+      durationMs: number;
+      startX: number;
+      startY: number;
+      rotate: number;
+    } | null;
+    outgoing: {
+      id: string;
+      destination: ZoneAnchorSnapshot;
+      impactDestination: ZoneAnchorSnapshot | null | undefined;
+      delayMs: number;
+      windupMs: number;
+      attackMs: number;
+      pauseMs: number;
+      exitMs: number;
+      impactX: number;
+      impactY: number;
+      endX: number;
+      endY: number;
+      endScale: number;
+    } | null;
+  }>;
 }
 
 export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
@@ -54,10 +105,128 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
   containerRef = noopDivRef,
   sectionClassName = "w-full",
   slots,
+  onDebugSnapshot,
 }) => {
   const incomingRotate = presentation === "player" ? 12 : -12;
   const travelTargetSize = getTravelTargetCardSize();
   const clampMotionScale = (value: number) => Math.min(1.5, Math.max(0.55, value));
+  const containerNodeRef = React.useRef<HTMLDivElement | null>(null);
+  const fieldLaneDebugSnapshot = React.useMemo<BattleFieldLaneDebugSnapshot>(
+    () => ({
+      presentation,
+      containerRect: containerNodeRef.current
+        ? {
+            left: Math.round(containerNodeRef.current.getBoundingClientRect().left),
+            top: Math.round(containerNodeRef.current.getBoundingClientRect().top),
+            width: Math.round(containerNodeRef.current.getBoundingClientRect().width),
+            height: Math.round(containerNodeRef.current.getBoundingClientRect().height),
+          }
+        : null,
+      travelTargetSize,
+      slots: slots.map((slot) => {
+        const startX =
+          slot.incomingTarget && slot.slotRect
+            ? slot.incomingTarget.origin.left +
+              slot.incomingTarget.origin.width / 2 -
+              slot.slotRect.left -
+              travelTargetSize.width / 2
+            : 0;
+        const startY =
+          slot.incomingTarget && slot.slotRect
+            ? slot.incomingTarget.origin.top +
+              slot.incomingTarget.origin.height / 2 -
+              slot.slotRect.top -
+              travelTargetSize.height / 2
+            : 0;
+        const endX =
+          slot.outgoingTarget && slot.slotRect
+            ? slot.outgoingTarget.destination.left +
+              slot.outgoingTarget.destination.width / 2 -
+              slot.slotRect.left -
+              slot.slotRect.width / 2
+            : 0;
+        const endY =
+          slot.outgoingTarget && slot.slotRect
+            ? slot.outgoingTarget.destination.top +
+              slot.outgoingTarget.destination.height / 2 -
+              slot.slotRect.top -
+              slot.slotRect.height / 2
+            : 0;
+        const endScale =
+          slot.outgoingTarget && slot.slotRect
+            ? clampMotionScale(
+                Math.min(
+                  slot.outgoingTarget.destination.width / Math.max(1, slot.slotRect.width),
+                  slot.outgoingTarget.destination.height / Math.max(1, slot.slotRect.height),
+                ),
+              )
+            : 0.88;
+        const impactX =
+          slot.outgoingTarget?.impactDestination && slot.slotRect
+            ? slot.outgoingTarget.impactDestination.left +
+              slot.outgoingTarget.impactDestination.width / 2 -
+              slot.slotRect.left -
+              slot.slotRect.width / 2
+            : 0;
+        const impactY =
+          slot.outgoingTarget?.impactDestination && slot.slotRect
+            ? slot.outgoingTarget.impactDestination.top +
+              slot.outgoingTarget.impactDestination.height / 2 -
+              slot.slotRect.top -
+              slot.slotRect.height / 2
+            : presentation === "player"
+              ? -118
+              : 118;
+        return {
+          key: slot.key,
+          displayedTargetName: slot.displayedTarget?.target.name ?? null,
+          slotRect: slot.slotRect
+            ? {
+                left: Math.round(slot.slotRect.left),
+                top: Math.round(slot.slotRect.top),
+                width: Math.round(slot.slotRect.width),
+                height: Math.round(slot.slotRect.height),
+              }
+            : null,
+          selectedCard: slot.selectedCard,
+          pendingCard: slot.pendingCard,
+          incoming: slot.incomingTarget
+            ? {
+                id: slot.incomingTarget.id,
+                origin: slot.incomingTarget.origin,
+                delayMs: slot.incomingTarget.delayMs,
+                durationMs: slot.incomingTarget.durationMs,
+                startX,
+                startY,
+                rotate: incomingRotate,
+              }
+            : null,
+          outgoing: slot.outgoingTarget
+            ? {
+                id: slot.outgoingTarget.id,
+                destination: slot.outgoingTarget.destination,
+                impactDestination: slot.outgoingTarget.impactDestination,
+                delayMs: slot.outgoingTarget.delayMs,
+                windupMs: slot.outgoingTarget.windupMs,
+                attackMs: slot.outgoingTarget.attackMs,
+                pauseMs: slot.outgoingTarget.pauseMs,
+                exitMs: slot.outgoingTarget.exitMs,
+                impactX,
+                impactY,
+                endX,
+                endY,
+                endScale,
+              }
+            : null,
+        };
+      }),
+    }),
+    [incomingRotate, presentation, slots, travelTargetSize],
+  );
+
+  React.useEffect(() => {
+    onDebugSnapshot?.(fieldLaneDebugSnapshot);
+  }, [fieldLaneDebugSnapshot, onDebugSnapshot]);
 
   return (
     <section
@@ -65,7 +234,10 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
       className={`absolute inset-0 ${sectionClassName}`}
     >
       <div
-        ref={containerRef}
+        ref={(node) => {
+          containerNodeRef.current = node;
+          containerRef(node);
+        }}
         className="mx-auto grid h-full w-full max-w-[var(--battle-board-lane-max-width-mobile)] grid-cols-2 items-stretch justify-items-stretch gap-3 lg:max-w-[var(--battle-board-lane-max-width-desktop)] lg:gap-4"
       >
         {slots.map((slot) => {

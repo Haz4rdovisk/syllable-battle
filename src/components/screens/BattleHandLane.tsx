@@ -75,6 +75,93 @@ export interface BattleHandLaneProps {
   onCardClick?: (index: number) => void;
   freshCardIds?: string[];
   bindCardRef?: (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => void;
+  onDebugSnapshot?: (snapshot: BattleHandLaneDebugSnapshot) => void;
+}
+
+export interface BattleHandLaneDebugSnapshot {
+  presentation: "local" | "remote";
+  scale: "desktop" | "mobile";
+  totalCards: number;
+  reservedSlots: number;
+  laneWidth: number | null;
+  laneHeight: number | null;
+  hostHeight: number;
+  bottomOffset: number;
+  cardSize: {
+    width: number;
+    baseHeight: number;
+  };
+  layoutBounds: {
+    minY: number;
+    maxY: number;
+  };
+  hostRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null;
+  stableCards: Array<{
+    index: number;
+    id: string;
+    syllable: Syllable;
+    layout: ReturnType<typeof getBattleHandLayout>;
+    selected: boolean;
+    hovered: boolean;
+    newlyDrawn: boolean;
+  }>;
+  incomingCards: Array<{
+    id: string;
+    syllable: Syllable;
+    finalIndex: number;
+    finalTotal: number;
+    delayMs: number;
+    durationMs: number;
+    origin: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+    layout: ReturnType<typeof getBattleHandLayout>;
+    motion: {
+      baseLeft: number;
+      baseTop: number;
+      deckExitX: number;
+      deckExitY: number;
+      startX: number;
+      startY: number;
+      startScale: number;
+      startRotate: number;
+    } | null;
+  }>;
+  outgoingCards: Array<{
+    id: string;
+    syllable: Syllable;
+    initialIndex: number;
+    initialTotal: number;
+    delayMs: number;
+    durationMs: number;
+    destinationMode: "deck-bottom" | "zone-center";
+    destination: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+    layout: ReturnType<typeof getBattleHandLayout>;
+    motion: {
+      baseLeft: number;
+      baseTop: number;
+      destinationCenterX: number;
+      destinationCenterY: number;
+      deckBottomX: number;
+      deckBottomY: number;
+      endX: number;
+      endY: number;
+      endScale: number;
+    } | null;
+  }>;
 }
 
 export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
@@ -99,6 +186,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   onCardClick,
   freshCardIds = [],
   bindCardRef,
+  onDebugSnapshot,
 }) => {
   void side;
   const isLocalPresentation = presentation === "local";
@@ -177,6 +265,221 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             (layoutBounds.minY + layoutBounds.maxY) / 2,
         )
       : 0;
+  const hostRectSnapshot = hostRef.current
+    ? {
+        left: Math.round(hostRef.current.getBoundingClientRect().left),
+        top: Math.round(hostRef.current.getBoundingClientRect().top),
+        width: Math.round(hostRef.current.getBoundingClientRect().width),
+        height: Math.round(hostRef.current.getBoundingClientRect().height),
+      }
+    : null;
+  const handLaneDebugSnapshot = React.useMemo<BattleHandLaneDebugSnapshot>(
+    () => ({
+      presentation,
+      scale,
+      totalCards,
+      reservedSlots,
+      laneWidth,
+      laneHeight,
+      hostHeight,
+      bottomOffset,
+      cardSize: {
+        width: cardWidth,
+        baseHeight: cardBaseHeight,
+      },
+      layoutBounds: {
+        minY: Number.isFinite(layoutBounds.minY) ? layoutBounds.minY : 0,
+        maxY: Number.isFinite(layoutBounds.maxY) ? layoutBounds.maxY : 0,
+      },
+      hostRect: hostRectSnapshot,
+      stableCards: stableCards.map((card, index) => ({
+        index,
+        id: card.id,
+        syllable: card.syllable,
+        layout: getLayout(totalCards, index, isDesktop, laneWidth),
+        selected: selectedIndexes.includes(index),
+        hovered: hoveredCardIndex === index,
+        newlyDrawn: freshCardIds.includes(card.id),
+      })),
+      incomingCards: incomingCards.map((incomingCard) => {
+        const layout = getLayout(
+          incomingCard.finalTotal,
+          incomingCard.finalIndex,
+          isDesktop,
+          laneWidth,
+        );
+        if (!hostRef.current) {
+          return {
+            id: incomingCard.id,
+            syllable: incomingCard.card.syllable,
+            finalIndex: incomingCard.finalIndex,
+            finalTotal: incomingCard.finalTotal,
+            delayMs: incomingCard.delayMs,
+            durationMs: incomingCard.durationMs,
+            origin: incomingCard.origin,
+            layout,
+            motion: null,
+          };
+        }
+        const hostRect = hostRef.current.getBoundingClientRect();
+        const cardSize = isDesktop
+          ? { width: 110, height: 150 }
+          : { width: 86, height: 120 };
+        const deckExitX =
+          incomingCard.origin.left +
+          incomingCard.origin.width / 2 -
+          hostRect.left -
+          cardSize.width / 2;
+        const deckExitY =
+          incomingCard.origin.top +
+          Math.max(8, incomingCard.origin.height * 0.14) -
+          hostRect.top -
+          cardSize.height * 0.18;
+        const baseLeft = hostRect.width / 2 - cardSize.width / 2;
+        const baseTop = hostRect.height - bottomOffset - cardSize.height;
+        const startX = deckExitX - baseLeft;
+        const startY = deckExitY - baseTop;
+        const startScale =
+          cardSize.width > 0 && cardSize.height > 0
+            ? clampScale(
+                Math.min(
+                  incomingCard.origin.width / cardSize.width,
+                  incomingCard.origin.height / cardSize.height,
+                ),
+              )
+            : 0.92;
+        return {
+          id: incomingCard.id,
+          syllable: incomingCard.card.syllable,
+          finalIndex: incomingCard.finalIndex,
+          finalTotal: incomingCard.finalTotal,
+          delayMs: incomingCard.delayMs,
+          durationMs: incomingCard.durationMs,
+          origin: incomingCard.origin,
+          layout,
+          motion: {
+            baseLeft,
+            baseTop,
+            deckExitX,
+            deckExitY,
+            startX,
+            startY,
+            startScale,
+            startRotate: isLocalPresentation ? 3 : -3,
+          },
+        };
+      }),
+      outgoingCards: outgoingCards.map((outgoingCard) => {
+        const layout = getLayout(
+          outgoingCard.initialTotal,
+          outgoingCard.initialIndex,
+          isDesktop,
+          laneWidth,
+        );
+        if (!hostRef.current) {
+          return {
+            id: outgoingCard.id,
+            syllable: outgoingCard.card.syllable,
+            initialIndex: outgoingCard.initialIndex,
+            initialTotal: outgoingCard.initialTotal,
+            delayMs: outgoingCard.delayMs,
+            durationMs: outgoingCard.durationMs,
+            destinationMode: outgoingCard.destinationMode ?? "deck-bottom",
+            destination: outgoingCard.destination,
+            layout,
+            motion: null,
+          };
+        }
+        const hostRect = hostRef.current.getBoundingClientRect();
+        const cardSize = isDesktop
+          ? { width: 110, height: 150 }
+          : { width: 86, height: 120 };
+        const baseLeft = hostRect.width / 2 - cardSize.width / 2;
+        const baseTop = hostRect.height - bottomOffset - cardSize.height;
+        const destinationCenterX =
+          outgoingCard.destination.left +
+          outgoingCard.destination.width / 2 -
+          hostRect.left -
+          cardSize.width / 2;
+        const destinationCenterY =
+          outgoingCard.destination.top +
+          outgoingCard.destination.height / 2 -
+          hostRect.top -
+          cardSize.height / 2;
+        const deckBottomX = destinationCenterX;
+        const deckBottomY =
+          outgoingCard.destination.top +
+          outgoingCard.destination.height -
+          Math.max(10, outgoingCard.destination.height * 0.16) -
+          hostRect.top -
+          cardSize.height * 0.82;
+        const destinationMode = outgoingCard.destinationMode ?? "deck-bottom";
+        const endX =
+          (destinationMode === "zone-center" ? destinationCenterX : deckBottomX) - baseLeft;
+        const endY =
+          (destinationMode === "zone-center" ? destinationCenterY : deckBottomY) - baseTop;
+        const endScale =
+          outgoingCard.endScale ??
+          (destinationMode === "zone-center"
+            ? 1
+            : clampScale(
+                Math.min(
+                  outgoingCard.destination.width / cardSize.width,
+                  outgoingCard.destination.height / cardSize.height,
+                ),
+              ));
+        return {
+          id: outgoingCard.id,
+          syllable: outgoingCard.card.syllable,
+          initialIndex: outgoingCard.initialIndex,
+          initialTotal: outgoingCard.initialTotal,
+          delayMs: outgoingCard.delayMs,
+          durationMs: outgoingCard.durationMs,
+          destinationMode,
+          destination: outgoingCard.destination,
+          layout,
+          motion: {
+            baseLeft,
+            baseTop,
+            destinationCenterX,
+            destinationCenterY,
+            deckBottomX,
+            deckBottomY,
+            endX,
+            endY,
+            endScale,
+          },
+        };
+      }),
+    }),
+    [
+      bottomOffset,
+      cardBaseHeight,
+      cardWidth,
+      freshCardIds,
+      hostHeight,
+      hostRectSnapshot,
+      hoveredCardIndex,
+      incomingCards,
+      isDesktop,
+      isLocalPresentation,
+      laneHeight,
+      laneWidth,
+      layoutBounds.maxY,
+      layoutBounds.minY,
+      outgoingCards,
+      presentation,
+      reservedSlots,
+      scale,
+      selectedIndexes,
+      stableCards,
+      totalCards,
+    ],
+  );
+
+  useEffect(() => {
+    onDebugSnapshot?.(handLaneDebugSnapshot);
+  }, [handLaneDebugSnapshot, onDebugSnapshot]);
 
   return (
     <motion.div

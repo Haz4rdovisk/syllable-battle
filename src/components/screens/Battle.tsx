@@ -37,8 +37,16 @@ import type {
   BattleAnimationLayoutConfig,
 } from "./BattleLayoutConfig";
 import { useActiveBattleLayoutConfig } from "./BattleActiveLayout";
-import { BattleFieldLane, BattleFieldOutgoingTarget } from "./BattleFieldLane";
-import { BattleHandLane, BattleHandLaneOutgoingCard } from "./BattleHandLane";
+import {
+  BattleFieldLane,
+  BattleFieldLaneDebugSnapshot,
+  BattleFieldOutgoingTarget,
+} from "./BattleFieldLane";
+import {
+  BattleHandLane,
+  BattleHandLaneDebugSnapshot,
+  BattleHandLaneOutgoingCard,
+} from "./BattleHandLane";
 import { BattleSceneViewModel, createBattleBoardSurfaceViewModel } from "./BattleSceneViewModel";
 import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
 import { BattleStatusPanel } from "./BattleStatusPanel";
@@ -374,6 +382,8 @@ export const Battle: React.FC<BattleProps> = ({
   const gameRef = useRef<GameState>(initialGameRef.current);
   const zoneNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
   const handCardNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const handLaneDebugRef = useRef<Record<string, BattleHandLaneDebugSnapshot | null>>({});
+  const fieldLaneDebugRef = useRef<Record<string, BattleFieldLaneDebugSnapshot | null>>({});
   const handCardIdRef = useRef(0);
   const battleEventIdRef = useRef(0);
   const battleEventsRef = useRef<BattleEvent[]>([]);
@@ -788,6 +798,18 @@ export const Battle: React.FC<BattleProps> = ({
   const bindHandCardRef = useCallback(
     (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => {
       handCardNodesRef.current[`${cardId}:${layoutId}`] = node;
+    },
+    [],
+  );
+  const setHandLaneDebugSnapshot = useCallback(
+    (key: string, snapshot: BattleHandLaneDebugSnapshot) => {
+      handLaneDebugRef.current[key] = snapshot;
+    },
+    [],
+  );
+  const setFieldLaneDebugSnapshot = useCallback(
+    (key: string, snapshot: BattleFieldLaneDebugSnapshot) => {
+      fieldLaneDebugRef.current[key] = snapshot;
     },
     [],
   );
@@ -1828,6 +1850,10 @@ export const Battle: React.FC<BattleProps> = ({
       domDiagnostics: {
         zoneNodeCount: Object.values(zoneNodesRef.current).filter(Boolean).length,
         handCardNodeCount: Object.values(handCardNodesRef.current).filter(Boolean).length,
+      },
+      laneDebug: {
+        hands: { ...handLaneDebugRef.current },
+        fields: { ...fieldLaneDebugRef.current },
       },
       rawAnimationAnchors: activeBattleLayout.animations,
       authoritativeSnapshotState: authoritativeBattleSnapshot
@@ -3770,6 +3796,7 @@ export const Battle: React.FC<BattleProps> = ({
       }}
       freshCardIds={freshCardIds}
       bindCardRef={bindHandCardRef}
+      onDebugSnapshot={(snapshot) => setHandLaneDebugSnapshot(`player-${scale}`, snapshot)}
     />
   );
 
@@ -3789,6 +3816,7 @@ export const Battle: React.FC<BattleProps> = ({
       anchorRef={bindZoneRef("enemyHand", `layout-${scale}`)}
       onIncomingCardComplete={commitIncomingCardToHand}
       onOutgoingCardComplete={handleOutgoingCardComplete}
+      onDebugSnapshot={(snapshot) => setHandLaneDebugSnapshot(`enemy-${scale}`, snapshot)}
     />
   );
 
@@ -4133,6 +4161,7 @@ export const Battle: React.FC<BattleProps> = ({
               containerRef={bindZoneRef("enemyField", "main")}
               sectionClassName="flex min-h-0 items-end justify-center overflow-visible pb-1"
               slots={sceneViewModel.board.enemyFieldSlots}
+              onDebugSnapshot={(snapshot) => setFieldLaneDebugSnapshot("enemy", snapshot)}
             />
           </div>
         </BattleEditableElement>
@@ -4148,6 +4177,7 @@ export const Battle: React.FC<BattleProps> = ({
               containerRef={bindZoneRef("playerField", "main")}
               sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1"
               slots={sceneViewModel.board.playerFieldSlots}
+              onDebugSnapshot={(snapshot) => setFieldLaneDebugSnapshot("player", snapshot)}
             />
           </div>
         </BattleEditableElement>
