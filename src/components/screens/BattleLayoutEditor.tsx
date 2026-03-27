@@ -180,6 +180,7 @@ const OPENING_TARGET_ENTRY_DURATION_MS = 780;
 const OPENING_TARGET_ENTRY_SETTLE_MS = 560;
 const REPLACEMENT_TARGET_ENTRY_DURATION_MS = 780;
 const REPLACEMENT_TARGET_ENTRY_SETTLE_MS = 240;
+const PILL_DAMAGE_DURATION_MS = 1200;
 const POST_PLAY_HAND_DRAW_DURATION_MS = 940;
 const POST_PLAY_HAND_DRAW_SETTLE_MS = 220;
 const HAND_PLAY_TARGET_DURATION_MS = 660;
@@ -252,6 +253,10 @@ const animationSetOptions: Array<{
     label: "Entrada de alvos - Primeiro Round",
   },
   {
+    value: "pill-damage",
+    label: "Pill - Dano",
+  },
+  {
     value: "replacement-target-entry",
     label: "Entrada do proximo alvo - Pos ataque",
   },
@@ -299,6 +304,11 @@ const animationPresetOptionsBySet: Record<
     { value: "opening-target-entry-2", label: "Entrada 2" },
     { value: "opening-target-entry-3", label: "Entrada 3" },
     { value: "opening-target-entry-simultaneous", label: "Simultanea" },
+  ],
+  "pill-damage": [
+    { value: "none", label: "None" },
+    { value: "pill-damage-player", label: "Player" },
+    { value: "pill-damage-enemy", label: "Inimigo" },
   ],
   "replacement-target-entry": [
     { value: "none", label: "None" },
@@ -450,6 +460,9 @@ const getAnimationModeForAction = (
       ? "replacement-target-entry-loop"
       : "replacement-target-entry-play-once";
   }
+  if (animationSet === "pill-damage") {
+    return kind === "loop" ? "pill-damage-loop" : "pill-damage-play-once";
+  }
   if (animationSet === "post-play-hand-draw") {
     return kind === "loop"
       ? "post-play-hand-draw-loop"
@@ -500,6 +513,9 @@ const getAnimationPreviewDurationMs = (
   if (preset === "none") return 0;
   if (animationSet === "replacement-target-entry") {
     return REPLACEMENT_TARGET_ENTRY_DURATION_MS + REPLACEMENT_TARGET_ENTRY_SETTLE_MS;
+  }
+  if (animationSet === "pill-damage") {
+    return PILL_DAMAGE_DURATION_MS;
   }
   if (animationSet === "post-play-hand-draw") {
     return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
@@ -1563,6 +1579,7 @@ export const BattleLayoutEditor: React.FC = () => {
 
     const isPlayOnceMode =
       animationMode === "opening-target-entry-play-once" ||
+      animationMode === "pill-damage-play-once" ||
       animationMode === "replacement-target-entry-play-once" ||
       animationMode === "post-play-hand-draw-play-once" ||
       animationMode === "hand-play-target-play-once" ||

@@ -20,6 +20,8 @@ export type BattleLayoutPreviewAnimationMode =
   | "idle"
   | "opening-target-entry-play-once"
   | "opening-target-entry-loop"
+  | "pill-damage-play-once"
+  | "pill-damage-loop"
   | "replacement-target-entry-play-once"
   | "replacement-target-entry-loop"
   | "post-play-hand-draw-play-once"
@@ -40,6 +42,7 @@ export type BattleLayoutPreviewAnimationMode =
   | "mulligan-complete-combo-loop";
 export type BattleLayoutPreviewAnimationSet =
   | "opening-target-entry-first-round"
+  | "pill-damage"
   | "replacement-target-entry"
   | "post-play-hand-draw"
   | "hand-play-target"
@@ -56,6 +59,8 @@ export type BattleLayoutPreviewAnimationPreset =
   | "opening-target-entry-2"
   | "opening-target-entry-3"
   | "opening-target-entry-simultaneous"
+  | "pill-damage-player"
+  | "pill-damage-enemy"
   | "replacement-target-entry-0"
   | "replacement-target-entry-1"
   | "replacement-target-entry-2"
