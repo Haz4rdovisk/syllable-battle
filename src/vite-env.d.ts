@@ -6,6 +6,9 @@ interface Window {
   __battleDev?: {
     snapshot: () => unknown;
     logSnapshot: () => void;
+    dumpDebugCapture: () => void;
+    clearDebugCapture: () => void;
+    clearAnimationFallbacks: () => void;
     damage: (side: "player" | "enemy", amount?: number) => void;
     damagePlayer: (amount?: number) => void;
     damageEnemy: (amount?: number) => void;

@@ -32,7 +32,10 @@ import {
 import { BattleBoardShell } from "./BattleBoardShell";
 import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurface";
 import { BattlePillOverlay } from "./BattlePillOverlay";
-import type { BattleAnimationAnchorPoint } from "./BattleLayoutConfig";
+import type {
+  BattleAnimationAnchorPoint,
+  BattleAnimationLayoutConfig,
+} from "./BattleLayoutConfig";
 import { useActiveBattleLayoutConfig } from "./BattleActiveLayout";
 import { BattleFieldLane, BattleFieldOutgoingTarget } from "./BattleFieldLane";
 import { BattleHandLane, BattleHandLaneOutgoingCard } from "./BattleHandLane";
@@ -234,6 +237,21 @@ interface PendingMulliganDraw {
   originOverride: ZoneAnchorSnapshot | null;
 }
 
+interface AnimationFallbackEvent {
+  id: string;
+  label: string;
+  reason: string;
+  fallback: string;
+  createdAt: number;
+}
+
+interface BattleDevWatcherSample {
+  id: number;
+  at: number;
+  reason: "init" | "change";
+  snapshot: unknown;
+}
+
 interface BattleProps {
   mode: GameMode;
   playerDeck: Deck;
@@ -256,6 +274,8 @@ interface BattleProps {
   onReturnToLobby?: () => void;
   onChooseDecksAgain?: () => void;
 }
+
+type LiveBattleAnimationAnchorKey = keyof BattleAnimationLayoutConfig;
 
 export const Battle: React.FC<BattleProps> = ({
   mode,
@@ -472,6 +492,15 @@ export const Battle: React.FC<BattleProps> = ({
     externalActionId: null,
     clearIncomingHand: false,
   });
+  const [animationFallbackHistoryVersion, setAnimationFallbackHistoryVersion] = useState(0);
+  const [battleDebugWatcherVersion, setBattleDebugWatcherVersion] = useState(0);
+  const animationFallbackHistoryRef = useRef<AnimationFallbackEvent[]>([]);
+  const animationFallbackIdRef = useRef(0);
+  const battleDebugSamplesRef = useRef<BattleDevWatcherSample[]>([]);
+  const battleDebugSampleIdRef = useRef(0);
+  const battleDebugStartedAtRef = useRef<number | null>(null);
+  const battleDebugLastSignatureRef = useRef("");
+  const buildBattleDevSnapshotRef = useRef<() => unknown>(() => null);
   gameRef.current = game;
   const previousEnemyHandSignatureRef = useRef<string>("");
   const lastHiddenAtRef = useRef<number | null>(null);
@@ -809,34 +838,128 @@ export const Battle: React.FC<BattleProps> = ({
     };
   }, []);
 
+  const resolveBattleStageMetrics = useCallback(() => {
+    const selector = '[data-battle-stage-root="true"]';
+    if (typeof document === "undefined") {
+      return {
+        selector,
+        rootCount: 0,
+        root: null as HTMLElement | null,
+        rect: null as DOMRect | null,
+        scaleX: null as number | null,
+        scaleY: null as number | null,
+        reason: "no-document" as string | null,
+      };
+    }
+
+    const roots = Array.from(document.querySelectorAll<HTMLElement>(selector));
+    const root = roots[0] ?? null;
+    if (!root) {
+      return {
+        selector,
+        rootCount: roots.length,
+        root,
+        rect: null,
+        scaleX: null,
+        scaleY: null,
+        reason: "stage-root-missing",
+      };
+    }
+
+    const rect = root.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return {
+        selector,
+        rootCount: roots.length,
+        root,
+        rect,
+        scaleX: null,
+        scaleY: null,
+        reason: `stage-rect-invalid:${Math.round(rect.width)}x${Math.round(rect.height)}`,
+      };
+    }
+
+    return {
+      selector,
+      rootCount: roots.length,
+      root,
+      rect,
+      scaleX: rect.width / BATTLE_STAGE_WIDTH,
+      scaleY: rect.height / BATTLE_STAGE_HEIGHT,
+      reason: null,
+    };
+  }, []);
+
+  const serializeZoneAnchorSnapshot = useCallback((snapshot: ZoneAnchorSnapshot | null | undefined) => {
+    if (!snapshot) return null;
+    return {
+      left: Math.round(snapshot.left),
+      top: Math.round(snapshot.top),
+      width: Math.round(snapshot.width),
+      height: Math.round(snapshot.height),
+    };
+  }, []);
+
   const snapshotSceneAnimationOrigin = useCallback(
     (point: { x: number; y: number } | null | undefined): ZoneAnchorSnapshot | null => {
-      if (!point || typeof document === "undefined") return null;
-      const stageRoot = document.querySelector<HTMLElement>(
-        '[data-battle-stage-root="true"]',
-      );
-      if (!stageRoot) return null;
-      const rect = stageRoot.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return null;
-      const scaleX = rect.width / BATTLE_STAGE_WIDTH;
-      const scaleY = rect.height / BATTLE_STAGE_HEIGHT;
+      if (!point) return null;
+      const stageMetrics = resolveBattleStageMetrics();
+      if (!stageMetrics.rect || stageMetrics.scaleX == null || stageMetrics.scaleY == null) {
+        return null;
+      }
       return {
-        left: rect.left + point.x * scaleX,
-        top: rect.top + point.y * scaleY,
+        left: stageMetrics.rect.left + point.x * stageMetrics.scaleX,
+        top: stageMetrics.rect.top + point.y * stageMetrics.scaleY,
         width: 0,
         height: 0,
       };
     },
-    [],
+    [resolveBattleStageMetrics],
+  );
+  const getSceneAnimationOriginFailureReason = useCallback(
+    (point: { x: number; y: number } | null | undefined) => {
+      if (!point) return "anchor-not-set";
+      return resolveBattleStageMetrics().reason;
+    },
+    [resolveBattleStageMetrics],
+  );
+  const pushAnimationFallbackEvent = useCallback((label: string, reason: string, fallback: string) => {
+    animationFallbackHistoryRef.current = [
+      {
+        id: `anim-fallback-${animationFallbackIdRef.current++}`,
+        label,
+        reason,
+        fallback,
+        createdAt: Date.now(),
+      },
+      ...animationFallbackHistoryRef.current,
+    ].slice(0, 16);
+    setAnimationFallbackHistoryVersion((value) => value + 1);
+  }, []);
+  const snapshotSceneAnimationOriginWithFallback = useCallback(
+    (
+      label: string,
+      point: { x: number; y: number } | null | undefined,
+      fallback: string,
+    ) => {
+      const snapshot = snapshotSceneAnimationOrigin(point);
+      if (snapshot) return snapshot;
+      const reason = getSceneAnimationOriginFailureReason(point) ?? "snapshot-null";
+      pushAnimationFallbackEvent(label, reason, fallback);
+      return null;
+    },
+    [getSceneAnimationOriginFailureReason, pushAnimationFallbackEvent, snapshotSceneAnimationOrigin],
   );
   const getPostPlayHandDrawOriginSnapshot = useCallback(
     (side: typeof PLAYER | typeof ENEMY) => {
       if (side !== localPlayerIndex) return null;
-      return snapshotSceneAnimationOrigin(
+      return snapshotSceneAnimationOriginWithFallback(
+        "post-play-hand-draw",
         activeBattleLayout.animations.postPlayHandDrawOrigin,
+        "deck",
       );
     },
-    [activeBattleLayout.animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOrigin],
+    [activeBattleLayout.animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOriginWithFallback],
   );
   const handPlayTargetPointsByIndex = useMemo(
     () => ({
@@ -854,9 +977,13 @@ export const Battle: React.FC<BattleProps> = ({
       if (targetIndex !== 0 && targetIndex !== 1) {
         return null;
       }
-      return snapshotSceneAnimationOrigin(handPlayTargetPointsByIndex[targetIndex]);
+      return snapshotSceneAnimationOriginWithFallback(
+        `hand-play-target-${targetIndex}`,
+        handPlayTargetPointsByIndex[targetIndex],
+        `player-field-slot-${targetIndex}`,
+      );
     },
-    [handPlayTargetPointsByIndex, localPlayerIndex, snapshotSceneAnimationOrigin],
+    [handPlayTargetPointsByIndex, localPlayerIndex, snapshotSceneAnimationOriginWithFallback],
   );
   const replacementTargetEntryPointsByIndex = useMemo(
     () => ({
@@ -876,11 +1003,13 @@ export const Battle: React.FC<BattleProps> = ({
     (side: typeof PLAYER | typeof ENEMY, slotIndex: number) => {
       if (slotIndex !== 0 && slotIndex !== 1) return null;
       const replacementIndex = side * CONFIG.targetsInPlay + slotIndex;
-      return snapshotSceneAnimationOrigin(
+      return snapshotSceneAnimationOriginWithFallback(
+        `replacement-target-entry-${replacementIndex}`,
         replacementTargetEntryPointsByIndex[replacementIndex],
+        `${side === PLAYER ? "player" : "enemy"}-target-deck`,
       );
     },
-    [replacementTargetEntryPointsByIndex, snapshotSceneAnimationOrigin],
+    [replacementTargetEntryPointsByIndex, snapshotSceneAnimationOriginWithFallback],
   );
   const mulliganReturnPointsByCount = useMemo(
     () => ({
@@ -929,13 +1058,17 @@ export const Battle: React.FC<BattleProps> = ({
         count,
         mulliganReturnPointsByCount,
       );
-      return snapshotSceneAnimationOrigin(configuredPoint);
+      return snapshotSceneAnimationOriginWithFallback(
+        `mulligan-return-${count}`,
+        configuredPoint,
+        "deck",
+      );
     },
     [
       getMulliganAnimationPointByCount,
       localPlayerIndex,
       mulliganReturnPointsByCount,
-      snapshotSceneAnimationOrigin,
+      snapshotSceneAnimationOriginWithFallback,
     ],
   );
   const getMulliganHandDrawOriginSnapshot = useCallback(
@@ -945,15 +1078,828 @@ export const Battle: React.FC<BattleProps> = ({
         count,
         mulliganDrawPointsByCount,
       );
-      return snapshotSceneAnimationOrigin(configuredPoint);
+      return snapshotSceneAnimationOriginWithFallback(
+        `mulligan-draw-${count}`,
+        configuredPoint,
+        "deck",
+      );
     },
     [
       getMulliganAnimationPointByCount,
       localPlayerIndex,
       mulliganDrawPointsByCount,
-      snapshotSceneAnimationOrigin,
+      snapshotSceneAnimationOriginWithFallback,
     ],
   );
+  const getBattleStageMetrics = useCallback(() => {
+    const resolved = resolveBattleStageMetrics();
+    if (!resolved.rect || resolved.scaleX == null || resolved.scaleY == null) return null;
+    return {
+      rect: resolved.rect,
+      scaleX: resolved.scaleX,
+      scaleY: resolved.scaleY,
+    };
+  }, [resolveBattleStageMetrics]);
+  const getScreenPointFromScenePoint = useCallback(
+    (point: BattleAnimationAnchorPoint | null | undefined) => {
+      if (!point) return null;
+      const stageMetrics = getBattleStageMetrics();
+      if (!stageMetrics) return null;
+      return {
+        x: Math.round(stageMetrics.rect.left + point.x * stageMetrics.scaleX),
+        y: Math.round(stageMetrics.rect.top + point.y * stageMetrics.scaleY),
+      };
+    },
+    [getBattleStageMetrics],
+  );
+  const getScenePointFromScreenPoint = useCallback(
+    (point: { x: number; y: number } | null | undefined) => {
+      if (!point) return null;
+      const stageMetrics = getBattleStageMetrics();
+      if (!stageMetrics) return null;
+      return {
+        x: Math.round((point.x - stageMetrics.rect.left) / stageMetrics.scaleX),
+        y: Math.round((point.y - stageMetrics.rect.top) / stageMetrics.scaleY),
+      };
+    },
+    [getBattleStageMetrics],
+  );
+  const getZoneSnapshotCenter = useCallback((snapshot: ZoneAnchorSnapshot | null | undefined) => {
+    if (!snapshot) return null;
+    return {
+      x: Math.round(snapshot.left + snapshot.width / 2),
+      y: Math.round(snapshot.top + snapshot.height / 2),
+    };
+  }, []);
+  const liveAnimationAnchorPoints = useMemo(
+    () => ({
+      openingTargetEntry0Origin: activeBattleLayout.animations.openingTargetEntry0Origin,
+      openingTargetEntry1Origin: activeBattleLayout.animations.openingTargetEntry1Origin,
+      openingTargetEntry2Origin: activeBattleLayout.animations.openingTargetEntry2Origin,
+      openingTargetEntry3Origin: activeBattleLayout.animations.openingTargetEntry3Origin,
+      replacementTargetEntry0Origin: activeBattleLayout.animations.replacementTargetEntry0Origin,
+      replacementTargetEntry1Origin: activeBattleLayout.animations.replacementTargetEntry1Origin,
+      replacementTargetEntry2Origin: activeBattleLayout.animations.replacementTargetEntry2Origin,
+      replacementTargetEntry3Origin: activeBattleLayout.animations.replacementTargetEntry3Origin,
+      postPlayHandDrawOrigin: activeBattleLayout.animations.postPlayHandDrawOrigin,
+      handPlayTarget0Destination: activeBattleLayout.animations.handPlayTarget0Destination,
+      handPlayTarget1Destination: activeBattleLayout.animations.handPlayTarget1Destination,
+      mulliganReturn1Destination: activeBattleLayout.animations.mulliganReturn1Destination,
+      mulliganReturn2Destination: activeBattleLayout.animations.mulliganReturn2Destination,
+      mulliganReturn3Destination: activeBattleLayout.animations.mulliganReturn3Destination,
+      mulliganDraw1Origin: activeBattleLayout.animations.mulliganDraw1Origin,
+      mulliganDraw2Origin: activeBattleLayout.animations.mulliganDraw2Origin,
+      mulliganDraw3Origin: activeBattleLayout.animations.mulliganDraw3Origin,
+      targetAttack0Impact: activeBattleLayout.animations.targetAttack0Impact,
+      targetAttack1Impact: activeBattleLayout.animations.targetAttack1Impact,
+      targetAttack2Impact: activeBattleLayout.animations.targetAttack2Impact,
+      targetAttack3Impact: activeBattleLayout.animations.targetAttack3Impact,
+      targetAttack0Destination: activeBattleLayout.animations.targetAttack0Destination,
+      targetAttack1Destination: activeBattleLayout.animations.targetAttack1Destination,
+      targetAttack2Destination: activeBattleLayout.animations.targetAttack2Destination,
+      targetAttack3Destination: activeBattleLayout.animations.targetAttack3Destination,
+    }),
+    [activeBattleLayout.animations],
+  );
+  const getReferenceScreenPointForAnimationAnchor = useCallback(
+    (anchorKey: LiveBattleAnimationAnchorKey) => {
+      if (anchorKey.startsWith("openingTargetEntry")) {
+        const index = Number(anchorKey.replace("openingTargetEntry", "").replace("Origin", ""));
+        return getZoneSnapshotCenter(
+          snapshotZone(index >= CONFIG.targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck"),
+        );
+      }
+
+      if (anchorKey.startsWith("replacementTargetEntry")) {
+        const index = Number(anchorKey.replace("replacementTargetEntry", "").replace("Origin", ""));
+        return getZoneSnapshotCenter(
+          snapshotZone(index >= CONFIG.targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck"),
+        );
+      }
+
+      if (anchorKey === "postPlayHandDrawOrigin") {
+        return getZoneSnapshotCenter(snapshotZone("playerDeck"));
+      }
+
+      if (anchorKey.startsWith("handPlayTarget")) {
+        const index = Number(anchorKey.replace("handPlayTarget", "").replace("Destination", ""));
+        return getZoneSnapshotCenter(snapshotZoneSlot("playerField", `slot-${index}`));
+      }
+
+      if (anchorKey.startsWith("mulliganReturn") || anchorKey.startsWith("mulliganDraw")) {
+        return getZoneSnapshotCenter(snapshotZone("playerDeck"));
+      }
+
+      if (anchorKey.startsWith("targetAttack") && anchorKey.endsWith("Impact")) {
+        const index = Number(anchorKey.replace("targetAttack", "").replace("Impact", ""));
+        return getZoneSnapshotCenter(
+          snapshotZoneSlot(index >= CONFIG.targetsInPlay ? "enemyField" : "playerField", `slot-${index % CONFIG.targetsInPlay}`),
+        );
+      }
+
+      if (anchorKey.startsWith("targetAttack") && anchorKey.endsWith("Destination")) {
+        const index = Number(anchorKey.replace("targetAttack", "").replace("Destination", ""));
+        return getZoneSnapshotCenter(
+          snapshotZone(index >= CONFIG.targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck"),
+        );
+      }
+
+      return null;
+    },
+    [getZoneSnapshotCenter, snapshotZone, snapshotZoneSlot],
+  );
+  const liveVisibleAnimationAnchors = useMemo(
+    () =>
+      (Object.entries(liveAnimationAnchorPoints) as [LiveBattleAnimationAnchorKey, BattleAnimationAnchorPoint | null][])
+        .filter(([, point]) => Boolean(point))
+        .map(([anchor, point]) => ({ anchor, point: point as BattleAnimationAnchorPoint })),
+    [liveAnimationAnchorPoints],
+  );
+  const liveAnchorProbeRows = useMemo(
+    () =>
+      liveVisibleAnimationAnchors.map(({ anchor, point }) => {
+        const screen = getScreenPointFromScenePoint(point);
+        const referenceScreen = getReferenceScreenPointForAnimationAnchor(anchor);
+        const reference = getScenePointFromScreenPoint(referenceScreen);
+        return {
+          anchor,
+          point,
+          screen,
+          reference,
+          referenceScreen,
+          deltaScene: reference
+            ? {
+                x: Math.round(point.x - reference.x),
+                y: Math.round(point.y - reference.y),
+              }
+            : null,
+          deltaScreen:
+            screen && referenceScreen
+              ? {
+                  x: Math.round(screen.x - referenceScreen.x),
+                  y: Math.round(screen.y - referenceScreen.y),
+                }
+              : null,
+        };
+      }),
+    [
+      getReferenceScreenPointForAnimationAnchor,
+      getScenePointFromScreenPoint,
+      getScreenPointFromScenePoint,
+      liveVisibleAnimationAnchors,
+    ],
+  );
+  const liveAnimationDebugData = useMemo(() => {
+    const formatPoint = (point: { x: number; y: number } | null | undefined) =>
+      point ? `${point.x},${point.y}` : "-";
+    const formatDelta = (point: { x: number; y: number } | null | undefined) =>
+      point ? `${point.x >= 0 ? "+" : ""}${point.x},${point.y >= 0 ? "+" : ""}${point.y}` : "-";
+    const formatSnapshot = (snapshot: ZoneAnchorSnapshot | null | undefined) =>
+      snapshot
+        ? `${Math.round(snapshot.left)},${Math.round(snapshot.top)} ${Math.round(snapshot.width)}x${Math.round(snapshot.height)}`
+        : "-";
+    const stageMetrics = getBattleStageMetrics();
+    const stageLine = stageMetrics
+      ? `stage:${Math.round(stageMetrics.rect.width)}x${Math.round(stageMetrics.rect.height)} scale:${stageMetrics.scaleX.toFixed(3)},${stageMetrics.scaleY.toFixed(3)} off:${Math.round(stageMetrics.rect.left)},${Math.round(stageMetrics.rect.top)}`
+      : "stage:-";
+    const probeLines = liveAnchorProbeRows.map(
+      (row) =>
+        `probe:${row.anchor} scene:${formatPoint(row.point)} screen:${formatPoint(row.screen)} ref:${formatPoint(row.reference)} refScreen:${formatPoint(row.referenceScreen)} dScene:${formatDelta(row.deltaScene)} dScreen:${formatDelta(row.deltaScreen)}`,
+    );
+    const snapshotLines = [
+      `postPlayDraw:${formatPoint(activeBattleLayout.animations.postPlayHandDrawOrigin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.postPlayHandDrawOrigin))}`,
+      `handPlayDests:[0:${formatPoint(activeBattleLayout.animations.handPlayTarget0Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.handPlayTarget0Destination))} | 1:${formatPoint(activeBattleLayout.animations.handPlayTarget1Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.handPlayTarget1Destination))}]`,
+      `replacementOrigins:[0:${formatPoint(activeBattleLayout.animations.replacementTargetEntry0Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry0Origin))} | 1:${formatPoint(activeBattleLayout.animations.replacementTargetEntry1Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry1Origin))} | 2:${formatPoint(activeBattleLayout.animations.replacementTargetEntry2Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry2Origin))} | 3:${formatPoint(activeBattleLayout.animations.replacementTargetEntry3Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry3Origin))}]`,
+      `mulliganReturns:[1:${formatPoint(activeBattleLayout.animations.mulliganReturn1Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganReturn1Destination))} | 2:${formatPoint(activeBattleLayout.animations.mulliganReturn2Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganReturn2Destination))} | 3:${formatPoint(activeBattleLayout.animations.mulliganReturn3Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganReturn3Destination))}]`,
+      `mulliganDraws:[1:${formatPoint(activeBattleLayout.animations.mulliganDraw1Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganDraw1Origin))} | 2:${formatPoint(activeBattleLayout.animations.mulliganDraw2Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganDraw2Origin))} | 3:${formatPoint(activeBattleLayout.animations.mulliganDraw3Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganDraw3Origin))}]`,
+      `attackImpacts:[0:${formatPoint(activeBattleLayout.animations.targetAttack0Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack0Impact))} | 1:${formatPoint(activeBattleLayout.animations.targetAttack1Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack1Impact))} | 2:${formatPoint(activeBattleLayout.animations.targetAttack2Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack2Impact))} | 3:${formatPoint(activeBattleLayout.animations.targetAttack3Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack3Impact))}]`,
+      `attackDests:[0:${formatPoint(activeBattleLayout.animations.targetAttack0Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack0Destination))} | 1:${formatPoint(activeBattleLayout.animations.targetAttack1Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack1Destination))} | 2:${formatPoint(activeBattleLayout.animations.targetAttack2Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack2Destination))} | 3:${formatPoint(activeBattleLayout.animations.targetAttack3Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack3Destination))}]`,
+      `openingOrigins:[0:${formatPoint(activeBattleLayout.animations.openingTargetEntry0Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry0Origin))} | 1:${formatPoint(activeBattleLayout.animations.openingTargetEntry1Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry1Origin))} | 2:${formatPoint(activeBattleLayout.animations.openingTargetEntry2Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry2Origin))} | 3:${formatPoint(activeBattleLayout.animations.openingTargetEntry3Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry3Origin))}]`,
+    ];
+    const fallbackLines = animationFallbackHistoryRef.current.map((entry) => {
+      const timestamp = new Date(entry.createdAt).toLocaleTimeString("pt-BR", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      return `fallback:${timestamp} ${entry.label} reason:${entry.reason} -> ${entry.fallback}`;
+    });
+
+    return {
+      stageLine,
+      anchorsLine: `anchors:[${liveVisibleAnimationAnchors.map(({ anchor, point }) => `${anchor}@${formatPoint(point)}`).join(" | ")}]`,
+      probeLines,
+      snapshotLines,
+      fallbackLines,
+    };
+  }, [
+    activeBattleLayout.animations,
+    animationFallbackHistoryVersion,
+    battleDebugWatcherVersion,
+    getBattleStageMetrics,
+    liveAnchorProbeRows,
+    liveVisibleAnimationAnchors,
+    snapshotSceneAnimationOrigin,
+  ]);
+  const buildFreshAnimationProbeSnapshot = useCallback(() => {
+    const formatPoint = (point: { x: number; y: number } | null | undefined) =>
+      point ? `${point.x},${point.y}` : "-";
+    const formatDelta = (point: { x: number; y: number } | null | undefined) =>
+      point ? `${point.x >= 0 ? "+" : ""}${point.x},${point.y >= 0 ? "+" : ""}${point.y}` : "-";
+    const formatSnapshot = (snapshot: ZoneAnchorSnapshot | null | undefined) =>
+      snapshot
+        ? `${Math.round(snapshot.left)},${Math.round(snapshot.top)} ${Math.round(snapshot.width)}x${Math.round(snapshot.height)}`
+        : "-";
+    const stageResolution = resolveBattleStageMetrics();
+    const stageLine =
+      stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
+        ? `stage:${Math.round(stageResolution.rect.width)}x${Math.round(stageResolution.rect.height)} scale:${stageResolution.scaleX.toFixed(3)},${stageResolution.scaleY.toFixed(3)} off:${Math.round(stageResolution.rect.left)},${Math.round(stageResolution.rect.top)}`
+        : "stage:-";
+    const stageDiagnostics = {
+      selector: stageResolution.selector,
+      rootCount: stageResolution.rootCount,
+      stageRootFound: Boolean(stageResolution.root),
+      stageRootConnected: stageResolution.root ? stageResolution.root.isConnected : false,
+      stageRootTag: stageResolution.root?.tagName ?? null,
+      stageRootClassName: stageResolution.root?.className ?? null,
+      reason: stageResolution.reason,
+      rect:
+        stageResolution.rect == null
+          ? null
+          : {
+              left: Math.round(stageResolution.rect.left),
+              top: Math.round(stageResolution.rect.top),
+              width: Math.round(stageResolution.rect.width),
+              height: Math.round(stageResolution.rect.height),
+            },
+      scale:
+        stageResolution.scaleX == null || stageResolution.scaleY == null
+          ? null
+          : {
+              x: Number(stageResolution.scaleX.toFixed(3)),
+              y: Number(stageResolution.scaleY.toFixed(3)),
+            },
+    };
+    const toSnapshotWithMetrics = (point: BattleAnimationAnchorPoint | null | undefined) => {
+      if (!point || !stageResolution.rect || stageResolution.scaleX == null || stageResolution.scaleY == null) {
+        return null;
+      }
+      return {
+        left: stageResolution.rect.left + point.x * stageResolution.scaleX,
+        top: stageResolution.rect.top + point.y * stageResolution.scaleY,
+        width: 0,
+        height: 0,
+      } satisfies ZoneAnchorSnapshot;
+    };
+    const toScreenPointWithMetrics = (point: BattleAnimationAnchorPoint | null | undefined) => {
+      const snapshot = toSnapshotWithMetrics(point);
+      if (!snapshot) return null;
+      return {
+        x: Math.round(snapshot.left),
+        y: Math.round(snapshot.top),
+      };
+    };
+    const toScenePointWithMetrics = (point: { x: number; y: number } | null | undefined) => {
+      if (!point || !stageResolution.rect || stageResolution.scaleX == null || stageResolution.scaleY == null) {
+        return null;
+      }
+      return {
+        x: Math.round((point.x - stageResolution.rect.left) / stageResolution.scaleX),
+        y: Math.round((point.y - stageResolution.rect.top) / stageResolution.scaleY),
+      };
+    };
+    const visibleAnchors = (Object.entries(liveAnimationAnchorPoints) as [
+      LiveBattleAnimationAnchorKey,
+      BattleAnimationAnchorPoint | null,
+    ][])
+      .filter(([, point]) => Boolean(point))
+      .map(([anchor, point]) => ({ anchor, point: point as BattleAnimationAnchorPoint }));
+    const probeRows = visibleAnchors.map(({ anchor, point }) => {
+      const screen = toScreenPointWithMetrics(point);
+      const referenceScreen = getReferenceScreenPointForAnimationAnchor(anchor);
+      const reference = toScenePointWithMetrics(referenceScreen);
+      const failureReason = point ? stageResolution.reason : "anchor-not-set";
+      return {
+        anchor,
+        point,
+        screen,
+        reference,
+        referenceScreen,
+        failureReason,
+        deltaScene:
+          reference == null
+            ? null
+            : {
+                x: Math.round(point.x - reference.x),
+                y: Math.round(point.y - reference.y),
+              },
+        deltaScreen:
+          screen && referenceScreen
+            ? {
+                x: Math.round(screen.x - referenceScreen.x),
+                y: Math.round(screen.y - referenceScreen.y),
+              }
+            : null,
+      };
+    });
+    const snapshotEntries = [
+      {
+        group: "postPlayDraw",
+        key: "postPlayHandDrawOrigin",
+        point: activeBattleLayout.animations.postPlayHandDrawOrigin,
+      },
+      {
+        group: "handPlayDests",
+        key: "handPlayTarget0Destination",
+        point: activeBattleLayout.animations.handPlayTarget0Destination,
+      },
+      {
+        group: "handPlayDests",
+        key: "handPlayTarget1Destination",
+        point: activeBattleLayout.animations.handPlayTarget1Destination,
+      },
+      {
+        group: "replacementOrigins",
+        key: "replacementTargetEntry0Origin",
+        point: activeBattleLayout.animations.replacementTargetEntry0Origin,
+      },
+      {
+        group: "replacementOrigins",
+        key: "replacementTargetEntry1Origin",
+        point: activeBattleLayout.animations.replacementTargetEntry1Origin,
+      },
+      {
+        group: "replacementOrigins",
+        key: "replacementTargetEntry2Origin",
+        point: activeBattleLayout.animations.replacementTargetEntry2Origin,
+      },
+      {
+        group: "replacementOrigins",
+        key: "replacementTargetEntry3Origin",
+        point: activeBattleLayout.animations.replacementTargetEntry3Origin,
+      },
+      {
+        group: "mulliganReturns",
+        key: "mulliganReturn1Destination",
+        point: activeBattleLayout.animations.mulliganReturn1Destination,
+      },
+      {
+        group: "mulliganReturns",
+        key: "mulliganReturn2Destination",
+        point: activeBattleLayout.animations.mulliganReturn2Destination,
+      },
+      {
+        group: "mulliganReturns",
+        key: "mulliganReturn3Destination",
+        point: activeBattleLayout.animations.mulliganReturn3Destination,
+      },
+      {
+        group: "mulliganDraws",
+        key: "mulliganDraw1Origin",
+        point: activeBattleLayout.animations.mulliganDraw1Origin,
+      },
+      {
+        group: "mulliganDraws",
+        key: "mulliganDraw2Origin",
+        point: activeBattleLayout.animations.mulliganDraw2Origin,
+      },
+      {
+        group: "mulliganDraws",
+        key: "mulliganDraw3Origin",
+        point: activeBattleLayout.animations.mulliganDraw3Origin,
+      },
+      {
+        group: "attackImpacts",
+        key: "targetAttack0Impact",
+        point: activeBattleLayout.animations.targetAttack0Impact,
+      },
+      {
+        group: "attackImpacts",
+        key: "targetAttack1Impact",
+        point: activeBattleLayout.animations.targetAttack1Impact,
+      },
+      {
+        group: "attackImpacts",
+        key: "targetAttack2Impact",
+        point: activeBattleLayout.animations.targetAttack2Impact,
+      },
+      {
+        group: "attackImpacts",
+        key: "targetAttack3Impact",
+        point: activeBattleLayout.animations.targetAttack3Impact,
+      },
+      {
+        group: "attackDests",
+        key: "targetAttack0Destination",
+        point: activeBattleLayout.animations.targetAttack0Destination,
+      },
+      {
+        group: "attackDests",
+        key: "targetAttack1Destination",
+        point: activeBattleLayout.animations.targetAttack1Destination,
+      },
+      {
+        group: "attackDests",
+        key: "targetAttack2Destination",
+        point: activeBattleLayout.animations.targetAttack2Destination,
+      },
+      {
+        group: "attackDests",
+        key: "targetAttack3Destination",
+        point: activeBattleLayout.animations.targetAttack3Destination,
+      },
+      {
+        group: "openingOrigins",
+        key: "openingTargetEntry0Origin",
+        point: activeBattleLayout.animations.openingTargetEntry0Origin,
+      },
+      {
+        group: "openingOrigins",
+        key: "openingTargetEntry1Origin",
+        point: activeBattleLayout.animations.openingTargetEntry1Origin,
+      },
+      {
+        group: "openingOrigins",
+        key: "openingTargetEntry2Origin",
+        point: activeBattleLayout.animations.openingTargetEntry2Origin,
+      },
+      {
+        group: "openingOrigins",
+        key: "openingTargetEntry3Origin",
+        point: activeBattleLayout.animations.openingTargetEntry3Origin,
+      },
+    ] as const;
+    const groupedSnapshotRows = snapshotEntries.reduce<Record<string, string[]>>((acc, entry) => {
+      const snapshot = toSnapshotWithMetrics(entry.point);
+      const line = `${entry.key}:${formatPoint(entry.point)} -> ${formatSnapshot(snapshot)}`;
+      acc[entry.group] = [...(acc[entry.group] ?? []), line];
+      return acc;
+    }, {});
+    const snapshotRows = snapshotEntries.map((entry) => {
+      const snapshot = toSnapshotWithMetrics(entry.point);
+      return {
+        group: entry.group,
+        key: entry.key,
+        point: entry.point,
+        snapshot: serializeZoneAnchorSnapshot(snapshot),
+        failureReason: entry.point ? stageResolution.reason : "anchor-not-set",
+      };
+    });
+    const fallbackEntries = animationFallbackHistoryRef.current.map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      reason: entry.reason,
+      fallback: entry.fallback,
+      createdAt: entry.createdAt,
+      createdAtIso: new Date(entry.createdAt).toISOString(),
+    }));
+    const fallbackLines = fallbackEntries.map((entry) => {
+      const timestamp = new Date(entry.createdAt).toLocaleTimeString("pt-BR", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      return `fallback:${timestamp} ${entry.label} reason:${entry.reason} -> ${entry.fallback}`;
+    });
+
+    return {
+      stage: stageLine,
+      stageDiagnostics,
+      anchors: `anchors:[${visibleAnchors.map(({ anchor, point }) => `${anchor}@${formatPoint(point)}`).join(" | ")}]`,
+      anchorPoints: visibleAnchors.map(({ anchor, point }) => ({ anchor, point })),
+      probes: probeRows.map(
+        (row) =>
+          `probe:${row.anchor} scene:${formatPoint(row.point)} screen:${formatPoint(row.screen)} ref:${formatPoint(row.reference)} refScreen:${formatPoint(row.referenceScreen)} dScene:${formatDelta(row.deltaScene)} dScreen:${formatDelta(row.deltaScreen)}`,
+      ),
+      probeRows,
+      snapshots: [
+        `postPlayDraw:${groupedSnapshotRows.postPlayDraw?.join(" | ") ?? "-"}`,
+        `handPlayDests:[${groupedSnapshotRows.handPlayDests?.join(" | ") ?? "-"}]`,
+        `replacementOrigins:[${groupedSnapshotRows.replacementOrigins?.join(" | ") ?? "-"}]`,
+        `mulliganReturns:[${groupedSnapshotRows.mulliganReturns?.join(" | ") ?? "-"}]`,
+        `mulliganDraws:[${groupedSnapshotRows.mulliganDraws?.join(" | ") ?? "-"}]`,
+        `attackImpacts:[${groupedSnapshotRows.attackImpacts?.join(" | ") ?? "-"}]`,
+        `attackDests:[${groupedSnapshotRows.attackDests?.join(" | ") ?? "-"}]`,
+        `openingOrigins:[${groupedSnapshotRows.openingOrigins?.join(" | ") ?? "-"}]`,
+      ],
+      snapshotRows,
+      fallbacks: fallbackLines,
+      fallbackEntries,
+      counters: {
+        anchors: visibleAnchors.length,
+        probes: probeRows.length,
+        snapshots: snapshotRows.length,
+        fallbacks: fallbackEntries.length,
+      },
+    };
+  }, [
+    activeBattleLayout.animations,
+    getReferenceScreenPointForAnimationAnchor,
+    liveAnimationAnchorPoints,
+    resolveBattleStageMetrics,
+    serializeZoneAnchorSnapshot,
+  ]);
+  const buildBattleDevSnapshot = useCallback(() => {
+    const stageMetrics = getBattleStageMetrics();
+    const animationProbe = buildFreshAnimationProbeSnapshot();
+    const stageRect = stageMetrics
+      ? {
+          left: Math.round(stageMetrics.rect.left),
+          top: Math.round(stageMetrics.rect.top),
+          width: Math.round(stageMetrics.rect.width),
+          height: Math.round(stageMetrics.rect.height),
+          scaleX: Number(stageMetrics.scaleX.toFixed(3)),
+          scaleY: Number(stageMetrics.scaleY.toFixed(3)),
+        }
+      : null;
+
+    return {
+      capturedAt: new Date().toISOString(),
+      location:
+        typeof window === "undefined"
+          ? null
+          : {
+              href: window.location.href,
+              innerWidth: window.innerWidth,
+              innerHeight: window.innerHeight,
+              devicePixelRatio: window.devicePixelRatio,
+              visibility: document.visibilityState,
+            },
+      stageRect,
+      stageRootDiagnostics: animationProbe.stageDiagnostics,
+      openingIntroStep: game.openingIntroStep,
+      turn: game.turn,
+      localPlayerIndex,
+      remotePlayerIndex,
+      mode,
+      roomTransportKind: roomTransportKind ?? "none",
+      winner: game.winner,
+      combatLocked: game.combatLocked,
+      actedThisTurn: game.actedThisTurn,
+      currentMessage: game.currentMessage,
+      messageQueue: game.messageQueue.map((message) => ({
+        kind: message.kind,
+        title: message.title,
+        detail: message.detail,
+      })),
+      selectedHandIndexes: [...game.selectedHandIndexes],
+      selectedSyllables: game.selectedHandIndexes.map(
+        (index) => stableHands[localPlayerIndex][index]?.syllable ?? `missing:${index}`,
+      ),
+      localHand: [...game.players[localPlayerIndex].hand],
+      remoteHand: [...game.players[remotePlayerIndex].hand],
+      stableLocalHand: stableHands[localPlayerIndex].map((card) => ({
+        id: card.id,
+        syllable: card.syllable,
+        skipEntryAnimation: Boolean(card.skipEntryAnimation),
+      })),
+      stableRemoteHand: stableHands[remotePlayerIndex].map((card) => ({
+        id: card.id,
+        syllable: card.syllable,
+        skipEntryAnimation: Boolean(card.skipEntryAnimation),
+      })),
+      incomingLocalHand: incomingHands[localPlayerIndex].map((card) => ({
+        id: card.id,
+        syllable: card.card.syllable,
+        finalIndex: card.finalIndex,
+        finalTotal: card.finalTotal,
+        delayMs: card.delayMs,
+        durationMs: card.durationMs,
+        origin: card.origin,
+      })),
+      incomingRemoteHand: incomingHands[remotePlayerIndex].map((card) => ({
+        id: card.id,
+        syllable: card.card.syllable,
+        finalIndex: card.finalIndex,
+        finalTotal: card.finalTotal,
+        delayMs: card.delayMs,
+        durationMs: card.durationMs,
+        origin: card.origin,
+      })),
+      outgoingLocalHand: outgoingHands[localPlayerIndex].map((card) => ({
+        id: card.id,
+        syllable: card.card.syllable,
+        destination: card.destination,
+        initialIndex: card.initialIndex,
+        initialTotal: card.initialTotal,
+        delayMs: card.delayMs,
+        durationMs: card.durationMs,
+        destinationMode: card.destinationMode ?? "card-origin",
+      })),
+      outgoingRemoteHand: outgoingHands[remotePlayerIndex].map((card) => ({
+        id: card.id,
+        syllable: card.card.syllable,
+        destination: card.destination,
+        initialIndex: card.initialIndex,
+        initialTotal: card.initialTotal,
+        delayMs: card.delayMs,
+        durationMs: card.durationMs,
+        destinationMode: card.destinationMode ?? "card-origin",
+      })),
+      pendingMulliganDrawCounts: { ...pendingMulliganDrawCountsRef.current },
+      pendingMulliganDrawQueues: {
+        player: pendingMulliganDrawQueuesRef.current[PLAYER].map((draw) => ({
+          syllable: draw.syllable,
+          finalIndex: draw.finalIndex,
+          finalTotal: draw.finalTotal,
+          originOverride: draw.originOverride,
+        })),
+        enemy: pendingMulliganDrawQueuesRef.current[ENEMY].map((draw) => ({
+          syllable: draw.syllable,
+          finalIndex: draw.finalIndex,
+          finalTotal: draw.finalTotal,
+          originOverride: draw.originOverride,
+        })),
+      },
+      incomingTargets: {
+        player: incomingTargets[PLAYER].map((target) => ({
+          id: target.id,
+          slotIndex: target.slotIndex,
+          name: target.entity.target.name,
+          origin: target.origin,
+          delayMs: target.delayMs,
+          durationMs: target.durationMs,
+        })),
+        enemy: incomingTargets[ENEMY].map((target) => ({
+          id: target.id,
+          slotIndex: target.slotIndex,
+          name: target.entity.target.name,
+          origin: target.origin,
+          delayMs: target.delayMs,
+          durationMs: target.durationMs,
+        })),
+      },
+      outgoingTargets: {
+        player: outgoingTargets[PLAYER].map((target) => ({
+          id: target.id,
+          slotIndex: target.slotIndex,
+          name: target.entity.target.name,
+          impactDestination: target.impactDestination,
+          destination: target.destination,
+          delayMs: target.delayMs,
+          windupMs: target.windupMs,
+          attackMs: target.attackMs,
+          pauseMs: target.pauseMs,
+          exitMs: target.exitMs,
+        })),
+        enemy: outgoingTargets[ENEMY].map((target) => ({
+          id: target.id,
+          slotIndex: target.slotIndex,
+          name: target.entity.target.name,
+          impactDestination: target.impactDestination,
+          destination: target.destination,
+          delayMs: target.delayMs,
+          windupMs: target.windupMs,
+          attackMs: target.attackMs,
+          pauseMs: target.pauseMs,
+          exitMs: target.exitMs,
+        })),
+      },
+      lockedTargetSlots,
+      pendingTargetPlacements,
+      freshCardIds: [...freshCardIds],
+      mulliganDebug,
+      battleEvents: battleEventsRef.current.slice(-40),
+      debugWatcher: {
+        startedAt:
+          battleDebugStartedAtRef.current != null
+            ? new Date(battleDebugStartedAtRef.current).toISOString()
+            : null,
+        sampleCount: battleDebugSamplesRef.current.length,
+        fallbackCount: animationFallbackHistoryRef.current.length,
+        sampleCapacity: 800,
+        captureIntervalMs: 300,
+        lastSampleAt:
+          battleDebugSamplesRef.current.length > 0
+            ? new Date(
+                battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1]?.at ?? Date.now(),
+              ).toISOString()
+            : null,
+        lastSampleId:
+          battleDebugSamplesRef.current.length > 0
+            ? battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1]?.id ?? null
+            : null,
+        lastSampleReason:
+          battleDebugSamplesRef.current.length > 0
+            ? battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1]?.reason ?? null
+            : null,
+        lastSignatureLength: battleDebugLastSignatureRef.current.length,
+      },
+      animationProbe,
+      timeDiagnostics: {
+        nowIso: new Date().toISOString(),
+        turnRemainingMs,
+        coinChoiceRemainingMs,
+      },
+      timerDiagnostics: {
+        actionTimerCount: actionTimersRef.current.length,
+        visualTimerCount: visualTimersRef.current.length,
+      },
+      zoneSnapshots: {
+        playerDeck: serializeZoneAnchorSnapshot(snapshotZone("playerDeck")),
+        enemyDeck: serializeZoneAnchorSnapshot(snapshotZone("enemyDeck")),
+        playerTargetDeck: serializeZoneAnchorSnapshot(snapshotZone("playerTargetDeck")),
+        enemyTargetDeck: serializeZoneAnchorSnapshot(snapshotZone("enemyTargetDeck")),
+        playerFieldSlots: Array.from({ length: CONFIG.targetsInPlay }, (_, index) => ({
+          slot: index,
+          snapshot: serializeZoneAnchorSnapshot(snapshotZoneSlot("playerField", `slot-${index}`)),
+        })),
+        enemyFieldSlots: Array.from({ length: CONFIG.targetsInPlay }, (_, index) => ({
+          slot: index,
+          snapshot: serializeZoneAnchorSnapshot(snapshotZoneSlot("enemyField", `slot-${index}`)),
+        })),
+      },
+      handCardSnapshots: {
+        player: stableHands[localPlayerIndex].map((card, index) => ({
+          index,
+          id: card.id,
+          syllable: card.syllable,
+          snapshot: serializeZoneAnchorSnapshot(snapshotHandCard(card.id)),
+        })),
+        enemy: stableHands[remotePlayerIndex].map((card, index) => ({
+          index,
+          id: card.id,
+          syllable: card.syllable,
+          snapshot: serializeZoneAnchorSnapshot(snapshotHandCard(card.id)),
+        })),
+      },
+      domDiagnostics: {
+        zoneNodeCount: Object.values(zoneNodesRef.current).filter(Boolean).length,
+        handCardNodeCount: Object.values(handCardNodesRef.current).filter(Boolean).length,
+      },
+      rawAnimationAnchors: activeBattleLayout.animations,
+      authoritativeSnapshotState: authoritativeBattleSnapshot
+        ? {
+            turn: authoritativeBattleSnapshot.turn,
+            intro: authoritativeBattleSnapshot.openingIntroStep,
+            winner: authoritativeBattleSnapshot.winner,
+          }
+        : null,
+      pendingExternalActionId: pendingExternalAction?.id ?? null,
+    };
+  }, [
+    activeBattleLayout.animations,
+    authoritativeBattleSnapshot,
+    buildFreshAnimationProbeSnapshot,
+    coinChoiceRemainingMs,
+    freshCardIds,
+    game,
+    getBattleStageMetrics,
+    incomingHands,
+    incomingTargets,
+    localPlayerIndex,
+    lockedTargetSlots,
+    mode,
+    mulliganDebug,
+    outgoingHands,
+    outgoingTargets,
+    pendingExternalAction,
+    pendingTargetPlacements,
+    remotePlayerIndex,
+    roomTransportKind,
+    serializeZoneAnchorSnapshot,
+    snapshotHandCard,
+    snapshotZone,
+    snapshotZoneSlot,
+    stableHands,
+    turnRemainingMs,
+  ]);
+  const clearBattleDebugWatcher = useCallback(() => {
+    battleDebugSamplesRef.current = [];
+    battleDebugSampleIdRef.current = 0;
+    battleDebugStartedAtRef.current = Date.now();
+    battleDebugLastSignatureRef.current = "";
+    setBattleDebugWatcherVersion((value) => value + 1);
+  }, []);
+  const downloadBattleDebugDump = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const timestamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}.${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    const payload = {
+      exportedAt: now.toISOString(),
+      startedAt:
+        battleDebugStartedAtRef.current != null
+          ? new Date(battleDebugStartedAtRef.current).toISOString()
+          : null,
+      count: battleDebugSamplesRef.current.length,
+      latest: buildBattleDevSnapshot(),
+      samples: battleDebugSamplesRef.current,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `battle-dev-dump.${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [buildBattleDevSnapshot]);
 
   const setStableTargetSlot = useCallback(
     (
@@ -1270,6 +2216,41 @@ export const Battle: React.FC<BattleProps> = ({
     hydrateBattleSnapshot(freshGame);
   };
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    buildBattleDevSnapshotRef.current = buildBattleDevSnapshot;
+  }, [buildBattleDevSnapshot]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (battleDebugStartedAtRef.current == null) {
+      battleDebugStartedAtRef.current = Date.now();
+    }
+
+    const capture = (reason: "init" | "change") => {
+      const snapshot = buildBattleDevSnapshotRef.current();
+      const signature = JSON.stringify(snapshot);
+      if (reason === "change" && signature === battleDebugLastSignatureRef.current) {
+        return;
+      }
+      battleDebugLastSignatureRef.current = signature;
+      battleDebugSamplesRef.current = [
+        ...battleDebugSamplesRef.current,
+        {
+          id: battleDebugSampleIdRef.current++,
+          at: Date.now(),
+          reason,
+          snapshot,
+        },
+      ].slice(-800);
+      setBattleDebugWatcherVersion((value) => value + 1);
+    };
+
+    capture("init");
+    const interval = setInterval(() => capture("change"), 300);
+    return () => clearInterval(interval);
+  }, []);
+
   const beginCoinChoiceResolution = useCallback((face: CoinFace | null) => {
     setSelectedCoinFace(face);
     setGame((prev) => ({
@@ -1284,37 +2265,14 @@ export const Battle: React.FC<BattleProps> = ({
     if (!import.meta.env.DEV) return;
 
     window.__battleDev = {
-      snapshot: () => ({
-        openingIntroStep: game.openingIntroStep,
-        turn: game.turn,
-        localPlayerIndex,
-        remotePlayerIndex,
-        mode,
-        roomTransportKind: roomTransportKind ?? "none",
-        winner: game.winner,
-        combatLocked: game.combatLocked,
-        actedThisTurn: game.actedThisTurn,
-        currentMessage: game.currentMessage?.title ?? null,
-        selectedHandIndexes: [...game.selectedHandIndexes],
-        selectedSyllables: game.selectedHandIndexes.map(
-          (index) => stableHands[localPlayerIndex][index]?.syllable ?? `missing:${index}`,
-        ),
-        localHand: [...game.players[localPlayerIndex].hand],
-        remoteHand: [...game.players[remotePlayerIndex].hand],
-        stableLocalHand: stableHands[localPlayerIndex].map((card) => card.syllable),
-        stableRemoteHand: stableHands[remotePlayerIndex].map((card) => card.syllable),
-        incomingLocalHand: incomingHands[localPlayerIndex].map((card) => card.card.syllable),
-        incomingRemoteHand: incomingHands[remotePlayerIndex].map((card) => card.card.syllable),
-        outgoingLocalHand: outgoingHands[localPlayerIndex].map((card) => card.card.syllable),
-        outgoingRemoteHand: outgoingHands[remotePlayerIndex].map((card) => card.card.syllable),
-        pendingMulliganDrawCounts: { ...pendingMulliganDrawCountsRef.current },
-        incomingTargets: {
-          player: incomingTargets[PLAYER].map((target) => `${target.slotIndex}:${target.entity.target.name}`),
-          enemy: incomingTargets[ENEMY].map((target) => `${target.slotIndex}:${target.entity.target.name}`),
-        },
-        mulliganDebug,
-      }),
+      snapshot: () => buildBattleDevSnapshot(),
       logSnapshot: () => console.log(window.__battleDev?.snapshot()),
+      dumpDebugCapture: () => downloadBattleDebugDump(),
+      clearDebugCapture: () => clearBattleDebugWatcher(),
+      clearAnimationFallbacks: () => {
+        animationFallbackHistoryRef.current = [];
+        setAnimationFallbackHistoryVersion((value) => value + 1);
+      },
       damage: (side, amount = 10) => {
         if (mode === "multiplayer") {
           console.warn("[battleDev] O helper de dano está desativado no multiplayer para não dessincronizar a sala.");
@@ -1346,6 +2304,9 @@ export const Battle: React.FC<BattleProps> = ({
       kill: (side) => window.__battleDev?.damage(side, 999),
       help: () =>
         [
+          "window.__battleDev.dumpDebugCapture()",
+          "window.__battleDev.clearDebugCapture()",
+          "window.__battleDev.clearAnimationFallbacks()",
           "window.__battleDev.damage('player', 10)",
           "window.__battleDev.damage('enemy', 10)",
           "window.__battleDev.kill('enemy')",
@@ -1356,16 +2317,11 @@ export const Battle: React.FC<BattleProps> = ({
       delete window.__battleDev;
     };
   }, [
-    game,
-    incomingHands,
-    incomingTargets,
-    localPlayerIndex,
+    buildBattleDevSnapshot,
+    clearBattleDebugWatcher,
+    downloadBattleDebugDump,
     mode,
-    mulliganDebug,
-    outgoingHands,
-    remotePlayerIndex,
-    roomTransportKind,
-    stableHands,
+    setAnimationFallbackHistoryVersion,
   ]);
 
   useEffect(() => {
@@ -1568,7 +2524,11 @@ export const Battle: React.FC<BattleProps> = ({
                   ? activeBattleLayout.animations.openingTargetEntry2Origin
                   : activeBattleLayout.animations.openingTargetEntry3Origin;
           const origin =
-            snapshotSceneAnimationOrigin(configuredOrigin) ??
+            snapshotSceneAnimationOriginWithFallback(
+              `opening-target-entry-${index}`,
+              configuredOrigin,
+              `${side === PLAYER ? "player" : "enemy"}-target-deck`,
+            ) ??
             snapshotZone(zoneIdForSide(side, "targetDeck"));
           const entity = toVisualTarget(target, side, slotIndex);
 
@@ -1606,7 +2566,7 @@ export const Battle: React.FC<BattleProps> = ({
     visualTimersRef.current.push(timer);
 
     return () => clearTimeout(timer);
-  }, [activeBattleLayout.animations, appendIncomingTarget, introPhase, localPlayerIndex, localSide, mode, openingTurnSide, setStableTargetSlot, snapshotSceneAnimationOrigin, snapshotZone, toVisualTarget, zoneIdForSide]);
+  }, [activeBattleLayout.animations, appendIncomingTarget, introPhase, localPlayerIndex, localSide, mode, openingTurnSide, setStableTargetSlot, snapshotSceneAnimationOriginWithFallback, snapshotZone, toVisualTarget, zoneIdForSide]);
 
   useEffect(() => {
     const currentEnemy = game.players[remotePlayerIndex];
@@ -1824,9 +2784,17 @@ export const Battle: React.FC<BattleProps> = ({
               ? activeBattleLayout.animations.targetAttack2Destination
               : activeBattleLayout.animations.targetAttack3Destination;
       const impactDestination =
-        snapshotSceneAnimationOrigin(configuredImpact) ?? null;
+        snapshotSceneAnimationOriginWithFallback(
+          `target-attack-impact-${attackIndex}`,
+          configuredImpact,
+          "field-slot-center",
+        ) ?? null;
       const destination =
-        snapshotSceneAnimationOrigin(configuredDestination) ??
+        snapshotSceneAnimationOriginWithFallback(
+          `target-attack-destination-${attackIndex}`,
+          configuredDestination,
+          `${side === PLAYER ? "player" : "enemy"}-target-deck`,
+        ) ??
         snapshotZoneSlot(zoneIdForSide(side, "targetDeck"), activeDeckSlot) ??
         snapshotZone(zoneIdForSide(side, "targetDeck"));
 
@@ -1852,7 +2820,7 @@ export const Battle: React.FC<BattleProps> = ({
         exitMs: FLOW.targetExitMs + TARGET_ATTACK_EXIT_EXTRA_MS,
       });
     },
-    [activeBattleLayout.animations, appendOutgoingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotSceneAnimationOrigin, snapshotZone, snapshotZoneSlot],
+    [activeBattleLayout.animations, appendOutgoingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotSceneAnimationOriginWithFallback, snapshotZone, snapshotZoneSlot],
   );
 
   const queueReplacementTargetArrival = useCallback(
@@ -2908,6 +3876,13 @@ export const Battle: React.FC<BattleProps> = ({
     };
   });
   const playerFieldHasOutgoingTarget = outgoingTargets[localPlayerIndex].length > 0;
+  const battleDebugLatestSample =
+    battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1] ?? null;
+  const latestFallbackEvent =
+    animationFallbackHistoryRef.current[0] ?? null;
+  const battleDebugWatcherSummary = import.meta.env.DEV
+    ? `watch:samples:${battleDebugSamplesRef.current.length} fallbacks:${animationFallbackHistoryRef.current.length} last:${battleDebugLatestSample ? new Date(battleDebugLatestSample.at).toLocaleTimeString("pt-BR", { hour12: false }) : "-"}`
+    : "";
   const sceneViewModel: BattleSceneViewModel = {
     board: createBattleBoardSurfaceViewModel({
       enemyFieldSlots,
@@ -3240,21 +4215,49 @@ export const Battle: React.FC<BattleProps> = ({
             layout={activeBattleLayout}
           />
           {import.meta.env.DEV ? (
-            <div className="pointer-events-none absolute right-3 top-3 z-[80] rounded-md border border-white/10 bg-black/70 px-3 py-2 font-mono text-[10px] leading-tight text-emerald-200">
-              <div>{`turn:${game.turn} local:${localPlayerIndex} remote:${remotePlayerIndex} intro:${game.openingIntroStep} winner:${game.winner ?? "-"}`}</div>
-              <div>{`mode:${mode} transport:${roomTransportKind ?? "none"} msg:${game.currentMessage?.title ?? "-"} ext:${pendingExternalAction?.id ?? "-"} auth:${authoritativeBattleSnapshot ? 1 : 0}`}</div>
-              <div>{`swap:${canSwap ? 1 : 0} disabled:${mulliganDisabled ? 1 : 0} acted:${game.actedThisTurn ? 1 : 0} combat:${game.combatLocked ? 1 : 0} clock:${turnClock}`}</div>
-              <div>{`selectedIdx:[${game.selectedHandIndexes.join(",")}] selected:[${selectedStableSyllables.join(",")}]`}</div>
-              <div>{`stableLocal:[${stableHands[localPlayerIndex].map((card) => card.syllable).join(",")}]`}</div>
-              <div>{`logicLocal:[${game.players[localPlayerIndex].hand.join(",")}] fresh:[${freshCardIds.join(",")}]`}</div>
-              <div>{`incomingLocal:[${incomingHands[localPlayerIndex].map((card) => `${card.card.syllable}@${card.finalIndex}/${card.finalTotal}`).join(",")}] outgoingLocal:[${outgoingHands[localPlayerIndex].map((card) => card.card.syllable).join(",")}] pendingLocal:${pendingMulliganDrawCounts[localPlayerIndex]}`}</div>
-              <div>{`stableRemote:[${stableHands[remotePlayerIndex].map((card) => card.syllable).join(",")}]`}</div>
-              <div>{`logicRemote:[${game.players[remotePlayerIndex].hand.join(",")}] incomingRemote:[${incomingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] outgoingRemote:[${outgoingHands[remotePlayerIndex].map((card) => card.card.syllable).join(",")}] pendingRemote:${pendingMulliganDrawCounts[remotePlayerIndex]}`}</div>
-              <div>{`incomingTargetP:${incomingTargets[PLAYER].length} incomingTargetE:${incomingTargets[ENEMY].length} outgoingTargetP:${outgoingTargets[PLAYER].length} outgoingTargetE:${outgoingTargets[ENEMY].length}`}</div>
-              <div>{`pendingPlaceLocal:[${pendingTargetPlacements[localPlayerIndex].map((value) => value ?? "-").join(",")}] lockedLocal:[${lockedTargetSlots[localPlayerIndex].map((value) => (value ? 1 : 0)).join(",")}]`}</div>
-              <div>{`mSource:${mulliganDebug.source} clearIncoming:${mulliganDebug.clearIncomingHand ? 1 : 0} extId:${mulliganDebug.externalActionId ?? "-"}`}</div>
-              <div>{`mRequestedIdx:[${mulliganDebug.requestedIndexes.join(",")}] mRequested:[${mulliganDebug.requestedSyllables.join(",")}]`}</div>
-              <div>{`mRemoved:[${mulliganDebug.removedStableCards.join(",")}] mDrawn:[${mulliganDebug.drawnCards.join(",")}]`}</div>
+            <div className="absolute right-3 top-3 z-[80] rounded-md border border-white/10 bg-black/70 px-3 py-2 font-mono text-[10px] leading-tight text-emerald-200">
+              <div className="pointer-events-auto mb-2 flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={downloadBattleDebugDump}
+                  className="h-7 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2 text-[10px] font-bold uppercase tracking-wide text-emerald-100 hover:bg-emerald-500/20"
+                >
+                  Dump
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={clearBattleDebugWatcher}
+                  className="h-7 rounded-md border border-white/15 bg-white/5 px-2 text-[10px] font-bold uppercase tracking-wide text-white/80 hover:bg-white/10"
+                >
+                  Limpar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    animationFallbackHistoryRef.current = [];
+                    setAnimationFallbackHistoryVersion((value) => value + 1);
+                  }}
+                  className="h-7 rounded-md border border-amber-400/30 bg-amber-500/10 px-2 text-[10px] font-bold uppercase tracking-wide text-amber-100 hover:bg-amber-500/20"
+                >
+                  Limpar Fallback
+                </Button>
+              </div>
+              <div>{`watcher: ativo`}</div>
+              <div>{battleDebugWatcherSummary}</div>
+              <div>{`stage: ${liveAnimationDebugData.stageLine.replace(/^stage:/, "")}`}</div>
+              <div>{`turn:${game.turn} intro:${game.openingIntroStep} combat:${game.combatLocked ? 1 : 0} msg:${game.currentMessage?.title ?? "-"}`}</div>
+              <div>{`probe:${liveAnimationDebugData.probeLines.length} snapshots:${liveAnimationDebugData.snapshotLines.length}`}</div>
+              <div className={latestFallbackEvent ? "text-amber-200" : "text-emerald-200"}>
+                {latestFallbackEvent
+                  ? `ultimo fallback: ${latestFallbackEvent.label}`
+                  : "fallback: nenhum"}
+              </div>
             </div>
           ) : null}
         </BattleEditableElement>
