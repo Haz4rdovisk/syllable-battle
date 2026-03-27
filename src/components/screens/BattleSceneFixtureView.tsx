@@ -14,6 +14,7 @@ import {
   BattleHandLaneIncomingCard,
   BattleHandLaneOutgoingCard,
 } from "./BattleHandLane";
+import { BattleHandFocusFrame, BattleTurnFocusTone } from "./BattleHandFocusFrame";
 import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleStatusPanel } from "./BattleStatusPanel";
@@ -78,6 +79,13 @@ const FIXTURE_MULLIGAN_RETURN_STAGGER_MS = 110;
 const FIXTURE_MULLIGAN_RETURN_SETTLE_MS = 260;
 const FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS = 680;
 const FIXTURE_MULLIGAN_DRAW_START_DELAY_MS = 220;
+
+const getFixtureTurnFocusTone = (turnLabel: string): BattleTurnFocusTone => {
+  const normalized = turnLabel.trim().toLowerCase();
+  if (normalized.includes("oponente")) return "enemy";
+  if (normalized.includes("seu")) return "player";
+  return "neutral";
+};
 const FIXTURE_MULLIGAN_DRAW_DURATION_MS = FIXTURE_POST_PLAY_DRAW_DURATION_MS;
 const FIXTURE_MULLIGAN_DRAW_SETTLE_MS = FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
 const FIXTURE_MULLIGAN_DRAW_STAGGER_MS =
@@ -2946,36 +2954,44 @@ export const BattleSceneFixtureView: React.FC<{
                 className={cn("flex items-end justify-center", getPreviewAreaClass(focusArea, ["bottomHand"]))}
               >
                 <div className="flex h-full w-full items-end justify-center overflow-visible">
-                  <BattleHandLane
-                    side={0}
-                    presentation="local"
-                    stableCards={previewPlayerStableCards}
-                    incomingCards={incomingPreviewHands[PLAYER]}
-                    outgoingCards={outgoingPreviewHands[PLAYER]}
-                    reservedSlots={previewReservedSlots}
+                  <BattleHandFocusFrame
                     scale="desktop"
-                    onIncomingCardComplete={handleIncomingPreviewHandComplete}
-                    onOutgoingCardComplete={(outgoingCard) => {
-                      setOutgoingPreviewHands((current) => ({
-                        ...current,
-                        [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
-                      }));
-                    }}
-                    canInteract={true}
-                    showTurnHighlights={true}
-                    showPlayableHints={fixture.showPlayableHints ?? true}
-                    selectedIndexes={previewSelectedIndexes}
-                    targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
-                    freshCardIds={previewFreshCardIds}
-                    onCardClick={
-                      (animationSet === "hand-play-target" ||
-                        animationSet === "hand-play-draw-combo")
-                        ? (index) => {
-                            setPreviewSelectedIndexes([index]);
-                          }
-                        : undefined
-                    }
-                  />
+                    turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
+                    clock={fixture.scene.rightSidebar.hud.clock}
+                    clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
+                    tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
+                  >
+                    <BattleHandLane
+                      side={0}
+                      presentation="local"
+                      stableCards={previewPlayerStableCards}
+                      incomingCards={incomingPreviewHands[PLAYER]}
+                      outgoingCards={outgoingPreviewHands[PLAYER]}
+                      reservedSlots={previewReservedSlots}
+                      scale="desktop"
+                      onIncomingCardComplete={handleIncomingPreviewHandComplete}
+                      onOutgoingCardComplete={(outgoingCard) => {
+                        setOutgoingPreviewHands((current) => ({
+                          ...current,
+                          [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
+                        }));
+                      }}
+                      canInteract={true}
+                      showTurnHighlights={true}
+                      showPlayableHints={fixture.showPlayableHints ?? true}
+                      selectedIndexes={previewSelectedIndexes}
+                      targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
+                      freshCardIds={previewFreshCardIds}
+                      onCardClick={
+                        (animationSet === "hand-play-target" ||
+                          animationSet === "hand-play-draw-combo")
+                          ? (index) => {
+                              setPreviewSelectedIndexes([index]);
+                            }
+                          : undefined
+                      }
+                    />
+                  </BattleHandFocusFrame>
                 </div>
               </BattleEditableElement>
             }
@@ -3130,36 +3146,44 @@ export const BattleSceneFixtureView: React.FC<{
               snapTargets={snapTargets}
               className={cn("transition-all duration-200", getPreviewAreaClass(focusArea, ["bottomHand"]))}
             >
-              <BattleHandLane
-                side={0}
-                presentation="local"
-                stableCards={previewPlayerStableCards}
-                incomingCards={incomingPreviewHands[PLAYER]}
-                outgoingCards={outgoingPreviewHands[PLAYER]}
-                reservedSlots={previewReservedSlots}
+              <BattleHandFocusFrame
                 scale="mobile"
-                onIncomingCardComplete={handleIncomingPreviewHandComplete}
-                onOutgoingCardComplete={(outgoingCard) => {
-                  setOutgoingPreviewHands((current) => ({
-                    ...current,
-                    [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
-                  }));
-                }}
-                canInteract={true}
-                showTurnHighlights={true}
-                showPlayableHints={fixture.showPlayableHints ?? true}
-                selectedIndexes={previewSelectedIndexes}
-                targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
-                freshCardIds={previewFreshCardIds}
-                onCardClick={
-                  (animationSet === "hand-play-target" ||
-                    animationSet === "hand-play-draw-combo")
-                    ? (index) => {
-                        setPreviewSelectedIndexes([index]);
-                      }
-                    : undefined
-                }
-              />
+                turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
+                clock={fixture.scene.rightSidebar.hud.clock}
+                clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
+                tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
+              >
+                <BattleHandLane
+                  side={0}
+                  presentation="local"
+                  stableCards={previewPlayerStableCards}
+                  incomingCards={incomingPreviewHands[PLAYER]}
+                  outgoingCards={outgoingPreviewHands[PLAYER]}
+                  reservedSlots={previewReservedSlots}
+                  scale="mobile"
+                  onIncomingCardComplete={handleIncomingPreviewHandComplete}
+                  onOutgoingCardComplete={(outgoingCard) => {
+                    setOutgoingPreviewHands((current) => ({
+                      ...current,
+                      [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
+                    }));
+                  }}
+                  canInteract={true}
+                  showTurnHighlights={true}
+                  showPlayableHints={fixture.showPlayableHints ?? true}
+                  selectedIndexes={previewSelectedIndexes}
+                  targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
+                  freshCardIds={previewFreshCardIds}
+                  onCardClick={
+                    (animationSet === "hand-play-target" ||
+                      animationSet === "hand-play-draw-combo")
+                      ? (index) => {
+                          setPreviewSelectedIndexes([index]);
+                        }
+                      : undefined
+                  }
+                />
+              </BattleHandFocusFrame>
             </BattleEditableElement>
           }
           />

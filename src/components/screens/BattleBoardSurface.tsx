@@ -39,13 +39,16 @@ export const BattleBoardSurface: React.FC<BattleBoardSurfaceProps> = ({
   return (
     <div
       className={cn(
-        "relative mx-auto h-full w-full max-w-[var(--battle-board-max-width)] min-h-0 overflow-visible rounded-[2.5rem] border-8 border-amber-900/40 bg-black/40 shadow-[inset_0_0_120px_rgba(0,0,0,0.7)]",
+        "relative mx-auto h-full w-full max-w-[var(--battle-board-max-width)] min-h-0 overflow-visible rounded-[2.5rem] border-8 border-amber-900/42 bg-[linear-gradient(180deg,rgba(3,7,6,0.52),rgba(0,0,0,0.42))] shadow-[0_24px_64px_rgba(0,0,0,0.32),inset_0_0_120px_rgba(0,0,0,0.68)]",
         className,
       )}
       style={boardVars}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2rem]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(17,24,39,0.05)_0%,rgba(0,0,0,0.45)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(217,119,6,0.16)_0%,rgba(17,24,39,0.08)_38%,rgba(0,0,0,0.52)_100%)]" />
+        <div className="absolute inset-x-[8%] top-0 h-20 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.16)_0%,rgba(251,191,36,0)_72%)] blur-2xl" />
+        <div className="absolute inset-x-[10%] bottom-[-10%] h-24 bg-[radial-gradient(circle_at_center,rgba(15,118,110,0.12)_0%,rgba(15,118,110,0)_74%)] blur-2xl" />
+        <div className="absolute inset-[10px] rounded-[1.75rem] border border-amber-100/8 shadow-[inset_0_1px_0_rgba(255,251,235,0.08)]" />
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2">
