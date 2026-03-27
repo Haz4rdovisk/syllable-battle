@@ -441,3 +441,93 @@ export const getBattleDesktopOverlaySlots = (
     },
   };
 };
+
+export const getBattleCompactShellSlots = (
+  layout: BattleLayoutConfig,
+  tight: boolean,
+): {
+  top: BattleSceneRect;
+  board: BattleSceneRect;
+  control: BattleSceneRect;
+  bottom: BattleSceneRect | null;
+  footer: BattleSceneRect | null;
+} => {
+  const padX = tight
+    ? Math.max(8, layout.board.mobilePaddingX - 2)
+    : layout.board.mobilePaddingX;
+  const padY = tight
+    ? Math.max(4, layout.board.mobilePaddingY - 4)
+    : layout.board.mobilePaddingY;
+  const gap = tight
+    ? Math.max(4, layout.board.mobileGap - 4)
+    : layout.board.mobileGap;
+  const fullWidth = Math.max(1, BATTLE_STAGE_WIDTH - padX * 2);
+  const topHeight = tight ? 170 : 204;
+  const controlHeight = tight ? 176 : 212;
+  const handHeight = tight ? 152 : 172;
+
+  const top = {
+    x: padX,
+    y: padY,
+    width: fullWidth,
+    height: topHeight,
+  };
+
+  if (tight) {
+    const bottom = {
+      x: padX,
+      y: BATTLE_STAGE_HEIGHT - padY - handHeight,
+      width: fullWidth,
+      height: handHeight,
+    };
+    const control = {
+      x: padX,
+      y: bottom.y - gap - controlHeight,
+      width: fullWidth,
+      height: controlHeight,
+    };
+    const boardY = top.y + top.height + gap;
+    const boardBottom = control.y - gap;
+
+    return {
+      top,
+      board: {
+        x: padX,
+        y: boardY,
+        width: fullWidth,
+        height: Math.max(1, boardBottom - boardY),
+      },
+      control,
+      bottom,
+      footer: null,
+    };
+  }
+
+  const footer = {
+    x: padX,
+    y: BATTLE_STAGE_HEIGHT - padY - handHeight,
+    width: fullWidth,
+    height: handHeight,
+  };
+  const control = {
+    x: padX,
+    y: footer.y - gap - controlHeight,
+    width: fullWidth,
+    height: controlHeight,
+  };
+  const boardY = top.y + top.height + gap;
+  const boardBottom = control.y - gap;
+
+  return {
+    top,
+    board: {
+      x: padX,
+      y: boardY,
+      width: fullWidth,
+      height: Math.max(1, boardBottom - boardY),
+    },
+    control,
+    bottom: null,
+    footer,
+  };
+};

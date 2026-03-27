@@ -50,7 +50,7 @@ import {
 } from "./BattleHandLane";
 import { BattleHandFocusFrame, BattleTurnFocusTone } from "./BattleHandFocusFrame";
 import { BattleSceneViewModel, createBattleBoardSurfaceViewModel } from "./BattleSceneViewModel";
-import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
+import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleStatusPanel } from "./BattleStatusPanel";
 import { BattleChroniclesPanel } from "./BattleChroniclesPanel";
 import { BattleSceneView } from "./BattleSceneView";
@@ -79,6 +79,7 @@ import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleRe
 import {
   BATTLE_STAGE_HEIGHT,
   BATTLE_STAGE_WIDTH,
+  getBattleCompactShellSlots,
 } from "./BattleSceneSpace";
 
 const PLAYER = 0;
@@ -376,6 +377,9 @@ export const Battle: React.FC<BattleProps> = ({
   const [turnPresentationLocked, setTurnPresentationLocked] = useState(false);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
     typeof window === "undefined" ? true : window.innerWidth >= 1024,
+  );
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window === "undefined" ? 900 : window.innerHeight,
   );
   const [game, setGame] = useState<GameState>(initialGameRef.current);
 
@@ -2369,11 +2373,26 @@ export const Battle: React.FC<BattleProps> = ({
   }, [clearAllTimers, clearVisualTimers]);
 
   useEffect(() => {
-    const updateViewportMode = () => setIsDesktopViewport(window.innerWidth >= 1024);
+    const updateViewportMode = () => {
+      setIsDesktopViewport(window.innerWidth >= 1024);
+      setViewportHeight(window.innerHeight);
+    };
     updateViewportMode();
     window.addEventListener("resize", updateViewportMode);
     return () => window.removeEventListener("resize", updateViewportMode);
   }, []);
+  const isCompactTightViewport = !isDesktopViewport && viewportHeight <= 464;
+  const compactTopShellClassName = isCompactTightViewport
+    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 px-2.5 py-1.5 shadow-xl lg:hidden"
+    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 px-3 py-2 shadow-xl lg:hidden sm:px-4";
+  const compactControlShellClassName = isCompactTightViewport
+    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 p-1.5 shadow-xl lg:hidden"
+    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden";
+  const compactFooterFrameClassName = isCompactTightViewport ? "origin-top scale-[0.86]" : undefined;
+  const compactShellSlots = getBattleCompactShellSlots(
+    activeBattleLayout,
+    isCompactTightViewport,
+  );
 
   useEffect(() => {
     setIntroPhase(game.openingIntroStep);
@@ -4014,28 +4033,39 @@ export const Battle: React.FC<BattleProps> = ({
       <main className="relative z-10 flex h-full min-h-0 flex-col">
         <BattleEditableElement element="shell" layout={activeBattleLayout}>
           <BattleBoardShell
-          layout={activeBattleLayout}
-          leftSidebar={
-            <BattleLeftSidebarView
-              sidebar={sceneViewModel.leftSidebar}
-              targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
+            layout={activeBattleLayout}
+            compact={!isDesktopViewport}
+            tight={isCompactTightViewport}
+            leftSidebar={
+              <BattleLeftSidebarView
+                sidebar={sceneViewModel.leftSidebar}
+                targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
               deckAnchorRef={bindZoneRef("enemyDeck", "desktop")}
               discardAnchorRef={bindZoneRef("enemyDiscard", "desktop")}
               layout={activeBattleLayout}
             />
-          }
-          centerTopMobile={
-            <div className="rounded-[2rem] border border-white/10 bg-black/35 px-3 py-2 shadow-xl lg:hidden sm:px-4">
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                <BattleEditableElement element="topHand" layout={activeBattleLayout}>
-                  <div className="min-w-0">{renderEnemyHand("mobile")}</div>
-                </BattleEditableElement>
-                <BattlePileRail
-                  layout={activeBattleLayout}
-                  discardAnchorRef={bindZoneRef("enemyDiscard", "mobile")}
-                  className="w-auto max-w-none"
-                >
-                  <BattleEditableElement element="enemyTargetDeck" layout={activeBattleLayout}>
+            }
+            centerTopMobile={
+              <div className={compactTopShellClassName}>
+                <div className="relative h-full w-full overflow-visible">
+                  <BattleEditableElement
+                    element="topHand"
+                    layout={activeBattleLayout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
+                    className="absolute left-0 top-0"
+                  >
+                    <div className="flex h-full w-full items-start justify-center">
+                      {renderEnemyHand("mobile")}
+                    </div>
+                  </BattleEditableElement>
+                  <BattleEditableElement
+                    element="enemyTargetDeck"
+                    layout={activeBattleLayout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
+                    className="absolute left-0 top-0"
+                  >
                     <BattleSinglePile
                       label="ALVOS"
                       count={sceneViewModel.leftSidebar.decks.targetDeckCount}
@@ -4043,10 +4073,15 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="target"
                       anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
                       fitParent
-                      className="min-h-[190px]"
                     />
                   </BattleEditableElement>
-                  <BattleEditableElement element="enemyDeck" layout={activeBattleLayout}>
+                  <BattleEditableElement
+                    element="enemyDeck"
+                    layout={activeBattleLayout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
+                    className="absolute left-0 top-0"
+                  >
                     <BattleSinglePile
                       label="DECK"
                       count={sceneViewModel.leftSidebar.decks.deckCount}
@@ -4054,14 +4089,12 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="deck"
                       anchorRef={bindZoneRef("enemyDeck", "mobile")}
                       fitParent
-                      className="min-h-[190px]"
                     />
                   </BattleEditableElement>
-                </BattlePileRail>
+                </div>
               </div>
-            </div>
-          }
-          centerTopDesktop={
+            }
+            centerTopDesktop={
             <>
               <BattleEditableElement
                 element="topHand"
@@ -4078,13 +4111,15 @@ export const Battle: React.FC<BattleProps> = ({
             <BattleEditableElement
               element="board"
               layout={activeBattleLayout}
+              baseX={!isDesktopViewport ? compactShellSlots.board.x : undefined}
+              baseY={!isDesktopViewport ? compactShellSlots.board.y : undefined}
             >
               <BattleBoardSurface layout={activeBattleLayout} />
             </BattleEditableElement>
           }
-          centerBottomDesktop={
-            <>
-              <BattleEditableElement
+            centerBottomDesktop={
+              <>
+                <BattleEditableElement
                 element="bottomHand"
                 layout={activeBattleLayout}
                 className="flex items-end justify-center"
@@ -4100,19 +4135,42 @@ export const Battle: React.FC<BattleProps> = ({
                     {renderPlayerHand("desktop")}
                   </BattleHandFocusFrame>
                 </div>
-              </BattleEditableElement>
-            </>
-          }
-          centerBottomMobile={null}
-          centerControlMobile={
-            <div className="rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden">
-              <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
-                <BattlePileRail
+                </BattleEditableElement>
+              </>
+            }
+            centerBottomMobile={
+              isCompactTightViewport ? (
+                <BattleEditableElement
+                  element="bottomHand"
                   layout={activeBattleLayout}
-                  discardAnchorRef={bindZoneRef("playerDiscard", "mobile")}
-                  className="w-auto max-w-none"
+                  baseX={compactShellSlots.bottom?.x}
+                  baseY={compactShellSlots.bottom?.y}
+                  className="absolute left-0 top-0"
                 >
-                  <BattleEditableElement element="playerTargetDeck" layout={activeBattleLayout}>
+                  <BattleHandFocusFrame
+                    scale="mobile"
+                    compact
+                    className={compactFooterFrameClassName}
+                    turnLabel={desktopTurnLabel}
+                    clock={turnClock}
+                    clockUrgent={turnClockUrgent}
+                    tone={turnFocusTone}
+                  >
+                    {renderPlayerHand("mobile")}
+                  </BattleHandFocusFrame>
+                </BattleEditableElement>
+              ) : null
+            }
+            centerControlMobile={
+              <div className={compactControlShellClassName}>
+                <div className="relative h-full w-full overflow-visible">
+                  <BattleEditableElement
+                    element="playerTargetDeck"
+                    layout={activeBattleLayout}
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
+                    className="absolute left-0 top-0"
+                  >
                     <BattleSinglePile
                       label="ALVOS"
                       count={sceneViewModel.rightSidebar.decks.targetDeckCount}
@@ -4120,10 +4178,15 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="target"
                       anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
                       fitParent
-                      className="min-h-[190px]"
                     />
                   </BattleEditableElement>
-                  <BattleEditableElement element="playerDeck" layout={activeBattleLayout}>
+                  <BattleEditableElement
+                    element="playerDeck"
+                    layout={activeBattleLayout}
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
+                    className="absolute left-0 top-0"
+                  >
                     <BattleSinglePile
                       label="DECK"
                       count={sceneViewModel.rightSidebar.decks.deckCount}
@@ -4131,40 +4194,50 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="deck"
                       anchorRef={bindZoneRef("playerDeck", "mobile")}
                       fitParent
-                      className="min-h-[190px]"
                     />
                   </BattleEditableElement>
-                </BattlePileRail>
 
-                <BattleEditableElement element="status" layout={activeBattleLayout}>
-                  <BattleStatusPanel
-                    presentation="mobile"
-                    title="Tempo"
-                    turnLabel={desktopTurnLabel}
-                    clock={turnClock}
-                    clockUrgent={turnClockUrgent}
+                  <BattleEditableElement
+                    element="status"
                     layout={activeBattleLayout}
-                  />
-                </BattleEditableElement>
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
+                    className="absolute left-0 top-0"
+                  >
+                    <BattleStatusPanel
+                      presentation="mobile"
+                      title="Tempo"
+                      turnLabel={desktopTurnLabel}
+                      clock={turnClock}
+                      clockUrgent={turnClockUrgent}
+                      layout={activeBattleLayout}
+                    />
+                  </BattleEditableElement>
 
-                <BattleEditableElement element="action" layout={activeBattleLayout}>
-                  <BattleActionButton
-                    presentation="mobile"
-                    title="Trocar"
+                  <BattleEditableElement
+                    element="action"
                     layout={activeBattleLayout}
-                    className={cn(
-                      "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
-                      mulliganButtonClass,
-                    )}
-                    disabled={mulliganDisabled}
-                    onClick={handleMulligan}
-                  />
-                </BattleEditableElement>
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
+                    className="absolute left-0 top-0"
+                  >
+                    <BattleActionButton
+                      presentation="mobile"
+                      title="Trocar"
+                      layout={activeBattleLayout}
+                      className={cn(
+                        "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
+                        mulliganButtonClass,
+                      )}
+                      disabled={mulliganDisabled}
+                      onClick={handleMulligan}
+                    />
+                  </BattleEditableElement>
+                </div>
               </div>
-            </div>
-          }
-          rightSidebar={
-            <BattleRightSidebarView
+            }
+            rightSidebar={
+              <BattleRightSidebarView
               sidebar={sceneViewModel.rightSidebar}
               action={
                 <BattleActionButton
@@ -4185,20 +4258,28 @@ export const Battle: React.FC<BattleProps> = ({
               discardAnchorRef={bindZoneRef("playerDiscard", "desktop")}
               layout={activeBattleLayout}
             />
-          }
-          footerMobileHand={
-            <BattleEditableElement element="bottomHand" layout={activeBattleLayout}>
-              <BattleHandFocusFrame
-                scale="mobile"
-                turnLabel={desktopTurnLabel}
-                clock={turnClock}
-                clockUrgent={turnClockUrgent}
-                tone={turnFocusTone}
-              >
-                {renderPlayerHand("mobile")}
-              </BattleHandFocusFrame>
-            </BattleEditableElement>
-          }
+            }
+            footerMobileHand={
+              isCompactTightViewport ? null : (
+                <BattleEditableElement
+                  element="bottomHand"
+                  layout={activeBattleLayout}
+                  baseX={compactShellSlots.footer?.x}
+                  baseY={compactShellSlots.footer?.y}
+                  className="absolute left-0 top-0"
+                >
+                  <BattleHandFocusFrame
+                    scale="mobile"
+                    turnLabel={desktopTurnLabel}
+                    clock={turnClock}
+                    clockUrgent={turnClockUrgent}
+                    tone={turnFocusTone}
+                  >
+                    {renderPlayerHand("mobile")}
+                  </BattleHandFocusFrame>
+                </BattleEditableElement>
+              )
+            }
           />
           <BattleEditableElement
             element="enemyField"

@@ -5,6 +5,7 @@ export type BattleTurnFocusTone = "player" | "enemy" | "neutral";
 
 interface BattleHandFocusFrameProps {
   scale: "desktop" | "mobile";
+  compact?: boolean;
   turnLabel: string;
   clock: string;
   clockUrgent?: boolean;
@@ -24,6 +25,7 @@ const turnToneClassName: Record<BattleTurnFocusTone, string> = {
 
 export const BattleHandFocusFrame: React.FC<BattleHandFocusFrameProps> = ({
   scale,
+  compact = false,
   turnLabel,
   clock,
   clockUrgent = false,
@@ -32,6 +34,7 @@ export const BattleHandFocusFrame: React.FC<BattleHandFocusFrameProps> = ({
   children,
 }) => {
   const isMobile = scale === "mobile";
+  const isCompactMobile = isMobile && compact;
 
   return (
     <div className={cn("relative flex h-full w-full min-h-0 items-end justify-center overflow-visible", className)}>
@@ -39,7 +42,9 @@ export const BattleHandFocusFrame: React.FC<BattleHandFocusFrameProps> = ({
         className={cn(
           "pointer-events-none absolute inset-x-2 bottom-1 overflow-hidden rounded-[2rem] border backdrop-blur-[2px]",
           isMobile
-            ? "top-8 border-amber-100/10 bg-[linear-gradient(180deg,rgba(7,12,9,0.1),rgba(7,12,9,0.28)_48%,rgba(7,12,9,0.56)_100%)] shadow-[0_22px_44px_rgba(0,0,0,0.28)]"
+            ? isCompactMobile
+              ? "top-6 border-amber-100/10 bg-[linear-gradient(180deg,rgba(7,12,9,0.08),rgba(7,12,9,0.24)_44%,rgba(7,12,9,0.54)_100%)] shadow-[0_18px_36px_rgba(0,0,0,0.24)]"
+              : "top-8 border-amber-100/10 bg-[linear-gradient(180deg,rgba(7,12,9,0.1),rgba(7,12,9,0.28)_48%,rgba(7,12,9,0.56)_100%)] shadow-[0_22px_44px_rgba(0,0,0,0.28)]"
             : "top-9 border-amber-100/12 bg-[linear-gradient(180deg,rgba(7,12,9,0.08),rgba(7,12,9,0.24)_44%,rgba(7,12,9,0.62)_100%)] shadow-[0_28px_52px_rgba(0,0,0,0.32)]",
         )}
       >
@@ -50,15 +55,23 @@ export const BattleHandFocusFrame: React.FC<BattleHandFocusFrameProps> = ({
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] flex justify-center">
         <div
           className={cn(
-            "flex items-center gap-2 rounded-full border px-3 py-1.5 backdrop-blur-sm",
+            "flex items-center rounded-full border backdrop-blur-sm",
             turnToneClassName[tone],
-            isMobile ? "min-h-9 max-w-[92%]" : "min-h-10",
+            isCompactMobile
+              ? "min-h-8 max-w-[90%] gap-1.5 px-2.5 py-1"
+              : isMobile
+                ? "min-h-9 max-w-[92%] gap-2 px-3 py-1.5"
+                : "min-h-10 gap-2 px-3 py-1.5",
           )}
         >
           <span
             className={cn(
               "font-black uppercase leading-none",
-              isMobile ? "text-[10px] tracking-[0.22em]" : "text-[11px] tracking-[0.24em]",
+              isCompactMobile
+                ? "text-[9px] tracking-[0.2em]"
+                : isMobile
+                  ? "text-[10px] tracking-[0.22em]"
+                  : "text-[11px] tracking-[0.24em]",
             )}
           >
             {turnLabel}
@@ -69,7 +82,7 @@ export const BattleHandFocusFrame: React.FC<BattleHandFocusFrameProps> = ({
               clockUrgent
                 ? "border-rose-200/40 bg-rose-100/14 text-rose-100"
                 : "border-black/15 bg-black/18 text-current",
-              isMobile ? "text-sm" : "text-base",
+              isCompactMobile ? "text-[13px]" : isMobile ? "text-sm" : "text-base",
             )}
           >
             {clock}
@@ -77,7 +90,12 @@ export const BattleHandFocusFrame: React.FC<BattleHandFocusFrameProps> = ({
         </div>
       </div>
 
-      <div className="relative z-[1] flex h-full w-full min-h-0 items-end justify-center overflow-visible px-1 pb-1">
+      <div
+        className={cn(
+          "relative z-[1] flex h-full w-full min-h-0 items-end justify-center overflow-visible",
+          isCompactMobile ? "px-0.5 pb-0.5" : "px-1 pb-1",
+        )}
+      >
         {children}
       </div>
     </div>

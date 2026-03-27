@@ -83,6 +83,7 @@ export interface BattleEditableElementProps {
   editorMode?: boolean;
   selected?: boolean;
   previewSelectable?: boolean;
+  passthrough?: boolean;
   snapTargets?: Array<{
     key: BattleEditableElementKey;
     x: number;
@@ -108,6 +109,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   editorMode = false,
   selected = false,
   previewSelectable = true,
+  passthrough = false,
   snapTargets = [],
   className,
   zIndexOverride,
@@ -557,6 +559,29 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
     snapThreshold,
     stageScale,
   ]);
+
+  if (passthrough) {
+    return (
+      <div
+        ref={wrapperRef}
+        className={className}
+        data-battle-element-key={element}
+        onPointerDown={(event) => {
+          if (!editorMode || !previewSelectable) return;
+          selectElementFromPointer(event);
+        }}
+        style={{
+          zIndex: zIndexOverride,
+          position: resolvedPositionStyle,
+        }}
+      >
+        {children}
+        {editorMode && selected ? (
+          <div className="pointer-events-none absolute inset-0 rounded-2xl border-2 border-amber-300/85 shadow-[0_0_0_1px_rgba(120,53,15,0.35)]" />
+        ) : null}
+      </div>
+    );
+  }
 
   if (!previewAnimations) {
     return (

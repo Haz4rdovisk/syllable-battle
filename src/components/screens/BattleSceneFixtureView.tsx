@@ -16,14 +16,19 @@ import {
   BattleHandLaneOutgoingCard,
 } from "./BattleHandLane";
 import { BattleHandFocusFrame, BattleTurnFocusTone } from "./BattleHandFocusFrame";
-import { BattlePileRail, BattleSinglePile } from "./BattleSidePanel";
+import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleStatusPanel } from "./BattleStatusPanel";
 import { BattleActionButton } from "./BattleActionButton";
 import { BattleEditableElementKey, BattleLayoutConfig } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattleEditableElement } from "./BattleEditableElement";
-import { PlayerPortrait, VisualTargetEntity, ZoneAnchorSnapshot } from "../game/GameComponents";
+import {
+  BoardZoneId,
+  PlayerPortrait,
+  VisualTargetEntity,
+  ZoneAnchorSnapshot,
+} from "../game/GameComponents";
 import {
   BattleSceneFixtureData,
   BattleSceneFixtureHandCard,
@@ -44,6 +49,7 @@ import {
 import {
   BATTLE_STAGE_HEIGHT,
   BATTLE_STAGE_WIDTH,
+  getBattleCompactShellSlots,
   getBattleDesktopShellSlots,
   getBattleElementSceneRect,
   getBattleStageMetrics,
@@ -54,6 +60,7 @@ import { GameMessage } from "../../types/game";
 const noopRef = () => {};
 const PLAYER = 0;
 const ENEMY = 1;
+const zoneRefKey = (zoneId: BoardZoneId, slot: string) => `${zoneId}:${slot}`;
 const FIXTURE_TARGET_ENTER_STAGGER_MS = 220;
 const FIXTURE_TARGET_ENTER_SETTLE_MS = 560;
 const FIXTURE_TARGET_LOOP_GAP_MS = 680;
@@ -352,6 +359,16 @@ export const BattleSceneFixtureView: React.FC<{
   const boardVars = getBattleBoardSurfaceVars(layout);
   const stageMetrics = getBattleStageMetrics(viewportWidth, viewportHeight);
   const isCompactPreview = viewportHeight <= 428 || viewportWidth <= 915;
+  const isCompactShellPreview = viewportWidth < 1024;
+  const isCompactTightPreview = isCompactShellPreview && viewportHeight <= 464;
+  const compactTopShellClassName = isCompactTightPreview
+    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 px-2.5 py-1.5 shadow-xl lg:hidden"
+    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 px-3 py-2 shadow-xl lg:hidden sm:px-4";
+  const compactControlShellClassName = isCompactTightPreview
+    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 p-1.5 shadow-xl lg:hidden"
+    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden";
+  const compactFooterFrameClassName = isCompactTightPreview ? "origin-top scale-[0.86]" : undefined;
+  const compactShellSlots = getBattleCompactShellSlots(layout, isCompactTightPreview);
   const majorGridMultiplier = stageMetrics.scale < 0.55 || isCompactPreview ? 8 : 4;
   const majorGridSize = gridSize * majorGridMultiplier;
   const minorGridColor = isCompactPreview
@@ -362,10 +379,30 @@ export const BattleSceneFixtureView: React.FC<{
     : "rgba(251,191,36,0.28)";
   const isSelected = (area: BattleScenePreviewFocusArea) =>
     selectedElements.includes(area);
+  const zoneNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
   const slotNodesRef = useRef<Record<typeof PLAYER | typeof ENEMY, Array<HTMLDivElement | null>>>({
     [PLAYER]: [],
     [ENEMY]: [],
   });
+  const bindZoneRef = useCallback(
+    (zoneId: BoardZoneId, slot: string) => (node: HTMLDivElement | null) => {
+      zoneNodesRef.current[zoneRefKey(zoneId, slot)] = node;
+    },
+    [],
+  );
+  const snapshotZone = useCallback((zoneId: BoardZoneId): ZoneAnchorSnapshot | null => {
+    const bestNode = Object.entries(zoneNodesRef.current)
+      .filter(([key, node]) => key.startsWith(`${zoneId}:`) && node)
+      .map(([, node]) => node as HTMLDivElement)
+      .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
+
+    if (!bestNode) return null;
+
+    const { left, top, width, height } = bestNode.rect;
+    return { left, top, width, height };
+  }, []);
   const createPreviewHandCard = useCallback(
     (
       handCard: BattleSceneFixtureHandCard,
@@ -549,6 +586,25 @@ export const BattleSceneFixtureView: React.FC<{
 
   const readElementSnapshot = useCallback((elementKey: BattleEditableElementKey) => {
     if (typeof document === "undefined") return null;
+    const zoneSnapshot = (() => {
+      switch (elementKey) {
+        case "topHand":
+          return snapshotZone("enemyHand");
+        case "bottomHand":
+          return snapshotZone("playerHand");
+        case "enemyTargetDeck":
+          return snapshotZone("enemyTargetDeck");
+        case "enemyDeck":
+          return snapshotZone("enemyDeck");
+        case "playerTargetDeck":
+          return snapshotZone("playerTargetDeck");
+        case "playerDeck":
+          return snapshotZone("playerDeck");
+        default:
+          return null;
+      }
+    })();
+    if (zoneSnapshot) return zoneSnapshot;
     const node = document.querySelector<HTMLElement>(`[data-battle-element-key="${elementKey}"]`);
     if (!node) return null;
     const rect = node.getBoundingClientRect();
@@ -559,7 +615,7 @@ export const BattleSceneFixtureView: React.FC<{
       width: rect.width,
       height: rect.height,
     };
-  }, []);
+  }, [snapshotZone]);
 
   const updateHiddenStableTarget = useCallback(
     (side: typeof PLAYER | typeof ENEMY, slotIndex: number, hidden: boolean) => {
@@ -870,6 +926,17 @@ export const BattleSceneFixtureView: React.FC<{
     );
   }, [animationPreset, animationSet, incomingPreviewHands]);
 
+  const getScenePointFromScreenPoint = useCallback(
+    (point: { x: number; y: number } | null | undefined) =>
+      point
+        ? {
+            x: Math.round((point.x - stageMetrics.offsetX) / stageMetrics.scale),
+            y: Math.round((point.y - stageMetrics.offsetY) / stageMetrics.scale),
+          }
+        : null,
+    [stageMetrics.offsetX, stageMetrics.offsetY, stageMetrics.scale],
+  );
+
   const getScreenPointFromScenePoint = useCallback(
     (point: { x: number; y: number } | null | undefined) =>
       point
@@ -886,14 +953,28 @@ export const BattleSceneFixtureView: React.FC<{
       if (!anchor) return null;
 
       const getRectCenter = (key: BattleEditableElementKey) => {
-        const rect = getBattleElementSceneRect(key, layout);
-        return {
-          x: Math.round(rect.x + rect.width / 2),
-          y: Math.round(rect.y + rect.height / 2),
-        };
+        const snapshot = readElementSnapshot(key);
+        if (!snapshot) {
+          const rect = getBattleElementSceneRect(key, layout);
+          return {
+            x: Math.round(rect.x + rect.width / 2),
+            y: Math.round(rect.y + rect.height / 2),
+          };
+        }
+        return getScenePointFromScreenPoint({
+          x: snapshot.left + snapshot.width / 2,
+          y: snapshot.top + snapshot.height / 2,
+        });
       };
 
       const getFieldSlotCenter = (side: typeof PLAYER | typeof ENEMY, slotIndex: number) => {
+        const slotRect = slotNodesRef.current[side][slotIndex]?.getBoundingClientRect() ?? null;
+        if (slotRect && slotRect.width > 0 && slotRect.height > 0) {
+          return getScenePointFromScreenPoint({
+            x: slotRect.left + slotRect.width / 2,
+            y: slotRect.top + slotRect.height / 2,
+          });
+        }
         const fieldRect = getBattleElementSceneRect(
           side === PLAYER ? "playerField" : "enemyField",
           layout,
@@ -970,7 +1051,13 @@ export const BattleSceneFixtureView: React.FC<{
 
       return null;
     },
-    [fixture.scene.board.enemyFieldSlots, fixture.scene.board.playerFieldSlots, layout],
+    [
+      fixture.scene.board.enemyFieldSlots,
+      fixture.scene.board.playerFieldSlots,
+      getScenePointFromScreenPoint,
+      layout,
+      readElementSnapshot,
+    ],
   );
 
   const anchorProbeRows = useMemo(
@@ -2812,12 +2899,14 @@ export const BattleSceneFixtureView: React.FC<{
 
           <BattleBoardShell
             layout={layout}
-          leftSidebar={
-            <BattleLeftSidebarView
+            compact={isCompactShellPreview}
+            tight={isCompactTightPreview}
+            leftSidebar={
+              <BattleLeftSidebarView
                 sidebar={fixture.scene.leftSidebar}
-                targetDeckAnchorRef={noopRef}
-                deckAnchorRef={noopRef}
-                discardAnchorRef={noopRef}
+                targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
+                deckAnchorRef={bindZoneRef("enemyDeck", "desktop")}
+                discardAnchorRef={bindZoneRef("enemyDiscard", "desktop")}
                 targetDeckClassName={getPreviewAreaClass(focusArea, ["enemyTargetDeck"])}
                 deckClassName={getPreviewAreaClass(focusArea, ["enemyDeck"])}
                 chroniclesClassName={getPreviewAreaClass(focusArea, ["chronicles"])}
@@ -2831,13 +2920,14 @@ export const BattleSceneFixtureView: React.FC<{
                 chroniclesVisualState={chroniclesVisualState}
               />
             }
-          centerTopMobile={
-            <div className="rounded-[2rem] border border-white/10 bg-black/35 px-3 py-2 shadow-xl lg:hidden sm:px-4">
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                <div className="min-w-0">
+            centerTopMobile={
+              <div className={compactTopShellClassName}>
+                <div className="relative h-full w-full overflow-visible">
                   <BattleEditableElement
                     element="topHand"
                     layout={layout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
                     viewportWidth={viewportWidth}
                     gridSize={gridSize}
                     snapThreshold={snapThreshold}
@@ -2846,59 +2936,69 @@ export const BattleSceneFixtureView: React.FC<{
                     editorMode={editorMode}
                     selected={isSelected("topHand")}
                     snapTargets={snapTargets}
-                    className={cn("transition-all duration-200", getPreviewAreaClass(focusArea, ["topHand"]))}
+                    className={cn(
+                      "absolute left-0 top-0 transition-all duration-200",
+                      getPreviewAreaClass(focusArea, ["topHand"]),
+                    )}
                   >
-                    <BattleHandLane
-                      side={1}
-                      presentation="remote"
-                      stableCards={fixture.enemyHand}
-                      scale="mobile"
-                    />
+                    <div className="flex h-full w-full items-start justify-center">
+                      <BattleHandLane
+                        side={1}
+                        presentation="remote"
+                        stableCards={fixture.enemyHand}
+                        scale="mobile"
+                      />
+                    </div>
                   </BattleEditableElement>
-                </div>
-                <BattlePileRail layout={layout} className="w-auto max-w-none">
                   <BattleEditableElement
                     element="enemyTargetDeck"
                     layout={layout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
                     viewportWidth={viewportWidth}
                     viewportHeight={viewportHeight}
                     previewAnimations={editorMode}
                     editorMode={editorMode}
                     selected={isSelected("enemyTargetDeck")}
                     snapTargets={snapTargets}
+                    className="absolute left-0 top-0"
                   >
                     <BattleSinglePile
                       label="ALVOS"
                       count={fixture.scene.leftSidebar.decks.targetDeckCount}
                       color="bg-rose-950"
                       variant="target"
+                      anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
                       fitParent
-                      className={cn("min-h-[190px]", getPreviewAreaClass(focusArea, ["enemyTargetDeck"]))}
+                      className={getPreviewAreaClass(focusArea, ["enemyTargetDeck"])}
                     />
                   </BattleEditableElement>
                   <BattleEditableElement
                     element="enemyDeck"
                     layout={layout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
                     viewportWidth={viewportWidth}
                     viewportHeight={viewportHeight}
                     previewAnimations={editorMode}
                     editorMode={editorMode}
                     selected={isSelected("enemyDeck")}
                     snapTargets={snapTargets}
+                    className="absolute left-0 top-0"
                   >
                     <BattleSinglePile
                       label="DECK"
                       count={fixture.scene.leftSidebar.decks.deckCount}
                       color="bg-amber-950"
                       variant="deck"
+                      anchorRef={bindZoneRef("enemyDeck", "mobile")}
                       fitParent
-                      className={cn("min-h-[190px]", getPreviewAreaClass(focusArea, ["enemyDeck"]))}
+                      className={getPreviewAreaClass(focusArea, ["enemyDeck"])}
                     />
                   </BattleEditableElement>
-                </BattlePileRail>
+                </div>
               </div>
-            </div>
-          }
+            }
             centerTopDesktop={
               <BattleEditableElement
                 element="topHand"
@@ -2926,6 +3026,8 @@ export const BattleSceneFixtureView: React.FC<{
               <BattleEditableElement
                 element="board"
                 layout={layout}
+                baseX={isCompactShellPreview ? compactShellSlots.board.x : undefined}
+                baseY={isCompactShellPreview ? compactShellSlots.board.y : undefined}
                 viewportWidth={viewportWidth}
                 gridSize={gridSize}
                 snapThreshold={snapThreshold}
@@ -2996,14 +3098,78 @@ export const BattleSceneFixtureView: React.FC<{
                 </div>
               </BattleEditableElement>
             }
-          centerBottomMobile={null}
-          centerControlMobile={
-            <div className="rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden">
-              <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
-                <BattlePileRail layout={layout} className="w-auto max-w-none">
+            centerBottomMobile={
+              isCompactTightPreview ? (
+                <BattleEditableElement
+                  element="bottomHand"
+                  layout={layout}
+                  baseX={compactShellSlots.bottom?.x}
+                  baseY={compactShellSlots.bottom?.y}
+                  viewportWidth={viewportWidth}
+                  gridSize={gridSize}
+                  snapThreshold={snapThreshold}
+                  viewportHeight={viewportHeight}
+                  previewAnimations={editorMode}
+                  editorMode={editorMode}
+                  selected={isSelected("bottomHand") && !isHandPlayTargetEditorSet}
+                  previewSelectable={!isHandPlayTargetEditorSet}
+                  snapTargets={snapTargets}
+                  className={cn(
+                    "absolute left-0 top-0 transition-all duration-200",
+                    getPreviewAreaClass(focusArea, ["bottomHand"]),
+                  )}
+                >
+                  <BattleHandFocusFrame
+                    scale="mobile"
+                    compact
+                    className={compactFooterFrameClassName}
+                    turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
+                    clock={fixture.scene.rightSidebar.hud.clock}
+                    clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
+                    tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
+                  >
+                    <BattleHandLane
+                      side={0}
+                      presentation="local"
+                      stableCards={previewPlayerStableCards}
+                      incomingCards={incomingPreviewHands[PLAYER]}
+                      outgoingCards={outgoingPreviewHands[PLAYER]}
+                      reservedSlots={previewReservedSlots}
+                      scale="mobile"
+                      onIncomingCardComplete={handleIncomingPreviewHandComplete}
+                      onOutgoingCardComplete={(outgoingCard) => {
+                        setOutgoingPreviewHands((current) => ({
+                          ...current,
+                          [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
+                        }));
+                      }}
+                      canInteract={true}
+                      showTurnHighlights={true}
+                      showPlayableHints={fixture.showPlayableHints ?? true}
+                      selectedIndexes={previewSelectedIndexes}
+                      targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
+                      freshCardIds={previewFreshCardIds}
+                      onCardClick={
+                        (animationSet === "hand-play-target" ||
+                          animationSet === "hand-play-draw-combo")
+                          ? (index) => {
+                              setPreviewSelectedIndexes([index]);
+                            }
+                          : undefined
+                      }
+                    />
+                  </BattleHandFocusFrame>
+                </BattleEditableElement>
+              ) : null
+            }
+            centerControlMobile={
+              <div className={compactControlShellClassName}>
+                <div className="relative h-full w-full overflow-visible">
                   <BattleEditableElement
                     element="playerTargetDeck"
                     layout={layout}
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
                     viewportWidth={viewportWidth}
                     gridSize={gridSize}
                     snapThreshold={snapThreshold}
@@ -3012,19 +3178,23 @@ export const BattleSceneFixtureView: React.FC<{
                     editorMode={editorMode}
                     selected={isSelected("playerTargetDeck")}
                     snapTargets={snapTargets}
+                    className="absolute left-0 top-0"
                   >
                     <BattleSinglePile
                       label="ALVOS"
                       count={fixture.scene.rightSidebar.decks.targetDeckCount}
                       color="bg-rose-950"
                       variant="target"
+                      anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
                       fitParent
-                      className={cn("min-h-[190px]", getPreviewAreaClass(focusArea, ["playerTargetDeck"]))}
+                      className={getPreviewAreaClass(focusArea, ["playerTargetDeck"])}
                     />
                   </BattleEditableElement>
                   <BattleEditableElement
                     element="playerDeck"
                     layout={layout}
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
                     viewportWidth={viewportWidth}
                     gridSize={gridSize}
                     snapThreshold={snapThreshold}
@@ -3033,90 +3203,97 @@ export const BattleSceneFixtureView: React.FC<{
                     editorMode={editorMode}
                     selected={isSelected("playerDeck")}
                     snapTargets={snapTargets}
+                    className="absolute left-0 top-0"
                   >
                     <BattleSinglePile
                       label="DECK"
                       count={fixture.scene.rightSidebar.decks.deckCount}
                       color="bg-amber-950"
                       variant="deck"
+                      anchorRef={bindZoneRef("playerDeck", "mobile")}
                       fitParent
-                      className={cn("min-h-[190px]", getPreviewAreaClass(focusArea, ["playerDeck"]))}
+                      className={getPreviewAreaClass(focusArea, ["playerDeck"])}
                     />
                   </BattleEditableElement>
-                </BattlePileRail>
 
-                <BattleEditableElement
-                  element="status"
-                  layout={layout}
-                  viewportWidth={viewportWidth}
-                  gridSize={gridSize}
-                  snapThreshold={snapThreshold}
-                  viewportHeight={viewportHeight}
-                  previewAnimations={editorMode}
-                  editorMode={editorMode}
-                  selected={isSelected("status")}
-                  snapTargets={snapTargets}
-                >
-                  <BattleStatusPanel
-                    presentation="mobile"
-                    title={fixture.scene.rightSidebar.hud.title}
-                    turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
-                    clock={fixture.scene.rightSidebar.hud.clock}
-                    clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
-                    visualState={statusVisualState}
+                  <BattleEditableElement
+                    element="status"
                     layout={layout}
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
                     viewportWidth={viewportWidth}
-                    viewportHeight={viewportHeight}
                     gridSize={gridSize}
                     snapThreshold={snapThreshold}
+                    viewportHeight={viewportHeight}
                     previewAnimations={editorMode}
                     editorMode={editorMode}
-                    selectedElements={selectedElements}
+                    selected={isSelected("status")}
                     snapTargets={snapTargets}
-                  />
-                </BattleEditableElement>
+                    className="absolute left-0 top-0"
+                  >
+                    <BattleStatusPanel
+                      presentation="mobile"
+                      title={fixture.scene.rightSidebar.hud.title}
+                      turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
+                      clock={fixture.scene.rightSidebar.hud.clock}
+                      clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
+                      visualState={statusVisualState}
+                      layout={layout}
+                      viewportWidth={viewportWidth}
+                      viewportHeight={viewportHeight}
+                      gridSize={gridSize}
+                      snapThreshold={snapThreshold}
+                      previewAnimations={editorMode}
+                      editorMode={editorMode}
+                      selectedElements={selectedElements}
+                      snapTargets={snapTargets}
+                    />
+                  </BattleEditableElement>
 
-                <BattleEditableElement
-                  element="action"
-                  layout={layout}
-                  viewportWidth={viewportWidth}
-                  gridSize={gridSize}
-                  snapThreshold={snapThreshold}
-                  viewportHeight={viewportHeight}
-                  previewAnimations={editorMode}
-                  editorMode={editorMode}
-                  selected={isSelected("action")}
-                  snapTargets={snapTargets}
-                >
-                  <BattleActionButton
-                    presentation="mobile"
-                    title={fixture.scene.rightSidebar.action?.title ?? "Trocar"}
-                    subtitle={fixture.scene.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
+                  <BattleEditableElement
+                    element="action"
                     layout={layout}
-                    visualState={actionVisualState}
+                    baseX={compactShellSlots.control.x}
+                    baseY={compactShellSlots.control.y}
                     viewportWidth={viewportWidth}
-                    viewportHeight={viewportHeight}
                     gridSize={gridSize}
                     snapThreshold={snapThreshold}
+                    viewportHeight={viewportHeight}
                     previewAnimations={editorMode}
                     editorMode={editorMode}
-                    selectedElements={selectedElements}
+                    selected={isSelected("action")}
                     snapTargets={snapTargets}
-                    className={cn(
-                      "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
-                      getPreviewAreaClass(focusArea, ["action"]),
-                    )}
-                  />
-                </BattleEditableElement>
+                    className="absolute left-0 top-0"
+                  >
+                    <BattleActionButton
+                      presentation="mobile"
+                      title={fixture.scene.rightSidebar.action?.title ?? "Trocar"}
+                      subtitle={fixture.scene.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
+                      layout={layout}
+                      visualState={actionVisualState}
+                      viewportWidth={viewportWidth}
+                      viewportHeight={viewportHeight}
+                      gridSize={gridSize}
+                      snapThreshold={snapThreshold}
+                      previewAnimations={editorMode}
+                      editorMode={editorMode}
+                      selectedElements={selectedElements}
+                      snapTargets={snapTargets}
+                      className={cn(
+                        "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
+                        getPreviewAreaClass(focusArea, ["action"]),
+                      )}
+                    />
+                  </BattleEditableElement>
+                </div>
               </div>
-            </div>
-          }
+            }
             rightSidebar={
               <BattleRightSidebarView
                 sidebar={fixture.scene.rightSidebar}
-                targetDeckAnchorRef={noopRef}
-                deckAnchorRef={noopRef}
-                discardAnchorRef={noopRef}
+                targetDeckAnchorRef={bindZoneRef("playerTargetDeck", "desktop")}
+                deckAnchorRef={bindZoneRef("playerDeck", "desktop")}
+                discardAnchorRef={bindZoneRef("playerDiscard", "desktop")}
                 hudClassName={getPreviewAreaClass(focusArea, ["status"])}
                 actionSlotClassName={getPreviewAreaClass(focusArea, ["action"])}
                 targetDeckClassName={getPreviewAreaClass(focusArea, ["playerTargetDeck"])}
@@ -3132,61 +3309,68 @@ export const BattleSceneFixtureView: React.FC<{
                 snapTargets={snapTargets}
               />
             }
-          footerMobileHand={
-            <BattleEditableElement
-              element="bottomHand"
-              layout={layout}
-              viewportWidth={viewportWidth}
-              gridSize={gridSize}
-              snapThreshold={snapThreshold}
-              viewportHeight={viewportHeight}
-              previewAnimations={editorMode}
-              editorMode={editorMode}
-              selected={isSelected("bottomHand") && !isHandPlayTargetEditorSet}
-              previewSelectable={!isHandPlayTargetEditorSet}
-              snapTargets={snapTargets}
-              className={cn("transition-all duration-200", getPreviewAreaClass(focusArea, ["bottomHand"]))}
-            >
-              <BattleHandFocusFrame
-                scale="mobile"
-                turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
-                clock={fixture.scene.rightSidebar.hud.clock}
-                clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
-                tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
-              >
-                <BattleHandLane
-                  side={0}
-                  presentation="local"
-                  stableCards={previewPlayerStableCards}
-                  incomingCards={incomingPreviewHands[PLAYER]}
-                  outgoingCards={outgoingPreviewHands[PLAYER]}
-                  reservedSlots={previewReservedSlots}
-                  scale="mobile"
-                  onIncomingCardComplete={handleIncomingPreviewHandComplete}
-                  onOutgoingCardComplete={(outgoingCard) => {
-                    setOutgoingPreviewHands((current) => ({
-                      ...current,
-                      [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
-                    }));
-                  }}
-                  canInteract={true}
-                  showTurnHighlights={true}
-                  showPlayableHints={fixture.showPlayableHints ?? true}
-                  selectedIndexes={previewSelectedIndexes}
-                  targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
-                  freshCardIds={previewFreshCardIds}
-                  onCardClick={
-                    (animationSet === "hand-play-target" ||
-                      animationSet === "hand-play-draw-combo")
-                      ? (index) => {
-                          setPreviewSelectedIndexes([index]);
-                        }
-                      : undefined
-                  }
-                />
-              </BattleHandFocusFrame>
-            </BattleEditableElement>
-          }
+            footerMobileHand={
+              isCompactTightPreview ? null : (
+                <BattleEditableElement
+                  element="bottomHand"
+                  layout={layout}
+                  baseX={compactShellSlots.footer?.x}
+                  baseY={compactShellSlots.footer?.y}
+                  viewportWidth={viewportWidth}
+                  gridSize={gridSize}
+                  snapThreshold={snapThreshold}
+                  viewportHeight={viewportHeight}
+                  previewAnimations={editorMode}
+                  editorMode={editorMode}
+                  selected={isSelected("bottomHand") && !isHandPlayTargetEditorSet}
+                  previewSelectable={!isHandPlayTargetEditorSet}
+                  snapTargets={snapTargets}
+                  className={cn(
+                    "absolute left-0 top-0 transition-all duration-200",
+                    getPreviewAreaClass(focusArea, ["bottomHand"]),
+                  )}
+                >
+                  <BattleHandFocusFrame
+                    scale="mobile"
+                    turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
+                    clock={fixture.scene.rightSidebar.hud.clock}
+                    clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
+                    tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
+                  >
+                    <BattleHandLane
+                      side={0}
+                      presentation="local"
+                      stableCards={previewPlayerStableCards}
+                      incomingCards={incomingPreviewHands[PLAYER]}
+                      outgoingCards={outgoingPreviewHands[PLAYER]}
+                      reservedSlots={previewReservedSlots}
+                      scale="mobile"
+                      onIncomingCardComplete={handleIncomingPreviewHandComplete}
+                      onOutgoingCardComplete={(outgoingCard) => {
+                        setOutgoingPreviewHands((current) => ({
+                          ...current,
+                          [PLAYER]: current[PLAYER].filter((item) => item.id !== outgoingCard.id),
+                        }));
+                      }}
+                      canInteract={true}
+                      showTurnHighlights={true}
+                      showPlayableHints={fixture.showPlayableHints ?? true}
+                      selectedIndexes={previewSelectedIndexes}
+                      targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
+                      freshCardIds={previewFreshCardIds}
+                      onCardClick={
+                        (animationSet === "hand-play-target" ||
+                          animationSet === "hand-play-draw-combo")
+                          ? (index) => {
+                              setPreviewSelectedIndexes([index]);
+                            }
+                          : undefined
+                      }
+                    />
+                  </BattleHandFocusFrame>
+                </BattleEditableElement>
+              )
+            }
           />
           <BattleEditableElement
             element="enemyField"
