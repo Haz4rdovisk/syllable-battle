@@ -81,6 +81,7 @@ import {
   BATTLE_STAGE_WIDTH,
   getBattleCompactShellSlots,
 } from "./BattleSceneSpace";
+import { BattleDevWatcherSample, useBattleDevRuntime } from "./BattleDevRuntime";
 
 const PLAYER = 0;
 const ENEMY = 1;
@@ -254,13 +255,6 @@ interface AnimationFallbackEvent {
   reason: string;
   fallback: string;
   createdAt: number;
-}
-
-interface BattleDevWatcherSample {
-  id: number;
-  at: number;
-  reason: "init" | "change";
-  snapshot: unknown;
 }
 
 interface BattleProps {
@@ -516,7 +510,6 @@ export const Battle: React.FC<BattleProps> = ({
   const battleDebugSampleIdRef = useRef(0);
   const battleDebugStartedAtRef = useRef<number | null>(null);
   const battleDebugLastSignatureRef = useRef("");
-  const buildBattleDevSnapshotRef = useRef<() => unknown>(() => null);
   gameRef.current = game;
   const previousEnemyHandSignatureRef = useRef<string>("");
   const lastHiddenAtRef = useRef<number | null>(null);
@@ -1901,40 +1894,56 @@ export const Battle: React.FC<BattleProps> = ({
     stableHands,
     turnRemainingMs,
   ]);
-  const clearBattleDebugWatcher = useCallback(() => {
-    battleDebugSamplesRef.current = [];
-    battleDebugSampleIdRef.current = 0;
-    battleDebugStartedAtRef.current = Date.now();
-    battleDebugLastSignatureRef.current = "";
+  const bumpBattleDebugWatcherVersion = useCallback(() => {
     setBattleDebugWatcherVersion((value) => value + 1);
   }, []);
-  const downloadBattleDebugDump = useCallback(() => {
-    if (typeof document === "undefined") return;
-    const now = new Date();
-    const pad = (value: number) => String(value).padStart(2, "0");
-    const timestamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}.${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-    const payload = {
-      exportedAt: now.toISOString(),
-      startedAt:
-        battleDebugStartedAtRef.current != null
-          ? new Date(battleDebugStartedAtRef.current).toISOString()
-          : null,
-      count: battleDebugSamplesRef.current.length,
-      latest: buildBattleDevSnapshot(),
-      samples: battleDebugSamplesRef.current,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `battle-dev-dump.${timestamp}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }, [buildBattleDevSnapshot]);
+
+  const clearAnimationFallbacks = useCallback(() => {
+    animationFallbackHistoryRef.current = [];
+    setAnimationFallbackHistoryVersion((value) => value + 1);
+  }, []);
+
+  const damageBattleDev = useCallback(
+    (side: "player" | "enemy", amount = 10) => {
+      if (mode === "multiplayer") {
+        console.warn("[battleDev] O helper de dano estÃ¡ desativado no multiplayer para nÃ£o dessincronizar a sala.");
+        return;
+      }
+
+      const targetIndex = side === "player" ? localPlayerIndex : remotePlayerIndex;
+      const winnerIndex = targetIndex === PLAYER ? ENEMY : PLAYER;
+      const normalizedAmount = Math.max(0, Math.floor(amount));
+
+      setGame((prev) => {
+        if (normalizedAmount <= 0) return prev;
+        const currentTarget = prev.players[targetIndex];
+        const nextLife = Math.max(0, currentTarget.life - normalizedAmount);
+        return {
+          ...prev,
+          openingIntroStep: "done",
+          combatLocked: false,
+          currentMessage: null,
+          players: prev.players.map((player, index) =>
+            index === targetIndex ? { ...player, life: nextLife, flashDamage: normalizedAmount } : { ...player, flashDamage: 0 },
+          ),
+          winner: nextLife === 0 ? winnerIndex : prev.winner,
+        };
+      });
+    },
+    [localPlayerIndex, mode, remotePlayerIndex],
+  );
+
+  const { clearBattleDebugWatcher, downloadBattleDebugDump } = useBattleDevRuntime({
+    enabled: import.meta.env.DEV,
+    buildBattleDevSnapshot,
+    battleDebugSamplesRef,
+    battleDebugSampleIdRef,
+    battleDebugStartedAtRef,
+    battleDebugLastSignatureRef,
+    bumpBattleDebugWatcherVersion,
+    clearAnimationFallbacks,
+    damage: damageBattleDev,
+  });
 
   const setStableTargetSlot = useCallback(
     (
@@ -2257,41 +2266,6 @@ export const Battle: React.FC<BattleProps> = ({
     hydrateBattleSnapshot(freshGame);
   };
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    buildBattleDevSnapshotRef.current = buildBattleDevSnapshot;
-  }, [buildBattleDevSnapshot]);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    if (battleDebugStartedAtRef.current == null) {
-      battleDebugStartedAtRef.current = Date.now();
-    }
-
-    const capture = (reason: "init" | "change") => {
-      const snapshot = buildBattleDevSnapshotRef.current();
-      const signature = JSON.stringify(snapshot);
-      if (reason === "change" && signature === battleDebugLastSignatureRef.current) {
-        return;
-      }
-      battleDebugLastSignatureRef.current = signature;
-      battleDebugSamplesRef.current = [
-        ...battleDebugSamplesRef.current,
-        {
-          id: battleDebugSampleIdRef.current++,
-          at: Date.now(),
-          reason,
-          snapshot,
-        },
-      ].slice(-800);
-      setBattleDebugWatcherVersion((value) => value + 1);
-    };
-
-    capture("init");
-    const interval = setInterval(() => capture("change"), 300);
-    return () => clearInterval(interval);
-  }, []);
-
   const beginCoinChoiceResolution = useCallback((face: CoinFace | null) => {
     setSelectedCoinFace(face);
     setGame((prev) => ({
@@ -2302,68 +2276,6 @@ export const Battle: React.FC<BattleProps> = ({
     }));
   }, []);
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-
-    window.__battleDev = {
-      snapshot: () => buildBattleDevSnapshot(),
-      logSnapshot: () => console.log(window.__battleDev?.snapshot()),
-      dumpDebugCapture: () => downloadBattleDebugDump(),
-      clearDebugCapture: () => clearBattleDebugWatcher(),
-      clearAnimationFallbacks: () => {
-        animationFallbackHistoryRef.current = [];
-        setAnimationFallbackHistoryVersion((value) => value + 1);
-      },
-      damage: (side, amount = 10) => {
-        if (mode === "multiplayer") {
-          console.warn("[battleDev] O helper de dano está desativado no multiplayer para não dessincronizar a sala.");
-          return;
-        }
-
-        const targetIndex = side === "player" ? localPlayerIndex : remotePlayerIndex;
-        const winnerIndex = targetIndex === PLAYER ? ENEMY : PLAYER;
-        const normalizedAmount = Math.max(0, Math.floor(amount));
-
-        setGame((prev) => {
-          if (normalizedAmount <= 0) return prev;
-          const currentTarget = prev.players[targetIndex];
-          const nextLife = Math.max(0, currentTarget.life - normalizedAmount);
-          return {
-            ...prev,
-            openingIntroStep: "done",
-            combatLocked: false,
-            currentMessage: null,
-            players: prev.players.map((player, index) =>
-              index === targetIndex ? { ...player, life: nextLife, flashDamage: normalizedAmount } : { ...player, flashDamage: 0 },
-            ),
-            winner: nextLife === 0 ? winnerIndex : prev.winner,
-          };
-        });
-      },
-      damagePlayer: (amount = 10) => window.__battleDev?.damage("player", amount),
-      damageEnemy: (amount = 10) => window.__battleDev?.damage("enemy", amount),
-      kill: (side) => window.__battleDev?.damage(side, 999),
-      help: () =>
-        [
-          "window.__battleDev.dumpDebugCapture()",
-          "window.__battleDev.clearDebugCapture()",
-          "window.__battleDev.clearAnimationFallbacks()",
-          "window.__battleDev.damage('player', 10)",
-          "window.__battleDev.damage('enemy', 10)",
-          "window.__battleDev.kill('enemy')",
-        ].join("\n"),
-    };
-
-    return () => {
-      delete window.__battleDev;
-    };
-  }, [
-    buildBattleDevSnapshot,
-    clearBattleDebugWatcher,
-    downloadBattleDebugDump,
-    mode,
-    setAnimationFallbackHistoryVersion,
-  ]);
 
   useEffect(() => {
     return () => {
