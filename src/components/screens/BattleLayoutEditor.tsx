@@ -228,8 +228,6 @@ const defaultAnimationAnchors: BattleLayoutPreviewAnimationAnchors = {
   postPlayHandDrawOrigin: null,
   handPlayTarget0Destination: null,
   handPlayTarget1Destination: null,
-  handPlayTarget2Destination: null,
-  handPlayTarget3Destination: null,
   mulliganReturn1Destination: null,
   mulliganReturn2Destination: null,
   mulliganReturn3Destination: null,
@@ -602,10 +600,6 @@ const getAnimationAnchorStateKey = (
       return "handPlayTarget0Destination";
     case "hand-play-target-1-destination":
       return "handPlayTarget1Destination";
-    case "hand-play-target-2-destination":
-      return "handPlayTarget2Destination";
-    case "hand-play-target-3-destination":
-      return "handPlayTarget3Destination";
     case "mulligan-hand-return-1-destination":
       return "mulliganReturn1Destination";
     case "mulligan-hand-return-2-destination":
@@ -1004,10 +998,6 @@ const readInitialBattleLayoutEditorPreviewState = () => {
           parsed.animationAnchors?.handPlayTarget0Destination ?? null,
         handPlayTarget1Destination:
           parsed.animationAnchors?.handPlayTarget1Destination ?? null,
-        handPlayTarget2Destination:
-          parsed.animationAnchors?.handPlayTarget2Destination ?? null,
-        handPlayTarget3Destination:
-          parsed.animationAnchors?.handPlayTarget3Destination ?? null,
         mulliganReturn1Destination:
           parsed.animationAnchors?.mulliganReturn1Destination ?? null,
         mulliganReturn2Destination:
@@ -1143,10 +1133,6 @@ export const BattleLayoutEditor: React.FC = () => {
         initialPreviewState.layoutOverrides.animations?.handPlayTarget0Destination ?? null,
       handPlayTarget1Destination:
         initialPreviewState.layoutOverrides.animations?.handPlayTarget1Destination ?? null,
-      handPlayTarget2Destination:
-        initialPreviewState.layoutOverrides.animations?.handPlayTarget2Destination ?? null,
-      handPlayTarget3Destination:
-        initialPreviewState.layoutOverrides.animations?.handPlayTarget3Destination ?? null,
       mulliganReturn1Destination:
         initialPreviewState.layoutOverrides.animations?.mulliganReturn1Destination ?? null,
       mulliganReturn2Destination:
@@ -1421,10 +1407,6 @@ export const BattleLayoutEditor: React.FC = () => {
         layoutOverrides.animations?.handPlayTarget0Destination ?? null,
       handPlayTarget1Destination:
         layoutOverrides.animations?.handPlayTarget1Destination ?? null,
-      handPlayTarget2Destination:
-        layoutOverrides.animations?.handPlayTarget2Destination ?? null,
-      handPlayTarget3Destination:
-        layoutOverrides.animations?.handPlayTarget3Destination ?? null,
       mulliganReturn1Destination:
         layoutOverrides.animations?.mulliganReturn1Destination ?? null,
       mulliganReturn2Destination:

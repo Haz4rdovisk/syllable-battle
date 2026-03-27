@@ -146,8 +146,6 @@ export interface BattleAnimationLayoutConfig {
   postPlayHandDrawOrigin: BattleAnimationAnchorPoint | null;
   handPlayTarget0Destination: BattleAnimationAnchorPoint | null;
   handPlayTarget1Destination: BattleAnimationAnchorPoint | null;
-  handPlayTarget2Destination: BattleAnimationAnchorPoint | null;
-  handPlayTarget3Destination: BattleAnimationAnchorPoint | null;
   mulliganReturn1Destination: BattleAnimationAnchorPoint | null;
   mulliganReturn2Destination: BattleAnimationAnchorPoint | null;
   mulliganReturn3Destination: BattleAnimationAnchorPoint | null;
@@ -266,8 +264,6 @@ const defaultAnimationLayout: BattleAnimationLayoutConfig = {
   postPlayHandDrawOrigin: null,
   handPlayTarget0Destination: null,
   handPlayTarget1Destination: null,
-  handPlayTarget2Destination: null,
-  handPlayTarget3Destination: null,
   mulliganReturn1Destination: null,
   mulliganReturn2Destination: null,
   mulliganReturn3Destination: null,

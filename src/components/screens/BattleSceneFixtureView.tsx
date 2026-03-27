@@ -310,8 +310,6 @@ export const BattleSceneFixtureView: React.FC<{
     postPlayHandDrawOrigin: null,
     handPlayTarget0Destination: null,
     handPlayTarget1Destination: null,
-    handPlayTarget2Destination: null,
-    handPlayTarget3Destination: null,
     mulliganReturn1Destination: null,
     mulliganReturn2Destination: null,
     mulliganReturn3Destination: null,
@@ -596,10 +594,6 @@ export const BattleSceneFixtureView: React.FC<{
           return animationAnchors.handPlayTarget0Destination;
         case "hand-play-target-1-destination":
           return animationAnchors.handPlayTarget1Destination;
-        case "hand-play-target-2-destination":
-          return animationAnchors.handPlayTarget2Destination;
-        case "hand-play-target-3-destination":
-          return animationAnchors.handPlayTarget3Destination;
         case "mulligan-hand-return-1-destination":
           return animationAnchors.mulliganReturn1Destination;
         case "mulligan-hand-return-2-destination":

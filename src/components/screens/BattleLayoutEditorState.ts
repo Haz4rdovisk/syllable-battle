@@ -63,8 +63,6 @@ export type BattleLayoutPreviewAnimationPreset =
   | "post-play-hand-draw"
   | "hand-play-target-0"
   | "hand-play-target-1"
-  | "hand-play-target-2"
-  | "hand-play-target-3"
   | "mulligan-hand-return-1"
   | "mulligan-hand-return-2"
   | "mulligan-hand-return-3"
@@ -96,8 +94,6 @@ export type BattleLayoutPreviewAnimationAnchorKey =
   | "post-play-hand-draw-origin"
   | "hand-play-target-0-destination"
   | "hand-play-target-1-destination"
-  | "hand-play-target-2-destination"
-  | "hand-play-target-3-destination"
   | "mulligan-hand-return-1-destination"
   | "mulligan-hand-return-2-destination"
   | "mulligan-hand-return-3-destination"
@@ -128,8 +124,6 @@ export interface BattleLayoutPreviewAnimationAnchors {
   postPlayHandDrawOrigin: BattleLayoutPreviewAnimationAnchorPoint | null;
   handPlayTarget0Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   handPlayTarget1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  handPlayTarget2Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  handPlayTarget3Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   mulliganReturn1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   mulliganReturn2Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
   mulliganReturn3Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
@@ -272,10 +266,11 @@ export function normalizeBattleLayoutEditorPreviewState(
   );
   const normalizedAnimationSet =
     state.animationSet ?? "opening-target-entry-first-round";
+  const rawAnimationPreset = state.animationPreset as string | undefined;
   const normalizedAnimationPreset =
     normalizedAnimationSet === "hand-play-target" &&
-    (state.animationPreset === "hand-play-target-2" ||
-      state.animationPreset === "hand-play-target-3")
+    (rawAnimationPreset === "hand-play-target-2" ||
+      rawAnimationPreset === "hand-play-target-3")
       ? "none"
       : state.animationPreset ?? "none";
 
@@ -354,12 +349,6 @@ export function normalizeBattleLayoutEditorPreviewState(
       ),
       handPlayTarget1Destination: clampAnimationPoint(
         state.animationAnchors?.handPlayTarget1Destination,
-      ),
-      handPlayTarget2Destination: clampAnimationPoint(
-        state.animationAnchors?.handPlayTarget2Destination,
-      ),
-      handPlayTarget3Destination: clampAnimationPoint(
-        state.animationAnchors?.handPlayTarget3Destination,
       ),
       mulliganReturn1Destination: clampAnimationPoint(
         state.animationAnchors?.mulliganReturn1Destination,

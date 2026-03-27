@@ -45,8 +45,6 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
     postPlayHandDrawOrigin: null,
     handPlayTarget0Destination: null,
     handPlayTarget1Destination: null,
-    handPlayTarget2Destination: null,
-    handPlayTarget3Destination: null,
     mulliganReturn1Destination: null,
     mulliganReturn2Destination: null,
     mulliganReturn3Destination: null,
@@ -134,12 +132,6 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
         handPlayTarget1Destination:
           parsed.animationAnchors?.handPlayTarget1Destination ??
           defaultPreviewState.animationAnchors.handPlayTarget1Destination,
-        handPlayTarget2Destination:
-          parsed.animationAnchors?.handPlayTarget2Destination ??
-          defaultPreviewState.animationAnchors.handPlayTarget2Destination,
-        handPlayTarget3Destination:
-          parsed.animationAnchors?.handPlayTarget3Destination ??
-          defaultPreviewState.animationAnchors.handPlayTarget3Destination,
         mulliganReturn1Destination:
           parsed.animationAnchors?.mulliganReturn1Destination ??
           defaultPreviewState.animationAnchors.mulliganReturn1Destination,
