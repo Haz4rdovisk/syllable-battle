@@ -69,7 +69,7 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
     fontSize: `${Math.max(layout.text.bodyFontSize - 1, isDesktop ? 11 : 10)}px`,
     letterSpacing: `${layout.text.bodyLetterSpacing}em`,
     textAlign: layout.text.bodyAlign,
-    color: "#fde7c0",
+    color: "#f4dab2",
   } as React.CSSProperties;
   const isPressed = effectiveVisualState === "pressed";
   const isSelected = effectiveVisualState === "selected";
@@ -87,6 +87,7 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
         isDesktop
           ? "rounded-[1.6rem] px-7"
           : "w-full rounded-[1.35rem] px-5",
+        !isHover && !isPressed && !isSelected && !isDisabled ? "shadow-[0_10px_22px_rgba(0,0,0,0.26)]" : "",
         isHover ? "brightness-110 saturate-110 shadow-[0_22px_44px_rgba(0,0,0,0.48)]" : "",
         isPressed ? "translate-y-[2px] brightness-95 shadow-[0_10px_24px_rgba(0,0,0,0.38)]" : "",
         isSelected ? "ring-2 ring-amber-100/90 ring-offset-2 ring-offset-[#7f1d1d] shadow-[0_0_0_1px_rgba(251,191,36,0.65),0_20px_44px_rgba(120,53,15,0.42)]" : "",
@@ -110,10 +111,10 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
                 ? "bg-[linear-gradient(180deg,rgba(157,23,77,0.94),rgba(113,18,18,0.98))]"
                 : isHover
                   ? "bg-[linear-gradient(180deg,rgba(219,39,119,0.96),rgba(153,27,27,0.98))]"
-                  : "bg-[linear-gradient(180deg,rgba(190,24,93,0.92),rgba(127,29,29,0.96))]",
+                  : "bg-[linear-gradient(180deg,rgba(146,64,14,0.78),rgba(108,28,36,0.9))]",
         )}
       />
-      <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-100/80 to-transparent" />
+      <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-100/55 to-transparent" />
       <div
         className={cn(
           "relative shrink-0 place-items-center transition-transform duration-200",
@@ -128,9 +129,10 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
       >
         <span
           className={cn(
-            "font-serif font-black leading-none text-amber-50/90 transition-transform duration-200",
+            "font-serif font-black leading-none text-amber-50/74 transition-transform duration-200",
             isHover ? "rotate-[-8deg]" : "",
             isPressed ? "rotate-[6deg]" : "",
+            isSelected ? "text-amber-50/92" : "",
             isDisabled ? "text-amber-100/65" : "",
           )}
           style={{

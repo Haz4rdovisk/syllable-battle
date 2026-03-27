@@ -61,7 +61,7 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
     fontSize: `clamp(${Math.max(layout.text.titleFontSize - 1, 13)}px, 1vw, ${Math.max(layout.text.titleFontSize, 13)}px)`,
     letterSpacing: `${layout.text.titleLetterSpacing}em`,
     textAlign: layout.text.titleAlign,
-    color: isUrgent ? "#881337" : layout.text.titleColor,
+    color: isUrgent ? "#881337" : "rgba(120,53,15,0.9)",
   } as React.CSSProperties;
 
   if (presentation === "mobile") {
@@ -77,10 +77,10 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
       >
         <div
           className={cn(
-            "paper-panel relative mx-auto flex w-full min-w-0 flex-col justify-center overflow-hidden rounded-[1.5rem] border-2 px-4 py-3 text-center shadow-xl transition-all duration-300 sm:mx-0",
+            "paper-panel relative mx-auto flex w-full min-w-0 flex-col justify-center overflow-hidden rounded-[1.5rem] border-2 px-4 py-3 text-center transition-all duration-300 sm:mx-0",
             isUrgent
               ? "animate-pulse border-rose-300/45 bg-[linear-gradient(180deg,rgba(255,241,242,0.98),rgba(255,228,230,0.94))] shadow-[0_0_28px_rgba(244,63,94,0.16)]"
-              : "border-amber-900/25 bg-parchment/95",
+              : "border-amber-900/16 bg-[linear-gradient(180deg,rgba(245,236,214,0.94),rgba(240,224,191,0.88))] shadow-[0_10px_22px_rgba(0,0,0,0.14)]",
             isSelected
               ? "ring-2 ring-amber-200/85 ring-offset-2 ring-offset-[#f5ecd6] shadow-[0_0_0_1px_rgba(180,83,9,0.22),0_18px_34px_rgba(120,53,15,0.18)]"
               : "",
@@ -91,10 +91,10 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
           }}
         >
           <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-700/30 to-transparent" />
-          <div className="font-black uppercase" style={titleStyle}>{resolvedTitle}</div>
-          <div className="mt-1 font-black uppercase" style={titleStyle}>{turnLabel}</div>
+          <div className="font-black uppercase text-amber-950/68" style={titleStyle}>{resolvedTitle}</div>
+          <div className="mt-1 font-black uppercase text-amber-950/88" style={titleStyle}>{turnLabel}</div>
           <div
-            className={cn("mt-2 font-serif font-black tabular-nums leading-none", isUrgent ? "text-rose-900" : "text-amber-950")}
+            className={cn("mt-2 font-serif font-black tabular-nums leading-none", isUrgent ? "text-rose-900" : "text-amber-950/90")}
             style={{ fontSize: "clamp(1.8rem, 4vw, 2.25rem)" }}
           >
             {clock}
@@ -120,17 +120,17 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
       <div
         data-battle-visual-root="true"
         className={cn(
-          "paper-panel relative flex min-h-0 flex-1 w-full min-w-0 flex-col justify-center overflow-hidden rounded-xl border-2 p-4 text-center shadow-2xl transition-all duration-300",
+          "paper-panel relative flex min-h-0 flex-1 w-full min-w-0 flex-col justify-center overflow-hidden rounded-xl border-2 p-4 text-center transition-all duration-300",
           isUrgent
             ? "animate-pulse border-rose-300/40 bg-parchment/95 shadow-[0_0_30px_rgba(244,63,94,0.18)]"
-            : "border-amber-900/30 bg-parchment/95",
+            : "border-amber-900/18 bg-[linear-gradient(180deg,rgba(245,236,214,0.95),rgba(240,224,191,0.9))] shadow-[0_12px_26px_rgba(0,0,0,0.14)]",
           isSelected
             ? "ring-2 ring-amber-200/90 ring-offset-2 ring-offset-[#f5ecd6] shadow-[0_0_0_1px_rgba(180,83,9,0.24),0_18px_40px_rgba(120,53,15,0.2)]"
             : "",
         )}
       >
         {isUrgent ? <div className="absolute inset-0 bg-rose-100/35" /> : null}
-        <div className="mb-2 border-b-2 border-amber-900/10 pb-2 font-black uppercase" style={titleStyle}>
+        <div className="mb-2 border-b-2 border-amber-900/8 pb-2 font-black uppercase text-amber-950/68" style={titleStyle}>
           {resolvedTitle}
         </div>
         <div className="flex min-h-[34px] items-center justify-center px-2">
@@ -139,7 +139,7 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
           </div>
         </div>
         <div
-          className={cn("mt-2.5 font-serif font-black tabular-nums leading-none tracking-[0.04em]", isUrgent ? "text-rose-950" : "text-amber-950")}
+          className={cn("mt-2.5 font-serif font-black tabular-nums leading-none tracking-[0.04em]", isUrgent ? "text-rose-950" : "text-amber-950/90")}
           style={{ fontSize: "clamp(2.35rem, 4.2vw, 3rem)" }}
         >
           {clock}

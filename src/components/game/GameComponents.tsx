@@ -149,6 +149,11 @@ export const TargetCard: React.FC<TargetCardProps> = ({
       target.syllables.filter((item) => normalizeSyllable(item) === normalizeSyllable(selectedCard as Syllable)).length;
   const isCompleted = target.progress.length >= target.syllables.length && target.syllables.length > 0;
   const isValidTarget = isMatch && canClick;
+  const hasAnyFutureProgress =
+    isPlayerSide &&
+    target.syllables.some((syllable, index) => canStillFillSlot(syllable, index));
+  const isInvalidTargetNow = Boolean(selectedCard) && isPlayerSide && !isMatch;
+  const isAvailableButNotPriority = !selectedCard && hasAnyFutureProgress && !isCompleted;
 
   const damage = RARITY_DAMAGE[normalizeRarity(target.rarity)];
 
@@ -168,7 +173,8 @@ export const TargetCard: React.FC<TargetCardProps> = ({
         target.leaving && "animate-[cardLeave_1.0s_ease-in_forwards]",
         isCompleted && "ring-4 ring-amber-300/75 shadow-[0_0_28px_rgba(251,191,36,0.45)]",
         isValidTarget && "z-20 -translate-y-1 ring-4 ring-emerald-300/80 shadow-[0_0_32px_rgba(52,211,153,0.45)]",
-        selectedCard && isPlayerSide && !isMatch && "opacity-35 grayscale-[0.82]",
+        isAvailableButNotPriority && "ring-2 ring-amber-200/40 shadow-[0_0_18px_rgba(180,83,9,0.14)]",
+        isInvalidTargetNow && "opacity-55 saturate-[0.72] brightness-95",
       )}
     >
       {(isCompleted || isValidTarget) && (
@@ -206,6 +212,12 @@ export const TargetCard: React.FC<TargetCardProps> = ({
         ) : null}
         {isCompleted ? (
           <div className="pointer-events-none absolute inset-2 rounded-[1.2rem] border border-amber-200/55 bg-amber-100/10 shadow-[inset_0_0_30px_rgba(251,191,36,0.2)]" />
+        ) : null}
+        {isAvailableButNotPriority ? (
+          <div className="pointer-events-none absolute inset-2 rounded-[1.2rem] border border-amber-200/34 bg-amber-100/6 shadow-[inset_0_0_20px_rgba(180,83,9,0.12)]" />
+        ) : null}
+        {isInvalidTargetNow ? (
+          <div className="pointer-events-none absolute inset-2 rounded-[1.2rem] border border-slate-500/18 bg-slate-950/10 shadow-[inset_0_0_16px_rgba(15,23,42,0.12)]" />
         ) : null}
         <div
           className="drop-shadow-2xl"
@@ -248,7 +260,7 @@ export const TargetCard: React.FC<TargetCardProps> = ({
                     : isSelectedMatch || isPendingMatch
                       ? "animate-pulse border-emerald-500 bg-emerald-100 text-emerald-950 shadow-[0_2px_12px_rgba(5,46,22,0.18)] ring-2 ring-emerald-300/40"
                       : isAvailableInHand
-                        ? "border-emerald-300/70 bg-emerald-50 text-emerald-900 shadow-[0_2px_10px_rgba(5,46,22,0.12)]"
+                        ? "border-amber-300/70 bg-amber-50 text-amber-950 shadow-[0_2px_10px_rgba(120,53,15,0.12)]"
                         : "border-amber-900/20 bg-amber-900/5 text-amber-900/50 shadow-[0_2px_8px_rgba(120,53,15,0.08)]",
                 )}
                 style={{ fontSize: "clamp(0.54rem, 0.78vw, 0.74rem)" }}

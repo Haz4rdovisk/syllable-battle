@@ -111,6 +111,23 @@ const createSlots = (
 
 const enemyFieldSlots = createSlots(enemyTargets, "enemy");
 const playerFieldSlots = createSlots(playerTargets, "player", playerHandBase.map((card) => card.syllable));
+const completedPlayerFieldSlots = playerFieldSlots.map((slot, slotIndex) =>
+  slotIndex === 0
+    ? {
+        ...slot,
+        displayedTarget: slot.displayedTarget
+          ? {
+              ...slot.displayedTarget,
+              target: {
+                ...slot.displayedTarget.target,
+                progress: [...slot.displayedTarget.target.syllables],
+              },
+            }
+          : slot.displayedTarget,
+        selectedCard: null,
+      }
+    : slot,
+);
 
 const enemyPortrait = {
   label: "BOT",
@@ -236,6 +253,7 @@ export const damageFlashBattleFixture: BattleSceneFixtureData = {
     board: {
       ...midTurnBattleFixture.scene.board,
       currentMessage: makeMessage("2 de dano", "damage"),
+      playerFieldSlots: completedPlayerFieldSlots,
       enemyPortrait: {
         ...midTurnBattleFixture.scene.board.enemyPortrait,
         flashDamage: 2,

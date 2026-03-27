@@ -4125,7 +4125,7 @@ export const Battle: React.FC<BattleProps> = ({
                     title="Trocar"
                     layout={activeBattleLayout}
                     className={cn(
-                      "border-4 border-[#d4af37] bg-[#4a1d24] text-amber-50 shadow-[0_18px_38px_rgba(0,0,0,0.42)]",
+                      "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
                       mulliganButtonClass,
                     )}
                     disabled={mulliganDisabled}
@@ -4145,7 +4145,7 @@ export const Battle: React.FC<BattleProps> = ({
                   subtitle={sceneViewModel.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
                   layout={activeBattleLayout}
                   className={cn(
-                    "border-4 border-[#d4af37] bg-[#4a1d24] text-amber-50 shadow-[0_18px_38px_rgba(0,0,0,0.42)]",
+                    "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
                     mulliganButtonClass,
                   )}
                   disabled={Boolean(sceneViewModel.rightSidebar.action?.disabled ?? mulliganDisabled)}
