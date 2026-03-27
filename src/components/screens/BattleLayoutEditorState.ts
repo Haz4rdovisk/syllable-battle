@@ -31,7 +31,13 @@ export type BattleLayoutPreviewAnimationMode =
   | "mulligan-hand-draw-play-once"
   | "mulligan-hand-draw-loop"
   | "target-attack-play-once"
-  | "target-attack-loop";
+  | "target-attack-loop"
+  | "hand-play-draw-combo-play-once"
+  | "hand-play-draw-combo-loop"
+  | "target-attack-replacement-combo-play-once"
+  | "target-attack-replacement-combo-loop"
+  | "mulligan-complete-combo-play-once"
+  | "mulligan-complete-combo-loop";
 export type BattleLayoutPreviewAnimationSet =
   | "opening-target-entry-first-round"
   | "replacement-target-entry"
@@ -39,7 +45,10 @@ export type BattleLayoutPreviewAnimationSet =
   | "hand-play-target"
   | "mulligan-hand-return"
   | "mulligan-hand-draw"
-  | "target-attack";
+  | "target-attack"
+  | "hand-play-draw-combo"
+  | "target-attack-replacement-combo"
+  | "mulligan-complete-combo";
 export type BattleLayoutPreviewAnimationPreset =
   | "none"
   | "opening-target-entry-0"
@@ -65,7 +74,16 @@ export type BattleLayoutPreviewAnimationPreset =
   | "target-attack-0"
   | "target-attack-1"
   | "target-attack-2"
-  | "target-attack-3";
+  | "target-attack-3"
+  | "hand-play-draw-combo-0"
+  | "hand-play-draw-combo-1"
+  | "target-attack-replacement-combo-0"
+  | "target-attack-replacement-combo-1"
+  | "target-attack-replacement-combo-2"
+  | "target-attack-replacement-combo-3"
+  | "mulligan-complete-combo-1"
+  | "mulligan-complete-combo-2"
+  | "mulligan-complete-combo-3";
 export type BattleLayoutPreviewAnimationAnchorKey =
   | "opening-target-entry-0-origin"
   | "opening-target-entry-1-origin"

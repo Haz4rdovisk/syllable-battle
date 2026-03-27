@@ -154,6 +154,14 @@ const getHandPlayTargetIndexFromPreset = (
   return null;
 };
 
+const getHandPlayDrawComboTargetIndexFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 0 | 1 | null => {
+  if (preset === "hand-play-draw-combo-0") return 0;
+  if (preset === "hand-play-draw-combo-1") return 1;
+  return null;
+};
+
 const getReplacementTargetEntryIndexFromPreset = (
   preset: BattleLayoutPreviewAnimationPreset,
 ): 0 | 1 | 2 | 3 | null => {
@@ -161,6 +169,25 @@ const getReplacementTargetEntryIndexFromPreset = (
   if (preset === "replacement-target-entry-1") return 1;
   if (preset === "replacement-target-entry-2") return 2;
   if (preset === "replacement-target-entry-3") return 3;
+  return null;
+};
+
+const getAttackReplacementComboIndexFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 0 | 1 | 2 | 3 | null => {
+  if (preset === "target-attack-replacement-combo-0") return 0;
+  if (preset === "target-attack-replacement-combo-1") return 1;
+  if (preset === "target-attack-replacement-combo-2") return 2;
+  if (preset === "target-attack-replacement-combo-3") return 3;
+  return null;
+};
+
+const getMulliganCompleteComboCountFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 1 | 2 | 3 | null => {
+  if (preset === "mulligan-complete-combo-1") return 1;
+  if (preset === "mulligan-complete-combo-2") return 2;
+  if (preset === "mulligan-complete-combo-3") return 3;
   return null;
 };
 
@@ -181,12 +208,18 @@ const getMulliganPreviewReservedSlots = (
   animationPreset: BattleLayoutPreviewAnimationPreset,
   incomingCount: number,
 ) => {
-  const count = getMulliganCountFromPreset(animationPreset);
+  const count =
+    animationSet === "mulligan-complete-combo"
+      ? getMulliganCompleteComboCountFromPreset(animationPreset)
+      : getMulliganCountFromPreset(animationPreset);
   if (!count) return 0;
   if (animationSet === "mulligan-hand-return") {
     return count;
   }
-  if (animationSet === "mulligan-hand-draw") {
+  if (
+    animationSet === "mulligan-hand-draw" ||
+    animationSet === "mulligan-complete-combo"
+  ) {
     return Math.max(0, count - incomingCount);
   }
   return 0;
@@ -296,7 +329,9 @@ export const BattleSceneFixtureView: React.FC<{
   },
 }) => {
   const isPureOverview = focusArea === "overview";
-  const isHandPlayTargetEditorSet = animationSet === "hand-play-target";
+  const isHandPlayTargetEditorSet =
+    animationSet === "hand-play-target" ||
+    animationSet === "hand-play-draw-combo";
   const shellSlots = getBattleDesktopShellSlots(layout);
   const boardVars = getBattleBoardSurfaceVars(layout);
   const stageMetrics = getBattleStageMetrics(viewportWidth, viewportHeight);
@@ -620,9 +655,17 @@ export const BattleSceneFixtureView: React.FC<{
         : [];
     }
 
-    if (animationSet === "hand-play-target") {
+    if (animationSet === "hand-play-target" || animationSet === "hand-play-draw-combo") {
+      const targetIndex =
+        animationSet === "hand-play-target"
+          ? getHandPlayTargetIndexFromPreset(animationPreset)
+          : getHandPlayDrawComboTargetIndexFromPreset(animationPreset);
       const anchor =
-        handPlayTargetDestinationAnchorToolByPreset[animationPreset] ?? null;
+        targetIndex != null
+          ? handPlayTargetDestinationAnchorToolByPreset[
+              `hand-play-target-${targetIndex}` as const
+            ] ?? null
+          : null;
       const point = getAnimationAnchorPoint(anchor);
       return point && anchor ? [{ label: "D", anchor, point }] : [];
     }
@@ -638,6 +681,60 @@ export const BattleSceneFixtureView: React.FC<{
         mulliganReturnDestinationAnchorToolByPreset[animationPreset] ?? null;
       const point = getAnimationAnchorPoint(anchor);
       return point && anchor ? [{ label: "D", anchor, point }] : [];
+    }
+
+    if (animationSet === "mulligan-complete-combo") {
+      const count = getMulliganCompleteComboCountFromPreset(animationPreset);
+      if (!count) return [];
+      const drawAnchor =
+        mulliganDrawOriginAnchorToolByPreset[
+          `mulligan-hand-draw-${count}` as const
+        ] ?? null;
+      const returnAnchor =
+        mulliganReturnDestinationAnchorToolByPreset[
+          `mulligan-hand-return-${count}` as const
+        ] ?? null;
+      const drawPoint = getAnimationAnchorPoint(drawAnchor);
+      const returnPoint = getAnimationAnchorPoint(returnAnchor);
+      return [
+        ...(drawPoint && drawAnchor
+          ? [{ label: "O", anchor: drawAnchor, point: drawPoint }]
+          : []),
+        ...(returnPoint && returnAnchor
+          ? [{ label: "D", anchor: returnAnchor, point: returnPoint }]
+          : []),
+      ];
+    }
+
+    if (animationSet === "target-attack-replacement-combo") {
+      const attackIndex = getAttackReplacementComboIndexFromPreset(animationPreset);
+      if (attackIndex == null) return [];
+      const replacementAnchor =
+        replacementTargetEntryAnchorToolByPreset[
+          `replacement-target-entry-${attackIndex}` as const
+        ] ?? null;
+      const impactAnchor =
+        targetAttackImpactAnchorToolByPreset[
+          `target-attack-${attackIndex}` as const
+        ] ?? null;
+      const destinationAnchor =
+        targetAttackDestinationAnchorToolByPreset[
+          `target-attack-${attackIndex}` as const
+        ] ?? null;
+      const replacementPoint = getAnimationAnchorPoint(replacementAnchor);
+      const impactPoint = getAnimationAnchorPoint(impactAnchor);
+      const destinationPoint = getAnimationAnchorPoint(destinationAnchor);
+      return [
+        ...(replacementPoint && replacementAnchor
+          ? [{ label: "O", anchor: replacementAnchor, point: replacementPoint }]
+          : []),
+        ...(impactPoint && impactAnchor
+          ? [{ label: "I", anchor: impactAnchor, point: impactPoint }]
+          : []),
+        ...(destinationPoint && destinationAnchor
+          ? [{ label: "D", anchor: destinationAnchor, point: destinationPoint }]
+          : []),
+      ];
     }
 
     if (animationSet === "target-attack") {
@@ -754,7 +851,10 @@ export const BattleSceneFixtureView: React.FC<{
       flags && flags.length > 0
         ? flags.map((flag, index) => `${index}:${flag ? "1" : "0"}`).join(" ")
         : "-";
-    const mulliganCount = getMulliganCountFromPreset(animationPreset);
+    const mulliganCount =
+      animationSet === "mulligan-complete-combo"
+        ? getMulliganCompleteComboCountFromPreset(animationPreset)
+        : getMulliganCountFromPreset(animationPreset);
     const mulliganReservedSlots = getMulliganPreviewReservedSlots(
       animationSet,
       animationPreset,
@@ -799,15 +899,23 @@ export const BattleSceneFixtureView: React.FC<{
       );
     }
 
-    if (animationSet === "hand-play-target") {
+    if (animationSet === "hand-play-target" || animationSet === "hand-play-draw-combo") {
+      const targetIndex =
+        animationSet === "hand-play-target"
+          ? getHandPlayTargetIndexFromPreset(animationPreset)
+          : getHandPlayDrawComboTargetIndexFromPreset(animationPreset);
+      const destinationAnchor =
+        targetIndex != null
+          ? handPlayTargetDestinationAnchorToolByPreset[
+              `hand-play-target-${targetIndex}` as const
+            ] ?? null
+          : null;
       lines.push(
-        `playTargetPreset:${getHandPlayTargetIndexFromPreset(animationPreset) ?? "-"}`,
+        `playTargetPreset:${targetIndex ?? "-"}`,
       );
       lines.push(
         `playDestination:${formatPoint(
-          getAnimationAnchorPoint(
-            handPlayTargetDestinationAnchorToolByPreset[animationPreset] ?? null,
-          ),
+          getAnimationAnchorPoint(destinationAnchor),
         )}`,
       );
       lines.push(
@@ -1021,6 +1129,18 @@ export const BattleSceneFixtureView: React.FC<{
       animationSet === "target-attack" &&
       (animationMode === "target-attack-loop" ||
         animationMode === "target-attack-play-once");
+    const isHandPlayDrawComboAnimation =
+      animationSet === "hand-play-draw-combo" &&
+      (animationMode === "hand-play-draw-combo-loop" ||
+        animationMode === "hand-play-draw-combo-play-once");
+    const isTargetAttackReplacementComboAnimation =
+      animationSet === "target-attack-replacement-combo" &&
+      (animationMode === "target-attack-replacement-combo-loop" ||
+        animationMode === "target-attack-replacement-combo-play-once");
+    const isMulliganCompleteComboAnimation =
+      animationSet === "mulligan-complete-combo" &&
+      (animationMode === "mulligan-complete-combo-loop" ||
+        animationMode === "mulligan-complete-combo-play-once");
 
     if (
       animationPreset === "none" ||
@@ -1030,7 +1150,10 @@ export const BattleSceneFixtureView: React.FC<{
         !isHandPlayTargetAnimation &&
         !isMulliganReturnAnimation &&
         !isMulliganDrawAnimation &&
-        !isTargetAttackAnimation)
+        !isTargetAttackAnimation &&
+        !isHandPlayDrawComboAnimation &&
+        !isTargetAttackReplacementComboAnimation &&
+        !isMulliganCompleteComboAnimation)
     ) {
       resetPreviewAnimation();
       return;
@@ -1270,22 +1393,59 @@ export const BattleSceneFixtureView: React.FC<{
       }
     };
 
-    const startPostPlayHandDrawLoop = () => {
-      if (loopGenerationRef.current !== generation) return;
-      setIncomingPreviewHands({
-        [PLAYER]: [],
-        [ENEMY]: [],
-      });
-      setPreviewFreshCardIds([]);
+    const getSelectedHandPlayPreviewSetup = (
+      targetIndex: 0 | 1,
+    ): {
+      removedIndex: number;
+      playedCard: BattleHandLaneCard;
+      destination: ZoneAnchorSnapshot;
+    } | null => {
       const removedIndex =
-        fixture.selectedIndexes?.[0] ?? Math.max(0, defaultPlayerStableCards.length - 1);
+        previewSelectedIndexes[0] ??
+        fixture.selectedIndexes?.[0] ??
+        Math.max(0, defaultPlayerStableCards.length - 1);
+      const playedCard = defaultPlayerStableCards[removedIndex] ?? null;
+      if (!playedCard) return null;
+      const destinationAnchor =
+        handPlayTargetDestinationAnchorToolByPreset[
+          `hand-play-target-${targetIndex}` as const
+        ] ?? null;
+      const destination =
+        destinationAnchor && getAnimationAnchorPoint(destinationAnchor)
+          ? {
+              left: getAnimationAnchorPoint(destinationAnchor)!.x,
+              top: getAnimationAnchorPoint(destinationAnchor)!.y,
+              width: 0,
+              height: 0,
+            }
+          : (() => {
+              const slotRect =
+                slotNodesRef.current[PLAYER][targetIndex]?.getBoundingClientRect() ??
+                null;
+              return slotRect
+                ? {
+                    left: slotRect.left,
+                    top: slotRect.top,
+                    width: slotRect.width,
+                    height: slotRect.height,
+                  }
+                : null;
+            })();
+      if (!destination) return null;
+      return {
+        removedIndex,
+        playedCard,
+        destination,
+      };
+    };
+
+    const getPostPlayPreviewDrawData = (removedIndex: number) => {
       const drawSourceIndex =
         removedIndex === defaultPlayerStableCards.length - 1
           ? 0
           : defaultPlayerStableCards.length - 1;
-      setPreviewPlayerStableCards(
-        defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
-      );
+      const drawnCard = defaultPlayerStableCards[drawSourceIndex] ?? null;
+      const removedCard = defaultPlayerStableCards[removedIndex] ?? null;
       const origin =
         getAnimationAnchorPoint("post-play-hand-draw-origin")
           ? {
@@ -1295,8 +1455,28 @@ export const BattleSceneFixtureView: React.FC<{
               height: 0,
             }
           : readElementSnapshot("playerDeck");
-      const drawnCard = defaultPlayerStableCards[drawSourceIndex];
-      const removedCard = defaultPlayerStableCards[removedIndex] ?? null;
+      return {
+        drawSourceIndex,
+        drawnCard,
+        removedCard,
+        origin,
+      };
+    };
+
+    const startPostPlayHandDrawLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      setIncomingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setPreviewFreshCardIds([]);
+      const removedIndex =
+        fixture.selectedIndexes?.[0] ?? Math.max(0, defaultPlayerStableCards.length - 1);
+      const { drawSourceIndex, drawnCard, removedCard, origin } =
+        getPostPlayPreviewDrawData(removedIndex);
+      setPreviewPlayerStableCards(
+        defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
+      );
 
       if (origin && drawnCard) {
         setPreviewPostPlayDebug({
@@ -1380,46 +1560,19 @@ export const BattleSceneFixtureView: React.FC<{
         [PLAYER]: [],
         [ENEMY]: [],
       });
-      const removedIndex =
-        previewSelectedIndexes[0] ??
-        fixture.selectedIndexes?.[0] ??
-        Math.max(0, defaultPlayerStableCards.length - 1);
       const targetIndex = getHandPlayTargetIndexFromPreset(animationPreset) ?? 0;
-      const playedCard = defaultPlayerStableCards[removedIndex] ?? null;
+      const previewSetup = getSelectedHandPlayPreviewSetup(targetIndex);
+      if (!previewSetup) return;
+      const { removedIndex, playedCard, destination } = previewSetup;
       setPreviewPlayerStableCards(
         defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
       );
-      if (!playedCard) return;
       setPreviewPendingTargetPlacements({
         [PLAYER]: fixture.scene.board.playerFieldSlots.map((_, index) =>
           index === targetIndex ? playedCard.syllable : null,
         ),
         [ENEMY]: [],
       });
-      const destinationAnchor =
-        handPlayTargetDestinationAnchorToolByPreset[animationPreset];
-      const destination =
-        destinationAnchor && getAnimationAnchorPoint(destinationAnchor)
-          ? {
-              left: getAnimationAnchorPoint(destinationAnchor)!.x,
-              top: getAnimationAnchorPoint(destinationAnchor)!.y,
-              width: 0,
-              height: 0,
-            }
-          : (() => {
-              const slotRect =
-                slotNodesRef.current[PLAYER][targetIndex]?.getBoundingClientRect() ??
-                null;
-              return slotRect
-                ? {
-                    left: slotRect.left,
-                    top: slotRect.top,
-                    width: slotRect.width,
-                    height: slotRect.height,
-                  }
-                : null;
-            })();
-      if (!destination) return;
       setOutgoingPreviewHands({
         [PLAYER]: [
           {
@@ -1451,6 +1604,123 @@ export const BattleSceneFixtureView: React.FC<{
         const restartTimer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;
           startHandPlayTargetLoop();
+        }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, totalMs + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
+    const startHandPlayDrawComboLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      setIncomingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setOutgoingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setPreviewFreshCardIds([]);
+      setPreviewPendingTargetPlacements({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      const targetIndex = getHandPlayDrawComboTargetIndexFromPreset(animationPreset);
+      if (targetIndex == null) return;
+      const previewSetup = getSelectedHandPlayPreviewSetup(targetIndex);
+      if (!previewSetup) return;
+      const { removedIndex, playedCard, destination } = previewSetup;
+      const { drawSourceIndex, drawnCard, removedCard, origin } =
+        getPostPlayPreviewDrawData(removedIndex);
+
+      setPreviewPlayerStableCards(
+        defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
+      );
+      setPreviewPendingTargetPlacements({
+        [PLAYER]: fixture.scene.board.playerFieldSlots.map((_, index) =>
+          index === targetIndex ? playedCard.syllable : null,
+        ),
+        [ENEMY]: [],
+      });
+      setPreviewPostPlayDebug({
+        removedIndex,
+        drawSourceIndex,
+        removedCardLabel: removedCard ? `${removedCard.syllable}#${removedCard.id}` : null,
+        drawnCardLabel: drawnCard ? `${drawnCard.syllable}#${drawnCard.id}` : null,
+        committedCardLabel: null,
+        phase: "setup",
+      });
+      setOutgoingPreviewHands({
+        [PLAYER]: [
+          {
+            id: `fixture-hand-play-draw-combo-${animationRunId}-${generation}-${targetIndex}`,
+            side: PLAYER,
+            card: playedCard,
+            destination,
+            initialIndex: removedIndex,
+            initialTotal: defaultPlayerStableCards.length,
+            delayMs: 0,
+            durationMs: 660,
+            destinationMode: "zone-center",
+            endRotate: 8,
+            endScale: 1,
+          },
+        ],
+        [ENEMY]: [],
+      });
+
+      const playTotalMs = 660 + 180;
+      const clearPendingTimer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        setPreviewPendingTargetPlacements({
+          [PLAYER]: [],
+          [ENEMY]: [],
+        });
+      }, playTotalMs);
+      animationTimersRef.current.push(clearPendingTimer);
+
+      if (origin && drawnCard) {
+        const drawTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          setPreviewPostPlayDebug((current) => ({
+            ...current,
+            phase: "incoming",
+          }));
+          setIncomingPreviewHands({
+            [PLAYER]: [
+              {
+                id: `fixture-hand-play-draw-combo-draw-${animationRunId}-${generation}`,
+                side: PLAYER,
+                card: {
+                  ...drawnCard,
+                  id: `${drawnCard.id}-combo-incoming-${generation}`,
+                },
+                origin,
+                finalIndex: 4,
+                finalTotal: 5,
+                delayMs: 0,
+                durationMs: FIXTURE_POST_PLAY_DRAW_DURATION_MS,
+              },
+            ],
+            [ENEMY]: [],
+          });
+        }, playTotalMs);
+        animationTimersRef.current.push(drawTimer);
+      }
+
+      const totalMs =
+        playTotalMs +
+        FIXTURE_POST_PLAY_DRAW_DURATION_MS +
+        FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
+      if (animationMode === "hand-play-draw-combo-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startHandPlayDrawComboLoop();
         }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
         animationTimersRef.current.push(restartTimer);
       } else {
@@ -1623,6 +1893,85 @@ export const BattleSceneFixtureView: React.FC<{
       );
     };
 
+    const startMulliganCompleteComboLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      resetMulliganPreviewHandAnimationState();
+      const count = getMulliganCompleteComboCountFromPreset(animationPreset);
+      if (!count) return;
+      const removedCards = defaultPlayerStableCards.slice(0, count);
+      const remainingCards = defaultPlayerStableCards.slice(count);
+      setPreviewPlayerStableCards(remainingCards);
+      const destination =
+        buildAnimationAnchorSnapshot(
+          mulliganReturnDestinationAnchorToolByPreset[
+            `mulligan-hand-return-${count}` as const
+          ] ?? null,
+        ) ?? readElementSnapshot("playerDeck");
+      const origin =
+        buildAnimationAnchorSnapshot(
+          mulliganDrawOriginAnchorToolByPreset[
+            `mulligan-hand-draw-${count}` as const
+          ] ?? null,
+        ) ?? readElementSnapshot("playerDeck");
+      if (!destination || !origin) return;
+
+      setOutgoingPreviewHands({
+        [PLAYER]: removedCards.map((card, index) => ({
+          id: `fixture-mulligan-complete-return-${animationRunId}-${generation}-${index}`,
+          side: PLAYER,
+          card,
+          destination,
+          initialIndex: index,
+          initialTotal: defaultPlayerStableCards.length,
+          delayMs: index * FIXTURE_MULLIGAN_RETURN_STAGGER_MS,
+          durationMs: FIXTURE_MULLIGAN_RETURN_DURATION_MS,
+        })),
+        [ENEMY]: [],
+      });
+
+      const startDelayMs =
+        FIXTURE_MULLIGAN_RETURN_DURATION_MS +
+        Math.max(0, count - 1) * FIXTURE_MULLIGAN_RETURN_STAGGER_MS +
+        FIXTURE_MULLIGAN_DRAW_START_DELAY_MS;
+      removedCards.forEach((card, index) => {
+        const timer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          setIncomingPreviewHands((current) => ({
+            ...current,
+            [PLAYER]: [
+              ...current[PLAYER],
+              {
+                id: `fixture-mulligan-complete-draw-${animationRunId}-${generation}-${index}`,
+                side: PLAYER,
+                card: {
+                  ...card,
+                  id: `${card.id}-mulligan-complete-${generation}-${index}`,
+                },
+                origin,
+                finalIndex: remainingCards.length + index,
+                finalTotal: remainingCards.length + count,
+                delayMs: 0,
+                durationMs: FIXTURE_MULLIGAN_DRAW_DURATION_MS,
+              },
+            ],
+          }));
+        }, startDelayMs + index * FIXTURE_MULLIGAN_DRAW_STAGGER_MS);
+        animationTimersRef.current.push(timer);
+      });
+
+      const totalMs =
+        startDelayMs +
+        Math.max(0, (count - 1) * FIXTURE_MULLIGAN_DRAW_STAGGER_MS) +
+        FIXTURE_MULLIGAN_DRAW_DURATION_MS +
+        FIXTURE_MULLIGAN_DRAW_SETTLE_MS;
+      scheduleMulliganPreviewCompletion(
+        totalMs,
+        animationMode === "mulligan-complete-combo-loop",
+        startMulliganCompleteComboLoop,
+        FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
+      );
+    };
+
     const startTargetAttackLoop = () => {
       if (loopGenerationRef.current !== generation) return;
       setOutgoingPreviewTargets({
@@ -1713,6 +2062,152 @@ export const BattleSceneFixtureView: React.FC<{
       }
     };
 
+    const startTargetAttackReplacementComboLoop = () => {
+      if (loopGenerationRef.current !== generation) return;
+      setIncomingPreviewTargets({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setOutgoingPreviewTargets({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+
+      const attackIndex = getAttackReplacementComboIndexFromPreset(animationPreset);
+      if (attackIndex == null) return;
+      const side = attackIndex >= 2 ? ENEMY : PLAYER;
+      const slotIndex = attackIndex % 2;
+      const slot =
+        side === PLAYER
+          ? fixture.scene.board.playerFieldSlots[slotIndex]
+          : fixture.scene.board.enemyFieldSlots[slotIndex];
+      const entity = slot?.displayedTarget ?? null;
+      if (!entity) return;
+      updateHiddenStableTarget(side, slotIndex, true);
+
+      const impactPoint =
+        getAnimationAnchorPoint(
+          targetAttackImpactAnchorToolByPreset[
+            `target-attack-${attackIndex}` as const
+          ] ?? null,
+        );
+      const destinationPoint =
+        getAnimationAnchorPoint(
+          targetAttackDestinationAnchorToolByPreset[
+            `target-attack-${attackIndex}` as const
+          ] ?? null,
+        );
+      const destination =
+        destinationPoint
+          ? {
+              left: destinationPoint.x,
+              top: destinationPoint.y,
+              width: 0,
+              height: 0,
+            }
+          : readElementSnapshot(side === PLAYER ? "playerTargetDeck" : "enemyTargetDeck");
+      if (!destination) return;
+
+      setOutgoingPreviewTargets({
+        [PLAYER]: side === PLAYER ? [
+          {
+            id: `fixture-target-attack-replacement-${animationRunId}-${generation}-${side}-${slotIndex}`,
+            side,
+            slotIndex,
+            entity,
+            impactDestination: impactPoint
+              ? {
+                  left: impactPoint.x,
+                  top: impactPoint.y,
+                  width: 0,
+                  height: 0,
+                }
+              : null,
+            destination,
+            delayMs: 0,
+            windupMs: FIXTURE_TARGET_ATTACK_WINDUP_MS,
+            attackMs: FIXTURE_TARGET_ATTACK_TRAVEL_MS,
+            pauseMs: FIXTURE_TARGET_ATTACK_PAUSE_MS,
+            exitMs: FIXTURE_TARGET_ATTACK_EXIT_MS,
+          },
+        ] : [],
+        [ENEMY]: side === ENEMY ? [
+          {
+            id: `fixture-target-attack-replacement-${animationRunId}-${generation}-${side}-${slotIndex}`,
+            side,
+            slotIndex,
+            entity,
+            impactDestination: impactPoint
+              ? {
+                  left: impactPoint.x,
+                  top: impactPoint.y,
+                  width: 0,
+                  height: 0,
+                }
+              : null,
+            destination,
+            delayMs: 0,
+            windupMs: FIXTURE_TARGET_ATTACK_WINDUP_MS,
+            attackMs: FIXTURE_TARGET_ATTACK_TRAVEL_MS,
+            pauseMs: FIXTURE_TARGET_ATTACK_PAUSE_MS,
+            exitMs: FIXTURE_TARGET_ATTACK_EXIT_MS,
+          },
+        ] : [],
+      });
+
+      const replacementOrigin =
+        buildAnimationAnchorSnapshot(
+          replacementTargetEntryAnchorToolByPreset[
+            `replacement-target-entry-${attackIndex}` as const
+          ] ?? null,
+        ) ?? readElementSnapshot(side === PLAYER ? "playerTargetDeck" : "enemyTargetDeck");
+      if (!replacementOrigin) return;
+
+      const attackTotalMs =
+        FIXTURE_TARGET_ATTACK_WINDUP_MS +
+        FIXTURE_TARGET_ATTACK_TRAVEL_MS +
+        FIXTURE_TARGET_ATTACK_PAUSE_MS +
+        FIXTURE_TARGET_ATTACK_EXIT_MS;
+      const incomingTimer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        setIncomingPreviewTargets((current) => ({
+          ...current,
+          [side]: [
+            ...current[side],
+            {
+              id: `fixture-target-replacement-combo-${animationRunId}-${generation}-${side}-${slotIndex}`,
+              side,
+              slotIndex,
+              entryIndex: attackIndex,
+              entity,
+              origin: replacementOrigin,
+              delayMs: 0,
+              durationMs: FIXTURE_TARGET_ENTER_DURATION_MS,
+            },
+          ],
+        }));
+      }, attackTotalMs);
+      animationTimersRef.current.push(incomingTimer);
+
+      const totalMs =
+        attackTotalMs +
+        FIXTURE_TARGET_ENTER_DURATION_MS +
+        FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS;
+      if (animationMode === "target-attack-replacement-combo-loop") {
+        const restartTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          startTargetAttackReplacementComboLoop();
+        }, totalMs + FIXTURE_TARGET_LOOP_GAP_MS);
+        animationTimersRef.current.push(restartTimer);
+      } else {
+        const cleanupTimer = window.setTimeout(() => {
+          if (loopGenerationRef.current !== generation) return;
+          resetPreviewAnimation();
+        }, totalMs + 40);
+        animationTimersRef.current.push(cleanupTimer);
+      }
+    };
+
     if (isOpeningTargetEntryAnimation) {
       startOpeningLoop();
     } else if (isReplacementTargetEntryAnimation) {
@@ -1727,6 +2222,12 @@ export const BattleSceneFixtureView: React.FC<{
       startMulliganDrawLoop();
     } else if (isTargetAttackAnimation) {
       startTargetAttackLoop();
+    } else if (isHandPlayDrawComboAnimation) {
+      startHandPlayDrawComboLoop();
+    } else if (isTargetAttackReplacementComboAnimation) {
+      startTargetAttackReplacementComboLoop();
+    } else if (isMulliganCompleteComboAnimation) {
+      startMulliganCompleteComboLoop();
     }
 
     return () => {
@@ -2104,7 +2605,8 @@ export const BattleSceneFixtureView: React.FC<{
                     targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
                     freshCardIds={previewFreshCardIds}
                     onCardClick={
-                      animationSet === "hand-play-target"
+                      (animationSet === "hand-play-target" ||
+                        animationSet === "hand-play-draw-combo")
                         ? (index) => {
                             setPreviewSelectedIndexes([index]);
                           }
@@ -2287,7 +2789,8 @@ export const BattleSceneFixtureView: React.FC<{
                 targets={fixture.scene.board.playerFieldSlots.map((slot) => slot.displayedTarget!.target)}
                 freshCardIds={previewFreshCardIds}
                 onCardClick={
-                  animationSet === "hand-play-target"
+                  (animationSet === "hand-play-target" ||
+                    animationSet === "hand-play-draw-combo")
                     ? (index) => {
                         setPreviewSelectedIndexes([index]);
                       }

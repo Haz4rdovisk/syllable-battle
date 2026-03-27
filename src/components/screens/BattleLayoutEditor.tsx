@@ -277,6 +277,18 @@ const animationSetOptions: Array<{
     value: "target-attack",
     label: "Ataque de alvos",
   },
+  {
+    value: "hand-play-draw-combo",
+    label: "Fluxo - Play + Compra",
+  },
+  {
+    value: "target-attack-replacement-combo",
+    label: "Fluxo - Ataque completo",
+  },
+  {
+    value: "mulligan-complete-combo",
+    label: "Fluxo - Mulligan completo",
+  },
 ];
 const animationPresetOptionsBySet: Record<
   BattleLayoutPreviewAnimationSet,
@@ -325,6 +337,24 @@ const animationPresetOptionsBySet: Record<
     { value: "target-attack-2", label: "Ataque 2" },
     { value: "target-attack-3", label: "Ataque 3" },
   ],
+  "hand-play-draw-combo": [
+    { value: "none", label: "None" },
+    { value: "hand-play-draw-combo-0", label: "Fluxo 0" },
+    { value: "hand-play-draw-combo-1", label: "Fluxo 1" },
+  ],
+  "target-attack-replacement-combo": [
+    { value: "none", label: "None" },
+    { value: "target-attack-replacement-combo-0", label: "Fluxo 0" },
+    { value: "target-attack-replacement-combo-1", label: "Fluxo 1" },
+    { value: "target-attack-replacement-combo-2", label: "Fluxo 2" },
+    { value: "target-attack-replacement-combo-3", label: "Fluxo 3" },
+  ],
+  "mulligan-complete-combo": [
+    { value: "none", label: "None" },
+    { value: "mulligan-complete-combo-1", label: "Fluxo 1" },
+    { value: "mulligan-complete-combo-2", label: "Fluxo 2" },
+    { value: "mulligan-complete-combo-3", label: "Fluxo 3" },
+  ],
 };
 
 const getMulliganCountFromPreset = (
@@ -358,6 +388,33 @@ const getReplacementTargetEntryIndexFromPreset = (
   if (preset === "replacement-target-entry-1") return 1;
   if (preset === "replacement-target-entry-2") return 2;
   if (preset === "replacement-target-entry-3") return 3;
+  return null;
+};
+
+const getAttackReplacementComboIndexFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 0 | 1 | 2 | 3 | null => {
+  if (preset === "target-attack-replacement-combo-0") return 0;
+  if (preset === "target-attack-replacement-combo-1") return 1;
+  if (preset === "target-attack-replacement-combo-2") return 2;
+  if (preset === "target-attack-replacement-combo-3") return 3;
+  return null;
+};
+
+const getHandPlayDrawComboTargetIndexFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 0 | 1 | null => {
+  if (preset === "hand-play-draw-combo-0") return 0;
+  if (preset === "hand-play-draw-combo-1") return 1;
+  return null;
+};
+
+const getMulliganCompleteComboCountFromPreset = (
+  preset: BattleLayoutPreviewAnimationPreset,
+): 1 | 2 | 3 | null => {
+  if (preset === "mulligan-complete-combo-1") return 1;
+  if (preset === "mulligan-complete-combo-2") return 2;
+  if (preset === "mulligan-complete-combo-3") return 3;
   return null;
 };
 
@@ -418,6 +475,21 @@ const getAnimationModeForAction = (
   if (animationSet === "target-attack") {
     return kind === "loop" ? "target-attack-loop" : "target-attack-play-once";
   }
+  if (animationSet === "hand-play-draw-combo") {
+    return kind === "loop"
+      ? "hand-play-draw-combo-loop"
+      : "hand-play-draw-combo-play-once";
+  }
+  if (animationSet === "target-attack-replacement-combo") {
+    return kind === "loop"
+      ? "target-attack-replacement-combo-loop"
+      : "target-attack-replacement-combo-play-once";
+  }
+  if (animationSet === "mulligan-complete-combo") {
+    return kind === "loop"
+      ? "mulligan-complete-combo-loop"
+      : "mulligan-complete-combo-play-once";
+  }
   return kind === "loop"
     ? "opening-target-entry-loop"
     : "opening-target-entry-play-once";
@@ -465,6 +537,38 @@ const getAnimationPreviewDurationMs = (
       TARGET_ATTACK_TRAVEL_MS +
       TARGET_ATTACK_PAUSE_MS +
       TARGET_ATTACK_EXIT_MS
+    );
+  }
+  if (animationSet === "hand-play-draw-combo") {
+    return (
+      HAND_PLAY_TARGET_DURATION_MS +
+      HAND_PLAY_TARGET_SETTLE_MS +
+      POST_PLAY_HAND_DRAW_DURATION_MS +
+      POST_PLAY_HAND_DRAW_SETTLE_MS
+    );
+  }
+  if (animationSet === "target-attack-replacement-combo") {
+    return (
+      TARGET_ATTACK_WINDUP_MS +
+      TARGET_ATTACK_TRAVEL_MS +
+      TARGET_ATTACK_PAUSE_MS +
+      TARGET_ATTACK_EXIT_MS +
+      REPLACEMENT_TARGET_ENTRY_DURATION_MS +
+      REPLACEMENT_TARGET_ENTRY_SETTLE_MS
+    );
+  }
+  if (animationSet === "mulligan-complete-combo") {
+    const count = getMulliganCompleteComboCountFromPreset(preset) ?? 0;
+    const returnMs =
+      Math.max(0, (count - 1) * MULLIGAN_RETURN_STAGGER_MS) +
+      MULLIGAN_RETURN_DURATION_MS;
+    const drawStartMs = returnMs + MULLIGAN_DRAW_START_DELAY_MS;
+    const drawStaggerMs = MULLIGAN_DRAW_DURATION_MS + MULLIGAN_DRAW_SETTLE_MS;
+    return (
+      drawStartMs +
+      Math.max(0, (count - 1) * drawStaggerMs) +
+      MULLIGAN_DRAW_DURATION_MS +
+      MULLIGAN_SETTLE_MS
     );
   }
   return getOpeningTargetAnimationPreviewDurationMs(preset);
