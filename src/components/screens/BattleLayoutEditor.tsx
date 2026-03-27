@@ -3546,45 +3546,6 @@ export const BattleLayoutEditor: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-4 space-y-2 rounded-3xl border border-sky-900/12 bg-sky-50/50 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-950/60">
-            Preset do projeto
-          </div>
-          <p className="text-xs leading-relaxed text-sky-950/75">
-            Quando o layout estiver aprovado, salve este estado como o preset
-            do projeto. Isso atualiza o arquivo TS base usado pelo deploy e
-            pelo reset do editor.
-          </p>
-          <Button
-            type="button"
-            onClick={() => setIsPresetSaveConfirmOpen(true)}
-            className="w-full rounded-xl bg-emerald-950 text-emerald-50 hover:bg-emerald-900"
-          >
-            Salvar layout aprovado
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={() => void copyPresetTs()}
-              className="flex-1 rounded-xl bg-sky-950 text-sky-50 hover:bg-sky-900"
-            >
-              Copiar preset
-            </Button>
-            <Button
-              type="button"
-              onClick={downloadPresetTs}
-              className="flex-1 rounded-xl bg-sky-800 text-sky-50 hover:bg-sky-700"
-            >
-              Baixar preset
-            </Button>
-          </div>
-          {presetSaveFeedback ? (
-            <div className="rounded-xl border border-sky-900/12 bg-white/70 px-3 py-2 text-xs font-semibold text-sky-950/80">
-              {presetSaveFeedback}
-            </div>
-          ) : null}
-        </div>
-
         <div className="mt-4 space-y-2 rounded-3xl border border-emerald-900/12 bg-emerald-50/45 p-3">
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-950/60">
             Animacao
@@ -3721,7 +3682,7 @@ export const BattleLayoutEditor: React.FC = () => {
               ) : null}
             </div>
           ) : null}
-          <div className="flex gap-2">
+          <div className="flex flex-nowrap gap-1">
             <Button
               type="button"
               onClick={() => {
@@ -3729,7 +3690,7 @@ export const BattleLayoutEditor: React.FC = () => {
               }}
               disabled={isAnimationFeatureDisabled}
               className={cn(
-                "flex-1 rounded-xl border border-cyan-300/20 text-cyan-50",
+                "min-w-0 flex-1 rounded-xl border border-cyan-300/20 px-2.5 text-sm",
                 animationDebugEnabled
                   ? "bg-cyan-800 hover:bg-cyan-700"
                   : "bg-cyan-950 hover:bg-cyan-900",
@@ -3744,7 +3705,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 setAnimationRunId((current) => current + 1);
               }}
               disabled={isAnimationFeatureDisabled}
-              className="flex-1 rounded-xl border border-emerald-300/20 bg-emerald-900 text-emerald-50 hover:bg-emerald-800"
+              className="min-w-0 flex-1 rounded-xl border border-emerald-300/20 bg-emerald-900 px-2.5 text-sm text-emerald-50 hover:bg-emerald-800"
             >
               Play
             </Button>
@@ -3755,7 +3716,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 setAnimationRunId((current) => current + 1);
               }}
               disabled={isAnimationFeatureDisabled}
-              className="flex-1 rounded-xl border border-emerald-300/20 bg-emerald-950 text-emerald-50 hover:bg-emerald-900"
+              className="min-w-0 flex-1 rounded-xl border border-emerald-300/20 bg-emerald-950 px-2.5 text-sm text-emerald-50 hover:bg-emerald-900"
             >
               Loop
             </Button>
@@ -3769,62 +3730,77 @@ export const BattleLayoutEditor: React.FC = () => {
                 isAnimationFeatureDisabled ||
                 animationMode !== getAnimationModeForAction(animationSet, "loop")
               }
-              className="flex-1 rounded-xl border border-amber-950/10 bg-white/70 text-emerald-950 hover:bg-white disabled:opacity-50"
+              className="min-w-0 flex-1 rounded-xl border border-amber-950/10 bg-white/70 px-2.5 text-sm text-emerald-950 hover:bg-white disabled:opacity-50"
             >
               Stop
             </Button>
           </div>
         </div>
 
+        <div className="mt-4 space-y-2 rounded-3xl border border-sky-900/12 bg-sky-50/50 p-3">
+          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-950/60">
+            Preset do projeto
+          </div>
+          <p className="text-xs leading-relaxed text-sky-950/75">
+            Quando o layout estiver aprovado, salve este estado como o preset
+            do projeto. Isso atualiza o arquivo TS base usado pelo deploy e
+            pelo reset do editor.
+          </p>
+          <Button
+            type="button"
+            onClick={() => setIsPresetSaveConfirmOpen(true)}
+            className="w-full rounded-xl bg-emerald-950 text-emerald-50 hover:bg-emerald-900"
+          >
+            Salvar layout aprovado
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => void copyPresetTs()}
+              className="flex-1 rounded-xl bg-sky-950 text-sky-50 hover:bg-sky-900"
+            >
+              Copiar preset
+            </Button>
+            <Button
+              type="button"
+              onClick={downloadPresetTs}
+              className="flex-1 rounded-xl bg-sky-800 text-sky-50 hover:bg-sky-700"
+            >
+              Baixar preset
+            </Button>
+          </div>
+          {presetSaveFeedback ? (
+            <div className="rounded-xl border border-sky-900/12 bg-white/70 px-3 py-2 text-xs font-semibold text-sky-950/80">
+              {presetSaveFeedback}
+            </div>
+          ) : null}
+        </div>
+
       </aside>
 
       <div className="min-w-0 overflow-hidden bg-[#0d2418]">
-        <div className="border-b border-white/5 bg-black/20 px-4 py-3 text-amber-50">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-100/60">
-                Preview da batalha inteira
-              </div>
-              <div className="mt-1 font-serif text-2xl font-black leading-none">
-                {fixtureMeta.label}
-              </div>
-              <div className="mt-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-100/55">
-                Foco atual:{" "}
-                {focusArea === "overview"
-                  ? "Batalha inteira"
-                  : sections.find((section) => section.focusArea === focusArea)?.title ??
-                    "Batalha inteira"}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
-                {(Object.entries(battleLayoutPreviewDevices) as Array<
-                  [BattleLayoutPreviewDevice, (typeof battleLayoutPreviewDevices)[BattleLayoutPreviewDevice]]
-                >).map(([deviceKey, device]) => (
-                  <button
-                    key={deviceKey}
-                    type="button"
-                    onClick={() => {
-                      setPreviewDevice(deviceKey);
-                      setViewportWidth(device.width);
-                      setViewportHeight(device.height);
-                    }}
-                    className={cn(
-                      "rounded-xl px-3 py-2 text-[11px] font-black uppercase tracking-[0.14em] transition-colors",
-                      previewDevice === deviceKey
-                        ? "bg-amber-200 text-amber-950"
-                        : "text-amber-100/70 hover:bg-white/10",
-                    )}
-                  >
-                    {device.label}
-                  </button>
-                ))}
+        <div className="border-b border-white/5 bg-black/20 px-3 py-1.5 text-amber-50">
+          <div className="mt-0.5 overflow-x-auto overflow-y-hidden">
+            <div className="flex min-w-max items-end gap-2 pb-0.5">
+              <div className="flex min-w-0 flex-col gap-0.5 pr-1">
+                <div className="min-w-0 truncate font-serif text-[1.35rem] font-black leading-none">
+                  {fixtureMeta.label}
+                </div>
+                <div className="whitespace-nowrap text-[8px] font-black uppercase tracking-[0.16em] text-amber-100/55">
+                  Preview da batalha inteira
+                </div>
+                <div className="whitespace-nowrap text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/50">
+                  Foco:{" "}
+                  {focusArea === "overview"
+                    ? "Batalha inteira"
+                    : sections.find((section) => section.focusArea === focusArea)?.title ??
+                      "Batalha inteira"}
+                </div>
               </div>
 
-              <label className="flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/60">
-                  Resolucao comum
+              <label className="flex h-[48px] min-w-[120px] flex-col justify-between gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1">
+                <span className="text-[8px] font-black uppercase tracking-[0.1em] text-amber-100/55">
+                  Resolucao
                 </span>
                 <select
                   value={hasPresetResolution ? selectedResolutionValue : "custom"}
@@ -3839,7 +3815,7 @@ export const BattleLayoutEditor: React.FC = () => {
                     setViewportWidth(nextWidth);
                     setViewportHeight(nextHeight);
                   }}
-                  className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-sm font-semibold text-amber-50 outline-none"
+                  className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-xs font-semibold text-amber-50 outline-none"
                 >
                   {previewResolutionOptions.map((option) => (
                     <option
@@ -3853,10 +3829,10 @@ export const BattleLayoutEditor: React.FC = () => {
                 </select>
               </label>
 
-              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-2">
-                <label className="flex flex-col gap-1 px-1">
-                  <span className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/60">
-                    Largura
+              <div className="grid h-[48px] grid-cols-2 gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+                <label className="flex flex-col justify-between gap-0.5 px-0.5">
+                  <span className="text-[8px] font-black uppercase tracking-[0.1em] text-amber-100/55">
+                    L
                   </span>
                   <input
                     type="number"
@@ -3867,12 +3843,12 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(event) =>
                       setViewportWidth(parseViewportValue(event.target.value, viewportWidth))
                     }
-                    className="w-24 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-right text-sm font-semibold text-amber-50 outline-none"
+                    className="w-[64px] rounded-md border border-white/10 bg-black/20 px-2 py-1 text-right text-xs font-semibold text-amber-50 outline-none"
                   />
                 </label>
-                <label className="flex flex-col gap-1 px-1">
-                  <span className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/60">
-                    Altura
+                <label className="flex flex-col justify-between gap-0.5 px-0.5">
+                  <span className="text-[8px] font-black uppercase tracking-[0.1em] text-amber-100/55">
+                    A
                   </span>
                   <input
                     type="number"
@@ -3883,13 +3859,37 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(event) =>
                       setViewportHeight(parseViewportValue(event.target.value, viewportHeight))
                     }
-                    className="w-24 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-right text-sm font-semibold text-amber-50 outline-none"
+                    className="w-[64px] rounded-md border border-white/10 bg-black/20 px-2 py-1 text-right text-xs font-semibold text-amber-50 outline-none"
                   />
                 </label>
               </div>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-100/65">
+              <div className="flex h-[48px] items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-0.5">
+                {(Object.entries(battleLayoutPreviewDevices) as Array<
+                  [BattleLayoutPreviewDevice, (typeof battleLayoutPreviewDevices)[BattleLayoutPreviewDevice]]
+                >).map(([deviceKey, device]) => (
+                  <button
+                    key={deviceKey}
+                    type="button"
+                    onClick={() => {
+                      setPreviewDevice(deviceKey);
+                      setViewportWidth(device.width);
+                      setViewportHeight(device.height);
+                  }}
+                  className={cn(
+                    "flex h-[38px] items-center rounded-md px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition-colors",
+                    previewDevice === deviceKey
+                      ? "bg-amber-200 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,251,235,0.3)]"
+                      : "text-amber-100/70 hover:bg-white/10",
+                    )}
+                  >
+                    {device.label}
+                  </button>
+                ))}
+              </div>
+
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+                <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/60">
                   Zoom
                 </span>
                 <input
@@ -3899,27 +3899,27 @@ export const BattleLayoutEditor: React.FC = () => {
                   step={1}
                   value={previewScale}
                   onChange={(event) => setPreviewScale(Number(event.target.value))}
-                  className="w-28 accent-amber-400"
+                  className="w-16 accent-amber-400"
                 />
-                <span className="min-w-10 text-right text-sm font-bold text-amber-50">
+                <span className="min-w-7 text-right text-xs font-bold text-amber-50">
                   {previewScale}%
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-amber-50">
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-amber-50">
                 <input
                   type="checkbox"
                   checked={showGrid}
                   onChange={(event) => setShowGrid(event.target.checked)}
-                  className="h-4 w-4 accent-amber-400"
+                  className="h-3.5 w-3.5 accent-amber-400"
                 />
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-100/75">
+                <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/70">
                   Grid
                 </span>
               </label>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-100/65">
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+                <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/60">
                   Grade
                 </span>
                 <input
@@ -3929,15 +3929,15 @@ export const BattleLayoutEditor: React.FC = () => {
                   step={2}
                   value={gridSize}
                   onChange={(event) => setGridSize(Number(event.target.value))}
-                  className="w-24 accent-amber-400"
+                  className="w-14 accent-amber-400"
                 />
-                <span className="min-w-8 text-right text-sm font-bold text-amber-50">
+                <span className="min-w-5 text-right text-xs font-bold text-amber-50">
                   {gridSize}
                 </span>
               </label>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-100/65">
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+                <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/60">
                   Snap
                 </span>
                 <input
@@ -3947,9 +3947,9 @@ export const BattleLayoutEditor: React.FC = () => {
                   step={1}
                   value={snapThreshold}
                   onChange={(event) => setSnapThreshold(Number(event.target.value))}
-                  className="w-24 accent-amber-400"
+                  className="w-14 accent-amber-400"
                 />
-                <span className="min-w-8 text-right text-sm font-bold text-amber-50">
+                <span className="min-w-5 text-right text-xs font-bold text-amber-50">
                   {snapThreshold}
                 </span>
               </label>
@@ -3957,9 +3957,9 @@ export const BattleLayoutEditor: React.FC = () => {
               <Button
                 type="button"
                 onClick={openDebugPreview}
-                className="rounded-2xl border border-cyan-300/20 bg-cyan-950/40 px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100 hover:bg-cyan-900/60"
+                className="h-[48px] rounded-lg border border-cyan-300/20 bg-cyan-950/40 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100 hover:bg-cyan-900/60"
               >
-                Abrir debug
+                Debug
               </Button>
             </div>
           </div>
