@@ -161,6 +161,10 @@ export interface PlayerState {
   life: number;
   hand: Syllable[];
   syllableDeck: Syllable[];
+  /**
+   * Legacy domain slot reserved for a future discard system.
+   * It exists in the state shape, but the current playable loop does not actively send cards here.
+   */
   discard: Syllable[];
   targetDeck: Target[];
   targets: UITarget[];
