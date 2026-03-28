@@ -2940,6 +2940,22 @@ export const BattleLayoutEditor: React.FC = () => {
       onChange: (value) => updateLayout("board", "desktopPaddingX", value),
     },
     {
+      label: "Padding superior do board",
+      min: 0,
+      max: 40,
+      step: 2,
+      value: layout.board.desktopPaddingTop,
+      onChange: (value) => updateLayout("board", "desktopPaddingTop", value),
+    },
+    {
+      label: "Padding inferior do board",
+      min: 0,
+      max: 40,
+      step: 2,
+      value: layout.board.desktopPaddingBottom,
+      onChange: (value) => updateLayout("board", "desktopPaddingBottom", value),
+    },
+    {
       label: "Largura da linha no mobile",
       min: 260,
       max: 360,
@@ -2962,6 +2978,14 @@ export const BattleLayoutEditor: React.FC = () => {
       step: 1,
       value: layout.board.mobileGap,
       onChange: (value) => updateLayout("board", "mobileGap", value),
+    },
+    {
+      label: "Padding lateral do board no mobile",
+      min: 6,
+      max: 24,
+      step: 1,
+      value: layout.board.mobilePaddingX,
+      onChange: (value) => updateLayout("board", "mobilePaddingX", value),
     },
     {
       label: "Padding vertical do board no mobile",
@@ -3006,6 +3030,14 @@ export const BattleLayoutEditor: React.FC = () => {
   ];
 
   const chroniclesControls: LayoutNumberControl[] = [
+    {
+      label: "Largura util da lateral",
+      min: 208,
+      max: 280,
+      step: 4,
+      value: layout.sidebars.railWidth,
+      onChange: (value) => updateLayout("sidebars", "railWidth", value),
+    },
     {
       label: "Altura de cronicas",
       min: 300,
