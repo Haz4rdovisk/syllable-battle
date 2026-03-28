@@ -1441,6 +1441,10 @@ export const BattleLayoutEditor: React.FC = () => {
   const animationPreviewLoopTimerRef = useRef<number | null>(null);
   const [presetName, setPresetName] = useState("");
   const [groupName, setGroupName] = useState("");
+  const [navigatorSearch, setNavigatorSearch] = useState("");
+  const treeItemRefs = useRef<Partial<Record<BattleEditableElementKey, HTMLDivElement | null>>>(
+    {},
+  );
   const [elementPresets, setElementPresets] = useState<
     Record<string, Partial<BattleElementPropertyConfig>>
   >(() => {
@@ -3347,6 +3351,45 @@ export const BattleLayoutEditor: React.FC = () => {
     ? layout.elements[primarySelectedElementKey]
     : null;
   const isMultiSelection = selectedElementKeys.length > 1;
+  const normalizedNavigatorSearch = navigatorSearch.trim().toLowerCase();
+  const filteredSceneTreeGroups = useMemo(
+    () =>
+      sceneTreeGroups
+        .map((group) => {
+          const elements = group.elements.filter((elementKey) => {
+            if (!normalizedNavigatorSearch) return true;
+            const section = sections.find((item) => item.elementKey === elementKey);
+            const haystack = [
+              elementKey,
+              section?.title ?? "",
+              section?.description ?? "",
+              ...(section?.tags ?? []),
+            ]
+              .join(" ")
+              .toLowerCase();
+            return haystack.includes(normalizedNavigatorSearch);
+          });
+
+          return {
+            ...group,
+            elements,
+          };
+        })
+        .filter((group) => group.elements.length > 0),
+    [normalizedNavigatorSearch, sections],
+  );
+  const filteredNavigatorCount = filteredSceneTreeGroups.reduce(
+    (sum, group) => sum + group.elements.length,
+    0,
+  );
+  const locateFocusedTreeItem = useCallback(() => {
+    const focusedKey = focusAreaToElementKey(focusArea);
+    const fallbackKey = selectedElementKeys[0] ?? null;
+    const targetKey = focusedKey ?? fallbackKey;
+    if (!targetKey) return;
+    const node = treeItemRefs.current[targetKey];
+    node?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focusArea, selectedElementKeys]);
   const selectedLayoutMetrics = useMemo(
     () =>
       selectedElementKeys.map((elementKey) =>
@@ -3388,6 +3431,16 @@ export const BattleLayoutEditor: React.FC = () => {
   useEffect(() => {
     setImportText(editableJsonValue);
   }, [editableJsonValue]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const targetKey = focusAreaToElementKey(focusArea) ?? selectedElementKeys[0] ?? null;
+    if (!targetKey) return;
+    const node = treeItemRefs.current[targetKey];
+    if (!node) return;
+    window.requestAnimationFrame(() => {
+      node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }, [focusArea, selectedElementKeys, normalizedNavigatorSearch]);
   const previewDevicePreset = battleLayoutPreviewDevices[previewDevice];
   const previewResolutionOptions = battleLayoutPreviewResolutions[previewDevice];
   const selectedResolutionValue = `${viewportWidth}x${viewportHeight}`;
@@ -3782,6 +3835,37 @@ export const BattleLayoutEditor: React.FC = () => {
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input
               type="text"
+              value={navigatorSearch}
+              onChange={(event) => setNavigatorSearch(event.target.value)}
+              placeholder="Buscar elemento"
+              className="rounded-xl border border-amber-900/20 bg-white/80 px-3 py-2 text-sm font-semibold text-amber-950 outline-none"
+            />
+            <Button
+              type="button"
+              onClick={locateFocusedTreeItem}
+              className="rounded-xl bg-sky-900 text-amber-50 hover:bg-sky-800"
+            >
+              Localizar foco
+            </Button>
+          </div>
+          <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
+            <div>
+              Foco atual:{" "}
+              <span className="font-bold">
+                {focusArea === "overview"
+                  ? "batalha inteira"
+                  : sections.find((section) => section.focusArea === focusArea)?.title ??
+                    focusArea}
+              </span>
+            </div>
+            <div className="mt-1">
+              Busca: <span className="font-bold">{filteredNavigatorCount}</span>{" "}
+              resultado(s)
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input
+              type="text"
               value={groupName}
               onChange={(event) => setGroupName(event.target.value)}
               placeholder="Nome do grupo"
@@ -3812,7 +3896,7 @@ export const BattleLayoutEditor: React.FC = () => {
             </Button>
           </div>
           <div className="space-y-3">
-            {sceneTreeGroups.map((group) => (
+            {filteredSceneTreeGroups.map((group) => (
               <div
                 key={group.title}
                 className="rounded-2xl border border-amber-900/15 bg-white/55 p-3"
@@ -3838,15 +3922,21 @@ export const BattleLayoutEditor: React.FC = () => {
                     const normalizedKey = focusAreaToElementKey(elementKey);
                     const section = sections.find((item) => item.elementKey === normalizedKey);
                     const checked = selectedElements.includes(elementKey);
+                    const isFocused = focusArea === elementKey;
                     return (
                       <div
                         key={elementKey}
+                        ref={(node) => {
+                          treeItemRefs.current[elementKey] = node;
+                        }}
                         onClick={() => selectElements(elementKey, [elementKey])}
                         className={cn(
                           "flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-colors",
-                          focusArea === elementKey
-                            ? "border-amber-900/25 bg-amber-100/70"
-                            : "border-amber-900/10 bg-amber-50/60 hover:bg-amber-100/55",
+                          isFocused
+                            ? "border-sky-900/45 bg-sky-100/70 ring-1 ring-sky-900/15"
+                            : checked
+                              ? "border-amber-900/20 bg-amber-100/70"
+                              : "border-amber-900/10 bg-amber-50/60 hover:bg-amber-100/55",
                         )}
                       >
                         <label
@@ -3860,16 +3950,35 @@ export const BattleLayoutEditor: React.FC = () => {
                             onClick={(event) => event.stopPropagation()}
                             className="h-4 w-4 accent-amber-700"
                           />
-                          <span className="text-sm font-semibold text-amber-950">
-                            {section?.title ?? elementKey}
-                          </span>
+                          <div>
+                            <div className="text-sm font-semibold text-amber-950">
+                              {section?.title ?? elementKey}
+                            </div>
+                            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-950/45">
+                              {elementKey}
+                            </div>
+                          </div>
                         </label>
+                        {isFocused ? (
+                          <span className="rounded-full bg-sky-900 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50">
+                            Foco
+                          </span>
+                        ) : checked ? (
+                          <span className="rounded-full bg-amber-900 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50">
+                            Selec.
+                          </span>
+                        ) : null}
                       </div>
                     );
                   })}
                 </div>
               </div>
             ))}
+            {filteredSceneTreeGroups.length === 0 ? (
+              <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
+                Nenhum elemento bate com a busca atual.
+              </div>
+            ) : null}
           </div>
           {savedGroups.length > 0 ? (
             <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-white/55 p-3">
