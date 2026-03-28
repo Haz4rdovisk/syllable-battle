@@ -99,13 +99,9 @@ import {
   BATTLE_SHARED_OPENING_TARGET_TIMINGS,
 } from "./battleSharedTimings";
 import {
-  createSimplePlayVisualPlan,
-  type BattleSimplePlayVisualPlan,
-} from "./battleVisualPlan";
-import {
   applyBattleSimplePlayRuntime,
-  type BattleSimplePlayRuntimeGeometry,
 } from "./battleSimplePlayRuntime";
+import { prepareBattleSimplePlayStep } from "./battleSimplePlayStep";
 
 const PLAYER = 0;
 const ENEMY = 1;
@@ -2736,24 +2732,6 @@ export const Battle: React.FC<BattleProps> = ({
     [emitBattleEvent, game.players, game.turn],
   );
 
-  const resolveSimplePlayRuntimeGeometry = useCallback(
-    (
-      side: typeof PLAYER | typeof ENEMY,
-      targetIndex: number,
-    ): BattleSimplePlayRuntimeGeometry => ({
-      handPlayDestination:
-        getHandPlayTargetDestinationSnapshot(side, targetIndex) ??
-        snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${targetIndex}`),
-      postPlayDrawOrigin: getPostPlayHandDrawOriginSnapshot(side),
-    }),
-    [
-      getHandPlayTargetDestinationSnapshot,
-      getPostPlayHandDrawOriginSnapshot,
-      snapshotZoneSlot,
-      zoneIdForSide,
-    ],
-  );
-
   const applyResolvedMulliganFlow = ({
     side,
     removedStableCards,
@@ -2841,47 +2819,50 @@ export const Battle: React.FC<BattleProps> = ({
       if (!result) return;
 
       const stableBeforePlay = stableHandsRef.current[side];
-      const simpleVisualPlan = createSimplePlayVisualPlan({
+      const simplePlayStep = prepareBattleSimplePlayStep({
+        side,
         flow: FLOW,
         result,
-        targetIndex: move.targetIndex,
         handIndex: move.handIndex,
+        targetIndex: move.targetIndex,
+        targetName: game.players[side].targets[move.targetIndex]?.name ?? "",
         stableHandCountBeforePlay: stableBeforePlay.length,
         handLayoutSlotCount: HAND_LAYOUT_SLOT_COUNT,
+        fieldZoneId: zoneIdForSide(side, "field"),
+        getHandPlayTargetDestinationSnapshot,
+        getPostPlayHandDrawOriginSnapshot,
+        snapshotZoneSlot,
       });
-      const simpleVisualGeometry = simpleVisualPlan
-        ? resolveSimplePlayRuntimeGeometry(side, move.targetIndex)
-        : null;
-      const playedCardLayout = {
-        index: move.handIndex,
-        total: stableBeforePlay.length,
-      };
       const [playedStableCard] = removeStableCards(side, [move.handIndex]);
-      lockTargetSlot(side, move.targetIndex, true);
-      setPendingTargetPlacement(side, move.targetIndex, result.playedCard);
-      const fallbackHandPlayDestination =
-        getHandPlayTargetDestinationSnapshot(side, move.targetIndex) ??
-        snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`);
-      const fallbackPostPlayDrawOrigin = getPostPlayHandDrawOriginSnapshot(side);
+      lockTargetSlot(side, simplePlayStep.logicalEvent.targetIndex, true);
+      setPendingTargetPlacement(
+        side,
+        simplePlayStep.logicalEvent.targetIndex,
+        simplePlayStep.logicalEvent.result.playedCard,
+      );
 
       applyBattleSimplePlayRuntime({
         side,
         localPlayerIndex,
-        targetIndex: move.targetIndex,
-        result,
+        targetIndex: simplePlayStep.logicalEvent.targetIndex,
+        result: simplePlayStep.logicalEvent.result,
         clearSelection,
         flow: FLOW,
         playedStableCard,
-        playedCardLayout,
-        visualPlan: simpleVisualPlan,
-        visualGeometry: simpleVisualGeometry,
-        fallbackHandPlayDestination,
-        fallbackPostPlayDrawOrigin,
+        playedCardLayout: simplePlayStep.statefulExecution.playedCardLayout,
+        visualPlan: simplePlayStep.visualPlan,
+        visualGeometry: simplePlayStep.liveGeometry.visualGeometry,
+        fallbackHandPlayDestination: simplePlayStep.liveGeometry.fallbackHandPlayDestination,
+        fallbackPostPlayDrawOrigin: simplePlayStep.liveGeometry.fallbackPostPlayDrawOrigin,
         appendOutgoingCard,
         queueHandDrawBatch,
         setGame,
         buildNextLog: (prevLog) =>
-          buildPlayChronicleEntries(side, result, game.players[side].targets[move.targetIndex]?.name ?? "").reduce(
+          buildPlayChronicleEntries(
+            side,
+            simplePlayStep.logicalEvent.result,
+            simplePlayStep.logicalEvent.targetName,
+          ).reduce(
             (acc, entry) => addLog(acc, entry),
             prevLog,
           ),

@@ -9,11 +9,7 @@ import {
 } from "./battleFlow";
 import type { ResolvedBattlePlayAction } from "./battleResolution";
 import type { BattleSimplePlayVisualPlan } from "./battleVisualPlan";
-
-export interface BattleSimplePlayRuntimeGeometry {
-  handPlayDestination: ZoneAnchorSnapshot | null;
-  postPlayDrawOrigin: ZoneAnchorSnapshot | null;
-}
+import type { BattleSimplePlayRuntimeGeometry } from "./battleSimplePlayGeometry";
 
 interface QueueHandDrawBatchArgs {
   initialDelayMs: number;
