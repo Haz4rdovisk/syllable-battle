@@ -337,16 +337,18 @@ test("helpers de formatacao/debug retornam saidas uteis sem depender de DOM", ()
   );
 });
 
-test("layout visual separado preserva compatibilidade legada e serializa a nova secao", () => {
+test("layout visual dos montes preserva compatibilidade legada e serializa a nova secao", () => {
   const layout = createBattleLayoutConfig({
     visuals: {
       cardBackPresetId: "ember",
-      pilePresetId: "jade",
+      deckPilePresetId: "jade",
+      targetPilePresetId: "sunforge",
     } as never,
   });
 
   assert.equal(layout.visuals.cardBackPresetId, "ember");
-  assert.equal(layout.visuals.pilePresetId, "jade");
+  assert.equal(layout.visuals.deckPilePresetId, "jade");
+  assert.equal(layout.visuals.targetPilePresetId, "sunforge");
 
   const legacyLayout = createBattleLayoutConfig({
     visuals: {
@@ -355,7 +357,17 @@ test("layout visual separado preserva compatibilidade legada e serializa a nova 
   });
 
   assert.equal(legacyLayout.visuals.cardBackPresetId, "jade");
-  assert.equal(legacyLayout.visuals.pilePresetId, "jade");
+  assert.equal(legacyLayout.visuals.deckPilePresetId, "jade");
+  assert.equal(legacyLayout.visuals.targetPilePresetId, "jade");
+
+  const previousRoundLayout = createBattleLayoutConfig({
+    visuals: {
+      pilePresetId: "ember",
+    } as never,
+  });
+
+  assert.equal(previousRoundLayout.visuals.deckPilePresetId, "ember");
+  assert.equal(previousRoundLayout.visuals.targetPilePresetId, "ember");
 
   const presetSource = createBattleLayoutPresetSource({
     text: {
@@ -365,6 +377,6 @@ test("layout visual separado preserva compatibilidade legada e serializa a nova 
 
   assert.match(
     presetSource,
-    /"visuals": \{\s+"cardBackPresetId": "arcane",\s+"pilePresetId": "arcane"\s+\}/,
+    /"visuals": \{\s+"cardBackPresetId": "arcane",\s+"deckPilePresetId": "arcane",\s+"targetPilePresetId": "arcane"\s+\}/,
   );
 });

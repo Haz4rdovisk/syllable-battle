@@ -3134,7 +3134,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="target"
                       anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
                       fitParent
-                      pilePresetId={layout.visuals.pilePresetId}
+                      pilePresetId={layout.visuals.targetPilePresetId}
                       className={getPreviewAreaClass(focusArea, ["enemyTargetDeck"])}
                     />
                   </BattleEditableElement>
@@ -3159,7 +3159,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="deck"
                       anchorRef={bindZoneRef("enemyDeck", "mobile")}
                       fitParent
-                      pilePresetId={layout.visuals.pilePresetId}
+                      pilePresetId={layout.visuals.deckPilePresetId}
                       className={getPreviewAreaClass(focusArea, ["enemyDeck"])}
                     />
                   </BattleEditableElement>
@@ -3362,7 +3362,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="target"
                       anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
                       fitParent
-                      pilePresetId={layout.visuals.pilePresetId}
+                      pilePresetId={layout.visuals.targetPilePresetId}
                       className={getPreviewAreaClass(focusArea, ["playerTargetDeck"])}
                     />
                   </BattleEditableElement>
@@ -3389,7 +3389,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="deck"
                       anchorRef={bindZoneRef("playerDeck", "mobile")}
                       fitParent
-                      pilePresetId={layout.visuals.pilePresetId}
+                      pilePresetId={layout.visuals.deckPilePresetId}
                       className={getPreviewAreaClass(focusArea, ["playerDeck"])}
                     />
                   </BattleEditableElement>

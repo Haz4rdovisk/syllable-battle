@@ -6,7 +6,8 @@ import {
 export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
   "visuals": {
     "cardBackPresetId": "arcane",
-    "pilePresetId": "arcane"
+    "deckPilePresetId": "arcane",
+    "targetPilePresetId": "arcane"
   },
   "elements": {
     "enemyDeck": {

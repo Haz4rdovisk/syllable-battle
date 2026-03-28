@@ -111,7 +111,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
           anchorRef={targetDeckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", targetDeckClassName)}
-          pilePresetId={layout.visuals.pilePresetId}
+          pilePresetId={layout.visuals.targetPilePresetId}
         />
       </BattleEditableElement>
       <BattleEditableElement
@@ -135,7 +135,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
           anchorRef={deckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", deckClassName)}
-          pilePresetId={layout.visuals.pilePresetId}
+          pilePresetId={layout.visuals.deckPilePresetId}
         />
       </BattleEditableElement>
       <BattleEditableElement
@@ -317,7 +317,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
           anchorRef={targetDeckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", targetDeckClassName)}
-          pilePresetId={layout.visuals.pilePresetId}
+          pilePresetId={layout.visuals.targetPilePresetId}
         />
       </BattleEditableElement>
       <BattleEditableElement
@@ -341,7 +341,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
           anchorRef={deckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", deckClassName)}
-          pilePresetId={layout.visuals.pilePresetId}
+          pilePresetId={layout.visuals.deckPilePresetId}
         />
       </BattleEditableElement>
     </aside>

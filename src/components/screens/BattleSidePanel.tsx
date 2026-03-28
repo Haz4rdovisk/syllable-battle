@@ -106,7 +106,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
             color="bg-rose-950"
             variant="target"
             anchorRef={targetDeckAnchorRef}
-            pilePresetId={layout.visuals.pilePresetId}
+            pilePresetId={layout.visuals.targetPilePresetId}
           />
         </div>
         <div>
@@ -116,7 +116,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
             color="bg-amber-950"
             variant="deck"
             anchorRef={deckAnchorRef}
-            pilePresetId={layout.visuals.pilePresetId}
+            pilePresetId={layout.visuals.deckPilePresetId}
           />
         </div>
         <div ref={discardAnchorRef} className="pointer-events-none h-0 w-0 opacity-0" />
@@ -137,7 +137,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
           color="bg-rose-950"
           variant="target"
           anchorRef={targetDeckAnchorRef}
-          pilePresetId={layout.visuals.pilePresetId}
+          pilePresetId={layout.visuals.targetPilePresetId}
         />
       </div>
       <div className="min-w-0">
@@ -147,7 +147,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
           color="bg-amber-950"
           variant="deck"
           anchorRef={deckAnchorRef}
-          pilePresetId={layout.visuals.pilePresetId}
+          pilePresetId={layout.visuals.deckPilePresetId}
         />
       </div>
     </BattlePileRail>

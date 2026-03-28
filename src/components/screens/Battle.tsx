@@ -3722,7 +3722,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="target"
                       anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
                       fitParent
-                      pilePresetId={activeBattleLayout.visuals.pilePresetId}
+                      pilePresetId={activeBattleLayout.visuals.targetPilePresetId}
                     />
                   </BattleEditableElement>
                   <BattleEditableElement
@@ -3739,7 +3739,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="deck"
                       anchorRef={bindZoneRef("enemyDeck", "mobile")}
                       fitParent
-                      pilePresetId={activeBattleLayout.visuals.pilePresetId}
+                      pilePresetId={activeBattleLayout.visuals.deckPilePresetId}
                     />
                   </BattleEditableElement>
                 </div>
@@ -3829,7 +3829,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="target"
                       anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
                       fitParent
-                      pilePresetId={activeBattleLayout.visuals.pilePresetId}
+                      pilePresetId={activeBattleLayout.visuals.targetPilePresetId}
                     />
                   </BattleEditableElement>
                   <BattleEditableElement
@@ -3846,7 +3846,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="deck"
                       anchorRef={bindZoneRef("playerDeck", "mobile")}
                       fitParent
-                      pilePresetId={activeBattleLayout.visuals.pilePresetId}
+                      pilePresetId={activeBattleLayout.visuals.deckPilePresetId}
                     />
                   </BattleEditableElement>
 

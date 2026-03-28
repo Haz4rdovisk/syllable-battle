@@ -2858,9 +2858,15 @@ export const BattleLayoutEditor: React.FC = () => {
     value: BattleLayoutConfig["visuals"][Key],
   ) => {
     const currentVisuals = (layoutOverrides.visuals ?? {}) as
-      BattleLayoutConfig["visuals"] & { cardStackPresetId?: string };
-    const { cardStackPresetId: _legacyCardStackPresetId, ...nextVisuals } =
-      currentVisuals;
+      BattleLayoutConfig["visuals"] & {
+        cardStackPresetId?: string;
+        pilePresetId?: string;
+      };
+    const {
+      cardStackPresetId: _legacyCardStackPresetId,
+      pilePresetId: _legacyPilePresetId,
+      ...nextVisuals
+    } = currentVisuals;
     applyOverrides({
       ...layoutOverrides,
       visuals: {
@@ -5247,13 +5253,13 @@ export const BattleLayoutEditor: React.FC = () => {
                   label: "Montes",
                   state: "runtime-backed",
                   scope: "global",
-                  detail: "Mesmo preset do CardPile no editor, preview e runtime live.",
+                  detail: "Deck e alvo usam presets reais e independentes no CardPile.",
                 },
               ]}
             />
             <p className="text-xs leading-relaxed text-amber-950/75">
               Controla apenas os presets de <code>CardBackCard</code> e
-              <code> CardPile</code>. Os dois podem variar de forma
+              <code> CardPile</code>. Backs, deck pile e target pile podem variar de forma
               independente sem alterar geometria, anchors, endpoints, face das
               cartas, botao de action ou board.
             </p>
@@ -5271,16 +5277,29 @@ export const BattleLayoutEditor: React.FC = () => {
               }
             />
             <SelectControl
-              label="Montes"
-              value={layout.visuals.pilePresetId}
+              label="Monte do deck"
+              value={layout.visuals.deckPilePresetId}
               options={battlePileEditorOptions}
-              onChange={(value) => updateVisuals("pilePresetId", value)}
+              onChange={(value) => updateVisuals("deckPilePresetId", value)}
               changed={
-                layout.visuals.pilePresetId !==
-                baselineLayout.visuals.pilePresetId
+                layout.visuals.deckPilePresetId !==
+                baselineLayout.visuals.deckPilePresetId
               }
               onReset={() =>
-                resetLayoutKeyToBaseline("visuals", "pilePresetId")
+                resetLayoutKeyToBaseline("visuals", "deckPilePresetId")
+              }
+            />
+            <SelectControl
+              label="Monte de alvos"
+              value={layout.visuals.targetPilePresetId}
+              options={battlePileEditorOptions}
+              onChange={(value) => updateVisuals("targetPilePresetId", value)}
+              changed={
+                layout.visuals.targetPilePresetId !==
+                baselineLayout.visuals.targetPilePresetId
+              }
+              onReset={() =>
+                resetLayoutKeyToBaseline("visuals", "targetPilePresetId")
               }
             />
           </section>
