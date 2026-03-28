@@ -4,9 +4,12 @@ import { cn } from "../../lib/utils";
 import { Swords } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  BattleCardStackPresetId,
-  DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
-  getBattleCardStackVisualPreset,
+  BattleCardBackPresetId,
+  BattlePilePresetId,
+  DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
+  DEFAULT_BATTLE_PILE_PRESET_ID,
+  getBattleCardBackVisualPreset,
+  getBattlePileVisualPreset,
 } from "./battleCardStackVisuals";
 
 export const BOARD_ZONE_IDS = [
@@ -77,30 +80,30 @@ const battleCardSizePresetClass: Record<BattleCardSizePreset, string> = {
 export const CardBackCard: React.FC<{
   floating?: boolean;
   sizePreset?: BattleCardSizePreset;
-  visualPresetId?: BattleCardStackPresetId;
+  visualPresetId?: BattleCardBackPresetId;
 }> = ({
   floating = false,
   sizePreset = "default",
-  visualPresetId = DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+  visualPresetId = DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
 }) => {
-  const preset = getBattleCardStackVisualPreset(visualPresetId);
+  const preset = getBattleCardBackVisualPreset(visualPresetId);
 
   return (
     <div
       className={cn(
         "relative overflow-hidden rounded-xl border-2 shadow-[0_10px_20px_rgba(0,0,0,0.45)]",
-        preset.cardBack.frameClassName,
+        preset.frameClassName,
         battleCardSizePresetClass[sizePreset],
         floating && "shadow-[0_14px_28px_rgba(0,0,0,0.45)]",
       )}
     >
-      <div className={cn("absolute inset-0", preset.cardBack.textureClassName)} />
-      <div className={cn("pointer-events-none absolute inset-1.5", preset.cardBack.insetClassName)} />
-      <div className={cn("pointer-events-none absolute", preset.cardBack.coreClassName)} />
+      <div className={cn("absolute inset-0", preset.textureClassName)} />
+      <div className={cn("pointer-events-none absolute inset-1.5", preset.insetClassName)} />
+      <div className={cn("pointer-events-none absolute", preset.coreClassName)} />
       <div
         className={cn(
           "absolute left-1/2 top-1/2",
-          preset.cardBack.emblemClassName,
+          preset.emblemClassName,
         )}
       />
     </div>
@@ -305,7 +308,7 @@ export const CardPile: React.FC<{
   anchorRef?: React.Ref<HTMLDivElement>;
   fitParent?: boolean;
   className?: string;
-  visualPresetId?: BattleCardStackPresetId;
+  visualPresetId?: BattlePilePresetId;
 }> = ({
   label,
   count,
@@ -314,12 +317,12 @@ export const CardPile: React.FC<{
   anchorRef,
   fitParent = false,
   className,
-  visualPresetId = DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+  visualPresetId = DEFAULT_BATTLE_PILE_PRESET_ID,
 }) => {
   void color;
   const [prevCount, setPrevCount] = React.useState(count);
   const [isChanging, setIsChanging] = React.useState(false);
-  const preset = getBattleCardStackVisualPreset(visualPresetId);
+  const preset = getBattlePileVisualPreset(visualPresetId);
 
   React.useEffect(() => {
     if (count !== prevCount) {

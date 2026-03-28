@@ -59,8 +59,10 @@ import {
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 import {
-  battleCardStackPresetOptions,
-  BattleCardStackPresetId,
+  battleCardBackPresetOptions,
+  battlePilePresetOptions,
+  BattleCardBackPresetId,
+  BattlePilePresetId,
 } from "../game/battleCardStackVisuals";
 
 type LayoutNumberControl = {
@@ -215,10 +217,15 @@ const chroniclesEditorVisualStateOptions: Array<{
   { value: "selected", label: "Selected (preview)" },
 ];
 
-const battleCardStackEditorOptions: Array<{
-  value: BattleCardStackPresetId;
+const battleCardBackEditorOptions: Array<{
+  value: BattleCardBackPresetId;
   label: string;
-}> = battleCardStackPresetOptions;
+}> = battleCardBackPresetOptions;
+
+const battlePileEditorOptions: Array<{
+  value: BattlePilePresetId;
+  label: string;
+}> = battlePilePresetOptions;
 
 const sceneTreeGroups: Array<{
   title: string;
@@ -2850,10 +2857,14 @@ export const BattleLayoutEditor: React.FC = () => {
     key: Key,
     value: BattleLayoutConfig["visuals"][Key],
   ) => {
+    const currentVisuals = (layoutOverrides.visuals ?? {}) as
+      BattleLayoutConfig["visuals"] & { cardStackPresetId?: string };
+    const { cardStackPresetId: _legacyCardStackPresetId, ...nextVisuals } =
+      currentVisuals;
     applyOverrides({
       ...layoutOverrides,
       visuals: {
-        ...(layoutOverrides.visuals ?? {}),
+        ...nextVisuals,
         [key]: value,
       },
     });
@@ -5227,29 +5238,49 @@ export const BattleLayoutEditor: React.FC = () => {
               summary="Estado e escopo deste bloco."
               items={[
                 {
-                  label: "Backs e montes",
+                  label: "Versos das cartas",
                   state: "runtime-backed",
                   scope: "global",
-                  detail: "Mesmo preset no editor, preview e runtime live.",
+                  detail: "Mesmo preset do CardBackCard no editor, preview e runtime live.",
+                },
+                {
+                  label: "Montes",
+                  state: "runtime-backed",
+                  scope: "global",
+                  detail: "Mesmo preset do CardPile no editor, preview e runtime live.",
                 },
               ]}
             />
             <p className="text-xs leading-relaxed text-amber-950/75">
-              Controla apenas o preset global de <code>CardBackCard</code> e
-              <code> CardPile</code>. Nao altera geometria, anchors, endpoints,
-              face das cartas, botao de action ou board.
+              Controla apenas os presets de <code>CardBackCard</code> e
+              <code> CardPile</code>. Os dois podem variar de forma
+              independente sem alterar geometria, anchors, endpoints, face das
+              cartas, botao de action ou board.
             </p>
             <SelectControl
-              label="Backs e montes"
-              value={layout.visuals.cardStackPresetId}
-              options={battleCardStackEditorOptions}
-              onChange={(value) => updateVisuals("cardStackPresetId", value)}
+              label="Verso da carta"
+              value={layout.visuals.cardBackPresetId}
+              options={battleCardBackEditorOptions}
+              onChange={(value) => updateVisuals("cardBackPresetId", value)}
               changed={
-                layout.visuals.cardStackPresetId !==
-                baselineLayout.visuals.cardStackPresetId
+                layout.visuals.cardBackPresetId !==
+                baselineLayout.visuals.cardBackPresetId
               }
               onReset={() =>
-                resetLayoutKeyToBaseline("visuals", "cardStackPresetId")
+                resetLayoutKeyToBaseline("visuals", "cardBackPresetId")
+              }
+            />
+            <SelectControl
+              label="Montes"
+              value={layout.visuals.pilePresetId}
+              options={battlePileEditorOptions}
+              onChange={(value) => updateVisuals("pilePresetId", value)}
+              changed={
+                layout.visuals.pilePresetId !==
+                baselineLayout.visuals.pilePresetId
+              }
+              onReset={() =>
+                resetLayoutKeyToBaseline("visuals", "pilePresetId")
               }
             />
           </section>

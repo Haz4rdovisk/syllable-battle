@@ -1,7 +1,10 @@
 import { getBattleHandFrame } from "./battleFlow";
 import {
-  BattleCardStackPresetId,
-  DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+  BattleCardBackPresetId,
+  BattlePilePresetId,
+  DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
+  DEFAULT_BATTLE_PILE_PRESET_ID,
+  LegacyBattleCardStackPresetId,
 } from "../game/battleCardStackVisuals";
 
 const BATTLE_STAGE_WIDTH = 1600;
@@ -167,8 +170,13 @@ export interface BattleAnimationLayoutConfig {
 }
 
 export interface BattleVisualLayoutConfig {
-  cardStackPresetId: BattleCardStackPresetId;
+  cardBackPresetId: BattleCardBackPresetId;
+  pilePresetId: BattlePilePresetId;
 }
+
+type LegacyBattleVisualLayoutOverrides = Partial<BattleVisualLayoutConfig> & {
+  cardStackPresetId?: LegacyBattleCardStackPresetId;
+};
 
 export interface BattleLayoutConfig {
   shell: BattleShellLayoutConfig;
@@ -263,7 +271,8 @@ const defaultHudLayout: BattleHudLayoutConfig = {
 };
 
 const defaultVisualLayout: BattleVisualLayoutConfig = {
-  cardStackPresetId: DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+  cardBackPresetId: DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
+  pilePresetId: DEFAULT_BATTLE_PILE_PRESET_ID,
 };
 
 const defaultAnimationLayout: BattleAnimationLayoutConfig = {
@@ -646,6 +655,9 @@ export const defaultBattleLayoutConfig: BattleLayoutConfig = {
 export function createBattleLayoutConfig(
   overrides: BattleLayoutOverrides = {},
 ): BattleLayoutConfig {
+  const visualOverrides = (overrides.visuals ?? {}) as LegacyBattleVisualLayoutOverrides;
+  const legacyCardStackPresetId = visualOverrides.cardStackPresetId;
+
   const getLegacyDeckOverride = (
     side: "enemy" | "player",
   ): Partial<BattleElementPropertyConfig> | undefined => {
@@ -676,8 +688,14 @@ export function createBattleLayoutConfig(
       ...overrides.hud,
     },
     visuals: {
-      ...defaultBattleLayoutConfig.visuals,
-      ...overrides.visuals,
+      cardBackPresetId:
+        visualOverrides.cardBackPresetId ??
+        legacyCardStackPresetId ??
+        defaultBattleLayoutConfig.visuals.cardBackPresetId,
+      pilePresetId:
+        visualOverrides.pilePresetId ??
+        legacyCardStackPresetId ??
+        defaultBattleLayoutConfig.visuals.pilePresetId,
     },
     elements: {
       shell: {
@@ -833,12 +851,19 @@ export function createBattleLayoutPresetSource(
   overrides: BattleLayoutOverrides = {},
 ): string {
   const pruned = pruneBattleLayoutOverrides(overrides);
+  const visualOverrides = (overrides.visuals ?? {}) as LegacyBattleVisualLayoutOverrides;
+  const legacyCardStackPresetId = visualOverrides.cardStackPresetId;
   const serializable: BattleLayoutOverrides = {
     ...pruned,
     visuals: {
-      cardStackPresetId:
-        overrides.visuals?.cardStackPresetId ??
-        defaultBattleLayoutConfig.visuals.cardStackPresetId,
+      cardBackPresetId:
+        visualOverrides.cardBackPresetId ??
+        legacyCardStackPresetId ??
+        defaultBattleLayoutConfig.visuals.cardBackPresetId,
+      pilePresetId:
+        visualOverrides.pilePresetId ??
+        legacyCardStackPresetId ??
+        defaultBattleLayoutConfig.visuals.pilePresetId,
     },
   };
   return [

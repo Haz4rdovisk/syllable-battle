@@ -337,14 +337,25 @@ test("helpers de formatacao/debug retornam saidas uteis sem depender de DOM", ()
   );
 });
 
-test("layout visual minimo preserva preset fechado e serializa a secao no preset", () => {
+test("layout visual separado preserva compatibilidade legada e serializa a nova secao", () => {
   const layout = createBattleLayoutConfig({
     visuals: {
-      cardStackPresetId: "jade",
-    },
+      cardBackPresetId: "ember",
+      pilePresetId: "jade",
+    } as never,
   });
 
-  assert.equal(layout.visuals.cardStackPresetId, "jade");
+  assert.equal(layout.visuals.cardBackPresetId, "ember");
+  assert.equal(layout.visuals.pilePresetId, "jade");
+
+  const legacyLayout = createBattleLayoutConfig({
+    visuals: {
+      cardStackPresetId: "jade",
+    } as never,
+  });
+
+  assert.equal(legacyLayout.visuals.cardBackPresetId, "jade");
+  assert.equal(legacyLayout.visuals.pilePresetId, "jade");
 
   const presetSource = createBattleLayoutPresetSource({
     text: {
@@ -354,6 +365,6 @@ test("layout visual minimo preserva preset fechado e serializa a secao no preset
 
   assert.match(
     presetSource,
-    /"visuals": \{\s+"cardStackPresetId": "arcane"\s+\}/,
+    /"visuals": \{\s+"cardBackPresetId": "arcane",\s+"pilePresetId": "arcane"\s+\}/,
   );
 });

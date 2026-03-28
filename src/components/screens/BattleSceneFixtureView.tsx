@@ -3107,7 +3107,7 @@ export const BattleSceneFixtureView: React.FC<{
                       <BattleHandLane
                         side={1}
                         presentation="remote"
-                        cardStackPresetId={layout.visuals.cardStackPresetId}
+                        cardBackPresetId={layout.visuals.cardBackPresetId}
                         stableCards={fixture.enemyHand}
                         scale="mobile"
                       />
@@ -3134,7 +3134,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="target"
                       anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
                       fitParent
-                      visualPresetId={layout.visuals.cardStackPresetId}
+                      pilePresetId={layout.visuals.pilePresetId}
                       className={getPreviewAreaClass(focusArea, ["enemyTargetDeck"])}
                     />
                   </BattleEditableElement>
@@ -3159,7 +3159,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="deck"
                       anchorRef={bindZoneRef("enemyDeck", "mobile")}
                       fitParent
-                      visualPresetId={layout.visuals.cardStackPresetId}
+                      pilePresetId={layout.visuals.pilePresetId}
                       className={getPreviewAreaClass(focusArea, ["enemyDeck"])}
                     />
                   </BattleEditableElement>
@@ -3184,7 +3184,7 @@ export const BattleSceneFixtureView: React.FC<{
                   <BattleHandLane
                     side={1}
                     presentation="remote"
-                    cardStackPresetId={layout.visuals.cardStackPresetId}
+                    cardBackPresetId={layout.visuals.cardBackPresetId}
                     stableCards={fixture.enemyHand}
                     scale="desktop"
                   />
@@ -3238,7 +3238,7 @@ export const BattleSceneFixtureView: React.FC<{
                     <BattleHandLane
                       side={0}
                       presentation="local"
-                      cardStackPresetId={layout.visuals.cardStackPresetId}
+                      cardBackPresetId={layout.visuals.cardBackPresetId}
                       stableCards={previewPlayerStableCards}
                       incomingCards={incomingPreviewHands[PLAYER]}
                       outgoingCards={outgoingPreviewHands[PLAYER]}
@@ -3304,7 +3304,7 @@ export const BattleSceneFixtureView: React.FC<{
                     <BattleHandLane
                       side={0}
                       presentation="local"
-                      cardStackPresetId={layout.visuals.cardStackPresetId}
+                      cardBackPresetId={layout.visuals.cardBackPresetId}
                       stableCards={previewPlayerStableCards}
                       incomingCards={incomingPreviewHands[PLAYER]}
                       outgoingCards={outgoingPreviewHands[PLAYER]}
@@ -3362,7 +3362,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="target"
                       anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
                       fitParent
-                      visualPresetId={layout.visuals.cardStackPresetId}
+                      pilePresetId={layout.visuals.pilePresetId}
                       className={getPreviewAreaClass(focusArea, ["playerTargetDeck"])}
                     />
                   </BattleEditableElement>
@@ -3389,7 +3389,7 @@ export const BattleSceneFixtureView: React.FC<{
                       variant="deck"
                       anchorRef={bindZoneRef("playerDeck", "mobile")}
                       fitParent
-                      visualPresetId={layout.visuals.cardStackPresetId}
+                      pilePresetId={layout.visuals.pilePresetId}
                       className={getPreviewAreaClass(focusArea, ["playerDeck"])}
                     />
                   </BattleEditableElement>
@@ -3527,7 +3527,7 @@ export const BattleSceneFixtureView: React.FC<{
                     <BattleHandLane
                       side={0}
                       presentation="local"
-                      cardStackPresetId={layout.visuals.cardStackPresetId}
+                      cardBackPresetId={layout.visuals.cardBackPresetId}
                       stableCards={previewPlayerStableCards}
                       incomingCards={incomingPreviewHands[PLAYER]}
                       outgoingCards={outgoingPreviewHands[PLAYER]}

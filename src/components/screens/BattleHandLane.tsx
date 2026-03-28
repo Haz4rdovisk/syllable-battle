@@ -4,8 +4,8 @@ import { GameState, Syllable } from "../../types/game";
 import { canPlace } from "../../logic/gameLogic";
 import { CardBackCard, SyllableCard } from "../game/GameComponents";
 import {
-  BattleCardStackPresetId,
-  DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+  BattleCardBackPresetId,
+  DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
 } from "../game/battleCardStackVisuals";
 import { cn } from "../../lib/utils";
 import { getBattleHandLayout } from "./battleFlow";
@@ -67,7 +67,7 @@ export interface BattleHandLaneProps {
   reservedSlots?: number;
   scale: "desktop" | "mobile";
   pulse?: boolean;
-  cardStackPresetId?: BattleCardStackPresetId;
+  cardBackPresetId?: BattleCardBackPresetId;
   anchorRef?: React.Ref<HTMLDivElement>;
   onIncomingCardComplete?: (incomingCard: BattleHandLaneIncomingCard) => void;
   onOutgoingCardComplete?: (outgoingCard: BattleHandLaneOutgoingCard) => void;
@@ -176,7 +176,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   stableCards = [],
   scale,
   pulse = false,
-  cardStackPresetId = DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+  cardBackPresetId = DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
   anchorRef,
   incomingCards = [],
   outgoingCards = [],
@@ -589,7 +589,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                 ) : (
                   <CardBackCard
                     sizePreset={sizePreset}
-                    visualPresetId={cardStackPresetId}
+                    visualPresetId={cardBackPresetId}
                   />
                 )}
               </motion.div>
@@ -677,7 +677,11 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                     sizePreset={sizePreset}
                   />
                 ) : (
-                  <CardBackCard floating={true} sizePreset={sizePreset} />
+                  <CardBackCard
+                    floating={true}
+                    sizePreset={sizePreset}
+                    visualPresetId={cardBackPresetId}
+                  />
                 )}
               </motion.div>
             );
@@ -775,7 +779,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                   <CardBackCard
                     floating={true}
                     sizePreset={sizePreset}
-                    visualPresetId={cardStackPresetId}
+                    visualPresetId={cardBackPresetId}
                   />
                 )}
               </motion.div>
