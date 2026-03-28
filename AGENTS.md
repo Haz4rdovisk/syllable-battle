@@ -82,3 +82,13 @@ Sempre responder nesta ordem:
 
 7\. riscos remanescentes
 
+## Invariante crítico de autoria/layout
+
+Mover objetos no editor deve refletir no preview e no runtime live na mesma posição efetiva no stage.
+
+Ajustar âncoras, endpoints e referências de animação no editor deve refletir no runtime live com a mesma geometria efetiva.
+
+Não são aceitas soluções que mantenham apenas “paridade visual aproximada” e percam paridade geométrica.
+
+Qualquer mudança em shell, layout compacto, passthrough, wrappers ou fluxo CSS deve preservar essa garantia.
+
