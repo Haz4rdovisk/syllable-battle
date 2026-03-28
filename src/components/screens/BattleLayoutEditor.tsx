@@ -3903,8 +3903,9 @@ export const BattleLayoutEditor: React.FC = () => {
                     Texto
                   </div>
                   <p className="text-xs leading-relaxed text-amber-950/70">
-                    Tipografia, alinhamento, tracking e cores aqui usam tokens globais
-                    compartilhados em <code>layout.text</code> e tambem afetam
+                    Os controles abaixo editam o painel de cronicas, mas a tipografia,
+                    alinhamento, tracking e cores continuam vindo dos tokens globais
+                    compartilhados em <code>layout.text</code>. Eles tambem afetam
                     <code> status</code> e <code>action</code>.
                   </p>
                   <TextControl
@@ -3912,8 +3913,13 @@ export const BattleLayoutEditor: React.FC = () => {
                     value={layout.text.chroniclesTitle}
                     onChange={(value) => updateText("chroniclesTitle", value)}
                   />
+                  <div className="rounded-2xl border border-amber-900/12 bg-white/55 p-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/55">
+                      Titulo compartilhado
+                    </div>
+                    <div className="mt-3 space-y-3">
                   <LayoutControl
-                    label="Fonte do titulo"
+                    label="Fonte compartilhada do titulo"
                     min={10}
                     max={28}
                     step={1}
@@ -3921,31 +3927,15 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(value) => updateText("titleFontSize", value)}
                   />
                   <LayoutControl
-                    label="Tracking do titulo"
+                    label="Tracking compartilhado do titulo"
                     min={0}
                     max={0.4}
                     step={0.01}
                     value={layout.text.titleLetterSpacing}
                     onChange={(value) => updateText("titleLetterSpacing", value)}
                   />
-                  <LayoutControl
-                    label="Fonte do corpo"
-                    min={10}
-                    max={24}
-                    step={1}
-                    value={layout.text.bodyFontSize}
-                    onChange={(value) => updateText("bodyFontSize", value)}
-                  />
-                  <LayoutControl
-                    label="Tracking do corpo"
-                    min={0}
-                    max={0.4}
-                    step={0.01}
-                    value={layout.text.bodyLetterSpacing}
-                    onChange={(value) => updateText("bodyLetterSpacing", value)}
-                  />
                   <SelectControl
-                    label="Alinhamento do titulo"
+                    label="Alinhamento compartilhado do titulo"
                     value={layout.text.titleAlign}
                     options={[
                       { value: "left", label: "Esquerda" },
@@ -3954,8 +3944,36 @@ export const BattleLayoutEditor: React.FC = () => {
                     ]}
                     onChange={(value) => updateText("titleAlign", value)}
                   />
+                  <TextControl
+                    label="Cor compartilhada do titulo"
+                    value={layout.text.titleColor}
+                    onChange={(value) => updateText("titleColor", value)}
+                  />
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-amber-900/12 bg-white/55 p-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/55">
+                      Corpo compartilhado
+                    </div>
+                    <div className="mt-3 space-y-3">
+                  <LayoutControl
+                    label="Fonte compartilhada do corpo"
+                    min={10}
+                    max={24}
+                    step={1}
+                    value={layout.text.bodyFontSize}
+                    onChange={(value) => updateText("bodyFontSize", value)}
+                  />
+                  <LayoutControl
+                    label="Tracking compartilhado do corpo"
+                    min={0}
+                    max={0.4}
+                    step={0.01}
+                    value={layout.text.bodyLetterSpacing}
+                    onChange={(value) => updateText("bodyLetterSpacing", value)}
+                  />
                   <SelectControl
-                    label="Alinhamento do corpo"
+                    label="Alinhamento compartilhado do corpo"
                     value={layout.text.bodyAlign}
                     options={[
                       { value: "left", label: "Esquerda" },
@@ -3965,17 +3983,14 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(value) => updateText("bodyAlign", value)}
                   />
                   <TextControl
-                    label="Cor do titulo"
-                    value={layout.text.titleColor}
-                    onChange={(value) => updateText("titleColor", value)}
-                  />
-                  <TextControl
-                    label="Cor do corpo"
+                    label="Cor compartilhada do corpo"
                     value={layout.text.bodyColor}
                     onChange={(value) => updateText("bodyColor", value)}
                   />
+                    </div>
+                  </div>
                   <SelectControl
-                    label="Estado do painel"
+                    label="Estado do painel no preview"
                     value={chroniclesVisualState}
                     options={chroniclesEditorVisualStateOptions}
                     onChange={(value) => setChroniclesVisualState(value)}
@@ -3993,9 +4008,10 @@ export const BattleLayoutEditor: React.FC = () => {
                     Texto
                   </div>
                   <p className="text-xs leading-relaxed text-amber-950/70">
-                    Os tokens de texto aqui continuam compartilhados via
-                    <code> layout.text</code>. A <code>Cor do titulo</code> agora controla
-                    o titulo real do painel.
+                    O texto do status usa tokens globais compartilhados via
+                    <code> layout.text</code>. Aqui voce edita o titulo do status e os
+                    tokens compartilhados que ele reutiliza. A
+                    <code> Cor do titulo</code> agora controla o titulo real do painel.
                   </p>
                   <TextControl
                     label="Titulo"
@@ -4003,7 +4019,7 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(value) => updateText("statusTitle", value)}
                   />
                   <LayoutControl
-                    label="Fonte do titulo"
+                    label="Fonte compartilhada do titulo"
                     min={10}
                     max={28}
                     step={1}
@@ -4011,10 +4027,14 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(value) => updateText("titleFontSize", value)}
                   />
                   <TextControl
-                    label="Cor do titulo"
+                    label="Cor compartilhada do titulo"
                     value={layout.text.titleColor}
                     onChange={(value) => updateText("titleColor", value)}
                   />
+                  <p className="text-xs leading-relaxed text-amber-950/70">
+                    Alinhamento e tracking do titulo continuam compartilhados e aparecem
+                    junto com <code>chronicles</code>, para evitar duplicar a mesma autoria.
+                  </p>
                 </section>
               ) : null}
 
@@ -4120,7 +4140,7 @@ export const BattleLayoutEditor: React.FC = () => {
                   {focusArea === "status" ? (
                     <>
                       <SelectControl
-                        label="Estado do card"
+                        label="Estado do card no preview"
                         value={statusVisualState}
                         options={statusEditorVisualStateOptions}
                         onChange={(value) => setStatusVisualState(value)}
