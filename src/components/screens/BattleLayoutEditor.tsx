@@ -68,6 +68,8 @@ type LayoutNumberControl = {
   onChange: (value: number) => void;
   ui?: "slider" | "stepper";
   axis?: "x" | "y";
+  changed?: boolean;
+  onReset?: () => void;
 };
 
 type LayoutSection = {
@@ -98,6 +100,30 @@ type MultiSelectionLayoutMetrics = {
   height: number;
   scaledOffsetX: number;
   scaledOffsetY: number;
+};
+type LayoutSectionKey = "shell" | "board" | "sidebars" | "hud";
+
+const elementPropertyDiffLabels: Record<keyof BattleElementPropertyConfig, string> = {
+  x: "Centro X",
+  y: "Centro Y",
+  width: "Largura",
+  height: "Altura",
+  rotation: "Rotacao",
+  scaleX: "Escala X",
+  scaleY: "Escala Y",
+  opacity: "Opacidade",
+  zIndex: "Camada",
+  anchor: "Ancora",
+  lockAspectRatio: "Travar proporcao",
+  snapToGrid: "Snap na grade",
+  slideX: "Slide X",
+  slideY: "Slide Y",
+  duration: "Duracao",
+  delay: "Delay",
+  easing: "Easing",
+  visibleDesktop: "Visivel no desktop",
+  visibleTablet: "Visivel no tablet",
+  visibleMobile: "Visivel no mobile",
 };
 
 const fixtureOptions: BattleSceneFixtureKey[] = [
@@ -959,16 +985,27 @@ const LayoutControl: React.FC<LayoutNumberControl> = ({
   onChange,
   ui = "slider",
   axis,
+  changed = false,
+  onReset,
 }) => {
   const decrementLabel = axis === "y" ? "Subir" : "Mover para esquerda";
   const incrementLabel = axis === "y" ? "Descer" : "Mover para direita";
 
   return (
-    <label className="flex flex-col gap-2 rounded-2xl border border-amber-900/15 bg-amber-50/70 p-3">
+    <label
+      className={cn(
+        "flex flex-col gap-2 rounded-2xl border bg-amber-50/70 p-3",
+        changed
+          ? "border-sky-900/25 bg-sky-50/45"
+          : "border-amber-900/15",
+      )}
+    >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
-          {label}
-        </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
+            {label}
+          </span>
+        </div>
         {ui === "stepper" ? (
           <div className="flex items-center gap-2">
             <button
@@ -1000,17 +1037,28 @@ const LayoutControl: React.FC<LayoutNumberControl> = ({
             </button>
           </div>
         ) : (
-          <input
-            type="number"
-            className="w-20 rounded-lg border border-amber-900/20 bg-white/80 px-2 py-1 text-right text-sm font-semibold text-amber-950 outline-none"
-            value={value}
-            min={min}
-            max={max}
-            step={step}
-            onChange={(event) =>
-              onChange(parseInputValue(event.target.value, value, min, max))
-            }
-          />
+          <div className="flex items-center gap-2">
+            {changed && onReset ? (
+              <button
+                type="button"
+                onClick={onReset}
+                className="rounded-lg border border-sky-900/20 bg-white/85 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-950 hover:bg-white"
+              >
+                Reset
+              </button>
+            ) : null}
+            <input
+              type="number"
+              className="w-20 rounded-lg border border-amber-900/20 bg-white/80 px-2 py-1 text-right text-sm font-semibold text-amber-950 outline-none"
+              value={value}
+              min={min}
+              max={max}
+              step={step}
+              onChange={(event) =>
+                onChange(parseInputValue(event.target.value, value, min, max))
+              }
+            />
+          </div>
         )}
       </div>
       {ui === "slider" ? (
@@ -1024,6 +1072,22 @@ const LayoutControl: React.FC<LayoutNumberControl> = ({
           className="accent-amber-700"
         />
       ) : null}
+      {changed ? (
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="rounded-full bg-sky-900 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-50">
+            Alt.
+          </span>
+          {onReset ? (
+            <button
+              type="button"
+              onClick={onReset}
+              className="rounded-lg border border-sky-900/20 bg-white/85 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-950 hover:bg-white"
+            >
+              Reset
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </label>
   );
 };
@@ -1032,17 +1096,44 @@ const ToggleControl: React.FC<{
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
-}> = ({ label, checked, onChange }) => (
-  <label className="flex items-center justify-between gap-3 rounded-2xl border border-amber-900/15 bg-amber-50/70 p-3">
-    <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
-      {label}
-    </span>
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(event) => onChange(event.target.checked)}
-      className="h-4 w-4 accent-amber-700"
-    />
+  changed?: boolean;
+  onReset?: () => void;
+}> = ({ label, checked, onChange, changed = false, onReset }) => (
+  <label
+    className={cn(
+      "flex flex-col gap-2 rounded-2xl border p-3",
+      changed
+        ? "border-sky-900/25 bg-sky-50/45"
+        : "border-amber-900/15 bg-amber-50/70",
+    )}
+  >
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
+        {label}
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-4 w-4 accent-amber-700"
+      />
+    </div>
+    {changed ? (
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <span className="rounded-full bg-sky-900 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-50">
+          Alt.
+        </span>
+        {onReset ? (
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-lg border border-sky-900/20 bg-white/85 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-950 hover:bg-white"
+          >
+            Reset
+          </button>
+        ) : null}
+      </div>
+    ) : null}
   </label>
 );
 
@@ -1051,16 +1142,29 @@ const SelectControl = <Value extends string>({
   value,
   options,
   onChange,
+  changed = false,
+  onReset,
 }: {
   label: string;
   value: Value;
   options: Array<{ value: Value; label: string }>;
   onChange: (value: Value) => void;
+  changed?: boolean;
+  onReset?: () => void;
 }) => (
-  <label className="flex flex-col gap-2 rounded-2xl border border-amber-900/15 bg-amber-50/70 p-3">
-    <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
-      {label}
-    </span>
+  <label
+    className={cn(
+      "flex flex-col gap-2 rounded-2xl border bg-amber-50/70 p-3",
+      changed
+        ? "border-sky-900/25 bg-sky-50/45"
+        : "border-amber-900/15",
+    )}
+  >
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
+        {label}
+      </span>
+    </div>
     <select
       value={value}
       onChange={(event) => onChange(event.target.value as Value)}
@@ -1072,6 +1176,22 @@ const SelectControl = <Value extends string>({
         </option>
       ))}
     </select>
+    {changed ? (
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <span className="rounded-full bg-sky-900 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-50">
+          Alt.
+        </span>
+        {onReset ? (
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-lg border border-sky-900/20 bg-white/85 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-950 hover:bg-white"
+          >
+            Reset
+          </button>
+        ) : null}
+      </div>
+    ) : null}
   </label>
 );
 
@@ -1079,17 +1199,44 @@ const TextControl: React.FC<{
   label: string;
   value: string;
   onChange: (value: string) => void;
-}> = ({ label, value, onChange }) => (
-  <label className="flex flex-col gap-2 rounded-2xl border border-amber-900/15 bg-amber-50/70 p-3">
-    <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
-      {label}
-    </span>
+  changed?: boolean;
+  onReset?: () => void;
+}> = ({ label, value, onChange, changed = false, onReset }) => (
+  <label
+    className={cn(
+      "flex flex-col gap-2 rounded-2xl border bg-amber-50/70 p-3",
+      changed
+        ? "border-sky-900/25 bg-sky-50/45"
+        : "border-amber-900/15",
+    )}
+  >
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-950/75">
+        {label}
+      </span>
+    </div>
     <input
       type="text"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       className="rounded-lg border border-amber-900/20 bg-white/80 px-3 py-2 text-sm font-semibold text-amber-950 outline-none"
     />
+    {changed ? (
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <span className="rounded-full bg-sky-900 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-50">
+          Alt.
+        </span>
+        {onReset ? (
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-lg border border-sky-900/20 bg-white/85 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-950 hover:bg-white"
+          >
+            Reset
+          </button>
+        ) : null}
+      </div>
+    ) : null}
   </label>
 );
 
@@ -1498,6 +1645,10 @@ export const BattleLayoutEditor: React.FC = () => {
   const layout = useMemo(
     () => createBattleLayoutConfig(pruneBattleLayoutOverrides(layoutOverrides)),
     [layoutOverrides],
+  );
+  const baselineLayout = useMemo(
+    () => createBattleLayoutConfig(pruneBattleLayoutOverrides(resetBaseline)),
+    [resetBaseline],
   );
   const normalizedOverrides = useMemo(
     () => pruneBattleLayoutOverrides(layoutOverrides),
@@ -2527,6 +2678,146 @@ export const BattleLayoutEditor: React.FC = () => {
     });
   };
 
+  const resetLayoutKeyToBaseline = <
+    Section extends LayoutSectionKey,
+    Key extends keyof BattleLayoutConfig[Section],
+  >(
+    section: Section,
+    key: Key,
+  ) => {
+    const nextOverrides: BattleLayoutOverrides = {
+      ...layoutOverrides,
+    };
+    const nextSection = {
+      ...(layoutOverrides[section] ?? {}),
+    } as Partial<BattleLayoutConfig[Section]>;
+    const baselineSection = resetBaseline[section] as Partial<BattleLayoutConfig[Section]> | undefined;
+    const baselineValue = baselineSection?.[key];
+
+    if (baselineValue === undefined) {
+      delete nextSection[key];
+    } else {
+      nextSection[key] = baselineValue;
+    }
+
+    if (Object.keys(nextSection).length === 0) {
+      delete nextOverrides[section];
+    } else {
+      nextOverrides[section] = nextSection as BattleLayoutOverrides[Section];
+    }
+
+    applyOverrides(nextOverrides);
+  };
+
+  const resetTextKeyToBaseline = <Key extends keyof BattleLayoutConfig["text"]>(
+    key: Key,
+  ) => {
+    const nextOverrides: BattleLayoutOverrides = {
+      ...layoutOverrides,
+    };
+    const nextText = {
+      ...(layoutOverrides.text ?? {}),
+    };
+    const baselineValue = resetBaseline.text?.[key];
+
+    if (baselineValue === undefined) {
+      delete nextText[key];
+    } else {
+      nextText[key] = baselineValue;
+    }
+
+    if (Object.keys(nextText).length === 0) {
+      delete nextOverrides.text;
+    } else {
+      nextOverrides.text = nextText;
+    }
+
+    applyOverrides(nextOverrides);
+  };
+
+  const resetElementPropertyToBaseline = <
+    Key extends keyof BattleElementPropertyConfig,
+  >(
+    elementKey: BattleEditableElementKey,
+    key: Key,
+  ) => {
+    const nextOverrides: BattleLayoutOverrides = {
+      ...layoutOverrides,
+      elements: {
+        ...(layoutOverrides.elements ?? {}),
+      },
+    };
+    const nextElement = {
+      ...(layoutOverrides.elements?.[elementKey] ?? {}),
+    };
+    const baselineValue = resetBaseline.elements?.[elementKey]?.[key];
+
+    if (baselineValue === undefined) {
+      delete nextElement[key];
+    } else {
+      nextElement[key] = baselineValue;
+    }
+
+    if (Object.keys(nextElement).length === 0) {
+      delete nextOverrides.elements?.[elementKey];
+    } else if (nextOverrides.elements) {
+      nextOverrides.elements[elementKey] = nextElement;
+    }
+
+    if (nextOverrides.elements && Object.keys(nextOverrides.elements).length === 0) {
+      delete nextOverrides.elements;
+    }
+
+    applyOverrides(nextOverrides);
+  };
+
+  const resetElementToBaseline = (elementKey: BattleEditableElementKey) => {
+    const nextOverrides: BattleLayoutOverrides = {
+      ...layoutOverrides,
+      elements: {
+        ...(layoutOverrides.elements ?? {}),
+      },
+    };
+    const baselineElement = resetBaseline.elements?.[elementKey];
+
+    if (!baselineElement || Object.keys(baselineElement).length === 0) {
+      delete nextOverrides.elements?.[elementKey];
+    } else if (nextOverrides.elements) {
+      nextOverrides.elements[elementKey] = { ...baselineElement };
+    }
+
+    if (nextOverrides.elements && Object.keys(nextOverrides.elements).length === 0) {
+      delete nextOverrides.elements;
+    }
+
+    applyOverrides(nextOverrides);
+  };
+
+  const resetSelectedElementsToBaseline = () => {
+    if (selectedElementKeys.length === 0) return;
+    const nextOverrides: BattleLayoutOverrides = {
+      ...layoutOverrides,
+      elements: {
+        ...(layoutOverrides.elements ?? {}),
+      },
+    };
+
+    selectedElementKeys.forEach((elementKey) => {
+      const baselineElement = resetBaseline.elements?.[elementKey];
+      if (!baselineElement || Object.keys(baselineElement).length === 0) {
+        delete nextOverrides.elements?.[elementKey];
+      } else if (nextOverrides.elements) {
+        nextOverrides.elements[elementKey] = { ...baselineElement };
+      }
+    });
+
+    if (nextOverrides.elements && Object.keys(nextOverrides.elements).length === 0) {
+      delete nextOverrides.elements;
+    }
+
+    applyOverrides(nextOverrides);
+  };
+
   const undoLayout = () => {
     if (undoStack.length === 0) return;
     const previous = undoStack[undoStack.length - 1];
@@ -2849,309 +3140,117 @@ export const BattleLayoutEditor: React.FC = () => {
     }
   };
 
+  const createSectionNumberControl = <
+    Section extends LayoutSectionKey,
+    Key extends keyof BattleLayoutConfig[Section],
+  >(
+    section: Section,
+    key: Key,
+    config: {
+      label: string;
+      min: number;
+      max: number;
+      step: number;
+    },
+  ): LayoutNumberControl => ({
+    ...config,
+    value: layout[section][key] as number,
+    onChange: (value) => updateLayout(section, key, value as BattleLayoutConfig[Section][Key]),
+    changed: layout[section][key] !== baselineLayout[section][key],
+    onReset: () => resetLayoutKeyToBaseline(section, key),
+  });
+
   const shellControls: LayoutNumberControl[] = [
-    {
+    createSectionNumberControl("shell", "desktopSidebarWidth", {
       label: "Largura das laterais",
       min: 220,
       max: 320,
       step: 4,
-      value: layout.shell.desktopSidebarWidth,
-      onChange: (value) => updateLayout("shell", "desktopSidebarWidth", value),
-    },
-    {
+    }),
+    createSectionNumberControl("shell", "desktopGap", {
       label: "Respiro entre lateral e centro",
       min: 6,
       max: 32,
       step: 2,
-      value: layout.shell.desktopGap,
-      onChange: (value) => updateLayout("shell", "desktopGap", value),
-    },
-    {
+    }),
+    createSectionNumberControl("shell", "desktopTopRailHeight", {
       label: "Altura da faixa superior",
       min: 96,
       max: 180,
       step: 4,
-      value: layout.shell.desktopTopRailHeight,
-      onChange: (value) => updateLayout("shell", "desktopTopRailHeight", value),
-    },
-    {
+    }),
+    createSectionNumberControl("shell", "desktopBoardTopOffset", {
       label: "Distancia do topo do board",
       min: 80,
       max: 180,
       step: 4,
-      value: layout.shell.desktopBoardTopOffset,
-      onChange: (value) => updateLayout("shell", "desktopBoardTopOffset", value),
-    },
-    {
+    }),
+    createSectionNumberControl("shell", "desktopBoardBottomOffset", {
       label: "Respiro abaixo do board",
       min: 96,
       max: 220,
       step: 4,
-      value: layout.shell.desktopBoardBottomOffset,
-      onChange: (value) => updateLayout("shell", "desktopBoardBottomOffset", value),
-    },
-    {
+    }),
+    createSectionNumberControl("shell", "desktopBottomRailHeight", {
       label: "Altura da faixa inferior",
       min: 112,
       max: 220,
       step: 4,
-      value: layout.shell.desktopBottomRailHeight,
-      onChange: (value) =>
-        updateLayout("shell", "desktopBottomRailHeight", value),
-    },
-    {
+    }),
+    createSectionNumberControl("shell", "mobileFooterHandTopPadding", {
       label: "Padding da mao inferior no mobile",
       min: 0,
       max: 64,
       step: 2,
-      value: layout.shell.mobileFooterHandTopPadding,
-      onChange: (value) =>
-        updateLayout("shell", "mobileFooterHandTopPadding", value),
-    },
+    }),
   ];
 
   const boardControls: LayoutNumberControl[] = [
-    {
-      label: "Largura do board",
-      min: 760,
-      max: 1120,
-      step: 10,
-      value: layout.board.desktopMaxWidth,
-      onChange: (value) => updateLayout("board", "desktopMaxWidth", value),
-    },
-    {
-      label: "Distancia entre as linhas",
-      min: 16,
-      max: 64,
-      step: 2,
-      value: layout.board.desktopGap,
-      onChange: (value) => updateLayout("board", "desktopGap", value),
-    },
-    {
-      label: "Largura maxima das linhas no desktop",
-      min: 280,
-      max: 420,
-      step: 4,
-      value: layout.board.desktopLaneMaxWidth,
-      onChange: (value) => updateLayout("board", "desktopLaneMaxWidth", value),
-    },
-    {
-      label: "Padding lateral do board",
-      min: 16,
-      max: 56,
-      step: 2,
-      value: layout.board.desktopPaddingX,
-      onChange: (value) => updateLayout("board", "desktopPaddingX", value),
-    },
-    {
-      label: "Padding superior do board",
-      min: 0,
-      max: 40,
-      step: 2,
-      value: layout.board.desktopPaddingTop,
-      onChange: (value) => updateLayout("board", "desktopPaddingTop", value),
-    },
-    {
-      label: "Padding inferior do board",
-      min: 0,
-      max: 40,
-      step: 2,
-      value: layout.board.desktopPaddingBottom,
-      onChange: (value) => updateLayout("board", "desktopPaddingBottom", value),
-    },
-    {
-      label: "Largura da linha no mobile",
-      min: 260,
-      max: 360,
-      step: 4,
-      value: layout.board.mobileLaneMaxWidth,
-      onChange: (value) => updateLayout("board", "mobileLaneMaxWidth", value),
-    },
-    {
-      label: "Altura da linha no mobile",
-      min: 120,
-      max: 220,
-      step: 4,
-      value: layout.board.mobileRowMinHeight,
-      onChange: (value) => updateLayout("board", "mobileRowMinHeight", value),
-    },
-    {
-      label: "Respiro entre blocos no mobile",
-      min: 4,
-      max: 20,
-      step: 1,
-      value: layout.board.mobileGap,
-      onChange: (value) => updateLayout("board", "mobileGap", value),
-    },
-    {
-      label: "Padding lateral do board no mobile",
-      min: 6,
-      max: 24,
-      step: 1,
-      value: layout.board.mobilePaddingX,
-      onChange: (value) => updateLayout("board", "mobilePaddingX", value),
-    },
-    {
-      label: "Padding vertical do board no mobile",
-      min: 4,
-      max: 24,
-      step: 1,
-      value: layout.board.mobilePaddingY,
-      onChange: (value) => updateLayout("board", "mobilePaddingY", value),
-    },
-    {
-      label: "Largura minima das cartas de alvo",
-      min: 80,
-      max: 132,
-      step: 2,
-      value: layout.board.targetCardMinWidth,
-      onChange: (value) => updateLayout("board", "targetCardMinWidth", value),
-    },
-    {
-      label: "Largura maxima das cartas de alvo",
-      min: 120,
-      max: 180,
-      step: 2,
-      value: layout.board.targetCardMaxWidth,
-      onChange: (value) => updateLayout("board", "targetCardMaxWidth", value),
-    },
-    {
-      label: "Altura minima das cartas de alvo",
-      min: 132,
-      max: 188,
-      step: 2,
-      value: layout.board.targetCardMinHeight,
-      onChange: (value) => updateLayout("board", "targetCardMinHeight", value),
-    },
-    {
-      label: "Altura maxima das cartas de alvo",
-      min: 180,
-      max: 248,
-      step: 2,
-      value: layout.board.targetCardMaxHeight,
-      onChange: (value) => updateLayout("board", "targetCardMaxHeight", value),
-    },
+    createSectionNumberControl("board", "desktopMaxWidth", { label: "Largura do board", min: 760, max: 1120, step: 10 }),
+    createSectionNumberControl("board", "desktopGap", { label: "Distancia entre as linhas", min: 16, max: 64, step: 2 }),
+    createSectionNumberControl("board", "desktopLaneMaxWidth", { label: "Largura maxima das linhas no desktop", min: 280, max: 420, step: 4 }),
+    createSectionNumberControl("board", "desktopPaddingX", { label: "Padding lateral do board", min: 16, max: 56, step: 2 }),
+    createSectionNumberControl("board", "desktopPaddingTop", { label: "Padding superior do board", min: 0, max: 40, step: 2 }),
+    createSectionNumberControl("board", "desktopPaddingBottom", { label: "Padding inferior do board", min: 0, max: 40, step: 2 }),
+    createSectionNumberControl("board", "mobileLaneMaxWidth", { label: "Largura da linha no mobile", min: 260, max: 360, step: 4 }),
+    createSectionNumberControl("board", "mobileRowMinHeight", { label: "Altura da linha no mobile", min: 120, max: 220, step: 4 }),
+    createSectionNumberControl("board", "mobileGap", { label: "Respiro entre blocos no mobile", min: 4, max: 20, step: 1 }),
+    createSectionNumberControl("board", "mobilePaddingX", { label: "Padding lateral do board no mobile", min: 6, max: 24, step: 1 }),
+    createSectionNumberControl("board", "mobilePaddingY", { label: "Padding vertical do board no mobile", min: 4, max: 24, step: 1 }),
+    createSectionNumberControl("board", "targetCardMinWidth", { label: "Largura minima das cartas de alvo", min: 80, max: 132, step: 2 }),
+    createSectionNumberControl("board", "targetCardMaxWidth", { label: "Largura maxima das cartas de alvo", min: 120, max: 180, step: 2 }),
+    createSectionNumberControl("board", "targetCardMinHeight", { label: "Altura minima das cartas de alvo", min: 132, max: 188, step: 2 }),
+    createSectionNumberControl("board", "targetCardMaxHeight", { label: "Altura maxima das cartas de alvo", min: 180, max: 248, step: 2 }),
   ];
 
   const chroniclesControls: LayoutNumberControl[] = [
-    {
-      label: "Largura util da lateral",
-      min: 208,
-      max: 280,
-      step: 4,
-      value: layout.sidebars.railWidth,
-      onChange: (value) => updateLayout("sidebars", "railWidth", value),
-    },
-    {
-      label: "Altura de cronicas",
-      min: 300,
-      max: 520,
-      step: 8,
-      value: layout.sidebars.chroniclesHeight,
-      onChange: (value) => updateLayout("sidebars", "chroniclesHeight", value),
-    },
+    createSectionNumberControl("sidebars", "railWidth", { label: "Largura util da lateral", min: 208, max: 280, step: 4 }),
+    createSectionNumberControl("sidebars", "chroniclesHeight", { label: "Altura de cronicas", min: 300, max: 520, step: 8 }),
   ];
 
   const deckControls: LayoutNumberControl[] = [
-    {
-      label: "Distancia entre montes",
-      min: 8,
-      max: 28,
-      step: 2,
-      value: layout.sidebars.deckRackGap,
-      onChange: (value) => updateLayout("sidebars", "deckRackGap", value),
-    },
+    createSectionNumberControl("sidebars", "deckRackGap", { label: "Distancia entre montes", min: 8, max: 28, step: 2 }),
   ];
 
   const topHandControls: LayoutNumberControl[] = [
-    {
-      label: "Offset vertical da mao inimiga",
-      min: -96,
-      max: 24,
-      step: 2,
-      value: layout.sidebars.topHandOffsetY,
-      onChange: (value) => updateLayout("sidebars", "topHandOffsetY", value),
-    },
+    createSectionNumberControl("sidebars", "topHandOffsetY", { label: "Offset vertical da mao inimiga", min: -96, max: 24, step: 2 }),
   ];
 
   const bottomHandControls: LayoutNumberControl[] = [];
 
   const statusControls: LayoutNumberControl[] = [
-    {
-      label: "Largura do controle",
-      min: 160,
-      max: 280,
-      step: 4,
-      value: layout.hud.statusWidth,
-      onChange: (value) => updateLayout("hud", "statusWidth", value),
-    },
-    {
-      label: "Altura do controle",
-      min: 120,
-      max: 220,
-      step: 4,
-      value: layout.hud.statusHeight,
-      onChange: (value) => updateLayout("hud", "statusHeight", value),
-    },
-    {
-      label: "Largura do controle no mobile",
-      min: 160,
-      max: 260,
-      step: 4,
-      value: layout.hud.mobileStatusWidth,
-      onChange: (value) => updateLayout("hud", "mobileStatusWidth", value),
-    },
-    {
-      label: "Altura do controle no mobile",
-      min: 72,
-      max: 120,
-      step: 4,
-      value: layout.hud.mobileStatusHeight,
-      onChange: (value) => updateLayout("hud", "mobileStatusHeight", value),
-    },
+    createSectionNumberControl("hud", "statusWidth", { label: "Largura do controle", min: 160, max: 280, step: 4 }),
+    createSectionNumberControl("hud", "statusHeight", { label: "Altura do controle", min: 120, max: 220, step: 4 }),
+    createSectionNumberControl("hud", "mobileStatusWidth", { label: "Largura do controle no mobile", min: 160, max: 260, step: 4 }),
+    createSectionNumberControl("hud", "mobileStatusHeight", { label: "Altura do controle no mobile", min: 72, max: 120, step: 4 }),
   ];
 
   const actionControls: LayoutNumberControl[] = [
-    {
-      label: "Largura do botao",
-      min: 200,
-      max: 320,
-      step: 4,
-      value: layout.hud.actionWidth,
-      onChange: (value) => updateLayout("hud", "actionWidth", value),
-    },
-    {
-      label: "Altura do botao",
-      min: 88,
-      max: 160,
-      step: 4,
-      value: layout.hud.actionHeight,
-      onChange: (value) => updateLayout("hud", "actionHeight", value),
-    },
-    {
-      label: "Largura do botao no mobile",
-      min: 180,
-      max: 260,
-      step: 4,
-      value: layout.hud.mobileActionWidth,
-      onChange: (value) => updateLayout("hud", "mobileActionWidth", value),
-    },
-    {
-      label: "Altura do botao no mobile",
-      min: 56,
-      max: 88,
-      step: 4,
-      value: layout.hud.mobileActionHeight,
-      onChange: (value) => updateLayout("hud", "mobileActionHeight", value),
-    },
-    {
-      label: "Altura da area do botao",
-      min: 120,
-      max: 240,
-      step: 4,
-      value: layout.hud.actionSlotHeight,
-      onChange: (value) => updateLayout("hud", "actionSlotHeight", value),
-    },
+    createSectionNumberControl("hud", "actionWidth", { label: "Largura do botao", min: 200, max: 320, step: 4 }),
+    createSectionNumberControl("hud", "actionHeight", { label: "Altura do botao", min: 88, max: 160, step: 4 }),
+    createSectionNumberControl("hud", "mobileActionWidth", { label: "Largura do botao no mobile", min: 180, max: 260, step: 4 }),
+    createSectionNumberControl("hud", "mobileActionHeight", { label: "Altura do botao no mobile", min: 56, max: 88, step: 4 }),
+    createSectionNumberControl("hud", "actionSlotHeight", { label: "Altura da area do botao", min: 120, max: 240, step: 4 }),
   ];
 
   const enemyPillControls: LayoutNumberControl[] = [];
@@ -3382,14 +3481,14 @@ export const BattleLayoutEditor: React.FC = () => {
     (sum, group) => sum + group.elements.length,
     0,
   );
+  const treeAutoScrollTargetKey =
+    focusAreaToElementKey(focusArea) ?? selectedElementKeys[0] ?? null;
   const locateFocusedTreeItem = useCallback(() => {
-    const focusedKey = focusAreaToElementKey(focusArea);
-    const fallbackKey = selectedElementKeys[0] ?? null;
-    const targetKey = focusedKey ?? fallbackKey;
+    const targetKey = treeAutoScrollTargetKey;
     if (!targetKey) return;
     const node = treeItemRefs.current[targetKey];
     node?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [focusArea, selectedElementKeys]);
+  }, [treeAutoScrollTargetKey]);
   const selectedLayoutMetrics = useMemo(
     () =>
       selectedElementKeys.map((elementKey) =>
@@ -3398,6 +3497,29 @@ export const BattleLayoutEditor: React.FC = () => {
     [layout, selectedElementKeys],
   );
   const canDistributeSelection = selectedLayoutMetrics.length > 2;
+  const getChangedElementPropertyLabels = useCallback(
+    (elementKey: BattleEditableElementKey) =>
+      (Object.keys(elementPropertyDiffLabels) as Array<keyof BattleElementPropertyConfig>)
+        .filter(
+          (key) => layout.elements[elementKey][key] !== baselineLayout.elements[elementKey][key],
+        )
+        .map((key) => elementPropertyDiffLabels[key]),
+    [baselineLayout, layout],
+  );
+  const elementDiffLabelsByKey = useMemo(
+    () =>
+      sections.reduce<Partial<Record<BattleEditableElementKey, string[]>>>((acc, section) => {
+        if (!section.elementKey) return acc;
+        acc[section.elementKey] = getChangedElementPropertyLabels(section.elementKey);
+        return acc;
+      }, {}),
+    [getChangedElementPropertyLabels, sections],
+  );
+  const activeElementDiffLabels =
+    activeElementKey !== null ? getChangedElementPropertyLabels(activeElementKey) : [];
+  const selectedChangedElements = selectedElementKeys.filter(
+    (elementKey) => (elementDiffLabelsByKey[elementKey]?.length ?? 0) > 0,
+  );
   const editableJsonValue = useMemo(() => {
     if (primarySelectedElementKey) {
       return JSON.stringify(
@@ -3433,14 +3555,14 @@ export const BattleLayoutEditor: React.FC = () => {
   }, [editableJsonValue]);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const targetKey = focusAreaToElementKey(focusArea) ?? selectedElementKeys[0] ?? null;
+    const targetKey = treeAutoScrollTargetKey;
     if (!targetKey) return;
     const node = treeItemRefs.current[targetKey];
     if (!node) return;
     window.requestAnimationFrame(() => {
       node.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
-  }, [focusArea, selectedElementKeys, normalizedNavigatorSearch]);
+  }, [normalizedNavigatorSearch, treeAutoScrollTargetKey]);
   const previewDevicePreset = battleLayoutPreviewDevices[previewDevice];
   const previewResolutionOptions = battleLayoutPreviewResolutions[previewDevice];
   const selectedResolutionValue = `${viewportWidth}x${viewportHeight}`;
@@ -3619,6 +3741,8 @@ export const BattleLayoutEditor: React.FC = () => {
           onChange: (value) => updateElementProperty(activeElementKey, "x", value),
           ui: "stepper",
           axis: "x",
+          changed: activeElementConfig.x !== baselineLayout.elements[activeElementKey].x,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "x"),
         },
         {
           label: "Centro Y",
@@ -3629,6 +3753,8 @@ export const BattleLayoutEditor: React.FC = () => {
           onChange: (value) => updateElementProperty(activeElementKey, "y", value),
           ui: "stepper",
           axis: "y",
+          changed: activeElementConfig.y !== baselineLayout.elements[activeElementKey].y,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "y"),
         },
         {
           label: "Largura do frame",
@@ -3637,6 +3763,8 @@ export const BattleLayoutEditor: React.FC = () => {
           step: 4,
           value: activeElementConfig.width,
           onChange: (value) => updateElementProperty(activeElementKey, "width", value),
+          changed: activeElementConfig.width !== baselineLayout.elements[activeElementKey].width,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "width"),
         },
         {
           label: "Altura do frame",
@@ -3645,6 +3773,8 @@ export const BattleLayoutEditor: React.FC = () => {
           step: 4,
           value: activeElementConfig.height,
           onChange: (value) => updateElementProperty(activeElementKey, "height", value),
+          changed: activeElementConfig.height !== baselineLayout.elements[activeElementKey].height,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "height"),
         },
         {
           label: "Rotacao",
@@ -3653,6 +3783,8 @@ export const BattleLayoutEditor: React.FC = () => {
           step: 1,
           value: activeElementConfig.rotation,
           onChange: (value) => updateElementProperty(activeElementKey, "rotation", value),
+          changed: activeElementConfig.rotation !== baselineLayout.elements[activeElementKey].rotation,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "rotation"),
         },
         {
           label: "Escala X",
@@ -3661,6 +3793,8 @@ export const BattleLayoutEditor: React.FC = () => {
           step: 1,
           value: activeElementConfig.scaleX,
           onChange: (value) => updateElementProperty(activeElementKey, "scaleX", value),
+          changed: activeElementConfig.scaleX !== baselineLayout.elements[activeElementKey].scaleX,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "scaleX"),
         },
         {
           label: "Escala Y",
@@ -3669,6 +3803,8 @@ export const BattleLayoutEditor: React.FC = () => {
           step: 1,
           value: activeElementConfig.scaleY,
           onChange: (value) => updateElementProperty(activeElementKey, "scaleY", value),
+          changed: activeElementConfig.scaleY !== baselineLayout.elements[activeElementKey].scaleY,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "scaleY"),
         },
         {
           label: "Opacidade",
@@ -3677,6 +3813,8 @@ export const BattleLayoutEditor: React.FC = () => {
           step: 1,
           value: activeElementConfig.opacity,
           onChange: (value) => updateElementProperty(activeElementKey, "opacity", value),
+          changed: activeElementConfig.opacity !== baselineLayout.elements[activeElementKey].opacity,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "opacity"),
         },
         {
           label: "Camada",
@@ -3685,6 +3823,8 @@ export const BattleLayoutEditor: React.FC = () => {
           step: 1,
           value: activeElementConfig.zIndex,
           onChange: (value) => updateElementProperty(activeElementKey, "zIndex", value),
+          changed: activeElementConfig.zIndex !== baselineLayout.elements[activeElementKey].zIndex,
+          onReset: () => resetElementPropertyToBaseline(activeElementKey, "zIndex"),
         },
       ]
     : [];
@@ -3701,6 +3841,8 @@ export const BattleLayoutEditor: React.FC = () => {
             onChange: (value) => updateElementProperty(activeElementKey, "slideX", value),
             ui: "stepper",
             axis: "x",
+            changed: activeElementConfig.slideX !== baselineLayout.elements[activeElementKey].slideX,
+            onReset: () => resetElementPropertyToBaseline(activeElementKey, "slideX"),
           },
           {
             label: "Slide Y",
@@ -3711,6 +3853,8 @@ export const BattleLayoutEditor: React.FC = () => {
             onChange: (value) => updateElementProperty(activeElementKey, "slideY", value),
             ui: "stepper",
             axis: "y",
+            changed: activeElementConfig.slideY !== baselineLayout.elements[activeElementKey].slideY,
+            onReset: () => resetElementPropertyToBaseline(activeElementKey, "slideY"),
           },
           {
             label: "Duracao",
@@ -3719,6 +3863,8 @@ export const BattleLayoutEditor: React.FC = () => {
             step: 0.02,
             value: activeElementConfig.duration,
             onChange: (value) => updateElementProperty(activeElementKey, "duration", value),
+            changed: activeElementConfig.duration !== baselineLayout.elements[activeElementKey].duration,
+            onReset: () => resetElementPropertyToBaseline(activeElementKey, "duration"),
           },
           {
             label: "Delay",
@@ -3727,6 +3873,8 @@ export const BattleLayoutEditor: React.FC = () => {
             step: 0.02,
             value: activeElementConfig.delay,
             onChange: (value) => updateElementProperty(activeElementKey, "delay", value),
+            changed: activeElementConfig.delay !== baselineLayout.elements[activeElementKey].delay,
+            onReset: () => resetElementPropertyToBaseline(activeElementKey, "delay"),
           },
         ]
       : [];
@@ -3909,6 +4057,8 @@ export const BattleLayoutEditor: React.FC = () => {
                     const section = sections.find((item) => item.elementKey === normalizedKey);
                     const checked = selectedElements.includes(elementKey);
                     const isFocused = focusArea === elementKey;
+                    const changedLabels = elementDiffLabelsByKey[elementKey] ?? [];
+                    const isChanged = changedLabels.length > 0;
                     return (
                       <div
                         key={elementKey}
@@ -3948,6 +4098,10 @@ export const BattleLayoutEditor: React.FC = () => {
                         {isFocused ? (
                           <span className="rounded-full bg-sky-900 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50">
                             Foco
+                          </span>
+                        ) : isChanged ? (
+                          <span className="rounded-full bg-emerald-900 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50">
+                            Alt.
                           </span>
                         ) : checked ? (
                           <span className="rounded-full bg-amber-900 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50">
@@ -4067,6 +4221,27 @@ export const BattleLayoutEditor: React.FC = () => {
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                 Multi-select
               </div>
+              <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
+                Elementos alterados na selecao:{" "}
+                <span className="font-bold">
+                  {selectedChangedElements.length > 0
+                    ? selectedChangedElements
+                        .map(
+                          (item) =>
+                            sections.find((section) => section.elementKey === item)?.title ?? item,
+                        )
+                        .join(", ")
+                    : "nenhum"}
+                </span>
+              </div>
+              <Button
+                type="button"
+                onClick={resetSelectedElementsToBaseline}
+                disabled={selectedChangedElements.length === 0}
+                className="w-full rounded-xl bg-rose-900 text-amber-50 hover:bg-rose-800 disabled:opacity-50"
+              >
+                Resetar selecao para baseline
+              </Button>
               <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-white/55 p-3">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/60">
                   Alinhar
@@ -4166,6 +4341,16 @@ export const BattleLayoutEditor: React.FC = () => {
                 </div>
                 {!isMultiSelection && activeElementConfig ? (
                   <>
+                    <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
+                      <div>
+                        Props alteradas:{" "}
+                        <span className="font-bold">
+                          {activeElementDiffLabels.length > 0
+                            ? activeElementDiffLabels.join(", ")
+                            : "nenhuma"}
+                        </span>
+                      </div>
+                    </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <Button
                         type="button"
@@ -4182,6 +4367,14 @@ export const BattleLayoutEditor: React.FC = () => {
                         Colar props
                       </Button>
                     </div>
+                    <Button
+                      type="button"
+                      onClick={() => resetElementToBaseline(activeElementKey!)}
+                      disabled={activeElementDiffLabels.length === 0}
+                      className="w-full rounded-xl bg-rose-900 text-amber-50 hover:bg-rose-800 disabled:opacity-50"
+                    >
+                      Resetar elemento para baseline
+                    </Button>
                     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                       <input
                         type="text"
@@ -4249,6 +4442,8 @@ export const BattleLayoutEditor: React.FC = () => {
                       value={activeElementConfig.anchor}
                       options={anchorOptions}
                       onChange={(value) => updateElementProperty(activeElementKey!, "anchor", value)}
+                      changed={activeElementConfig.anchor !== baselineLayout.elements[activeElementKey!].anchor}
+                      onReset={() => resetElementPropertyToBaseline(activeElementKey!, "anchor")}
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <ToggleControl
@@ -4257,12 +4452,26 @@ export const BattleLayoutEditor: React.FC = () => {
                         onChange={(checked) =>
                           updateElementProperty(activeElementKey!, "lockAspectRatio", checked)
                         }
+                        changed={
+                          activeElementConfig.lockAspectRatio !==
+                          baselineLayout.elements[activeElementKey!].lockAspectRatio
+                        }
+                        onReset={() =>
+                          resetElementPropertyToBaseline(activeElementKey!, "lockAspectRatio")
+                        }
                       />
                       <ToggleControl
                         label="Snap / grid"
                         checked={activeElementConfig.snapToGrid}
                         onChange={(checked) =>
                           updateElementProperty(activeElementKey!, "snapToGrid", checked)
+                        }
+                        changed={
+                          activeElementConfig.snapToGrid !==
+                          baselineLayout.elements[activeElementKey!].snapToGrid
+                        }
+                        onReset={() =>
+                          resetElementPropertyToBaseline(activeElementKey!, "snapToGrid")
                         }
                       />
                     </div>
@@ -4279,6 +4488,13 @@ export const BattleLayoutEditor: React.FC = () => {
                         onChange={(checked) =>
                           updateElementProperty(activeElementKey!, "visibleDesktop", checked)
                         }
+                        changed={
+                          activeElementConfig.visibleDesktop !==
+                          baselineLayout.elements[activeElementKey!].visibleDesktop
+                        }
+                        onReset={() =>
+                          resetElementPropertyToBaseline(activeElementKey!, "visibleDesktop")
+                        }
                       />
                       <ToggleControl
                         label="Tablet"
@@ -4286,12 +4502,26 @@ export const BattleLayoutEditor: React.FC = () => {
                         onChange={(checked) =>
                           updateElementProperty(activeElementKey!, "visibleTablet", checked)
                         }
+                        changed={
+                          activeElementConfig.visibleTablet !==
+                          baselineLayout.elements[activeElementKey!].visibleTablet
+                        }
+                        onReset={() =>
+                          resetElementPropertyToBaseline(activeElementKey!, "visibleTablet")
+                        }
                       />
                       <ToggleControl
                         label="Mobile"
                         checked={activeElementConfig.visibleMobile}
                         onChange={(checked) =>
                           updateElementProperty(activeElementKey!, "visibleMobile", checked)
+                        }
+                        changed={
+                          activeElementConfig.visibleMobile !==
+                          baselineLayout.elements[activeElementKey!].visibleMobile
+                        }
+                        onReset={() =>
+                          resetElementPropertyToBaseline(activeElementKey!, "visibleMobile")
                         }
                       />
                     </div>
@@ -4313,6 +4543,8 @@ export const BattleLayoutEditor: React.FC = () => {
                       value={activeElementConfig.easing}
                       options={easingOptions}
                       onChange={(value) => updateElementProperty(activeElementKey!, "easing", value)}
+                      changed={activeElementConfig.easing !== baselineLayout.elements[activeElementKey!].easing}
+                      onReset={() => resetElementPropertyToBaseline(activeElementKey!, "easing")}
                     />
                   </section>
                 </>
