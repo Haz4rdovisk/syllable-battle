@@ -5232,14 +5232,11 @@ export const BattleLayoutEditor: React.FC = () => {
           </CollapsibleInfoSection>
         </section>
 
-        <div className="mt-4 space-y-2 rounded-3xl border border-emerald-900/12 bg-emerald-50/45 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-950/60">
-            Animacao
+        <section className="mt-4 space-y-3 rounded-3xl border border-fuchsia-900/12 bg-fuchsia-50/40 p-3 shadow-[0_10px_26px_rgba(112,26,117,0.08)]">
+          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-fuchsia-950/60">
+            Presets visuais
           </div>
-          <section className="space-y-3 rounded-3xl border border-amber-900/12 bg-white/30 p-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
-              Preset visual
-            </div>
+          <section className="space-y-3 rounded-3xl border border-fuchsia-900/12 bg-white/40 p-3">
             <EditorialHonestyPanel
               summary="Estado e escopo deste bloco."
               items={[
@@ -5257,7 +5254,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 },
               ]}
             />
-            <p className="text-xs leading-relaxed text-amber-950/75">
+            <p className="text-xs leading-relaxed text-fuchsia-950/75">
               Controla apenas os presets de <code>CardBackCard</code> e
               <code> CardPile</code>. Backs, deck pile e target pile podem variar de forma
               independente sem alterar geometria, anchors, endpoints, face das
@@ -5303,7 +5300,12 @@ export const BattleLayoutEditor: React.FC = () => {
               }
             />
           </section>
+        </section>
 
+        <div className="mt-4 space-y-2 rounded-3xl border border-emerald-900/12 bg-emerald-50/45 p-3">
+          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-950/60">
+            Animacao
+          </div>
           <EditorialHonestyPanel
             title="Matriz desta sessao"
             summary="Estado e escopo da sessao."
