@@ -1908,7 +1908,7 @@ export const BattleSceneFixtureView: React.FC<{
     ): {
       removedIndex: number;
       playedCard: BattleHandLaneCard;
-      destination: ZoneAnchorSnapshot;
+      handPlayDestination: ZoneAnchorSnapshot;
     } | null => {
       const removedIndex =
         previewSelectedIndexes[0] ??
@@ -1937,11 +1937,11 @@ export const BattleSceneFixtureView: React.FC<{
       return {
         removedIndex,
         playedCard,
-        destination,
+        handPlayDestination: destination,
       };
     };
 
-    const getPostPlayPreviewDrawData = (removedIndex: number) => {
+    const resolveSimplePlayPreviewDrawGeometry = (removedIndex: number) => {
       const drawSourceIndex =
         removedIndex === defaultPlayerStableCards.length - 1
           ? 0
@@ -1955,7 +1955,7 @@ export const BattleSceneFixtureView: React.FC<{
         drawSourceIndex,
         drawnCard,
         removedCard,
-        origin,
+        postPlayDrawOrigin: origin,
       };
     };
 
@@ -1968,13 +1968,17 @@ export const BattleSceneFixtureView: React.FC<{
       setPreviewFreshCardIds([]);
       const removedIndex =
         fixture.selectedIndexes?.[0] ?? Math.max(0, defaultPlayerStableCards.length - 1);
-      const { drawSourceIndex, drawnCard, removedCard, origin } =
-        getPostPlayPreviewDrawData(removedIndex);
+      const {
+        drawSourceIndex,
+        drawnCard,
+        removedCard,
+        postPlayDrawOrigin,
+      } = resolveSimplePlayPreviewDrawGeometry(removedIndex);
       setPreviewPlayerStableCards(
         defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
       );
 
-      if (origin && drawnCard) {
+      if (postPlayDrawOrigin && drawnCard) {
         setPreviewPostPlayDebug({
           removedIndex,
           drawSourceIndex,
@@ -2000,7 +2004,7 @@ export const BattleSceneFixtureView: React.FC<{
                   ...drawnCard,
                   id: `${drawnCard.id}-incoming-${generation}`,
                 },
-                origin,
+                origin: postPlayDrawOrigin,
                 finalIndex: 4,
                 finalTotal: 5,
                 delayMs: 0,
@@ -2059,7 +2063,7 @@ export const BattleSceneFixtureView: React.FC<{
       const targetIndex = getHandPlayTargetIndexFromPreset(animationPreset) ?? 0;
       const previewSetup = getSelectedHandPlayPreviewSetup(targetIndex);
       if (!previewSetup) return;
-      const { removedIndex, playedCard, destination } = previewSetup;
+      const { removedIndex, playedCard, handPlayDestination } = previewSetup;
       setPreviewPlayerStableCards(
         defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
       );
@@ -2075,7 +2079,7 @@ export const BattleSceneFixtureView: React.FC<{
             id: `fixture-hand-play-target-${animationRunId}-${generation}-${targetIndex}`,
             side: PLAYER,
             card: playedCard,
-            destination,
+            destination: handPlayDestination,
             initialIndex: removedIndex,
             initialTotal: defaultPlayerStableCards.length,
             delayMs: 0,
@@ -2132,9 +2136,13 @@ export const BattleSceneFixtureView: React.FC<{
       if (targetIndex == null) return;
       const previewSetup = getSelectedHandPlayPreviewSetup(targetIndex);
       if (!previewSetup) return;
-      const { removedIndex, playedCard, destination } = previewSetup;
-      const { drawSourceIndex, drawnCard, removedCard, origin } =
-        getPostPlayPreviewDrawData(removedIndex);
+      const { removedIndex, playedCard, handPlayDestination } = previewSetup;
+      const {
+        drawSourceIndex,
+        drawnCard,
+        removedCard,
+        postPlayDrawOrigin,
+      } = resolveSimplePlayPreviewDrawGeometry(removedIndex);
       const visualPlan = createSimplePlayVisualPlan({
         flow: BATTLE_SHARED_FLOW_TIMINGS,
         result: {
@@ -2177,7 +2185,7 @@ export const BattleSceneFixtureView: React.FC<{
             id: `fixture-hand-play-draw-combo-${animationRunId}-${generation}-${targetIndex}`,
             side: PLAYER,
             card: playedCard,
-            destination,
+            destination: handPlayDestination,
             initialIndex: visualPlan.handExit.handIndex,
             initialTotal: visualPlan.handExit.handCountBefore,
             delayMs: 0,
@@ -2199,7 +2207,7 @@ export const BattleSceneFixtureView: React.FC<{
       }, visualPlan.targetProgressCommit.atMs);
       animationTimersRef.current.push(clearPendingTimer);
 
-      if (origin && drawnCard && visualPlan.postPlayDraw) {
+      if (postPlayDrawOrigin && drawnCard && visualPlan.postPlayDraw) {
         const drawTimer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;
           setPreviewPostPlayDebug((current) => ({
@@ -2215,7 +2223,7 @@ export const BattleSceneFixtureView: React.FC<{
                   ...drawnCard,
                   id: `${drawnCard.id}-combo-incoming-${generation}`,
                 },
-                origin,
+                origin: postPlayDrawOrigin,
                 finalIndex: visualPlan.postPlayDraw.finalIndexBase,
                 finalTotal: visualPlan.postPlayDraw.finalTotal,
                 delayMs: 0,
