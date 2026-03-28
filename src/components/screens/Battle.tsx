@@ -35,7 +35,6 @@ import { BattleBoardMessage } from "./BattleBoardMessage";
 import { BattlePillOverlay } from "./BattlePillOverlay";
 import type {
   BattleAnimationAnchorPoint,
-  BattleAnimationLayoutConfig,
 } from "./BattleLayoutConfig";
 import { useActiveBattleLayoutConfig } from "./BattleActiveLayout";
 import {
@@ -82,6 +81,19 @@ import {
   getBattleCompactShellSlots,
 } from "./BattleSceneSpace";
 import { BattleDevWatcherSample, useBattleDevRuntime } from "./BattleDevRuntime";
+import {
+  LiveBattleAnimationAnchorKey,
+  buildBattleProbeRow,
+  buildLiveAnimationSnapshotEntries,
+  createLiveAnimationAnchorPoints,
+  formatBattleDebugDelta,
+  formatBattleDebugFallbackLine,
+  formatBattleDebugPoint,
+  formatBattleDebugSnapshot,
+  getBattleDebugZoneSnapshotCenter,
+  getLiveAnimationAnchorReferenceTarget,
+  getVisibleBattleAnimationAnchors,
+} from "./BattleDebugGeometry";
 
 const PLAYER = 0;
 const ENEMY = 1;
@@ -279,8 +291,6 @@ interface BattleProps {
   onReturnToLobby?: () => void;
   onChooseDecksAgain?: () => void;
 }
-
-type LiveBattleAnimationAnchorKey = keyof BattleAnimationLayoutConfig;
 
 export const Battle: React.FC<BattleProps> = ({
   mode,
@@ -1148,95 +1158,28 @@ export const Battle: React.FC<BattleProps> = ({
     },
     [getBattleStageMetrics],
   );
-  const getZoneSnapshotCenter = useCallback((snapshot: ZoneAnchorSnapshot | null | undefined) => {
-    if (!snapshot) return null;
-    return {
-      x: Math.round(snapshot.left + snapshot.width / 2),
-      y: Math.round(snapshot.top + snapshot.height / 2),
-    };
-  }, []);
   const liveAnimationAnchorPoints = useMemo(
-    () => ({
-      openingTargetEntry0Origin: activeBattleLayout.animations.openingTargetEntry0Origin,
-      openingTargetEntry1Origin: activeBattleLayout.animations.openingTargetEntry1Origin,
-      openingTargetEntry2Origin: activeBattleLayout.animations.openingTargetEntry2Origin,
-      openingTargetEntry3Origin: activeBattleLayout.animations.openingTargetEntry3Origin,
-      replacementTargetEntry0Origin: activeBattleLayout.animations.replacementTargetEntry0Origin,
-      replacementTargetEntry1Origin: activeBattleLayout.animations.replacementTargetEntry1Origin,
-      replacementTargetEntry2Origin: activeBattleLayout.animations.replacementTargetEntry2Origin,
-      replacementTargetEntry3Origin: activeBattleLayout.animations.replacementTargetEntry3Origin,
-      postPlayHandDrawOrigin: activeBattleLayout.animations.postPlayHandDrawOrigin,
-      handPlayTarget0Destination: activeBattleLayout.animations.handPlayTarget0Destination,
-      handPlayTarget1Destination: activeBattleLayout.animations.handPlayTarget1Destination,
-      mulliganReturn1Destination: activeBattleLayout.animations.mulliganReturn1Destination,
-      mulliganReturn2Destination: activeBattleLayout.animations.mulliganReturn2Destination,
-      mulliganReturn3Destination: activeBattleLayout.animations.mulliganReturn3Destination,
-      mulliganDraw1Origin: activeBattleLayout.animations.mulliganDraw1Origin,
-      mulliganDraw2Origin: activeBattleLayout.animations.mulliganDraw2Origin,
-      mulliganDraw3Origin: activeBattleLayout.animations.mulliganDraw3Origin,
-      targetAttack0Impact: activeBattleLayout.animations.targetAttack0Impact,
-      targetAttack1Impact: activeBattleLayout.animations.targetAttack1Impact,
-      targetAttack2Impact: activeBattleLayout.animations.targetAttack2Impact,
-      targetAttack3Impact: activeBattleLayout.animations.targetAttack3Impact,
-      targetAttack0Destination: activeBattleLayout.animations.targetAttack0Destination,
-      targetAttack1Destination: activeBattleLayout.animations.targetAttack1Destination,
-      targetAttack2Destination: activeBattleLayout.animations.targetAttack2Destination,
-      targetAttack3Destination: activeBattleLayout.animations.targetAttack3Destination,
-    }),
+    () => createLiveAnimationAnchorPoints(activeBattleLayout.animations),
     [activeBattleLayout.animations],
   );
   const getReferenceScreenPointForAnimationAnchor = useCallback(
     (anchorKey: LiveBattleAnimationAnchorKey) => {
-      if (anchorKey.startsWith("openingTargetEntry")) {
-        const index = Number(anchorKey.replace("openingTargetEntry", "").replace("Origin", ""));
-        return getZoneSnapshotCenter(
-          snapshotZone(index >= CONFIG.targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck"),
+      const target = getLiveAnimationAnchorReferenceTarget(
+        anchorKey,
+        CONFIG.targetsInPlay,
+      );
+      if (!target) return null;
+      if (target.kind === "slot") {
+        return getBattleDebugZoneSnapshotCenter(
+          snapshotZoneSlot(target.zoneId, target.slot),
         );
       }
-
-      if (anchorKey.startsWith("replacementTargetEntry")) {
-        const index = Number(anchorKey.replace("replacementTargetEntry", "").replace("Origin", ""));
-        return getZoneSnapshotCenter(
-          snapshotZone(index >= CONFIG.targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck"),
-        );
-      }
-
-      if (anchorKey === "postPlayHandDrawOrigin") {
-        return getZoneSnapshotCenter(snapshotZone("playerDeck"));
-      }
-
-      if (anchorKey.startsWith("handPlayTarget")) {
-        const index = Number(anchorKey.replace("handPlayTarget", "").replace("Destination", ""));
-        return getZoneSnapshotCenter(snapshotZoneSlot("playerField", `slot-${index}`));
-      }
-
-      if (anchorKey.startsWith("mulliganReturn") || anchorKey.startsWith("mulliganDraw")) {
-        return getZoneSnapshotCenter(snapshotZone("playerDeck"));
-      }
-
-      if (anchorKey.startsWith("targetAttack") && anchorKey.endsWith("Impact")) {
-        const index = Number(anchorKey.replace("targetAttack", "").replace("Impact", ""));
-        return getZoneSnapshotCenter(
-          snapshotZoneSlot(index >= CONFIG.targetsInPlay ? "enemyField" : "playerField", `slot-${index % CONFIG.targetsInPlay}`),
-        );
-      }
-
-      if (anchorKey.startsWith("targetAttack") && anchorKey.endsWith("Destination")) {
-        const index = Number(anchorKey.replace("targetAttack", "").replace("Destination", ""));
-        return getZoneSnapshotCenter(
-          snapshotZone(index >= CONFIG.targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck"),
-        );
-      }
-
-      return null;
+      return getBattleDebugZoneSnapshotCenter(snapshotZone(target.zoneId));
     },
-    [getZoneSnapshotCenter, snapshotZone, snapshotZoneSlot],
+    [snapshotZone, snapshotZoneSlot],
   );
   const liveVisibleAnimationAnchors = useMemo(
-    () =>
-      (Object.entries(liveAnimationAnchorPoints) as [LiveBattleAnimationAnchorKey, BattleAnimationAnchorPoint | null][])
-        .filter(([, point]) => Boolean(point))
-        .map(([anchor, point]) => ({ anchor, point: point as BattleAnimationAnchorPoint })),
+    () => getVisibleBattleAnimationAnchors(liveAnimationAnchorPoints),
     [liveAnimationAnchorPoints],
   );
   const liveAnchorProbeRows = useMemo(
@@ -1245,26 +1188,13 @@ export const Battle: React.FC<BattleProps> = ({
         const screen = getScreenPointFromScenePoint(point);
         const referenceScreen = getReferenceScreenPointForAnimationAnchor(anchor);
         const reference = getScenePointFromScreenPoint(referenceScreen);
-        return {
+        return buildBattleProbeRow({
           anchor,
           point,
           screen,
           reference,
           referenceScreen,
-          deltaScene: reference
-            ? {
-                x: Math.round(point.x - reference.x),
-                y: Math.round(point.y - reference.y),
-              }
-            : null,
-          deltaScreen:
-            screen && referenceScreen
-              ? {
-                  x: Math.round(screen.x - referenceScreen.x),
-                  y: Math.round(screen.y - referenceScreen.y),
-                }
-              : null,
-        };
+        });
       }),
     [
       getReferenceScreenPointForAnimationAnchor,
@@ -1274,45 +1204,39 @@ export const Battle: React.FC<BattleProps> = ({
     ],
   );
   const liveAnimationDebugData = useMemo(() => {
-    const formatPoint = (point: { x: number; y: number } | null | undefined) =>
-      point ? `${point.x},${point.y}` : "-";
-    const formatDelta = (point: { x: number; y: number } | null | undefined) =>
-      point ? `${point.x >= 0 ? "+" : ""}${point.x},${point.y >= 0 ? "+" : ""}${point.y}` : "-";
-    const formatSnapshot = (snapshot: ZoneAnchorSnapshot | null | undefined) =>
-      snapshot
-        ? `${Math.round(snapshot.left)},${Math.round(snapshot.top)} ${Math.round(snapshot.width)}x${Math.round(snapshot.height)}`
-        : "-";
     const stageMetrics = getBattleStageMetrics();
     const stageLine = stageMetrics
       ? `stage:${Math.round(stageMetrics.rect.width)}x${Math.round(stageMetrics.rect.height)} scale:${stageMetrics.scaleX.toFixed(3)},${stageMetrics.scaleY.toFixed(3)} off:${Math.round(stageMetrics.rect.left)},${Math.round(stageMetrics.rect.top)}`
       : "stage:-";
     const probeLines = liveAnchorProbeRows.map(
       (row) =>
-        `probe:${row.anchor} scene:${formatPoint(row.point)} screen:${formatPoint(row.screen)} ref:${formatPoint(row.reference)} refScreen:${formatPoint(row.referenceScreen)} dScene:${formatDelta(row.deltaScene)} dScreen:${formatDelta(row.deltaScreen)}`,
+        `probe:${row.anchor} scene:${formatBattleDebugPoint(row.point)} screen:${formatBattleDebugPoint(row.screen)} ref:${formatBattleDebugPoint(row.reference)} refScreen:${formatBattleDebugPoint(row.referenceScreen)} dScene:${formatBattleDebugDelta(row.deltaScene)} dScreen:${formatBattleDebugDelta(row.deltaScreen)}`,
     );
+    const groupedSnapshotRows = buildLiveAnimationSnapshotEntries(
+      activeBattleLayout.animations,
+    ).reduce<Record<string, string[]>>((acc, entry) => {
+      const snapshot = snapshotSceneAnimationOrigin(entry.point);
+      const line = `${entry.key}:${formatBattleDebugPoint(entry.point)} -> ${formatBattleDebugSnapshot(snapshot)}`;
+      acc[entry.group] = [...(acc[entry.group] ?? []), line];
+      return acc;
+    }, {});
     const snapshotLines = [
-      `postPlayDraw:${formatPoint(activeBattleLayout.animations.postPlayHandDrawOrigin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.postPlayHandDrawOrigin))}`,
-      `handPlayDests:[0:${formatPoint(activeBattleLayout.animations.handPlayTarget0Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.handPlayTarget0Destination))} | 1:${formatPoint(activeBattleLayout.animations.handPlayTarget1Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.handPlayTarget1Destination))}]`,
-      `replacementOrigins:[0:${formatPoint(activeBattleLayout.animations.replacementTargetEntry0Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry0Origin))} | 1:${formatPoint(activeBattleLayout.animations.replacementTargetEntry1Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry1Origin))} | 2:${formatPoint(activeBattleLayout.animations.replacementTargetEntry2Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry2Origin))} | 3:${formatPoint(activeBattleLayout.animations.replacementTargetEntry3Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.replacementTargetEntry3Origin))}]`,
-      `mulliganReturns:[1:${formatPoint(activeBattleLayout.animations.mulliganReturn1Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganReturn1Destination))} | 2:${formatPoint(activeBattleLayout.animations.mulliganReturn2Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganReturn2Destination))} | 3:${formatPoint(activeBattleLayout.animations.mulliganReturn3Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganReturn3Destination))}]`,
-      `mulliganDraws:[1:${formatPoint(activeBattleLayout.animations.mulliganDraw1Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganDraw1Origin))} | 2:${formatPoint(activeBattleLayout.animations.mulliganDraw2Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganDraw2Origin))} | 3:${formatPoint(activeBattleLayout.animations.mulliganDraw3Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.mulliganDraw3Origin))}]`,
-      `attackImpacts:[0:${formatPoint(activeBattleLayout.animations.targetAttack0Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack0Impact))} | 1:${formatPoint(activeBattleLayout.animations.targetAttack1Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack1Impact))} | 2:${formatPoint(activeBattleLayout.animations.targetAttack2Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack2Impact))} | 3:${formatPoint(activeBattleLayout.animations.targetAttack3Impact)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack3Impact))}]`,
-      `attackDests:[0:${formatPoint(activeBattleLayout.animations.targetAttack0Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack0Destination))} | 1:${formatPoint(activeBattleLayout.animations.targetAttack1Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack1Destination))} | 2:${formatPoint(activeBattleLayout.animations.targetAttack2Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack2Destination))} | 3:${formatPoint(activeBattleLayout.animations.targetAttack3Destination)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.targetAttack3Destination))}]`,
-      `openingOrigins:[0:${formatPoint(activeBattleLayout.animations.openingTargetEntry0Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry0Origin))} | 1:${formatPoint(activeBattleLayout.animations.openingTargetEntry1Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry1Origin))} | 2:${formatPoint(activeBattleLayout.animations.openingTargetEntry2Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry2Origin))} | 3:${formatPoint(activeBattleLayout.animations.openingTargetEntry3Origin)} -> ${formatSnapshot(snapshotSceneAnimationOrigin(activeBattleLayout.animations.openingTargetEntry3Origin))}]`,
+      `postPlayDraw:${groupedSnapshotRows.postPlayDraw?.join(" | ") ?? "-"}`,
+      `handPlayDests:[${groupedSnapshotRows.handPlayDests?.join(" | ") ?? "-"}]`,
+      `replacementOrigins:[${groupedSnapshotRows.replacementOrigins?.join(" | ") ?? "-"}]`,
+      `mulliganReturns:[${groupedSnapshotRows.mulliganReturns?.join(" | ") ?? "-"}]`,
+      `mulliganDraws:[${groupedSnapshotRows.mulliganDraws?.join(" | ") ?? "-"}]`,
+      `attackImpacts:[${groupedSnapshotRows.attackImpacts?.join(" | ") ?? "-"}]`,
+      `attackDests:[${groupedSnapshotRows.attackDests?.join(" | ") ?? "-"}]`,
+      `openingOrigins:[${groupedSnapshotRows.openingOrigins?.join(" | ") ?? "-"}]`,
     ];
-    const fallbackLines = animationFallbackHistoryRef.current.map((entry) => {
-      const timestamp = new Date(entry.createdAt).toLocaleTimeString("pt-BR", {
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-      return `fallback:${timestamp} ${entry.label} reason:${entry.reason} -> ${entry.fallback}`;
-    });
+    const fallbackLines = animationFallbackHistoryRef.current.map(
+      formatBattleDebugFallbackLine,
+    );
 
     return {
       stageLine,
-      anchorsLine: `anchors:[${liveVisibleAnimationAnchors.map(({ anchor, point }) => `${anchor}@${formatPoint(point)}`).join(" | ")}]`,
+      anchorsLine: `anchors:[${liveVisibleAnimationAnchors.map(({ anchor, point }) => `${anchor}@${formatBattleDebugPoint(point)}`).join(" | ")}]`,
       probeLines,
       snapshotLines,
       fallbackLines,
@@ -1327,14 +1251,6 @@ export const Battle: React.FC<BattleProps> = ({
     snapshotSceneAnimationOrigin,
   ]);
   const buildFreshAnimationProbeSnapshot = useCallback(() => {
-    const formatPoint = (point: { x: number; y: number } | null | undefined) =>
-      point ? `${point.x},${point.y}` : "-";
-    const formatDelta = (point: { x: number; y: number } | null | undefined) =>
-      point ? `${point.x >= 0 ? "+" : ""}${point.x},${point.y >= 0 ? "+" : ""}${point.y}` : "-";
-    const formatSnapshot = (snapshot: ZoneAnchorSnapshot | null | undefined) =>
-      snapshot
-        ? `${Math.round(snapshot.left)},${Math.round(snapshot.top)} ${Math.round(snapshot.width)}x${Math.round(snapshot.height)}`
-        : "-";
     const stageResolution = resolveBattleStageMetrics();
     const stageLine =
       stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
@@ -1393,170 +1309,28 @@ export const Battle: React.FC<BattleProps> = ({
         y: Math.round((point.y - stageResolution.rect.top) / stageResolution.scaleY),
       };
     };
-    const visibleAnchors = (Object.entries(liveAnimationAnchorPoints) as [
-      LiveBattleAnimationAnchorKey,
-      BattleAnimationAnchorPoint | null,
-    ][])
-      .filter(([, point]) => Boolean(point))
-      .map(([anchor, point]) => ({ anchor, point: point as BattleAnimationAnchorPoint }));
+    const visibleAnchors =
+      getVisibleBattleAnimationAnchors(liveAnimationAnchorPoints);
     const probeRows = visibleAnchors.map(({ anchor, point }) => {
       const screen = toScreenPointWithMetrics(point);
       const referenceScreen = getReferenceScreenPointForAnimationAnchor(anchor);
       const reference = toScenePointWithMetrics(referenceScreen);
       const failureReason = point ? stageResolution.reason : "anchor-not-set";
-      return {
+      return buildBattleProbeRow({
         anchor,
         point,
         screen,
         reference,
         referenceScreen,
         failureReason,
-        deltaScene:
-          reference == null
-            ? null
-            : {
-                x: Math.round(point.x - reference.x),
-                y: Math.round(point.y - reference.y),
-              },
-        deltaScreen:
-          screen && referenceScreen
-            ? {
-                x: Math.round(screen.x - referenceScreen.x),
-                y: Math.round(screen.y - referenceScreen.y),
-              }
-            : null,
-      };
+      });
     });
-    const snapshotEntries = [
-      {
-        group: "postPlayDraw",
-        key: "postPlayHandDrawOrigin",
-        point: activeBattleLayout.animations.postPlayHandDrawOrigin,
-      },
-      {
-        group: "handPlayDests",
-        key: "handPlayTarget0Destination",
-        point: activeBattleLayout.animations.handPlayTarget0Destination,
-      },
-      {
-        group: "handPlayDests",
-        key: "handPlayTarget1Destination",
-        point: activeBattleLayout.animations.handPlayTarget1Destination,
-      },
-      {
-        group: "replacementOrigins",
-        key: "replacementTargetEntry0Origin",
-        point: activeBattleLayout.animations.replacementTargetEntry0Origin,
-      },
-      {
-        group: "replacementOrigins",
-        key: "replacementTargetEntry1Origin",
-        point: activeBattleLayout.animations.replacementTargetEntry1Origin,
-      },
-      {
-        group: "replacementOrigins",
-        key: "replacementTargetEntry2Origin",
-        point: activeBattleLayout.animations.replacementTargetEntry2Origin,
-      },
-      {
-        group: "replacementOrigins",
-        key: "replacementTargetEntry3Origin",
-        point: activeBattleLayout.animations.replacementTargetEntry3Origin,
-      },
-      {
-        group: "mulliganReturns",
-        key: "mulliganReturn1Destination",
-        point: activeBattleLayout.animations.mulliganReturn1Destination,
-      },
-      {
-        group: "mulliganReturns",
-        key: "mulliganReturn2Destination",
-        point: activeBattleLayout.animations.mulliganReturn2Destination,
-      },
-      {
-        group: "mulliganReturns",
-        key: "mulliganReturn3Destination",
-        point: activeBattleLayout.animations.mulliganReturn3Destination,
-      },
-      {
-        group: "mulliganDraws",
-        key: "mulliganDraw1Origin",
-        point: activeBattleLayout.animations.mulliganDraw1Origin,
-      },
-      {
-        group: "mulliganDraws",
-        key: "mulliganDraw2Origin",
-        point: activeBattleLayout.animations.mulliganDraw2Origin,
-      },
-      {
-        group: "mulliganDraws",
-        key: "mulliganDraw3Origin",
-        point: activeBattleLayout.animations.mulliganDraw3Origin,
-      },
-      {
-        group: "attackImpacts",
-        key: "targetAttack0Impact",
-        point: activeBattleLayout.animations.targetAttack0Impact,
-      },
-      {
-        group: "attackImpacts",
-        key: "targetAttack1Impact",
-        point: activeBattleLayout.animations.targetAttack1Impact,
-      },
-      {
-        group: "attackImpacts",
-        key: "targetAttack2Impact",
-        point: activeBattleLayout.animations.targetAttack2Impact,
-      },
-      {
-        group: "attackImpacts",
-        key: "targetAttack3Impact",
-        point: activeBattleLayout.animations.targetAttack3Impact,
-      },
-      {
-        group: "attackDests",
-        key: "targetAttack0Destination",
-        point: activeBattleLayout.animations.targetAttack0Destination,
-      },
-      {
-        group: "attackDests",
-        key: "targetAttack1Destination",
-        point: activeBattleLayout.animations.targetAttack1Destination,
-      },
-      {
-        group: "attackDests",
-        key: "targetAttack2Destination",
-        point: activeBattleLayout.animations.targetAttack2Destination,
-      },
-      {
-        group: "attackDests",
-        key: "targetAttack3Destination",
-        point: activeBattleLayout.animations.targetAttack3Destination,
-      },
-      {
-        group: "openingOrigins",
-        key: "openingTargetEntry0Origin",
-        point: activeBattleLayout.animations.openingTargetEntry0Origin,
-      },
-      {
-        group: "openingOrigins",
-        key: "openingTargetEntry1Origin",
-        point: activeBattleLayout.animations.openingTargetEntry1Origin,
-      },
-      {
-        group: "openingOrigins",
-        key: "openingTargetEntry2Origin",
-        point: activeBattleLayout.animations.openingTargetEntry2Origin,
-      },
-      {
-        group: "openingOrigins",
-        key: "openingTargetEntry3Origin",
-        point: activeBattleLayout.animations.openingTargetEntry3Origin,
-      },
-    ] as const;
+    const snapshotEntries = buildLiveAnimationSnapshotEntries(
+      activeBattleLayout.animations,
+    );
     const groupedSnapshotRows = snapshotEntries.reduce<Record<string, string[]>>((acc, entry) => {
       const snapshot = toSnapshotWithMetrics(entry.point);
-      const line = `${entry.key}:${formatPoint(entry.point)} -> ${formatSnapshot(snapshot)}`;
+      const line = `${entry.key}:${formatBattleDebugPoint(entry.point)} -> ${formatBattleDebugSnapshot(snapshot)}`;
       acc[entry.group] = [...(acc[entry.group] ?? []), line];
       return acc;
     }, {});
@@ -1578,24 +1352,16 @@ export const Battle: React.FC<BattleProps> = ({
       createdAt: entry.createdAt,
       createdAtIso: new Date(entry.createdAt).toISOString(),
     }));
-    const fallbackLines = fallbackEntries.map((entry) => {
-      const timestamp = new Date(entry.createdAt).toLocaleTimeString("pt-BR", {
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-      return `fallback:${timestamp} ${entry.label} reason:${entry.reason} -> ${entry.fallback}`;
-    });
+    const fallbackLines = fallbackEntries.map(formatBattleDebugFallbackLine);
 
     return {
       stage: stageLine,
       stageDiagnostics,
-      anchors: `anchors:[${visibleAnchors.map(({ anchor, point }) => `${anchor}@${formatPoint(point)}`).join(" | ")}]`,
+      anchors: `anchors:[${visibleAnchors.map(({ anchor, point }) => `${anchor}@${formatBattleDebugPoint(point)}`).join(" | ")}]`,
       anchorPoints: visibleAnchors.map(({ anchor, point }) => ({ anchor, point })),
       probes: probeRows.map(
         (row) =>
-          `probe:${row.anchor} scene:${formatPoint(row.point)} screen:${formatPoint(row.screen)} ref:${formatPoint(row.reference)} refScreen:${formatPoint(row.referenceScreen)} dScene:${formatDelta(row.deltaScene)} dScreen:${formatDelta(row.deltaScreen)}`,
+          `probe:${row.anchor} scene:${formatBattleDebugPoint(row.point)} screen:${formatBattleDebugPoint(row.screen)} ref:${formatBattleDebugPoint(row.reference)} refScreen:${formatBattleDebugPoint(row.referenceScreen)} dScene:${formatBattleDebugDelta(row.deltaScene)} dScreen:${formatBattleDebugDelta(row.deltaScreen)}`,
       ),
       probeRows,
       snapshots: [
