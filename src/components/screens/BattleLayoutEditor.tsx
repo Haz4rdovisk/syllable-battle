@@ -53,6 +53,7 @@ import {
 import {
   BATTLE_STAGE_HEIGHT,
   BATTLE_STAGE_WIDTH,
+  getBattleAnchorOffset,
   getBattleElementSceneRect,
 } from "./BattleSceneSpace";
 import { Button } from "../ui/button";
@@ -86,6 +87,17 @@ type AnimationAnchorEditorItem = {
   kindLabel: "Origem" | "Destino" | "Impacto";
   title: string;
   referenceLabel: string;
+};
+type MultiSelectionLayoutMetrics = {
+  key: BattleEditableElementKey;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+  scaledOffsetX: number;
+  scaledOffsetY: number;
 };
 
 const fixtureOptions: BattleSceneFixtureKey[] = [
@@ -223,6 +235,40 @@ const parseViewportValue = (rawValue: string, fallback: number) => {
   const parsed = Number(rawValue);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(1, Math.round(parsed));
+};
+
+const getMultiSelectionLayoutMetrics = (
+  key: BattleEditableElementKey,
+  layout: BattleLayoutConfig,
+): MultiSelectionLayoutMetrics => {
+  const config = layout.elements[key];
+  const sceneRect = getBattleElementSceneRect(key, layout);
+  const scaledWidth = Math.max(0, config.width * (config.scaleX / 100));
+  const scaledHeight = Math.max(0, config.height * (config.scaleY / 100));
+  const unscaledOffset = getBattleAnchorOffset(
+    Math.max(0, config.width),
+    Math.max(0, config.height),
+    config.anchor,
+  );
+  const scaledOffset = getBattleAnchorOffset(
+    scaledWidth,
+    scaledHeight,
+    config.anchor,
+  );
+  const left = sceneRect.x + unscaledOffset.x - scaledOffset.x;
+  const top = sceneRect.y + unscaledOffset.y - scaledOffset.y;
+
+  return {
+    key,
+    left,
+    top,
+    right: left + scaledWidth,
+    bottom: top + scaledHeight,
+    width: scaledWidth,
+    height: scaledHeight,
+    scaledOffsetX: scaledOffset.x,
+    scaledOffsetY: scaledOffset.y,
+  };
 };
 
 const OPENING_TARGET_ENTRY_STAGGER_MS = 220;
@@ -2306,6 +2352,148 @@ export const BattleLayoutEditor: React.FC = () => {
     });
   };
 
+  const applyMultiSelectionScenePositions = useCallback(
+    (
+      nextPositions: Partial<
+        Record<BattleEditableElementKey, { x: number; y: number }>
+      >,
+    ) => {
+      const metricsList = selectedElements
+        .map((item) => focusAreaToElementKey(item))
+        .filter((item): item is BattleEditableElementKey => item !== null)
+        .map((elementKey) => getMultiSelectionLayoutMetrics(elementKey, layout));
+      if (metricsList.length < 2) return;
+
+      const nextElements = { ...(layoutOverrides.elements ?? {}) };
+      let hasChanges = false;
+
+      metricsList.forEach((metrics) => {
+        const nextPosition = nextPositions[metrics.key];
+        if (!nextPosition) return;
+        const currentConfig = layout.elements[metrics.key];
+        const nextX = clampNumber(
+          Math.round(nextPosition.x),
+          -EDITOR_POSITION_RANGE,
+          EDITOR_POSITION_RANGE,
+        );
+        const nextY = clampNumber(
+          Math.round(nextPosition.y),
+          -EDITOR_POSITION_RANGE,
+          EDITOR_POSITION_RANGE,
+        );
+        if (currentConfig.x === nextX && currentConfig.y === nextY) return;
+
+        nextElements[metrics.key] = {
+          ...(layoutOverrides.elements?.[metrics.key] ?? {}),
+          x: nextX,
+          y: nextY,
+        };
+        hasChanges = true;
+      });
+
+      if (!hasChanges) return;
+
+      applyOverrides({
+        ...layoutOverrides,
+        elements: nextElements,
+      });
+    },
+    [layout, layoutOverrides, selectedElements],
+  );
+
+  const alignSelectedElements = useCallback(
+    (
+      mode:
+        | "left"
+        | "center-x"
+        | "right"
+        | "top"
+        | "center-y"
+        | "bottom",
+    ) => {
+      const metricsList = selectedElements
+        .map((item) => focusAreaToElementKey(item))
+        .filter((item): item is BattleEditableElementKey => item !== null)
+        .map((elementKey) => getMultiSelectionLayoutMetrics(elementKey, layout));
+      if (metricsList.length < 2) return;
+
+      const groupLeft = Math.min(...metricsList.map((item) => item.left));
+      const groupRight = Math.max(...metricsList.map((item) => item.right));
+      const groupTop = Math.min(...metricsList.map((item) => item.top));
+      const groupBottom = Math.max(...metricsList.map((item) => item.bottom));
+      const groupCenterX = (groupLeft + groupRight) / 2;
+      const groupCenterY = (groupTop + groupBottom) / 2;
+      const nextPositions: Partial<
+        Record<BattleEditableElementKey, { x: number; y: number }>
+      > = {};
+
+      metricsList.forEach((metrics) => {
+        let nextLeft = metrics.left;
+        let nextTop = metrics.top;
+
+        if (mode === "left") nextLeft = groupLeft;
+        if (mode === "center-x") nextLeft = groupCenterX - metrics.width / 2;
+        if (mode === "right") nextLeft = groupRight - metrics.width;
+        if (mode === "top") nextTop = groupTop;
+        if (mode === "center-y") nextTop = groupCenterY - metrics.height / 2;
+        if (mode === "bottom") nextTop = groupBottom - metrics.height;
+
+        nextPositions[metrics.key] = {
+          x: nextLeft + metrics.scaledOffsetX - BATTLE_STAGE_WIDTH / 2,
+          y: nextTop + metrics.scaledOffsetY - BATTLE_STAGE_HEIGHT / 2,
+        };
+      });
+
+      applyMultiSelectionScenePositions(nextPositions);
+    },
+    [applyMultiSelectionScenePositions, layout, selectedElements],
+  );
+
+  const distributeSelectedElements = useCallback(
+    (axis: "horizontal" | "vertical") => {
+      const metricsList = selectedElements
+        .map((item) => focusAreaToElementKey(item))
+        .filter((item): item is BattleEditableElementKey => item !== null)
+        .map((elementKey) => getMultiSelectionLayoutMetrics(elementKey, layout));
+      if (metricsList.length < 3) return;
+
+      const orderedMetrics = [...metricsList].sort((leftItem, rightItem) =>
+        axis === "horizontal"
+          ? leftItem.left - rightItem.left
+          : leftItem.top - rightItem.top,
+      );
+
+      const firstItem = orderedMetrics[0];
+      const lastItem = orderedMetrics[orderedMetrics.length - 1];
+      const totalSize = orderedMetrics.reduce(
+        (sum, item) => sum + (axis === "horizontal" ? item.width : item.height),
+        0,
+      );
+      const span =
+        axis === "horizontal"
+          ? lastItem.right - firstItem.left
+          : lastItem.bottom - firstItem.top;
+      const gap = (span - totalSize) / (orderedMetrics.length - 1);
+      let cursor = axis === "horizontal" ? firstItem.left : firstItem.top;
+      const nextPositions: Partial<
+        Record<BattleEditableElementKey, { x: number; y: number }>
+      > = {};
+
+      orderedMetrics.forEach((metrics) => {
+        const nextLeft = axis === "horizontal" ? cursor : metrics.left;
+        const nextTop = axis === "vertical" ? cursor : metrics.top;
+        nextPositions[metrics.key] = {
+          x: nextLeft + metrics.scaledOffsetX - BATTLE_STAGE_WIDTH / 2,
+          y: nextTop + metrics.scaledOffsetY - BATTLE_STAGE_HEIGHT / 2,
+        };
+        cursor += (axis === "horizontal" ? metrics.width : metrics.height) + gap;
+      });
+
+      applyMultiSelectionScenePositions(nextPositions);
+    },
+    [applyMultiSelectionScenePositions, layout, selectedElements],
+  );
+
   const updateElementPropertyWithoutHistory = (
     elementKey: BattleEditableElementKey,
     patch: Partial<BattleElementPropertyConfig>,
@@ -3127,6 +3315,14 @@ export const BattleLayoutEditor: React.FC = () => {
     ? layout.elements[primarySelectedElementKey]
     : null;
   const isMultiSelection = selectedElementKeys.length > 1;
+  const selectedLayoutMetrics = useMemo(
+    () =>
+      selectedElementKeys.map((elementKey) =>
+        getMultiSelectionLayoutMetrics(elementKey, layout),
+      ),
+    [layout, selectedElementKeys],
+  );
+  const canDistributeSelection = selectedLayoutMetrics.length > 2;
   const editableJsonValue = useMemo(() => {
     if (primarySelectedElementKey) {
       return JSON.stringify(
@@ -3719,12 +3915,85 @@ export const BattleLayoutEditor: React.FC = () => {
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                 Multi-select
               </div>
+              <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-white/55 p-3">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/60">
+                  Alinhar
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => alignSelectedElements("left")}
+                    className="h-8 rounded-lg bg-sky-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-sky-800"
+                  >
+                    Esquerda
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => alignSelectedElements("center-x")}
+                    className="h-8 rounded-lg bg-sky-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-sky-800"
+                  >
+                    Centro X
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => alignSelectedElements("right")}
+                    className="h-8 rounded-lg bg-sky-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-sky-800"
+                  >
+                    Direita
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => alignSelectedElements("top")}
+                    className="h-8 rounded-lg bg-emerald-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-emerald-800"
+                  >
+                    Topo
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => alignSelectedElements("center-y")}
+                    className="h-8 rounded-lg bg-emerald-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-emerald-800"
+                  >
+                    Centro Y
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => alignSelectedElements("bottom")}
+                    className="h-8 rounded-lg bg-emerald-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-emerald-800"
+                  >
+                    Base
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-white/55 p-3">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/60">
+                  Distribuir
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => distributeSelectedElements("horizontal")}
+                    disabled={!canDistributeSelection}
+                    className="h-8 rounded-lg bg-amber-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-amber-800 disabled:opacity-50"
+                  >
+                    Horizontal
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => distributeSelectedElements("vertical")}
+                    disabled={!canDistributeSelection}
+                    className="h-8 rounded-lg bg-amber-900 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 hover:bg-amber-800 disabled:opacity-50"
+                  >
+                    Vertical
+                  </Button>
+                </div>
+              </div>
               {multiSelectionControls.map((control) => (
                 <LayoutControl key={control.label} {...control} />
               ))}
               <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
-                Com mais de um item selecionado, o editor libera apenas o
-                movimento conjunto em X e Y.
+                Com mais de um item selecionado, o editor libera movimento conjunto
+                em X/Y e acoes basicas de alinhamento e distribuicao. Distribuir
+                precisa de pelo menos 3 elementos.
               </div>
             </section>
           ) : null}
