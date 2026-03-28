@@ -56,16 +56,23 @@ import {
 } from "./BattleSceneSpace";
 import { AnimatePresence, motion } from "motion/react";
 import { GameMessage } from "../../types/game";
+import {
+  BATTLE_SHARED_FLOW_TIMINGS,
+  BATTLE_SHARED_OPENING_TARGET_TIMINGS,
+} from "./battleSharedTimings";
 
 const noopRef = () => {};
 const PLAYER = 0;
 const ENEMY = 1;
 const zoneRefKey = (zoneId: BoardZoneId, slot: string) => `${zoneId}:${slot}`;
-const FIXTURE_TARGET_ENTER_STAGGER_MS = 220;
-const FIXTURE_TARGET_ENTER_SETTLE_MS = 560;
+const FIXTURE_TARGET_ENTER_STAGGER_MS =
+  BATTLE_SHARED_OPENING_TARGET_TIMINGS.targetEnterStaggerMs;
+const FIXTURE_TARGET_ENTER_SETTLE_MS =
+  BATTLE_SHARED_OPENING_TARGET_TIMINGS.targetSettleMs;
 const FIXTURE_TARGET_LOOP_GAP_MS = 680;
 const FIXTURE_TARGET_ENTER_DURATION_MS = 780;
-const FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS = 240;
+const FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS =
+  BATTLE_SHARED_FLOW_TIMINGS.targetSettleMs;
 const FIXTURE_PILL_DAMAGE_DURATION_MS = 1200;
 const FIXTURE_PILL_DAMAGE_LOOP_GAP_MS = 680;
 const FIXTURE_PILL_DAMAGE_AMOUNT = 2;
@@ -74,19 +81,23 @@ const FIXTURE_PILL_TURN_LOOP_GAP_MS = 680;
 const FIXTURE_BOARD_MESSAGE_TURN_DURATION_MS = 1120;
 const FIXTURE_BOARD_MESSAGE_INFO_DURATION_MS = 1100;
 const FIXTURE_BOARD_MESSAGE_LOOP_GAP_MS = 680;
-const FIXTURE_POST_PLAY_DRAW_DURATION_MS = 940;
-const FIXTURE_POST_PLAY_DRAW_SETTLE_MS = 220;
+const FIXTURE_POST_PLAY_DRAW_DURATION_MS = BATTLE_SHARED_FLOW_TIMINGS.drawTravelMs;
+const FIXTURE_POST_PLAY_DRAW_SETTLE_MS = BATTLE_SHARED_FLOW_TIMINGS.drawSettleMs;
 const FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS = 680;
 const FIXTURE_TARGET_ATTACK_WINDUP_MS = 310;
 const FIXTURE_TARGET_ATTACK_TRAVEL_MS = 1140;
 const FIXTURE_TARGET_ATTACK_PAUSE_MS = 260;
 const FIXTURE_TARGET_ATTACK_EXIT_MS = 960;
 const FIXTURE_TARGET_ATTACK_LOOP_GAP_MS = 680;
-const FIXTURE_MULLIGAN_RETURN_DURATION_MS = 760;
-const FIXTURE_MULLIGAN_RETURN_STAGGER_MS = 110;
-const FIXTURE_MULLIGAN_RETURN_SETTLE_MS = 260;
+const FIXTURE_MULLIGAN_RETURN_DURATION_MS =
+  BATTLE_SHARED_FLOW_TIMINGS.mulliganReturnMs;
+const FIXTURE_MULLIGAN_RETURN_STAGGER_MS =
+  BATTLE_SHARED_FLOW_TIMINGS.mulliganReturnStaggerMs;
+const FIXTURE_MULLIGAN_RETURN_SETTLE_MS =
+  BATTLE_SHARED_FLOW_TIMINGS.mulliganSettleMs;
 const FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS = 680;
-const FIXTURE_MULLIGAN_DRAW_START_DELAY_MS = 220;
+const FIXTURE_MULLIGAN_DRAW_START_DELAY_MS =
+  BATTLE_SHARED_FLOW_TIMINGS.mulliganDrawDelayMs;
 
 const getFixtureTurnFocusTone = (turnLabel: string): BattleTurnFocusTone => {
   const normalized = turnLabel.trim().toLowerCase();
@@ -2090,7 +2101,7 @@ export const BattleSceneFixtureView: React.FC<{
             initialIndex: removedIndex,
             initialTotal: defaultPlayerStableCards.length,
             delayMs: 0,
-            durationMs: 660,
+            durationMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
             destinationMode: "zone-center",
             endRotate: 8,
             endScale: 1,
@@ -2098,7 +2109,9 @@ export const BattleSceneFixtureView: React.FC<{
         ],
         [ENEMY]: [],
       });
-      const totalMs = 660 + 180;
+      const totalMs =
+        BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs +
+        BATTLE_SHARED_FLOW_TIMINGS.cardSettleMs;
       const clearPendingTimer = window.setTimeout(() => {
         if (loopGenerationRef.current !== generation) return;
         setPreviewPendingTargetPlacements({
@@ -2172,7 +2185,7 @@ export const BattleSceneFixtureView: React.FC<{
             initialIndex: removedIndex,
             initialTotal: defaultPlayerStableCards.length,
             delayMs: 0,
-            durationMs: 660,
+            durationMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
             destinationMode: "zone-center",
             endRotate: 8,
             endScale: 1,
@@ -2181,7 +2194,9 @@ export const BattleSceneFixtureView: React.FC<{
         [ENEMY]: [],
       });
 
-      const playTotalMs = 660 + 180;
+      const playTotalMs =
+        BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs +
+        BATTLE_SHARED_FLOW_TIMINGS.cardSettleMs;
       const clearPendingTimer = window.setTimeout(() => {
         if (loopGenerationRef.current !== generation) return;
         setPreviewPendingTargetPlacements({

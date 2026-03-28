@@ -94,32 +94,16 @@ import {
   getLiveAnimationAnchorReferenceTarget,
   getVisibleBattleAnimationAnchors,
 } from "./BattleDebugGeometry";
+import {
+  BATTLE_SHARED_FLOW_TIMINGS,
+  BATTLE_SHARED_OPENING_TARGET_TIMINGS,
+} from "./battleSharedTimings";
 
 const PLAYER = 0;
 const ENEMY = 1;
 const zoneRefKey = (zoneId: BoardZoneId, slot: string) => `${zoneId}:${slot}`;
 const HAND_LAYOUT_SLOT_COUNT = 5;
-const FLOW = {
-  cardToFieldMs: 660,
-  cardSettleMs: 180,
-  drawTravelMs: 940,
-  drawStaggerMs: 130,
-  drawSettleMs: 220,
-  visualSettleBufferMs: 180,
-  turnHandoffMs: 260,
-  mulliganTurnHandoffMs: 140,
-  attackWindupMs: 220,
-  attackTravelMs: 1020,
-  impactPauseMs: 260,
-  targetExitMs: TIMINGS.leaveMs,
-  replacementGapMs: 220,
-  targetEnterMs: TIMINGS.leaveMs,
-  targetSettleMs: 240,
-  mulliganReturnMs: 760,
-  mulliganReturnStaggerMs: 110,
-  mulliganDrawDelayMs: 220,
-  mulliganSettleMs: 260,
-};
+const FLOW = BATTLE_SHARED_FLOW_TIMINGS;
 
 const TARGET_ATTACK_WINDUP_EXTRA_MS = 90;
 const TARGET_ATTACK_TRAVEL_EXTRA_MS = 120;
@@ -131,8 +115,8 @@ const INTRO = {
   coinSettleMs: 620,
   coinResultHoldMs: 3400,
   coinResultFaceMs: 1450,
-  targetEnterStaggerMs: 220,
-  targetSettleMs: 560,
+  targetEnterStaggerMs: BATTLE_SHARED_OPENING_TARGET_TIMINGS.targetEnterStaggerMs,
+  targetSettleMs: BATTLE_SHARED_OPENING_TARGET_TIMINGS.targetSettleMs,
 };
 
 const TURN_PRESENTATION = {
