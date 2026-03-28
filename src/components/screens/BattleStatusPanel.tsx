@@ -55,7 +55,7 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
     fontSize: `clamp(${Math.max(layout.text.bodyFontSize - 1, 11)}px, 0.8vw, ${layout.text.bodyFontSize}px)`,
     letterSpacing: `${layout.text.bodyLetterSpacing}em`,
     textAlign: layout.text.bodyAlign,
-    color: layout.text.bodyColor,
+    color: layout.text.titleColor,
   } as React.CSSProperties;
   const turnStyle = {
     fontSize: `clamp(${Math.max(layout.text.titleFontSize - 1, 13)}px, 1vw, ${Math.max(layout.text.titleFontSize, 13)}px)`,

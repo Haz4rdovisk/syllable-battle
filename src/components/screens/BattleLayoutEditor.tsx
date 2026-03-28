@@ -144,6 +144,35 @@ const chroniclesVisualStateOptions: Array<{
   { value: "selected", label: "Selected" },
 ];
 
+const actionEditorVisualStateOptions: Array<{
+  value: BattleActionVisualState;
+  label: string;
+}> = [
+  { value: "normal", label: "Normal (runtime)" },
+  { value: "hover", label: "Hover (preview)" },
+  { value: "pressed", label: "Pressed (preview)" },
+  { value: "disabled", label: "Disabled (runtime)" },
+  { value: "selected", label: "Selected (preview)" },
+];
+
+const statusEditorVisualStateOptions: Array<{
+  value: BattleStatusVisualState;
+  label: string;
+}> = [
+  { value: "normal", label: "Normal (runtime)" },
+  { value: "urgent", label: "Urgente (runtime)" },
+  { value: "selected", label: "Selected (preview)" },
+];
+
+const chroniclesEditorVisualStateOptions: Array<{
+  value: BattleChroniclesVisualState;
+  label: string;
+}> = [
+  { value: "normal", label: "Normal (runtime)" },
+  { value: "highlighted", label: "Destacado (preview)" },
+  { value: "selected", label: "Selected (preview)" },
+];
+
 const sceneTreeGroups: Array<{
   title: string;
   elements: BattleEditableElementKey[];
@@ -3873,6 +3902,11 @@ export const BattleLayoutEditor: React.FC = () => {
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                     Texto
                   </div>
+                  <p className="text-xs leading-relaxed text-amber-950/70">
+                    Tipografia, alinhamento, tracking e cores aqui usam tokens globais
+                    compartilhados em <code>layout.text</code> e tambem afetam
+                    <code> status</code> e <code>action</code>.
+                  </p>
                   <TextControl
                     label="Titulo"
                     value={layout.text.chroniclesTitle}
@@ -3943,9 +3977,13 @@ export const BattleLayoutEditor: React.FC = () => {
                   <SelectControl
                     label="Estado do painel"
                     value={chroniclesVisualState}
-                    options={chroniclesVisualStateOptions}
+                    options={chroniclesEditorVisualStateOptions}
                     onChange={(value) => setChroniclesVisualState(value)}
                   />
+                  <p className="text-xs leading-relaxed text-amber-950/70">
+                    <code>Destacado</code> e <code>Selected</code> sao so simulacao de
+                    preview. O runtime live usa o estado base do painel.
+                  </p>
                 </section>
               ) : null}
 
@@ -3954,6 +3992,11 @@ export const BattleLayoutEditor: React.FC = () => {
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                     Texto
                   </div>
+                  <p className="text-xs leading-relaxed text-amber-950/70">
+                    Os tokens de texto aqui continuam compartilhados via
+                    <code> layout.text</code>. A <code>Cor do titulo</code> agora controla
+                    o titulo real do painel.
+                  </p>
                   <TextControl
                     label="Titulo"
                     value={layout.text.statusTitle}
@@ -3980,6 +4023,11 @@ export const BattleLayoutEditor: React.FC = () => {
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                     Texto
                   </div>
+                  <p className="text-xs leading-relaxed text-amber-950/70">
+                    Tipografia aqui usa tokens globais compartilhados em
+                    <code> layout.text</code>. As cores do botao real continuam fixas nesta
+                    rodada, entao os controles de cor ficam ocultos por seguranca.
+                  </p>
                   <TextControl
                     label="Titulo"
                     value={layout.text.actionTitle}
@@ -4006,16 +4054,6 @@ export const BattleLayoutEditor: React.FC = () => {
                     value={layout.text.bodyFontSize}
                     onChange={(value) => updateText("bodyFontSize", value)}
                   />
-                  <TextControl
-                    label="Cor do titulo"
-                    value={layout.text.titleColor}
-                    onChange={(value) => updateText("titleColor", value)}
-                  />
-                  <TextControl
-                    label="Cor do corpo"
-                    value={layout.text.bodyColor}
-                    onChange={(value) => updateText("bodyColor", value)}
-                  />
                 </section>
               ) : null}
 
@@ -4029,9 +4067,14 @@ export const BattleLayoutEditor: React.FC = () => {
                       <SelectControl
                         label="Estado do botao"
                         value={actionVisualState}
-                        options={actionVisualStateOptions}
+                        options={actionEditorVisualStateOptions}
                         onChange={(value) => setActionVisualState(value)}
                       />
+                      <p className="text-xs leading-relaxed text-amber-950/70">
+                        <code>Hover</code>, <code>Pressed</code> e <code>Selected</code>
+                        sao so simulacao de preview. O runtime real usa principalmente
+                        <code> Normal</code> e <code>Disabled</code>.
+                      </p>
                       <TextControl
                         label="Titulo no hover"
                         value={layout.text.actionTitleHover}
@@ -4075,12 +4118,18 @@ export const BattleLayoutEditor: React.FC = () => {
                     </>
                   ) : null}
                   {focusArea === "status" ? (
-                    <SelectControl
-                      label="Estado do card"
-                      value={statusVisualState}
-                      options={statusVisualStateOptions}
-                      onChange={(value) => setStatusVisualState(value)}
-                    />
+                    <>
+                      <SelectControl
+                        label="Estado do card"
+                        value={statusVisualState}
+                        options={statusEditorVisualStateOptions}
+                        onChange={(value) => setStatusVisualState(value)}
+                      />
+                      <p className="text-xs leading-relaxed text-amber-950/70">
+                        <code>Selected</code> e so simulacao de preview. O runtime live
+                        continua usando o estado normal/urgente.
+                      </p>
+                    </>
                   ) : null}
                 </section>
               ) : null}
