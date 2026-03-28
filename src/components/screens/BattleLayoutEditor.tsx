@@ -58,6 +58,10 @@ import {
 } from "./BattleSceneSpace";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
+import {
+  battleCardStackPresetOptions,
+  BattleCardStackPresetId,
+} from "../game/battleCardStackVisuals";
 
 type LayoutNumberControl = {
   label: string;
@@ -101,7 +105,7 @@ type MultiSelectionLayoutMetrics = {
   scaledOffsetX: number;
   scaledOffsetY: number;
 };
-type LayoutSectionKey = "shell" | "board" | "sidebars" | "hud";
+type LayoutSectionKey = "shell" | "board" | "sidebars" | "hud" | "visuals";
 
 const elementPropertyDiffLabels: Record<keyof BattleElementPropertyConfig, string> = {
   x: "Centro X",
@@ -210,6 +214,11 @@ const chroniclesEditorVisualStateOptions: Array<{
   { value: "highlighted", label: "Destacado (preview)" },
   { value: "selected", label: "Selected (preview)" },
 ];
+
+const battleCardStackEditorOptions: Array<{
+  value: BattleCardStackPresetId;
+  label: string;
+}> = battleCardStackPresetOptions;
 
 const sceneTreeGroups: Array<{
   title: string;
@@ -2837,6 +2846,19 @@ export const BattleLayoutEditor: React.FC = () => {
     });
   };
 
+  const updateVisuals = <Key extends keyof BattleLayoutConfig["visuals"]>(
+    key: Key,
+    value: BattleLayoutConfig["visuals"][Key],
+  ) => {
+    applyOverrides({
+      ...layoutOverrides,
+      visuals: {
+        ...(layoutOverrides.visuals ?? {}),
+        [key]: value,
+      },
+    });
+  };
+
   const resetLayoutKeyToBaseline = <
     Section extends LayoutSectionKey,
     Key extends keyof BattleLayoutConfig[Section],
@@ -5197,6 +5219,41 @@ export const BattleLayoutEditor: React.FC = () => {
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-950/60">
             Animacao
           </div>
+          <section className="space-y-3 rounded-3xl border border-amber-900/12 bg-white/30 p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
+              Preset visual
+            </div>
+            <EditorialHonestyPanel
+              summary="Estado e escopo deste bloco."
+              items={[
+                {
+                  label: "Backs e montes",
+                  state: "runtime-backed",
+                  scope: "global",
+                  detail: "Mesmo preset no editor, preview e runtime live.",
+                },
+              ]}
+            />
+            <p className="text-xs leading-relaxed text-amber-950/75">
+              Controla apenas o preset global de <code>CardBackCard</code> e
+              <code> CardPile</code>. Nao altera geometria, anchors, endpoints,
+              face das cartas, botao de action ou board.
+            </p>
+            <SelectControl
+              label="Backs e montes"
+              value={layout.visuals.cardStackPresetId}
+              options={battleCardStackEditorOptions}
+              onChange={(value) => updateVisuals("cardStackPresetId", value)}
+              changed={
+                layout.visuals.cardStackPresetId !==
+                baselineLayout.visuals.cardStackPresetId
+              }
+              onReset={() =>
+                resetLayoutKeyToBaseline("visuals", "cardStackPresetId")
+              }
+            />
+          </section>
+
           <EditorialHonestyPanel
             title="Matriz desta sessao"
             summary="Estado e escopo da sessao."

@@ -199,7 +199,7 @@ export const BATTLE_LAYOUT_EDITOR_STATE_KEY =
   "syllable-battle:battle-layout-editor-state";
 export const BATTLE_LAYOUT_MODEL_VERSION_KEY =
   "syllable-battle:battle-layout-model-version";
-export const BATTLE_LAYOUT_MODEL_VERSION = 6;
+export const BATTLE_LAYOUT_MODEL_VERSION = 7;
 export const BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY =
   "syllable-battle:battle-layout-active-overrides";
 export const BATTLE_LAYOUT_EDITOR_ELEMENT_CLIPBOARD_KEY =

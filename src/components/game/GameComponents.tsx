@@ -3,6 +3,11 @@ import { UITarget, Syllable, RARITY_DAMAGE, normalizeRarity } from "../../types/
 import { cn } from "../../lib/utils";
 import { Swords } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import {
+  BattleCardStackPresetId,
+  DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+  getBattleCardStackVisualPreset,
+} from "./battleCardStackVisuals";
 
 export const BOARD_ZONE_IDS = [
   "playerDeck",
@@ -72,20 +77,35 @@ const battleCardSizePresetClass: Record<BattleCardSizePreset, string> = {
 export const CardBackCard: React.FC<{
   floating?: boolean;
   sizePreset?: BattleCardSizePreset;
-}> = ({ floating = false, sizePreset = "default" }) => (
-  <div
-    className={cn(
-      "relative overflow-hidden rounded-xl border-2 border-amber-300/40 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800 shadow-[0_10px_20px_rgba(0,0,0,0.45)]",
-      battleCardSizePresetClass[sizePreset],
-      floating && "shadow-[0_14px_28px_rgba(0,0,0,0.45)]",
-    )}
-  >
-    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20" />
-    <div className="absolute inset-1.5 rounded-lg border border-amber-200/20" />
-    <div className="absolute inset-4 rounded-full border border-amber-200/15" />
-    <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-200/30" />
-  </div>
-);
+  visualPresetId?: BattleCardStackPresetId;
+}> = ({
+  floating = false,
+  sizePreset = "default",
+  visualPresetId = DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+}) => {
+  const preset = getBattleCardStackVisualPreset(visualPresetId);
+
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-xl border-2 shadow-[0_10px_20px_rgba(0,0,0,0.45)]",
+        preset.cardBack.frameClassName,
+        battleCardSizePresetClass[sizePreset],
+        floating && "shadow-[0_14px_28px_rgba(0,0,0,0.45)]",
+      )}
+    >
+      <div className={cn("absolute inset-0", preset.cardBack.textureClassName)} />
+      <div className={cn("pointer-events-none absolute inset-1.5", preset.cardBack.insetClassName)} />
+      <div className={cn("pointer-events-none absolute", preset.cardBack.coreClassName)} />
+      <div
+        className={cn(
+          "absolute left-1/2 top-1/2",
+          preset.cardBack.emblemClassName,
+        )}
+      />
+    </div>
+  );
+};
 
 interface TargetCardProps {
   target: UITarget;
@@ -285,6 +305,7 @@ export const CardPile: React.FC<{
   anchorRef?: React.Ref<HTMLDivElement>;
   fitParent?: boolean;
   className?: string;
+  visualPresetId?: BattleCardStackPresetId;
 }> = ({
   label,
   count,
@@ -293,9 +314,12 @@ export const CardPile: React.FC<{
   anchorRef,
   fitParent = false,
   className,
+  visualPresetId = DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
 }) => {
+  void color;
   const [prevCount, setPrevCount] = React.useState(count);
   const [isChanging, setIsChanging] = React.useState(false);
+  const preset = getBattleCardStackVisualPreset(visualPresetId);
 
   React.useEffect(() => {
     if (count !== prevCount) {
@@ -309,6 +333,7 @@ export const CardPile: React.FC<{
   const layers = Math.min(Math.ceil(count / 2), 8);
   const isDeckVariant = variant === "deck";
   const visibleBackLayers = Math.max(0, layers - 1);
+  const surfacePreset = preset.pile[variant];
 
   return (
     <div
@@ -337,9 +362,7 @@ export const CardPile: React.FC<{
                   key={i}
                   className={cn(
                     "absolute inset-0 rounded-xl shadow-sm",
-                    isDeckVariant
-                      ? "border border-amber-300/18 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
-                      : "border border-amber-300/22 bg-gradient-to-br from-rose-950 via-red-950 to-stone-950",
+                    surfacePreset.layerClassName,
                   )}
                   style={{
                     transform: `translateY(${-depth * 2.5}px) translateX(${depth * 0.8}px)`,
@@ -353,41 +376,33 @@ export const CardPile: React.FC<{
               animate={isChanging ? { scale: [1, 1.05, 1], y: [0, -12, 0], rotate: [0, -1.5, 0] } : {}}
               className={cn(
                 "absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-xl border-2 shadow-2xl transition-all",
-                isDeckVariant
-                  ? "border-amber-300/40 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-800"
-                  : cn("border-amber-300/30", color),
+                surfacePreset.frameClassName,
               )}
             >
-              <div
-                className={cn(
-                  "absolute inset-0 opacity-25",
-                  isDeckVariant
-                    ? "bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"
-                    : "bg-[url('https://www.transparenttextures.com/patterns/exclusive-paper.png')]",
-                )}
-              />
+              <div className={cn("absolute inset-0", surfacePreset.textureClassName)} />
               <div
                 className={cn(
                   "pointer-events-none absolute inset-1.5",
-                  isDeckVariant
-                    ? "rounded-lg border border-amber-200/20"
-                    : "rounded-lg border border-amber-200/18",
+                  surfacePreset.insetClassName,
                 )}
               />
               <div
                 className={cn(
                   "pointer-events-none absolute",
-                  isDeckVariant
-                    ? "inset-4 rounded-full border border-amber-200/15"
-                    : "inset-4 rounded-xl border border-amber-200/12",
+                  surfacePreset.coreClassName,
                 )}
               />
 
               {isDeckVariant ? (
-                <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-200/30" />
+                <div
+                  className={cn(
+                    "absolute left-1/2 top-1/2",
+                    surfacePreset.emblemClassName,
+                  )}
+                />
               ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/15 bg-white/5 backdrop-blur-sm">
-                  <div className="h-4 w-4 rotate-45 border border-white/30" />
+                <div className={surfacePreset.emblemClassName}>
+                  <div className={surfacePreset.emblemInnerClassName} />
                 </div>
               )}
 
@@ -403,7 +418,7 @@ export const CardPile: React.FC<{
             </motion.div>
 
             {count === 0 && (
-              <div className="absolute inset-0 rounded-lg border-2 border-dashed border-white/10 bg-black/20" />
+              <div className={cn("absolute inset-0", preset.emptyStateClassName)} />
             )}
           </div>
         </div>
@@ -411,12 +426,18 @@ export const CardPile: React.FC<{
 
       <div className="flex shrink-0 flex-col items-center">
         <div
-          className="mb-1 text-[10px] font-black uppercase tracking-widest text-white/40"
+          className={cn(
+            "mb-1 text-[10px] font-black uppercase tracking-widest",
+            preset.labelClassName,
+          )}
         >
           {label}
         </div>
         <div
-          className="rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs font-black text-amber-200 shadow-xl backdrop-blur-md"
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs font-black shadow-xl",
+            preset.countBadgeClassName,
+          )}
         >
           {count}
         </div>

@@ -18,6 +18,10 @@ import {
   normalizeBattleLayoutEditorPreviewState,
   type BattleLayoutEditorPreviewState,
 } from "./BattleLayoutEditorState";
+import {
+  createBattleLayoutConfig,
+  createBattleLayoutPresetSource,
+} from "./BattleLayoutConfig";
 
 const createPreviewState = (): BattleLayoutEditorPreviewState => ({
   fixtureKey: "calm",
@@ -330,5 +334,26 @@ test("helpers de formatacao/debug retornam saidas uteis sem depender de DOM", ()
   assert.match(
     fallbackLine,
     /^fallback:\d{2}:\d{2}:\d{2} post-play-hand-draw reason:anchor-missing -> deck$/,
+  );
+});
+
+test("layout visual minimo preserva preset fechado e serializa a secao no preset", () => {
+  const layout = createBattleLayoutConfig({
+    visuals: {
+      cardStackPresetId: "jade",
+    },
+  });
+
+  assert.equal(layout.visuals.cardStackPresetId, "jade");
+
+  const presetSource = createBattleLayoutPresetSource({
+    text: {
+      actionTitle: "Trocar",
+    },
+  });
+
+  assert.match(
+    presetSource,
+    /"visuals": \{\s+"cardStackPresetId": "arcane"\s+\}/,
   );
 });

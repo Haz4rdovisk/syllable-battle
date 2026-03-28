@@ -3452,6 +3452,7 @@ export const Battle: React.FC<BattleProps> = ({
     <BattleHandLane
       side={localPlayerIndex}
       presentation="local"
+      cardStackPresetId={activeBattleLayout.visuals.cardStackPresetId}
       stableCards={stableHands[localPlayerIndex]}
       incomingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? incomingHands[localPlayerIndex] : []}
       outgoingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? outgoingHands[localPlayerIndex] : []}
@@ -3505,6 +3506,7 @@ export const Battle: React.FC<BattleProps> = ({
     <BattleHandLane
       side={remotePlayerIndex}
       presentation="remote"
+      cardStackPresetId={activeBattleLayout.visuals.cardStackPresetId}
       stableCards={stableHands[remotePlayerIndex]}
       incomingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? incomingHands[remotePlayerIndex] : []}
       outgoingCards={scale === (isDesktopViewport ? "desktop" : "mobile") ? outgoingHands[remotePlayerIndex] : []}
@@ -3720,6 +3722,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="target"
                       anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
                       fitParent
+                      visualPresetId={activeBattleLayout.visuals.cardStackPresetId}
                     />
                   </BattleEditableElement>
                   <BattleEditableElement
@@ -3736,6 +3739,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="deck"
                       anchorRef={bindZoneRef("enemyDeck", "mobile")}
                       fitParent
+                      visualPresetId={activeBattleLayout.visuals.cardStackPresetId}
                     />
                   </BattleEditableElement>
                 </div>
@@ -3825,6 +3829,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="target"
                       anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
                       fitParent
+                      visualPresetId={activeBattleLayout.visuals.cardStackPresetId}
                     />
                   </BattleEditableElement>
                   <BattleEditableElement
@@ -3841,6 +3846,7 @@ export const Battle: React.FC<BattleProps> = ({
                       variant="deck"
                       anchorRef={bindZoneRef("playerDeck", "mobile")}
                       fitParent
+                      visualPresetId={activeBattleLayout.visuals.cardStackPresetId}
                     />
                   </BattleEditableElement>
 

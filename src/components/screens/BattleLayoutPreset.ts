@@ -4,6 +4,9 @@ import {
 } from "./BattleLayoutConfig";
 
 export const battleActiveLayoutOverrides: BattleLayoutOverrides = {
+  "visuals": {
+    "cardStackPresetId": "arcane"
+  },
   "elements": {
     "enemyDeck": {
       "x": -580,

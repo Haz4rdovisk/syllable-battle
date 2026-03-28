@@ -3,6 +3,10 @@ import { CardPile } from "../game/GameComponents";
 import { BattleLayoutConfig } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { cn } from "../../lib/utils";
+import {
+  BattleCardStackPresetId,
+  DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+} from "../game/battleCardStackVisuals";
 
 const noopDivRef = () => {};
 
@@ -25,6 +29,7 @@ export interface BattleSinglePileProps {
   anchorRef?: (node: HTMLDivElement | null) => void;
   fitParent?: boolean;
   className?: string;
+  visualPresetId?: BattleCardStackPresetId;
 }
 
 export interface BattlePileRailProps {
@@ -42,6 +47,7 @@ export const BattleSinglePile: React.FC<BattleSinglePileProps> = ({
   anchorRef = noopDivRef,
   fitParent = false,
   className,
+  visualPresetId = DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
 }) => (
   <CardPile
     label={label}
@@ -51,6 +57,7 @@ export const BattleSinglePile: React.FC<BattleSinglePileProps> = ({
     anchorRef={anchorRef}
     fitParent={fitParent}
     className={className}
+    visualPresetId={visualPresetId}
   />
 );
 
@@ -99,6 +106,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
             color="bg-rose-950"
             variant="target"
             anchorRef={targetDeckAnchorRef}
+            visualPresetId={layout.visuals.cardStackPresetId}
           />
         </div>
         <div>
@@ -108,6 +116,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
             color="bg-amber-950"
             variant="deck"
             anchorRef={deckAnchorRef}
+            visualPresetId={layout.visuals.cardStackPresetId}
           />
         </div>
         <div ref={discardAnchorRef} className="pointer-events-none h-0 w-0 opacity-0" />
@@ -128,6 +137,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
           color="bg-rose-950"
           variant="target"
           anchorRef={targetDeckAnchorRef}
+          visualPresetId={layout.visuals.cardStackPresetId}
         />
       </div>
       <div className="min-w-0">
@@ -137,6 +147,7 @@ export const BattlePileRack: React.FC<BattlePileRackProps> = ({
           color="bg-amber-950"
           variant="deck"
           anchorRef={deckAnchorRef}
+          visualPresetId={layout.visuals.cardStackPresetId}
         />
       </div>
     </BattlePileRail>

@@ -111,6 +111,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
           anchorRef={targetDeckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", targetDeckClassName)}
+          visualPresetId={layout.visuals.cardStackPresetId}
         />
       </BattleEditableElement>
       <BattleEditableElement
@@ -134,6 +135,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
           anchorRef={deckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", deckClassName)}
+          visualPresetId={layout.visuals.cardStackPresetId}
         />
       </BattleEditableElement>
       <BattleEditableElement
@@ -315,6 +317,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
           anchorRef={targetDeckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", targetDeckClassName)}
+          visualPresetId={layout.visuals.cardStackPresetId}
         />
       </BattleEditableElement>
       <BattleEditableElement
@@ -338,6 +341,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
           anchorRef={deckAnchorRef}
           fitParent
           className={cn("min-h-[190px]", deckClassName)}
+          visualPresetId={layout.visuals.cardStackPresetId}
         />
       </BattleEditableElement>
     </aside>

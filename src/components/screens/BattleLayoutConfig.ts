@@ -1,4 +1,8 @@
 import { getBattleHandFrame } from "./battleFlow";
+import {
+  BattleCardStackPresetId,
+  DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
+} from "../game/battleCardStackVisuals";
 
 const BATTLE_STAGE_WIDTH = 1600;
 const BATTLE_STAGE_HEIGHT = 900;
@@ -162,11 +166,16 @@ export interface BattleAnimationLayoutConfig {
   targetAttack3Destination: BattleAnimationAnchorPoint | null;
 }
 
+export interface BattleVisualLayoutConfig {
+  cardStackPresetId: BattleCardStackPresetId;
+}
+
 export interface BattleLayoutConfig {
   shell: BattleShellLayoutConfig;
   board: BattleBoardLayoutConfig;
   sidebars: BattleSidebarLayoutConfig;
   hud: BattleHudLayoutConfig;
+  visuals: BattleVisualLayoutConfig;
   elements: Record<BattleEditableElementKey, BattleElementPropertyConfig>;
   text: BattleTextLayoutConfig;
   animations: BattleAnimationLayoutConfig;
@@ -177,6 +186,7 @@ export type BattleLayoutOverrides = Partial<{
   board: Partial<BattleBoardLayoutConfig>;
   sidebars: Partial<BattleSidebarLayoutConfig>;
   hud: Partial<BattleHudLayoutConfig>;
+  visuals: Partial<BattleVisualLayoutConfig>;
   elements: Partial<Record<BattleEditableElementKey, Partial<BattleElementPropertyConfig>>>;
   text: Partial<BattleTextLayoutConfig>;
   animations: Partial<BattleAnimationLayoutConfig>;
@@ -250,6 +260,10 @@ const defaultHudLayout: BattleHudLayoutConfig = {
   mobileActionWidth: 220,
   mobileActionHeight: 64,
   actionSlotHeight: 162,
+};
+
+const defaultVisualLayout: BattleVisualLayoutConfig = {
+  cardStackPresetId: DEFAULT_BATTLE_CARD_STACK_PRESET_ID,
 };
 
 const defaultAnimationLayout: BattleAnimationLayoutConfig = {
@@ -506,6 +520,7 @@ export const defaultBattleLayoutConfig: BattleLayoutConfig = {
   board: defaultBoardLayout,
   sidebars: defaultSidebarLayout,
   hud: defaultHudLayout,
+  visuals: defaultVisualLayout,
   elements: {
     shell: {
       ...createDefaultElementConfig(),
@@ -659,6 +674,10 @@ export function createBattleLayoutConfig(
     hud: {
       ...defaultBattleLayoutConfig.hud,
       ...overrides.hud,
+    },
+    visuals: {
+      ...defaultBattleLayoutConfig.visuals,
+      ...overrides.visuals,
     },
     elements: {
       shell: {
@@ -814,13 +833,21 @@ export function createBattleLayoutPresetSource(
   overrides: BattleLayoutOverrides = {},
 ): string {
   const pruned = pruneBattleLayoutOverrides(overrides);
+  const serializable: BattleLayoutOverrides = {
+    ...pruned,
+    visuals: {
+      cardStackPresetId:
+        overrides.visuals?.cardStackPresetId ??
+        defaultBattleLayoutConfig.visuals.cardStackPresetId,
+    },
+  };
   return [
     'import {',
     "  BattleLayoutOverrides,",
     "  createBattleLayoutConfig,",
     '} from "./BattleLayoutConfig";',
     "",
-    `export const battleActiveLayoutOverrides: BattleLayoutOverrides = ${JSON.stringify(pruned, null, 2)};`,
+    `export const battleActiveLayoutOverrides: BattleLayoutOverrides = ${JSON.stringify(serializable, null, 2)};`,
     "",
     "export const battleActiveLayoutConfig =",
     "  createBattleLayoutConfig(battleActiveLayoutOverrides);",
