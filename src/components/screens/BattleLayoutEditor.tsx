@@ -976,6 +976,165 @@ const focusAreaToElementKey = (
   return focusArea;
 };
 
+type EditorialHonestyState =
+  | "runtime-backed"
+  | "preview-only"
+  | "fallback-backed"
+  | "not-authorable";
+
+type EditorialHonestyScope = "local" | "compartilhado" | "global";
+
+const editorialHonestyMeta: Record<
+  EditorialHonestyState,
+  { label: string; className: string }
+> = {
+  "runtime-backed": {
+    label: "runtime-backed",
+    className:
+      "border-emerald-900/15 bg-emerald-100/80 text-emerald-950",
+  },
+  "preview-only": {
+    label: "preview-only",
+    className:
+      "border-sky-900/15 bg-sky-100/80 text-sky-950",
+  },
+  "fallback-backed": {
+    label: "fallback-backed",
+    className:
+      "border-amber-900/15 bg-amber-100/80 text-amber-950",
+  },
+  "not-authorable": {
+    label: "nao authoravel",
+    className:
+      "border-stone-900/15 bg-stone-200/75 text-stone-900",
+  },
+};
+
+const editorialHonestyScopeMeta: Record<
+  EditorialHonestyScope,
+  { label: string; className: string }
+> = {
+  local: {
+    label: "local",
+    className: "border-stone-900/10 bg-white/85 text-stone-950/70",
+  },
+  compartilhado: {
+    label: "compartilhado",
+    className: "border-violet-900/10 bg-violet-100/75 text-violet-950/80",
+  },
+  global: {
+    label: "global",
+    className: "border-slate-900/10 bg-slate-200/70 text-slate-950/80",
+  },
+};
+
+const EditorialHonestyBadge: React.FC<{
+  state: EditorialHonestyState;
+}> = ({ state }) => {
+  const meta = editorialHonestyMeta[state];
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em]",
+        meta.className,
+      )}
+    >
+      {meta.label}
+    </span>
+  );
+};
+
+const EditorialHonestyScopeBadge: React.FC<{
+  scope: EditorialHonestyScope;
+}> = ({ scope }) => {
+  const meta = editorialHonestyScopeMeta[scope];
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em]",
+        meta.className,
+      )}
+    >
+      {meta.label}
+    </span>
+  );
+};
+
+const CollapsibleInfoSection: React.FC<{
+  title: string;
+  summary?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}> = ({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}) => (
+  <details
+    open={defaultOpen}
+    className="rounded-2xl border border-stone-900/12 bg-white/60"
+  >
+    <summary className="cursor-pointer list-none px-3 py-2 [&::-webkit-details-marker]:hidden">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-stone-950/55">
+            {title}
+          </div>
+          {summary ? (
+            <div className="mt-1 text-xs leading-relaxed text-stone-950/68">
+              {summary}
+            </div>
+          ) : null}
+        </div>
+        <span className="shrink-0 rounded-full border border-stone-900/12 bg-stone-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-stone-950/70">
+          Abrir
+        </span>
+      </div>
+    </summary>
+    <div className="border-t border-stone-900/10 p-3">{children}</div>
+  </details>
+);
+
+const EditorialHonestyPanel: React.FC<{
+  title?: string;
+  summary?: string;
+  defaultOpen?: boolean;
+  items: Array<{
+    label: string;
+    state: EditorialHonestyState;
+    scope?: EditorialHonestyScope;
+    detail: string;
+  }>;
+}> = ({
+  title = "Honestidade editorial",
+  summary = "Estado e escopo desta area.",
+  defaultOpen = false,
+  items,
+}) => (
+  <CollapsibleInfoSection
+    title={title}
+    summary={summary}
+    defaultOpen={defaultOpen}
+  >
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div
+          key={`${item.label}-${item.state}-${item.scope ?? "none"}`}
+          className="space-y-1"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <EditorialHonestyBadge state={item.state} />
+            {item.scope ? <EditorialHonestyScopeBadge scope={item.scope} /> : null}
+            <span className="text-xs font-bold text-stone-950">{item.label}</span>
+          </div>
+          <p className="text-xs leading-relaxed text-stone-950/72">{item.detail}</p>
+        </div>
+      ))}
+    </div>
+  </CollapsibleInfoSection>
+);
+
 const LayoutControl: React.FC<LayoutNumberControl> = ({
   label,
   min,
@@ -3962,6 +4121,51 @@ export const BattleLayoutEditor: React.FC = () => {
           </Button>
         </div>
 
+        <section className="mb-4">
+          <CollapsibleInfoSection
+            title="Matriz inicial"
+            summary="Estado e escopo atuais."
+          >
+            <p className="text-xs leading-relaxed text-stone-950/72">
+              So esclarece o contrato atual.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <EditorialHonestyBadge state="runtime-backed" />
+              <EditorialHonestyBadge state="preview-only" />
+              <EditorialHonestyBadge state="fallback-backed" />
+              <EditorialHonestyBadge state="not-authorable" />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <EditorialHonestyScopeBadge scope="local" />
+              <EditorialHonestyScopeBadge scope="compartilhado" />
+              <EditorialHonestyScopeBadge scope="global" />
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-2xl border border-stone-900/12 bg-white/60 p-3 text-xs leading-relaxed text-stone-950/72">
+                <span className="font-bold text-stone-950">runtime-backed:</span> entra no runtime live.
+              </div>
+              <div className="rounded-2xl border border-stone-900/12 bg-white/60 p-3 text-xs leading-relaxed text-stone-950/72">
+                <span className="font-bold text-stone-950">preview-only:</span> vale so no editor/preview.
+              </div>
+              <div className="rounded-2xl border border-stone-900/12 bg-white/60 p-3 text-xs leading-relaxed text-stone-950/72">
+                <span className="font-bold text-stone-950">fallback-backed:</span> authora, mas pode cair em fallback.
+              </div>
+              <div className="rounded-2xl border border-stone-900/12 bg-white/60 p-3 text-xs leading-relaxed text-stone-950/72">
+                <span className="font-bold text-stone-950">nao authoravel:</span> ainda sem autoria real.
+              </div>
+              <div className="rounded-2xl border border-stone-900/12 bg-white/60 p-3 text-xs leading-relaxed text-stone-950/72">
+                <span className="font-bold text-stone-950">local:</span> vale so neste bloco.
+              </div>
+              <div className="rounded-2xl border border-stone-900/12 bg-white/60 p-3 text-xs leading-relaxed text-stone-950/72">
+                <span className="font-bold text-stone-950">compartilhado:</span> reaparece em outros paineis.
+              </div>
+              <div className="rounded-2xl border border-stone-900/12 bg-white/60 p-3 text-xs leading-relaxed text-stone-950/72 sm:col-span-2">
+                <span className="font-bold text-stone-950">global:</span> vale para a sessao inteira.
+              </div>
+            </div>
+          </CollapsibleInfoSection>
+        </section>
+
         <section className="mb-4 space-y-3 rounded-3xl border border-amber-700/35 bg-amber-50/60 p-3 shadow-[0_10px_26px_rgba(120,53,15,0.12)]">
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
             Navegador
@@ -4531,6 +4735,17 @@ export const BattleLayoutEditor: React.FC = () => {
                     <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                       Motion
                     </div>
+                  <EditorialHonestyPanel
+                    summary="Estado e escopo deste bloco."
+                    items={[
+                      {
+                        label: "Slide e timing",
+                        state: "runtime-backed",
+                        scope: "local",
+                        detail: "Mesmo wrapper no editor, preview e runtime.",
+                      },
+                    ]}
+                  />
                     <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
                       Controla o offset inicial e o timing do wrapper do elemento,
                       usando o mesmo fluxo de motion ja suportado pelo preview e pelo runtime.
@@ -4555,6 +4770,29 @@ export const BattleLayoutEditor: React.FC = () => {
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                     Texto
                   </div>
+                  <EditorialHonestyPanel
+                    summary="Estado e escopo deste bloco."
+                    items={[
+                      {
+                        label: "Titulo do painel",
+                        state: "runtime-backed",
+                        scope: "local",
+                        detail: "Reflete no preview e no runtime.",
+                      },
+                      {
+                        label: "Tipografia e tokens",
+                        state: "runtime-backed",
+                        scope: "compartilhado",
+                        detail: "Entram no runtime e reaparecem em status/action.",
+                      },
+                      {
+                        label: "Destacado e Selected",
+                        state: "preview-only",
+                        scope: "local",
+                        detail: "So inspecao visual.",
+                      },
+                    ]}
+                  />
                   <p className="text-xs leading-relaxed text-amber-950/70">
                     Os controles abaixo editam o painel de cronicas, mas a tipografia,
                     alinhamento, tracking e cores continuam vindo dos tokens globais
@@ -4660,6 +4898,29 @@ export const BattleLayoutEditor: React.FC = () => {
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                     Texto
                   </div>
+                  <EditorialHonestyPanel
+                    summary="Estado e escopo deste bloco."
+                    items={[
+                      {
+                        label: "Titulo e Urgente",
+                        state: "runtime-backed",
+                        scope: "local",
+                        detail: "Entram no runtime.",
+                      },
+                      {
+                        label: "Tracking e alinhamento",
+                        state: "runtime-backed",
+                        scope: "compartilhado",
+                        detail: "Reutilizam tokens com chronicles/action.",
+                      },
+                      {
+                        label: "Estado Selected",
+                        state: "preview-only",
+                        scope: "local",
+                        detail: "So inspecao no editor.",
+                      },
+                    ]}
+                  />
                   <p className="text-xs leading-relaxed text-amber-950/70">
                     O texto do status usa tokens globais compartilhados via
                     <code> layout.text</code>. Aqui voce edita o titulo do status e os
@@ -4696,6 +4957,35 @@ export const BattleLayoutEditor: React.FC = () => {
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
                     Texto
                   </div>
+                  <EditorialHonestyPanel
+                    summary="Estado e escopo deste bloco."
+                    items={[
+                      {
+                        label: "Base e Disabled",
+                        state: "runtime-backed",
+                        scope: "local",
+                        detail: "Valem no preview e no runtime.",
+                      },
+                      {
+                        label: "Tracking e alinhamento",
+                        state: "runtime-backed",
+                        scope: "compartilhado",
+                        detail: "Reutilizam tokens com status/chronicles.",
+                      },
+                      {
+                        label: "Hover, Pressed e Selected",
+                        state: "preview-only",
+                        scope: "local",
+                        detail: "So inspecao no editor.",
+                      },
+                      {
+                        label: "Cores reais do botao",
+                        state: "not-authorable",
+                        scope: "local",
+                        detail: "Continuam fixas nesta rodada.",
+                      },
+                    ]}
+                  />
                   <p className="text-xs leading-relaxed text-amber-950/70">
                     O botao de action usa textos base e textos por estado. A tipografia
                     continua vindo de tokens globais compartilhados em
@@ -4852,57 +5142,85 @@ export const BattleLayoutEditor: React.FC = () => {
           ) : null}
         </div>
 
-        <div className="mt-4 space-y-3 rounded-3xl border border-amber-900/12 bg-amber-50/50 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
-            JSON
-          </div>
-          <p className="text-xs leading-relaxed text-amber-950/70">
-            Aplica local e redefine a base do reset.
-          </p>
-          <div className="space-y-2">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
-              Entrar JSON
+        <section className="mt-4">
+          <CollapsibleInfoSection
+            title="JSON"
+            summary="Importacao, exportacao e base local."
+          >
+            <div className="space-y-3 rounded-3xl border border-amber-900/12 bg-amber-50/50 p-3">
+              <p className="text-xs leading-relaxed text-amber-950/70">
+                Aplica local e redefine a base do reset.
+              </p>
+              <div className="space-y-2">
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
+                  Entrar JSON
+                </div>
+                <textarea
+                  value={importText}
+                  onChange={(event) => setImportText(event.target.value)}
+                  className="min-h-40 w-full rounded-2xl border border-amber-900/20 bg-white/85 p-3 font-mono text-[11px] leading-relaxed text-amber-950 outline-none"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
+                  JSON atual
+                </div>
+                <textarea
+                  readOnly
+                  value={currentJsonValue}
+                  className="min-h-40 w-full rounded-2xl bg-black/80 p-3 font-mono text-[11px] leading-relaxed text-emerald-100 outline-none"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  onClick={() => void copyLayoutJson()}
+                  className="flex-1 rounded-xl bg-emerald-900 text-amber-50 hover:bg-emerald-800"
+                >
+                  Copiar atual
+                </Button>
+                <Button
+                  type="button"
+                  onClick={applyImportText}
+                  className="flex-1 rounded-xl bg-amber-900 text-amber-50 hover:bg-amber-800"
+                >
+                  Aplicar JSON
+                </Button>
+              </div>
             </div>
-            <textarea
-              value={importText}
-              onChange={(event) => setImportText(event.target.value)}
-              className="min-h-40 w-full rounded-2xl border border-amber-900/20 bg-white/85 p-3 font-mono text-[11px] leading-relaxed text-amber-950 outline-none"
-              spellCheck={false}
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
-              JSON atual
-            </div>
-            <textarea
-              readOnly
-              value={currentJsonValue}
-              className="min-h-40 w-full rounded-2xl bg-black/80 p-3 font-mono text-[11px] leading-relaxed text-emerald-100 outline-none"
-              spellCheck={false}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={() => void copyLayoutJson()}
-              className="flex-1 rounded-xl bg-emerald-900 text-amber-50 hover:bg-emerald-800"
-            >
-              Copiar atual
-            </Button>
-            <Button
-              type="button"
-              onClick={applyImportText}
-              className="flex-1 rounded-xl bg-amber-900 text-amber-50 hover:bg-amber-800"
-            >
-              Aplicar JSON
-            </Button>
-          </div>
-        </div>
+          </CollapsibleInfoSection>
+        </section>
 
         <div className="mt-4 space-y-2 rounded-3xl border border-emerald-900/12 bg-emerald-50/45 p-3">
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-950/60">
             Animacao
           </div>
+          <EditorialHonestyPanel
+            title="Matriz desta sessao"
+            summary="Estado e escopo da sessao."
+            items={[
+              {
+                label: "Set, preset, play e loop",
+                state: "preview-only",
+                scope: "global",
+                detail: "Organizam a inspecao no editor e preview.",
+              },
+              {
+                label: "Anchors e endpoints salvos no preset",
+                state: "fallback-backed",
+                scope: "global",
+                detail: "O runtime usa quando existem; sem isso, cai em fallback.",
+              },
+              {
+                label: "Fluxos sem anchor listado aqui",
+                state: "not-authorable",
+                scope: "global",
+                detail: "Ainda sem autoria direta nesta rodada.",
+              },
+            ]}
+          />
           <p className="text-xs leading-relaxed text-emerald-950/75">
             Sessao global de sets, presets, anchors e preview do evento.
           </p>
@@ -4971,6 +5289,9 @@ export const BattleLayoutEditor: React.FC = () => {
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-sky-950/60">
                   Anchors e endpoints do preset atual
                 </div>
+                <p className="text-xs leading-relaxed text-sky-950/70">
+                  Pontos <strong>fallback-backed</strong> e <strong>global</strong>: o runtime usa quando existem e cai em fallback quando faltam.
+                </p>
                 {animationAnchorEditorItems.map((item) => {
                   const anchorStateKey = getAnimationAnchorStateKey(item.anchor);
                   if (!anchorStateKey) return null;
@@ -5104,7 +5425,20 @@ export const BattleLayoutEditor: React.FC = () => {
                 })}
               </div>
             </div>
-          ) : null}
+          ) : (
+            <EditorialHonestyPanel
+              title="Anchors e endpoints"
+              summary="Estado e escopo deste set."
+              items={[
+                {
+                  label: "Set atual sem anchor authoravel",
+                  state: "not-authorable",
+                  scope: "global",
+                  detail: "O preview pode simular, mas este set nao salva anchor novo.",
+                },
+              ]}
+            />
+          )}
           <div className="space-y-2 rounded-2xl border border-emerald-900/12 bg-white/70 p-3">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
               Preview do evento
