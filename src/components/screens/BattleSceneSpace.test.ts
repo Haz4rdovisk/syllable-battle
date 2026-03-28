@@ -1,0 +1,201 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
+import {
+  battleEditorFrameToScenePosition,
+  battleGlobalFrameToScenePosition,
+  BATTLE_STAGE_HEIGHT,
+  BATTLE_STAGE_WIDTH,
+  getBattleDesktopShellSlots,
+  getBattleEditorFrame,
+  getBattleElementParentBase,
+  getBattleStageMetrics,
+  toBattleStageLocalRect,
+} from "./BattleSceneSpace";
+import type { BattleElementPropertyConfig } from "./BattleLayoutConfig";
+
+test("getBattleStageMetrics resolve scale, offsets e orientacao no stage base", () => {
+  const metrics = getBattleStageMetrics(BATTLE_STAGE_WIDTH, BATTLE_STAGE_HEIGHT);
+
+  assert.deepEqual(metrics, {
+    viewportWidth: 1600,
+    viewportHeight: 900,
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+    isPortrait: false,
+  });
+});
+
+test("getBattleStageMetrics faz clamp dos limites minimos e centraliza viewport retrato", () => {
+  const clamped = getBattleStageMetrics(0, -20);
+  assert.equal(clamped.viewportWidth, 1);
+  assert.equal(clamped.viewportHeight, 1);
+  assert.equal(clamped.scale, 1 / BATTLE_STAGE_WIDTH);
+  assert.equal(clamped.offsetX, 0);
+  assert.equal(
+    clamped.offsetY,
+    (1 - BATTLE_STAGE_HEIGHT * clamped.scale) / 2,
+  );
+
+  const portrait = getBattleStageMetrics(900, 1600);
+  assert.equal(portrait.isPortrait, true);
+  assert.equal(portrait.scale, 900 / BATTLE_STAGE_WIDTH);
+  assert.equal(portrait.offsetX, 0);
+  assert.equal(
+    portrait.offsetY,
+    (1600 - BATTLE_STAGE_HEIGHT * portrait.scale) / 2,
+  );
+});
+
+test("toBattleStageLocalRect retorna o proprio retangulo quando nao ha stage DOM", () => {
+  const rect = { left: 120, top: 260, width: 300, height: 150 };
+
+  assert.deepEqual(toBattleStageLocalRect(rect, null), rect);
+  assert.equal(toBattleStageLocalRect(null, null), null);
+});
+
+test("toBattleStageLocalRect converte coordenadas de tela para stage local", () => {
+  const rect = { left: 210, top: 140, width: 160, height: 90 };
+  const stage = { left: 50, top: 20, scaleX: 2, scaleY: 4 };
+
+  assert.deepEqual(toBattleStageLocalRect(rect, stage), {
+    left: 80,
+    top: 30,
+    width: 80,
+    height: 22.5,
+  });
+});
+
+test("getBattleEditorFrame calcula frame global e relativo ao parent base", () => {
+  const config: BattleElementPropertyConfig = {
+    x: 100,
+    y: -50,
+    width: 200,
+    height: 80,
+    rotation: 0,
+    scaleX: 100,
+    scaleY: 100,
+    opacity: 100,
+    zIndex: 0,
+    anchor: "center",
+    lockAspectRatio: false,
+    snapToGrid: false,
+    slideX: 0,
+    slideY: 0,
+    duration: 0.28,
+    delay: 0,
+    easing: "ease-out",
+    visibleDesktop: true,
+    visibleTablet: true,
+    visibleMobile: true,
+  };
+
+  const frame = getBattleEditorFrame(config, 10, 20);
+
+  assert.deepEqual(frame, {
+    x: 790,
+    y: 340,
+    width: 200,
+    height: 80,
+    centerX: 900,
+    centerY: 400,
+    parentBaseX: 10,
+    parentBaseY: 20,
+    sceneX: 800,
+    sceneY: 360,
+  });
+});
+
+test("battleGlobalFrameToScenePosition e battleEditorFrameToScenePosition preservam a posicao do elemento", () => {
+  const config: BattleElementPropertyConfig = {
+    x: -180,
+    y: 145,
+    width: 120,
+    height: 60,
+    rotation: 0,
+    scaleX: 100,
+    scaleY: 100,
+    opacity: 100,
+    zIndex: 0,
+    anchor: "bottom-right",
+    lockAspectRatio: false,
+    snapToGrid: false,
+    slideX: 0,
+    slideY: 0,
+    duration: 0.28,
+    delay: 0,
+    easing: "ease-out",
+    visibleDesktop: true,
+    visibleTablet: true,
+    visibleMobile: true,
+  };
+
+  const frame = getBattleEditorFrame(config, 252, 124);
+
+  assert.deepEqual(
+    battleGlobalFrameToScenePosition(
+      {
+        x: frame.sceneX,
+        y: frame.sceneY,
+        width: frame.width,
+        height: frame.height,
+      },
+      config.anchor,
+    ),
+    { x: config.x, y: config.y },
+  );
+
+  assert.deepEqual(
+    battleEditorFrameToScenePosition(
+      {
+        x: frame.x,
+        y: frame.y,
+        width: frame.width,
+        height: frame.height,
+      },
+      config.anchor,
+      frame.parentBaseX,
+      frame.parentBaseY,
+    ),
+    { x: config.x, y: config.y },
+  );
+});
+
+test("getBattleElementParentBase usa os slots corretos do shell para cada grupo de elementos", () => {
+  const shellSlots = getBattleDesktopShellSlots(battleActiveLayoutConfig);
+
+  assert.deepEqual(getBattleElementParentBase("shell", battleActiveLayoutConfig), {
+    x: 0,
+    y: 0,
+  });
+  assert.deepEqual(getBattleElementParentBase("board", battleActiveLayoutConfig), {
+    x: shellSlots.board.x,
+    y: shellSlots.board.y,
+  });
+  assert.deepEqual(getBattleElementParentBase("topHand", battleActiveLayoutConfig), {
+    x: shellSlots.centerTop.x,
+    y: shellSlots.centerTop.y,
+  });
+  assert.deepEqual(
+    getBattleElementParentBase("bottomHand", battleActiveLayoutConfig),
+    {
+      x: shellSlots.centerBottom.x,
+      y: shellSlots.centerBottom.y,
+    },
+  );
+  assert.deepEqual(
+    getBattleElementParentBase("enemyTargetDeck", battleActiveLayoutConfig),
+    {
+      x: shellSlots.leftSidebar.x,
+      y: shellSlots.leftSidebar.y,
+    },
+  );
+  assert.deepEqual(
+    getBattleElementParentBase("status", battleActiveLayoutConfig),
+    {
+      x: shellSlots.rightSidebar.x,
+      y: shellSlots.rightSidebar.y,
+    },
+  );
+});
