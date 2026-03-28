@@ -4044,22 +4044,28 @@ export const BattleLayoutEditor: React.FC = () => {
                     Texto
                   </div>
                   <p className="text-xs leading-relaxed text-amber-950/70">
-                    Tipografia aqui usa tokens globais compartilhados em
-                    <code> layout.text</code>. As cores do botao real continuam fixas nesta
-                    rodada, entao os controles de cor ficam ocultos por seguranca.
+                    O botao de action usa textos base e textos por estado. A tipografia
+                    continua vindo de tokens globais compartilhados em
+                    <code> layout.text</code>. As cores reais do botao continuam fixas
+                    nesta rodada, entao os controles de cor ficam ocultos por seguranca.
                   </p>
                   <TextControl
-                    label="Titulo"
+                    label="Titulo base"
                     value={layout.text.actionTitle}
                     onChange={(value) => updateText("actionTitle", value)}
                   />
                   <TextControl
-                    label="Subtitulo"
+                    label="Subtitulo base"
                     value={layout.text.actionSubtitle}
                     onChange={(value) => updateText("actionSubtitle", value)}
                   />
+                  <div className="rounded-2xl border border-amber-900/12 bg-white/55 p-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/55">
+                      Tipografia compartilhada
+                    </div>
+                    <div className="mt-3 space-y-3">
                   <LayoutControl
-                    label="Fonte do titulo"
+                    label="Fonte compartilhada do titulo"
                     min={10}
                     max={28}
                     step={1}
@@ -4067,13 +4073,20 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(value) => updateText("titleFontSize", value)}
                   />
                   <LayoutControl
-                    label="Fonte do corpo"
+                    label="Fonte compartilhada do corpo"
                     min={10}
                     max={24}
                     step={1}
                     value={layout.text.bodyFontSize}
                     onChange={(value) => updateText("bodyFontSize", value)}
                   />
+                    </div>
+                  </div>
+                  <p className="text-xs leading-relaxed text-amber-950/70">
+                    Tracking e alinhamento continuam compartilhados com
+                    <code> status</code> e <code>chronicles</code>, para evitar duplicar a
+                    mesma autoria nesta rodada.
+                  </p>
                 </section>
               ) : null}
 
@@ -4085,7 +4098,7 @@ export const BattleLayoutEditor: React.FC = () => {
                   {focusArea === "action" ? (
                     <>
                       <SelectControl
-                        label="Estado do botao"
+                        label="Estado do botao no preview"
                         value={actionVisualState}
                         options={actionEditorVisualStateOptions}
                         onChange={(value) => setActionVisualState(value)}
@@ -4095,46 +4108,64 @@ export const BattleLayoutEditor: React.FC = () => {
                         sao so simulacao de preview. O runtime real usa principalmente
                         <code> Normal</code> e <code>Disabled</code>.
                       </p>
+                      <div className="rounded-2xl border border-amber-900/12 bg-white/55 p-3">
+                        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/55">
+                          Disabled (runtime)
+                        </div>
+                        <div className="mt-3 space-y-3">
                       <TextControl
-                        label="Titulo no hover"
-                        value={layout.text.actionTitleHover}
-                        onChange={(value) => updateText("actionTitleHover", value)}
-                      />
-                      <TextControl
-                        label="Titulo no pressed"
-                        value={layout.text.actionTitlePressed}
-                        onChange={(value) => updateText("actionTitlePressed", value)}
-                      />
-                      <TextControl
-                        label="Titulo no disabled"
+                        label="Titulo no disabled (runtime)"
                         value={layout.text.actionTitleDisabled}
                         onChange={(value) => updateText("actionTitleDisabled", value)}
                       />
                       <TextControl
-                        label="Titulo no selected"
+                        label="Subtitulo no disabled (runtime)"
+                        value={layout.text.actionSubtitleDisabled}
+                        onChange={(value) => updateText("actionSubtitleDisabled", value)}
+                      />
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-amber-900/12 bg-white/55 p-3">
+                        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/55">
+                          Estados so de preview
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-amber-950/70">
+                          Estes textos ajudam a simular o botao no editor, mas o runtime
+                          live nao entra nesses estados sozinho nesta rodada.
+                        </p>
+                        <div className="mt-3 space-y-3">
+                      <TextControl
+                        label="Titulo no hover (preview)"
+                        value={layout.text.actionTitleHover}
+                        onChange={(value) => updateText("actionTitleHover", value)}
+                      />
+                      <TextControl
+                        label="Titulo no pressed (preview)"
+                        value={layout.text.actionTitlePressed}
+                        onChange={(value) => updateText("actionTitlePressed", value)}
+                      />
+                      <TextControl
+                        label="Titulo no selected (preview)"
                         value={layout.text.actionTitleSelected}
                         onChange={(value) => updateText("actionTitleSelected", value)}
                       />
                       <TextControl
-                        label="Subtitulo no hover"
+                        label="Subtitulo no hover (preview)"
                         value={layout.text.actionSubtitleHover}
                         onChange={(value) => updateText("actionSubtitleHover", value)}
                       />
                       <TextControl
-                        label="Subtitulo no pressed"
+                        label="Subtitulo no pressed (preview)"
                         value={layout.text.actionSubtitlePressed}
                         onChange={(value) => updateText("actionSubtitlePressed", value)}
                       />
                       <TextControl
-                        label="Subtitulo no disabled"
-                        value={layout.text.actionSubtitleDisabled}
-                        onChange={(value) => updateText("actionSubtitleDisabled", value)}
-                      />
-                      <TextControl
-                        label="Subtitulo no selected"
+                        label="Subtitulo no selected (preview)"
                         value={layout.text.actionSubtitleSelected}
                         onChange={(value) => updateText("actionSubtitleSelected", value)}
                       />
+                        </div>
+                      </div>
                     </>
                   ) : null}
                   {focusArea === "status" ? (
