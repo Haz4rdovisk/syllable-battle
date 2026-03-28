@@ -37,6 +37,11 @@ const createPreviewState = (): BattleLayoutEditorPreviewState => ({
   animationMode: "idle",
   animationPreset: "none",
   animationRunId: 0,
+  localMotionPreviewElement: null,
+  localMotionPreviewRunId: 0,
+  trajectoryLoopEnabled: false,
+  localMotionLoopEnabled: false,
+  combinedLoopEnabled: false,
   animationAnchorTool: null,
   animationDebugEnabled: false,
   animationAnchors: {

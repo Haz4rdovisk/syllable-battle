@@ -84,6 +84,7 @@ export interface BattleEditableElementProps {
   selected?: boolean;
   previewSelectable?: boolean;
   passthrough?: boolean;
+  motionReplayNonce?: number;
   snapTargets?: Array<{
     key: BattleEditableElementKey;
     x: number;
@@ -110,6 +111,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   selected = false,
   previewSelectable = true,
   passthrough = false,
+  motionReplayNonce = 0,
   snapTargets = [],
   className,
   zIndexOverride,
@@ -192,6 +194,8 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   const savedFrame = getBattleEditorFrame(config, resolvedBaseX, resolvedBaseY);
   const resolvedPositionStyle =
     className && /\babsolute\b/.test(className) ? undefined : "relative";
+  const replayKey =
+    motionReplayNonce > 0 ? `${element}-motion-${motionReplayNonce}` : element;
 
   const postEditorMessage = (payload: unknown) => {
     if (!editorMode || typeof window === "undefined" || window.parent === window) return;
@@ -563,6 +567,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   if (passthrough) {
     return (
       <div
+        key={replayKey}
         ref={wrapperRef}
         className={className}
         data-battle-element-key={element}
@@ -586,6 +591,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   if (!previewAnimations) {
     return (
       <div
+        key={replayKey}
         ref={wrapperRef}
         className={className}
         data-battle-element-key={element}
@@ -629,6 +635,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
 
   return (
     <motion.div
+      key={replayKey}
       ref={wrapperRef}
       className={className}
       data-battle-element-key={element}

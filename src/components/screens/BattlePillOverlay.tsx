@@ -15,6 +15,7 @@ interface BattlePillOverlayProps {
   previewAnimations?: boolean;
   editorMode?: boolean;
   selected?: boolean;
+  motionReplayNonce?: number;
   snapTargets?: Array<{
     key: BattleEditableElementKey;
     x: number;
@@ -35,6 +36,7 @@ export const BattlePillOverlay: React.FC<BattlePillOverlayProps> = ({
   previewAnimations = false,
   editorMode = false,
   selected = false,
+  motionReplayNonce = 0,
   snapTargets = [],
   className,
 }) => {
@@ -62,6 +64,7 @@ export const BattlePillOverlay: React.FC<BattlePillOverlayProps> = ({
   return (
     <BattleEditableElement
       element={element}
+      motionReplayNonce={motionReplayNonce}
       layout={layout}
       viewportWidth={viewportWidth}
       gridSize={gridSize}

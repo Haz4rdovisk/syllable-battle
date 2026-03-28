@@ -11,6 +11,7 @@ import {
   BattleAnimationAnchorPoint,
   BattleEditableElementKey,
   BattleElementAnchor,
+  BattleElementEasing,
   BattleElementPropertyConfig,
   BattleLayoutConfig,
   BattleLayoutOverrides,
@@ -74,6 +75,8 @@ type LayoutSection = {
   tags: string[];
 };
 
+type AnimationPreviewLoopTarget = "idle" | "trajectory" | "motion" | "combined";
+
 const fixtureOptions: BattleSceneFixtureKey[] = [
   "calm",
   "mid",
@@ -92,6 +95,13 @@ const anchorOptions: Array<{ value: BattleElementAnchor; label: string }> = [
   { value: "bottom-left", label: "Base esquerda" },
   { value: "bottom", label: "Base" },
   { value: "bottom-right", label: "Base direita" },
+];
+
+const easingOptions: Array<{ value: BattleElementEasing; label: string }> = [
+  { value: "linear", label: "Linear" },
+  { value: "ease-in", label: "Ease In" },
+  { value: "ease-out", label: "Ease Out" },
+  { value: "ease-in-out", label: "Ease In Out" },
 ];
 
 const actionVisualStateOptions: Array<{
@@ -626,6 +636,17 @@ const getAnimationPreviewDurationMs = (
   return getOpeningTargetAnimationPreviewDurationMs(preset);
 };
 
+const ANIMATION_PREVIEW_LOOP_GAP_MS = 680;
+
+const getLocalMotionPreviewDurationMs = (
+  config: BattleElementPropertyConfig | null | undefined,
+) => {
+  if (!config) return 0;
+  const durationMs = (config.duration + config.delay) * 1000;
+  if (!Number.isFinite(durationMs)) return 0;
+  return Math.max(0, Math.round(durationMs));
+};
+
 const getAnimationAnchorStateKey = (
   anchor: BattleLayoutPreviewAnimationAnchorKey,
 ):
@@ -937,6 +958,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       animationMode: "idle",
       animationPreset: "none",
       animationRunId: 0,
+      localMotionPreviewElement: null,
+      localMotionPreviewRunId: 0,
+      trajectoryLoopEnabled: false,
+      localMotionLoopEnabled: false,
+      combinedLoopEnabled: false,
       animationAnchorTool: null,
       animationDebugEnabled: false,
       animationAnchors: defaultAnimationAnchors,
@@ -971,6 +997,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         animationMode: "idle",
         animationPreset: "none",
         animationRunId: 0,
+        localMotionPreviewElement: null,
+        localMotionPreviewRunId: 0,
+        trajectoryLoopEnabled: false,
+        localMotionLoopEnabled: false,
+        combinedLoopEnabled: false,
         animationAnchorTool: null,
         animationDebugEnabled: false,
         animationAnchors: defaultAnimationAnchors,
@@ -996,6 +1027,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         animationMode: "idle",
         animationPreset: "none",
         animationRunId: 0,
+        localMotionPreviewElement: null,
+        localMotionPreviewRunId: 0,
+        trajectoryLoopEnabled: false,
+        localMotionLoopEnabled: false,
+        combinedLoopEnabled: false,
         animationAnchorTool: null,
         animationDebugEnabled: false,
         animationAnchors: defaultAnimationAnchors,
@@ -1027,6 +1063,13 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       animationMode: "idle",
       animationPreset: parsed.animationPreset ?? "none",
       animationRunId: 0,
+      localMotionPreviewElement:
+        (parsed.localMotionPreviewElement as BattleEditableElementKey | null | undefined) ??
+        null,
+      localMotionPreviewRunId: 0,
+      trajectoryLoopEnabled: parsed.trajectoryLoopEnabled ?? false,
+      localMotionLoopEnabled: parsed.localMotionLoopEnabled ?? false,
+      combinedLoopEnabled: parsed.combinedLoopEnabled ?? false,
       animationAnchorTool: null,
       animationDebugEnabled: parsed.animationDebugEnabled ?? false,
       animationAnchors: {
@@ -1101,6 +1144,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       animationMode: "idle",
       animationPreset: "none",
       animationRunId: 0,
+      localMotionPreviewElement: null,
+      localMotionPreviewRunId: 0,
+      trajectoryLoopEnabled: false,
+      localMotionLoopEnabled: false,
+      combinedLoopEnabled: false,
       animationAnchorTool: null,
       animationDebugEnabled: false,
       animationAnchors: defaultAnimationAnchors,
@@ -1157,6 +1205,23 @@ export const BattleLayoutEditor: React.FC = () => {
       initialPreviewState.animationPreset ?? "none",
     );
   const [animationRunId, setAnimationRunId] = useState(0);
+  const [localMotionPreviewElement, setLocalMotionPreviewElement] = useState<
+    BattleEditableElementKey | null
+  >(initialPreviewState.localMotionPreviewElement ?? null);
+  const [localMotionPreviewRunId, setLocalMotionPreviewRunId] = useState(
+    initialPreviewState.localMotionPreviewRunId ?? 0,
+  );
+  const [trajectoryLoopEnabled, setTrajectoryLoopEnabled] = useState(
+    initialPreviewState.trajectoryLoopEnabled ?? false,
+  );
+  const [localMotionLoopEnabled, setLocalMotionLoopEnabled] = useState(
+    initialPreviewState.localMotionLoopEnabled ?? false,
+  );
+  const [combinedLoopEnabled, setCombinedLoopEnabled] = useState(
+    initialPreviewState.combinedLoopEnabled ?? false,
+  );
+  const [activeAnimationPreviewLoop, setActiveAnimationPreviewLoop] =
+    useState<AnimationPreviewLoopTarget>("idle");
   const [animationAnchorTool, setAnimationAnchorTool] = useState<
     BattleLayoutPreviewAnimationAnchorKey | null
   >(initialPreviewState.animationAnchorTool ?? null);
@@ -1218,6 +1283,7 @@ export const BattleLayoutEditor: React.FC = () => {
     },
   );
   const animationResetTimerRef = useRef<number | null>(null);
+  const animationPreviewLoopTimerRef = useRef<number | null>(null);
   const [presetName, setPresetName] = useState("");
   const [groupName, setGroupName] = useState("");
   const [elementPresets, setElementPresets] = useState<
@@ -1564,6 +1630,11 @@ export const BattleLayoutEditor: React.FC = () => {
       animationMode,
       animationPreset,
       animationRunId,
+      localMotionPreviewElement,
+      localMotionPreviewRunId,
+      trajectoryLoopEnabled,
+      localMotionLoopEnabled,
+      combinedLoopEnabled,
       animationAnchorTool,
       animationDebugEnabled,
       animationAnchors,
@@ -1602,6 +1673,11 @@ export const BattleLayoutEditor: React.FC = () => {
     animationMode,
     animationPreset,
     animationRunId,
+    localMotionPreviewElement,
+    localMotionPreviewRunId,
+    trajectoryLoopEnabled,
+    localMotionLoopEnabled,
+    combinedLoopEnabled,
     animationAnchorTool,
     animationDebugEnabled,
     animationAnchors,
@@ -2348,6 +2424,15 @@ export const BattleLayoutEditor: React.FC = () => {
       onChange: (value) =>
         updateLayout("shell", "desktopBottomRailHeight", value),
     },
+    {
+      label: "Padding da mao inferior no mobile",
+      min: 0,
+      max: 64,
+      step: 2,
+      value: layout.shell.mobileFooterHandTopPadding,
+      onChange: (value) =>
+        updateLayout("shell", "mobileFooterHandTopPadding", value),
+    },
   ];
 
   const boardControls: LayoutNumberControl[] = [
@@ -2366,6 +2451,14 @@ export const BattleLayoutEditor: React.FC = () => {
       step: 2,
       value: layout.board.desktopGap,
       onChange: (value) => updateLayout("board", "desktopGap", value),
+    },
+    {
+      label: "Largura maxima das linhas no desktop",
+      min: 280,
+      max: 420,
+      step: 4,
+      value: layout.board.desktopLaneMaxWidth,
+      onChange: (value) => updateLayout("board", "desktopLaneMaxWidth", value),
     },
     {
       label: "Padding lateral do board",
@@ -2390,6 +2483,54 @@ export const BattleLayoutEditor: React.FC = () => {
       step: 4,
       value: layout.board.mobileRowMinHeight,
       onChange: (value) => updateLayout("board", "mobileRowMinHeight", value),
+    },
+    {
+      label: "Respiro entre blocos no mobile",
+      min: 4,
+      max: 20,
+      step: 1,
+      value: layout.board.mobileGap,
+      onChange: (value) => updateLayout("board", "mobileGap", value),
+    },
+    {
+      label: "Padding vertical do board no mobile",
+      min: 4,
+      max: 24,
+      step: 1,
+      value: layout.board.mobilePaddingY,
+      onChange: (value) => updateLayout("board", "mobilePaddingY", value),
+    },
+    {
+      label: "Largura minima das cartas de alvo",
+      min: 80,
+      max: 132,
+      step: 2,
+      value: layout.board.targetCardMinWidth,
+      onChange: (value) => updateLayout("board", "targetCardMinWidth", value),
+    },
+    {
+      label: "Largura maxima das cartas de alvo",
+      min: 120,
+      max: 180,
+      step: 2,
+      value: layout.board.targetCardMaxWidth,
+      onChange: (value) => updateLayout("board", "targetCardMaxWidth", value),
+    },
+    {
+      label: "Altura minima das cartas de alvo",
+      min: 132,
+      max: 188,
+      step: 2,
+      value: layout.board.targetCardMinHeight,
+      onChange: (value) => updateLayout("board", "targetCardMinHeight", value),
+    },
+    {
+      label: "Altura maxima das cartas de alvo",
+      min: 180,
+      max: 248,
+      step: 2,
+      value: layout.board.targetCardMaxHeight,
+      onChange: (value) => updateLayout("board", "targetCardMaxHeight", value),
     },
   ];
 
@@ -2746,6 +2887,149 @@ export const BattleLayoutEditor: React.FC = () => {
   const previewBaseHeight = viewportHeight;
   const previewWidth = Math.round((previewBaseWidth * previewScale) / 100);
   const previewHeight = Math.round((previewBaseHeight * previewScale) / 100);
+  const canPreviewLocalMotion = !isMultiSelection && activeElementKey !== null;
+  const localMotionPreviewDurationMs = getLocalMotionPreviewDurationMs(
+    !isMultiSelection ? activeElementConfig : null,
+  );
+  const trajectoryLoopIntervalMs =
+    getAnimationPreviewDurationMs(animationSet, animationPreset) +
+    ANIMATION_PREVIEW_LOOP_GAP_MS;
+  const localMotionLoopIntervalMs =
+    localMotionPreviewDurationMs + ANIMATION_PREVIEW_LOOP_GAP_MS;
+  const combinedLoopIntervalMs = Math.max(
+    trajectoryLoopIntervalMs,
+    localMotionLoopIntervalMs,
+  );
+  const isAnyAnimationPreviewLoopRunning =
+    activeAnimationPreviewLoop !== "idle" ||
+    animationMode === getAnimationModeForAction(animationSet, "loop");
+  const activeLocalMotionLabel =
+    activeSection?.title ??
+    (activeElementKey
+      ? sections.find((section) => section.elementKey === activeElementKey)?.title ??
+        activeElementKey
+      : null);
+  const clearAnimationPreviewLoopTimer = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (animationPreviewLoopTimerRef.current !== null) {
+      window.clearTimeout(animationPreviewLoopTimerRef.current);
+      animationPreviewLoopTimerRef.current = null;
+    }
+  }, []);
+  const stopAnimationPreviewLoops = useCallback(() => {
+    clearAnimationPreviewLoopTimer();
+    setActiveAnimationPreviewLoop("idle");
+    setAnimationMode("idle");
+    setAnimationRunId((current) => current + 1);
+  }, [clearAnimationPreviewLoopTimer]);
+  const playTrajectoryPreview = useCallback(() => {
+    clearAnimationPreviewLoopTimer();
+    setActiveAnimationPreviewLoop(trajectoryLoopEnabled ? "trajectory" : "idle");
+    setAnimationMode(
+      getAnimationModeForAction(
+        animationSet,
+        trajectoryLoopEnabled ? "loop" : "play",
+      ),
+    );
+    setAnimationRunId((current) => current + 1);
+  }, [animationSet, clearAnimationPreviewLoopTimer, trajectoryLoopEnabled]);
+  const playLocalMotionPreview = useCallback(() => {
+    if (!activeElementKey || isMultiSelection) return;
+    clearAnimationPreviewLoopTimer();
+    setActiveAnimationPreviewLoop(localMotionLoopEnabled ? "motion" : "idle");
+    setAnimationMode("idle");
+    setAnimationRunId((current) => current + 1);
+    setLocalMotionPreviewElement(activeElementKey);
+    setLocalMotionPreviewRunId((current) => current + 1);
+  }, [
+    activeElementKey,
+    clearAnimationPreviewLoopTimer,
+    isMultiSelection,
+    localMotionLoopEnabled,
+  ]);
+  const playCombinedPreview = useCallback(() => {
+    if (!activeElementKey || isMultiSelection) return;
+    clearAnimationPreviewLoopTimer();
+    setActiveAnimationPreviewLoop(combinedLoopEnabled ? "combined" : "idle");
+    setLocalMotionPreviewElement(activeElementKey);
+    setLocalMotionPreviewRunId((current) => current + 1);
+    setAnimationMode(
+      getAnimationModeForAction(
+        animationSet,
+        combinedLoopEnabled ? "loop" : "play",
+      ),
+    );
+    setAnimationRunId((current) => current + 1);
+  }, [
+    activeElementKey,
+    animationSet,
+    clearAnimationPreviewLoopTimer,
+    combinedLoopEnabled,
+    isMultiSelection,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    clearAnimationPreviewLoopTimer();
+
+    if (activeAnimationPreviewLoop === "motion") {
+      if (!localMotionPreviewElement) {
+        setActiveAnimationPreviewLoop("idle");
+        return;
+      }
+      const nextIntervalMs = Math.max(120, localMotionLoopIntervalMs);
+      const restartMotionLoop = () => {
+        setLocalMotionPreviewElement(localMotionPreviewElement);
+        setLocalMotionPreviewRunId((current) => current + 1);
+        animationPreviewLoopTimerRef.current = window.setTimeout(
+          restartMotionLoop,
+          nextIntervalMs,
+        );
+      };
+      animationPreviewLoopTimerRef.current = window.setTimeout(
+        restartMotionLoop,
+        nextIntervalMs,
+      );
+      return () => {
+        clearAnimationPreviewLoopTimer();
+      };
+    }
+
+    if (activeAnimationPreviewLoop === "combined") {
+      if (!localMotionPreviewElement || isAnimationFeatureDisabled) {
+        setActiveAnimationPreviewLoop("idle");
+        return;
+      }
+      const nextIntervalMs = Math.max(120, combinedLoopIntervalMs);
+      const restartCombinedLoop = () => {
+        setLocalMotionPreviewElement(localMotionPreviewElement);
+        setLocalMotionPreviewRunId((current) => current + 1);
+        animationPreviewLoopTimerRef.current = window.setTimeout(
+          restartCombinedLoop,
+          nextIntervalMs,
+        );
+      };
+      animationPreviewLoopTimerRef.current = window.setTimeout(
+        restartCombinedLoop,
+        nextIntervalMs,
+      );
+      return () => {
+        clearAnimationPreviewLoopTimer();
+      };
+    }
+
+    return () => {
+      clearAnimationPreviewLoopTimer();
+    };
+  }, [
+    activeAnimationPreviewLoop,
+    animationSet,
+    clearAnimationPreviewLoopTimer,
+    combinedLoopIntervalMs,
+    isAnimationFeatureDisabled,
+    localMotionPreviewElement,
+    localMotionLoopIntervalMs,
+  ]);
 
   const openDebugPreview = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -2754,6 +3038,15 @@ export const BattleLayoutEditor: React.FC = () => {
     );
     previewUrl.searchParams.set("battle-layout-debug", "1");
     window.open(previewUrl.toString(), "_blank", "noopener,noreferrer");
+  }, []);
+
+  const openRuntimeView = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const runtimeUrl = new URL(window.location.href);
+    runtimeUrl.searchParams.delete("battle-layout-editor");
+    runtimeUrl.searchParams.delete("battle-layout-preview");
+    runtimeUrl.searchParams.delete("battle-layout-debug");
+    window.open(runtimeUrl.toString(), "_blank", "noopener,noreferrer");
   }, []);
 
   const layoutPropertyControls: LayoutNumberControl[] =
@@ -2837,6 +3130,48 @@ export const BattleLayoutEditor: React.FC = () => {
         },
       ]
     : [];
+
+  const motionPropertyControls: LayoutNumberControl[] =
+    activeElementKey && activeElementConfig && !isMultiSelection
+      ? [
+          {
+            label: "Slide X",
+            min: -240,
+            max: 240,
+            step: 2,
+            value: activeElementConfig.slideX,
+            onChange: (value) => updateElementProperty(activeElementKey, "slideX", value),
+            ui: "stepper",
+            axis: "x",
+          },
+          {
+            label: "Slide Y",
+            min: -240,
+            max: 240,
+            step: 2,
+            value: activeElementConfig.slideY,
+            onChange: (value) => updateElementProperty(activeElementKey, "slideY", value),
+            ui: "stepper",
+            axis: "y",
+          },
+          {
+            label: "Duracao",
+            min: 0,
+            max: 2,
+            step: 0.02,
+            value: activeElementConfig.duration,
+            onChange: (value) => updateElementProperty(activeElementKey, "duration", value),
+          },
+          {
+            label: "Delay",
+            min: 0,
+            max: 1.2,
+            step: 0.02,
+            value: activeElementConfig.delay,
+            onChange: (value) => updateElementProperty(activeElementKey, "delay", value),
+          },
+        ]
+      : [];
 
   const multiSelectionControls: LayoutNumberControl[] =
     selectedElementKeys.length > 1 && primarySelectedElementConfig
@@ -3263,6 +3598,25 @@ export const BattleLayoutEditor: React.FC = () => {
                       />
                     </div>
                   </section>
+
+                  <section className="space-y-3 rounded-3xl border border-amber-900/12 bg-white/30 p-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
+                      Motion
+                    </div>
+                    <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
+                      Controla o offset inicial e o timing do wrapper do elemento,
+                      usando o mesmo fluxo de motion ja suportado pelo preview e pelo runtime.
+                    </div>
+                    {motionPropertyControls.map((control) => (
+                      <LayoutControl key={control.label} {...control} />
+                    ))}
+                    <SelectControl
+                      label="Easing"
+                      value={activeElementConfig.easing}
+                      options={easingOptions}
+                      onChange={(value) => updateElementProperty(activeElementKey!, "easing", value)}
+                    />
+                  </section>
                 </>
               ) : null}
 
@@ -3549,8 +3903,22 @@ export const BattleLayoutEditor: React.FC = () => {
             Animacao
           </div>
           <p className="text-xs leading-relaxed text-emerald-950/75">
-            Preview e ajuste de ancoras.
+            Sessao global de sets, presets, anchors e preview do evento.
           </p>
+          <div className="rounded-2xl border border-emerald-900/12 bg-white/70 p-3 text-xs leading-relaxed text-emerald-950/80">
+            <div className="font-black uppercase tracking-[0.14em] text-emerald-950/70">
+              O que cada play mostra
+            </div>
+            <div className="mt-1">
+              <span className="font-bold">Play traj.:</span> toca so a trajetoria da sessao.
+            </div>
+            <div>
+              <span className="font-bold">Play mot.:</span> toca so o motion do elemento.
+            </div>
+            <div>
+              <span className="font-bold">Play Comb.:</span> toca os dois juntos no preview.
+            </div>
+          </div>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
               Set
@@ -3679,6 +4047,80 @@ export const BattleLayoutEditor: React.FC = () => {
               ) : null}
             </div>
           ) : null}
+          <div className="space-y-2 rounded-2xl border border-emerald-900/12 bg-white/70 p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
+              Preview do evento
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  onClick={playTrajectoryPreview}
+                  disabled={isAnimationFeatureDisabled || isAnyAnimationPreviewLoopRunning}
+                  className="w-full rounded-xl border border-emerald-300/20 bg-emerald-900 px-2.5 text-sm text-emerald-50 hover:bg-emerald-800"
+                >
+                  Play traj.
+                </Button>
+                <label className="flex items-center justify-center gap-2 rounded-xl border border-emerald-900/12 bg-emerald-50/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-950/75">
+                  <input
+                    type="checkbox"
+                    checked={trajectoryLoopEnabled}
+                    onChange={(event) => {
+                      setTrajectoryLoopEnabled(event.target.checked);
+                    }}
+                    className="h-3.5 w-3.5 rounded border-emerald-950/25 text-emerald-900 focus:ring-emerald-700"
+                  />
+                  Loop
+                </label>
+              </div>
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  onClick={playLocalMotionPreview}
+                  disabled={!canPreviewLocalMotion || isAnyAnimationPreviewLoopRunning}
+                  className="w-full rounded-xl border border-sky-300/20 bg-sky-950 px-2.5 text-sm text-sky-50 hover:bg-sky-900 disabled:opacity-50"
+                >
+                  Play mot.
+                </Button>
+                <label className="flex items-center justify-center gap-2 rounded-xl border border-sky-900/12 bg-sky-50/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-950/75">
+                  <input
+                    type="checkbox"
+                    checked={localMotionLoopEnabled}
+                    onChange={(event) => {
+                      setLocalMotionLoopEnabled(event.target.checked);
+                    }}
+                    className="h-3.5 w-3.5 rounded border-sky-950/25 text-sky-900 focus:ring-sky-700"
+                  />
+                  Loop
+                </label>
+              </div>
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  onClick={playCombinedPreview}
+                  disabled={
+                    isAnimationFeatureDisabled ||
+                    !canPreviewLocalMotion ||
+                    isAnyAnimationPreviewLoopRunning
+                  }
+                  className="w-full rounded-xl border border-emerald-300/20 bg-emerald-950 px-2.5 text-sm text-emerald-50 hover:bg-emerald-900 disabled:opacity-50"
+                >
+                  Play Comb.
+                </Button>
+                <label className="flex items-center justify-center gap-2 rounded-xl border border-emerald-900/12 bg-emerald-50/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-950/75">
+                  <input
+                    type="checkbox"
+                    checked={combinedLoopEnabled}
+                    onChange={(event) => {
+                      setCombinedLoopEnabled(event.target.checked);
+                    }}
+                    className="h-3.5 w-3.5 rounded border-emerald-950/25 text-emerald-900 focus:ring-emerald-700"
+                  />
+                  Loop
+                </label>
+              </div>
+            </div>
+          </div>
           <div className="flex flex-nowrap gap-1">
             <Button
               type="button"
@@ -3697,35 +4139,10 @@ export const BattleLayoutEditor: React.FC = () => {
             </Button>
             <Button
               type="button"
-              onClick={() => {
-                setAnimationMode(getAnimationModeForAction(animationSet, "play"));
-                setAnimationRunId((current) => current + 1);
-              }}
-              disabled={isAnimationFeatureDisabled}
-              className="min-w-0 flex-1 rounded-xl border border-emerald-300/20 bg-emerald-900 px-2.5 text-sm text-emerald-50 hover:bg-emerald-800"
-            >
-              Play
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                setAnimationMode(getAnimationModeForAction(animationSet, "loop"));
-                setAnimationRunId((current) => current + 1);
-              }}
-              disabled={isAnimationFeatureDisabled}
-              className="min-w-0 flex-1 rounded-xl border border-emerald-300/20 bg-emerald-950 px-2.5 text-sm text-emerald-50 hover:bg-emerald-900"
-            >
-              Loop
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                setAnimationMode("idle");
-                setAnimationRunId((current) => current + 1);
-              }}
+              onClick={stopAnimationPreviewLoops}
               disabled={
-                isAnimationFeatureDisabled ||
-                animationMode !== getAnimationModeForAction(animationSet, "loop")
+                (activeAnimationPreviewLoop === "idle" &&
+                  animationMode !== getAnimationModeForAction(animationSet, "loop"))
               }
               className="min-w-0 flex-1 rounded-xl border border-amber-950/10 bg-white/70 px-2.5 text-sm text-emerald-950 hover:bg-white disabled:opacity-50"
             >
@@ -3775,8 +4192,8 @@ export const BattleLayoutEditor: React.FC = () => {
 
       <div className="min-w-0 overflow-hidden bg-[#0d2418]">
         <div className="border-b border-white/5 bg-black/20 px-3 py-1.5 text-amber-50">
-          <div className="mt-0.5 overflow-x-auto overflow-y-hidden">
-            <div className="flex min-w-max items-end gap-2 pb-0.5">
+          <div className="mt-0.5 overflow-x-hidden">
+            <div className="flex flex-wrap items-end gap-1.5 pb-0.5">
               <div className="flex min-w-0 flex-col gap-0.5 pr-1">
                 <div className="min-w-0 truncate font-serif text-[1.35rem] font-black leading-none">
                   {fixtureMeta.label}
@@ -3793,8 +4210,8 @@ export const BattleLayoutEditor: React.FC = () => {
                 </div>
               </div>
 
-              <label className="flex h-[48px] min-w-[120px] flex-col justify-between gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1">
-                <span className="text-[8px] font-black uppercase tracking-[0.1em] text-amber-100/55">
+              <label className="grid h-[48px] min-w-[116px] grid-rows-[10px_28px] content-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
+                <span className="text-[8px] font-black uppercase leading-[10px] tracking-[0.1em] text-amber-100/55">
                   Resolucao
                 </span>
                 <select
@@ -3810,7 +4227,7 @@ export const BattleLayoutEditor: React.FC = () => {
                     setViewportWidth(nextWidth);
                     setViewportHeight(nextHeight);
                   }}
-                  className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-xs font-semibold text-amber-50 outline-none"
+                  className="h-[28px] w-full rounded-md border border-white/10 bg-black/20 px-2 py-1 text-xs font-semibold text-amber-50 outline-none"
                 >
                   {previewResolutionOptions.map((option) => (
                     <option
@@ -3824,11 +4241,16 @@ export const BattleLayoutEditor: React.FC = () => {
                 </select>
               </label>
 
-              <div className="grid h-[48px] grid-cols-2 gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
-                <label className="flex flex-col justify-between gap-0.5 px-0.5">
-                  <span className="text-[8px] font-black uppercase tracking-[0.1em] text-amber-100/55">
+              <div className="grid h-[48px] w-[126px] grid-rows-[10px_28px] content-center gap-1 rounded-lg border border-white/10 bg-white/5 px-1.5 py-1.5">
+                <div className="grid h-[10px] grid-cols-2 items-center gap-0.5">
+                  <span className="text-center text-[8px] font-black uppercase leading-[10px] tracking-[0.1em] text-amber-100/55">
                     L
                   </span>
+                  <span className="text-center text-[8px] font-black uppercase leading-[10px] tracking-[0.1em] text-amber-100/55">
+                    A
+                  </span>
+                </div>
+                <div className="grid h-[28px] grid-cols-2 items-center gap-0.5">
                   <input
                     type="number"
                     min={320}
@@ -3838,13 +4260,8 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(event) =>
                       setViewportWidth(parseViewportValue(event.target.value, viewportWidth))
                     }
-                    className="w-[64px] rounded-md border border-white/10 bg-black/20 px-2 py-1 text-right text-xs font-semibold text-amber-50 outline-none"
+                    className="h-[28px] min-w-0 w-full rounded-md border border-white/10 bg-black/20 px-1.5 py-1 text-center text-xs font-semibold text-amber-50 outline-none"
                   />
-                </label>
-                <label className="flex flex-col justify-between gap-0.5 px-0.5">
-                  <span className="text-[8px] font-black uppercase tracking-[0.1em] text-amber-100/55">
-                    A
-                  </span>
                   <input
                     type="number"
                     min={568}
@@ -3854,12 +4271,12 @@ export const BattleLayoutEditor: React.FC = () => {
                     onChange={(event) =>
                       setViewportHeight(parseViewportValue(event.target.value, viewportHeight))
                     }
-                    className="w-[64px] rounded-md border border-white/10 bg-black/20 px-2 py-1 text-right text-xs font-semibold text-amber-50 outline-none"
+                    className="h-[28px] min-w-0 w-full rounded-md border border-white/10 bg-black/20 px-1.5 py-1 text-center text-xs font-semibold text-amber-50 outline-none"
                   />
-                </label>
+                </div>
               </div>
 
-              <div className="flex h-[48px] items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-0.5">
+              <div className="flex h-[48px] items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-1">
                 {(Object.entries(battleLayoutPreviewDevices) as Array<
                   [BattleLayoutPreviewDevice, (typeof battleLayoutPreviewDevices)[BattleLayoutPreviewDevice]]
                 >).map(([deviceKey, device]) => (
@@ -3872,7 +4289,7 @@ export const BattleLayoutEditor: React.FC = () => {
                       setViewportHeight(device.height);
                   }}
                   className={cn(
-                    "flex h-[38px] items-center rounded-md px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition-colors",
+                    "flex h-[36px] items-center rounded-md px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition-colors",
                     previewDevice === deviceKey
                       ? "bg-amber-200 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,251,235,0.3)]"
                       : "text-amber-100/70 hover:bg-white/10",
@@ -3883,7 +4300,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 ))}
               </div>
 
-              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
                 <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/60">
                   Zoom
                 </span>
@@ -3894,14 +4311,14 @@ export const BattleLayoutEditor: React.FC = () => {
                   step={1}
                   value={previewScale}
                   onChange={(event) => setPreviewScale(Number(event.target.value))}
-                  className="w-16 accent-amber-400"
+                  className="w-14 accent-amber-400"
                 />
-                <span className="min-w-7 text-right text-xs font-bold text-amber-50">
+                <span className="min-w-6 text-right text-[11px] font-bold text-amber-50">
                   {previewScale}%
                 </span>
               </label>
 
-              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-amber-50">
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-amber-50">
                 <input
                   type="checkbox"
                   checked={showGrid}
@@ -3913,7 +4330,7 @@ export const BattleLayoutEditor: React.FC = () => {
                 </span>
               </label>
 
-              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
                 <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/60">
                   Grade
                 </span>
@@ -3924,14 +4341,14 @@ export const BattleLayoutEditor: React.FC = () => {
                   step={2}
                   value={gridSize}
                   onChange={(event) => setGridSize(Number(event.target.value))}
-                  className="w-14 accent-amber-400"
+                  className="w-12 accent-amber-400"
                 />
-                <span className="min-w-5 text-right text-xs font-bold text-amber-50">
+                <span className="min-w-4 text-right text-[11px] font-bold text-amber-50">
                   {gridSize}
                 </span>
               </label>
 
-              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+              <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
                 <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/60">
                   Snap
                 </span>
@@ -3942,20 +4359,29 @@ export const BattleLayoutEditor: React.FC = () => {
                   step={1}
                   value={snapThreshold}
                   onChange={(event) => setSnapThreshold(Number(event.target.value))}
-                  className="w-14 accent-amber-400"
+                  className="w-12 accent-amber-400"
                 />
-                <span className="min-w-5 text-right text-xs font-bold text-amber-50">
+                <span className="min-w-4 text-right text-[11px] font-bold text-amber-50">
                   {snapThreshold}
                 </span>
               </label>
 
-              <Button
-                type="button"
-                onClick={openDebugPreview}
-                className="h-[48px] rounded-lg border border-cyan-300/20 bg-cyan-950/40 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100 hover:bg-cyan-900/60"
-              >
-                Debug
-              </Button>
+              <div className="flex h-[48px] items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+                <Button
+                  type="button"
+                  onClick={openRuntimeView}
+                  className="h-[36px] rounded-md border border-emerald-300/20 bg-emerald-950/40 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-emerald-100 hover:bg-emerald-900/60"
+                >
+                  Runtime
+                </Button>
+                <Button
+                  type="button"
+                  onClick={openDebugPreview}
+                  className="h-[36px] rounded-md border border-cyan-300/20 bg-cyan-950/40 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100 hover:bg-cyan-900/60"
+                >
+                  Debug
+                </Button>
+              </div>
             </div>
           </div>
         </div>

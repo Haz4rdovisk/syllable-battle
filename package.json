@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node tools/vite-no-links.mjs",
     "edge:app": "powershell -ExecutionPolicy Bypass -File tools/open-edge-debug.ps1 http://127.0.0.1:3000/",
+    "app:edge": "powershell -ExecutionPolicy Bypass -File tools/open-edge-debug.ps1 \"http://127.0.0.1:3000/?battle-layout-editor=1\"",
     "edge:editor": "powershell -ExecutionPolicy Bypass -File tools/open-edge-debug.ps1 \"http://127.0.0.1:3000/?battle-layout-editor=1\"",
     "edge:debug": "powershell -ExecutionPolicy Bypass -File tools/open-edge-debug.ps1 \"http://127.0.0.1:3000/?battle-layout-preview=1&battle-layout-debug=1\"",
     "relay": "tsx server/relayServer.ts",

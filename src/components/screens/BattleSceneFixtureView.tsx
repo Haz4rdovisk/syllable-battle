@@ -322,6 +322,8 @@ export const BattleSceneFixtureView: React.FC<{
   animationMode?: BattleLayoutPreviewAnimationMode;
   animationPreset?: BattleLayoutPreviewAnimationPreset;
   animationRunId?: number;
+  localMotionPreviewElement?: BattleEditableElementKey | null;
+  localMotionPreviewRunId?: number;
   animationAnchorTool?: BattleLayoutPreviewAnimationAnchorKey | null;
   animationAnchors?: BattleLayoutPreviewAnimationAnchors;
   animationDebugEnabled?: boolean;
@@ -343,6 +345,8 @@ export const BattleSceneFixtureView: React.FC<{
   animationMode = "idle",
   animationPreset = "none",
   animationRunId = 0,
+  localMotionPreviewElement = null,
+  localMotionPreviewRunId = 0,
   animationAnchorTool = null,
   animationDebugEnabled = false,
   animationAnchors = {
@@ -401,6 +405,22 @@ export const BattleSceneFixtureView: React.FC<{
     : "rgba(251,191,36,0.28)";
   const isSelected = (area: BattleScenePreviewFocusArea) =>
     selectedElements.includes(area);
+  const getMotionReplayNonce = useCallback(
+    (
+      elementOrElements:
+        | BattleEditableElementKey
+        | BattleEditableElementKey[],
+    ) => {
+      if (localMotionPreviewElement === null || localMotionPreviewRunId <= 0) return 0;
+      const elements = Array.isArray(elementOrElements)
+        ? elementOrElements
+        : [elementOrElements];
+      return elements.includes(localMotionPreviewElement)
+        ? localMotionPreviewRunId
+        : 0;
+    },
+    [localMotionPreviewElement, localMotionPreviewRunId],
+  );
   const zoneNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
   const slotNodesRef = useRef<Record<typeof PLAYER | typeof ENEMY, Array<HTMLDivElement | null>>>({
     [PLAYER]: [],
@@ -2864,6 +2884,7 @@ export const BattleSceneFixtureView: React.FC<{
       <main className="relative z-10 flex h-full min-h-0 flex-col">
         <BattleEditableElement
           element="shell"
+          motionReplayNonce={getMotionReplayNonce("shell")}
           layout={layout}
           viewportWidth={viewportWidth}
           gridSize={gridSize}
@@ -2917,6 +2938,11 @@ export const BattleSceneFixtureView: React.FC<{
             leftSidebar={
               <BattleLeftSidebarView
                 sidebar={fixture.scene.leftSidebar}
+                motionReplayNonceByElement={{
+                  enemyTargetDeck: getMotionReplayNonce("enemyTargetDeck"),
+                  enemyDeck: getMotionReplayNonce("enemyDeck"),
+                  chronicles: getMotionReplayNonce("chronicles"),
+                }}
                 targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
                 deckAnchorRef={bindZoneRef("enemyDeck", "desktop")}
                 discardAnchorRef={bindZoneRef("enemyDiscard", "desktop")}
@@ -2938,6 +2964,7 @@ export const BattleSceneFixtureView: React.FC<{
                 <div className="relative h-full w-full overflow-visible">
                   <BattleEditableElement
                     element="topHand"
+                    motionReplayNonce={getMotionReplayNonce("topHand")}
                     layout={layout}
                     baseX={compactShellSlots.top.x}
                     baseY={compactShellSlots.top.y}
@@ -2965,6 +2992,7 @@ export const BattleSceneFixtureView: React.FC<{
                   </BattleEditableElement>
                   <BattleEditableElement
                     element="enemyTargetDeck"
+                    motionReplayNonce={getMotionReplayNonce("enemyTargetDeck")}
                     layout={layout}
                     baseX={compactShellSlots.top.x}
                     baseY={compactShellSlots.top.y}
@@ -2988,6 +3016,7 @@ export const BattleSceneFixtureView: React.FC<{
                   </BattleEditableElement>
                   <BattleEditableElement
                     element="enemyDeck"
+                    motionReplayNonce={getMotionReplayNonce("enemyDeck")}
                     layout={layout}
                     baseX={compactShellSlots.top.x}
                     baseY={compactShellSlots.top.y}
@@ -3015,6 +3044,7 @@ export const BattleSceneFixtureView: React.FC<{
             centerTopDesktop={
               <BattleEditableElement
                 element="topHand"
+                motionReplayNonce={getMotionReplayNonce("topHand")}
                 layout={layout}
                 viewportWidth={viewportWidth}
                 gridSize={gridSize}
@@ -3038,6 +3068,7 @@ export const BattleSceneFixtureView: React.FC<{
             boardSurface={
               <BattleEditableElement
                 element="board"
+                motionReplayNonce={getMotionReplayNonce("board")}
                 layout={layout}
                 baseX={isCompactShellPreview ? compactShellSlots.board.x : undefined}
                 baseY={isCompactShellPreview ? compactShellSlots.board.y : undefined}
@@ -3058,6 +3089,7 @@ export const BattleSceneFixtureView: React.FC<{
             centerBottomDesktop={
               <BattleEditableElement
                 element="bottomHand"
+                motionReplayNonce={getMotionReplayNonce("bottomHand")}
                 layout={layout}
                 viewportWidth={viewportWidth}
                 gridSize={gridSize}
@@ -3115,6 +3147,7 @@ export const BattleSceneFixtureView: React.FC<{
               isCompactTightPreview ? (
                 <BattleEditableElement
                   element="bottomHand"
+                  motionReplayNonce={getMotionReplayNonce("bottomHand")}
                   layout={layout}
                   baseX={compactShellSlots.bottom?.x}
                   baseY={compactShellSlots.bottom?.y}
@@ -3180,6 +3213,7 @@ export const BattleSceneFixtureView: React.FC<{
                 <div className="relative h-full w-full overflow-visible">
                   <BattleEditableElement
                     element="playerTargetDeck"
+                    motionReplayNonce={getMotionReplayNonce("playerTargetDeck")}
                     layout={layout}
                     baseX={compactShellSlots.control.x}
                     baseY={compactShellSlots.control.y}
@@ -3205,6 +3239,7 @@ export const BattleSceneFixtureView: React.FC<{
                   </BattleEditableElement>
                   <BattleEditableElement
                     element="playerDeck"
+                    motionReplayNonce={getMotionReplayNonce("playerDeck")}
                     layout={layout}
                     baseX={compactShellSlots.control.x}
                     baseY={compactShellSlots.control.y}
@@ -3231,6 +3266,7 @@ export const BattleSceneFixtureView: React.FC<{
 
                   <BattleEditableElement
                     element="status"
+                    motionReplayNonce={getMotionReplayNonce("status")}
                     layout={layout}
                     baseX={compactShellSlots.control.x}
                     baseY={compactShellSlots.control.y}
@@ -3265,6 +3301,7 @@ export const BattleSceneFixtureView: React.FC<{
 
                   <BattleEditableElement
                     element="action"
+                    motionReplayNonce={getMotionReplayNonce("action")}
                     layout={layout}
                     baseX={compactShellSlots.control.x}
                     baseY={compactShellSlots.control.y}
@@ -3304,6 +3341,12 @@ export const BattleSceneFixtureView: React.FC<{
             rightSidebar={
               <BattleRightSidebarView
                 sidebar={fixture.scene.rightSidebar}
+                motionReplayNonceByElement={{
+                  status: getMotionReplayNonce("status"),
+                  action: getMotionReplayNonce("action"),
+                  playerTargetDeck: getMotionReplayNonce("playerTargetDeck"),
+                  playerDeck: getMotionReplayNonce("playerDeck"),
+                }}
                 targetDeckAnchorRef={bindZoneRef("playerTargetDeck", "desktop")}
                 deckAnchorRef={bindZoneRef("playerDeck", "desktop")}
                 discardAnchorRef={bindZoneRef("playerDiscard", "desktop")}
@@ -3326,6 +3369,7 @@ export const BattleSceneFixtureView: React.FC<{
               isCompactTightPreview ? null : (
                 <BattleEditableElement
                   element="bottomHand"
+                  motionReplayNonce={getMotionReplayNonce("bottomHand")}
                   layout={layout}
                   baseX={compactShellSlots.footer?.x}
                   baseY={compactShellSlots.footer?.y}
@@ -3387,6 +3431,7 @@ export const BattleSceneFixtureView: React.FC<{
           />
           <BattleEditableElement
             element="enemyField"
+            motionReplayNonce={getMotionReplayNonce("enemyField")}
             layout={layout}
             viewportWidth={viewportWidth}
             gridSize={gridSize}
@@ -3409,6 +3454,7 @@ export const BattleSceneFixtureView: React.FC<{
           </BattleEditableElement>
           <BattleEditableElement
             element="playerField"
+            motionReplayNonce={getMotionReplayNonce("playerField")}
             layout={layout}
             viewportWidth={viewportWidth}
             gridSize={gridSize}
@@ -3431,6 +3477,7 @@ export const BattleSceneFixtureView: React.FC<{
           </BattleEditableElement>
           <BattleEditableElement
             element="boardMessage"
+            motionReplayNonce={getMotionReplayNonce("boardMessage")}
             layout={layout}
             viewportWidth={viewportWidth}
             gridSize={gridSize}
@@ -3452,6 +3499,7 @@ export const BattleSceneFixtureView: React.FC<{
           </BattleEditableElement>
           <BattlePillOverlay
             side="enemy"
+            motionReplayNonce={getMotionReplayNonce("enemyPill")}
             portrait={fixture.scene.board.enemyPortrait ? (
               <PlayerPortrait
                 label={fixture.scene.board.enemyPortrait.label}
@@ -3474,6 +3522,7 @@ export const BattleSceneFixtureView: React.FC<{
           />
           <BattlePillOverlay
             side="player"
+            motionReplayNonce={getMotionReplayNonce("playerPill")}
             portrait={fixture.scene.board.playerPortrait ? (
               <PlayerPortrait
                 label={fixture.scene.board.playerPortrait.label}

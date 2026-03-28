@@ -179,6 +179,11 @@ export interface BattleLayoutEditorPreviewState {
   animationMode: BattleLayoutPreviewAnimationMode;
   animationPreset: BattleLayoutPreviewAnimationPreset;
   animationRunId: number;
+  localMotionPreviewElement: BattleEditableElementKey | null;
+  localMotionPreviewRunId: number;
+  trajectoryLoopEnabled: boolean;
+  localMotionLoopEnabled: boolean;
+  combinedLoopEnabled: boolean;
   animationAnchorTool: BattleLayoutPreviewAnimationAnchorKey | null;
   animationAnchors: BattleLayoutPreviewAnimationAnchors;
   animationDebugEnabled: boolean;
@@ -330,6 +335,15 @@ export function normalizeBattleLayoutEditorPreviewState(
     animationRunId: Number.isFinite(state.animationRunId)
       ? Math.max(0, Math.round(state.animationRunId))
       : 0,
+    localMotionPreviewElement:
+      (state.localMotionPreviewElement as BattleEditableElementKey | null | undefined) ??
+      null,
+    localMotionPreviewRunId: Number.isFinite(state.localMotionPreviewRunId)
+      ? Math.max(0, Math.round(state.localMotionPreviewRunId))
+      : 0,
+    trajectoryLoopEnabled: state.trajectoryLoopEnabled ?? false,
+    localMotionLoopEnabled: state.localMotionLoopEnabled ?? false,
+    combinedLoopEnabled: state.combinedLoopEnabled ?? false,
     animationAnchorTool: state.animationAnchorTool ?? null,
     animationDebugEnabled: state.animationDebugEnabled ?? false,
     animationAnchors: {

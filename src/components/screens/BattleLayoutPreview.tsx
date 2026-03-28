@@ -31,6 +31,11 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
   animationMode: "idle",
   animationPreset: "none",
   animationRunId: 0,
+  localMotionPreviewElement: null,
+  localMotionPreviewRunId: 0,
+  trajectoryLoopEnabled: false,
+  localMotionLoopEnabled: false,
+  combinedLoopEnabled: false,
   animationAnchorTool: null,
   animationDebugEnabled: false,
   animationAnchors: {
@@ -94,6 +99,16 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
       animationMode: parsed.animationMode ?? defaultPreviewState.animationMode,
       animationPreset: parsed.animationPreset ?? defaultPreviewState.animationPreset,
       animationRunId: parsed.animationRunId ?? defaultPreviewState.animationRunId,
+      localMotionPreviewElement:
+        parsed.localMotionPreviewElement ?? defaultPreviewState.localMotionPreviewElement,
+      localMotionPreviewRunId:
+        parsed.localMotionPreviewRunId ?? defaultPreviewState.localMotionPreviewRunId,
+      trajectoryLoopEnabled:
+        parsed.trajectoryLoopEnabled ?? defaultPreviewState.trajectoryLoopEnabled,
+      localMotionLoopEnabled:
+        parsed.localMotionLoopEnabled ?? defaultPreviewState.localMotionLoopEnabled,
+      combinedLoopEnabled:
+        parsed.combinedLoopEnabled ?? defaultPreviewState.combinedLoopEnabled,
       animationAnchorTool:
         parsed.animationAnchorTool ?? defaultPreviewState.animationAnchorTool,
       animationDebugEnabled:
@@ -248,6 +263,8 @@ export const BattleLayoutPreview: React.FC = () => {
       animationMode={previewState.animationMode}
       animationPreset={previewState.animationPreset}
       animationRunId={previewState.animationRunId}
+      localMotionPreviewElement={previewState.localMotionPreviewElement}
+      localMotionPreviewRunId={previewState.localMotionPreviewRunId}
       animationAnchorTool={previewState.animationAnchorTool}
       animationAnchors={previewState.animationAnchors}
       animationDebugEnabled={previewState.animationDebugEnabled}

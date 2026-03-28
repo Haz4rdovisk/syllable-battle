@@ -27,6 +27,7 @@ export interface BattleLeftSidebarViewProps {
   gridSize?: number;
   snapThreshold?: number;
   previewAnimations?: boolean;
+  motionReplayNonceByElement?: Partial<Record<BattleEditableElementKey, number>>;
   selectedElements?: BattleScenePreviewFocusArea[];
   snapTargets?: Array<{
     key: BattleEditableElementKey;
@@ -54,6 +55,7 @@ export interface BattleRightSidebarViewProps {
   gridSize?: number;
   snapThreshold?: number;
   previewAnimations?: boolean;
+  motionReplayNonceByElement?: Partial<Record<BattleEditableElementKey, number>>;
   selectedElements?: BattleScenePreviewFocusArea[];
   actionVisualState?: BattleActionVisualState;
   statusVisualState?: BattleStatusVisualState;
@@ -80,6 +82,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
   gridSize = 8,
   snapThreshold = 12,
   previewAnimations = false,
+  motionReplayNonceByElement = {},
   selectedElements = [],
   snapTargets = [],
   chroniclesVisualState = "normal",
@@ -89,6 +92,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
       <div ref={discardAnchorRef} className="pointer-events-none absolute left-2 top-1/2 h-20 w-14 -translate-y-1/2 opacity-0" />
       <BattleEditableElement
         element="enemyTargetDeck"
+        motionReplayNonce={motionReplayNonceByElement.enemyTargetDeck ?? 0}
         layout={layout}
         viewportWidth={viewportWidth}
         gridSize={gridSize}
@@ -111,6 +115,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
       </BattleEditableElement>
       <BattleEditableElement
         element="enemyDeck"
+        motionReplayNonce={motionReplayNonceByElement.enemyDeck ?? 0}
         layout={layout}
         viewportWidth={viewportWidth}
         gridSize={gridSize}
@@ -133,6 +138,7 @@ export const BattleLeftSidebarView: React.FC<BattleLeftSidebarViewProps> = ({
       </BattleEditableElement>
       <BattleEditableElement
         element="chronicles"
+        motionReplayNonce={motionReplayNonceByElement.chronicles ?? 0}
         layout={layout}
         viewportWidth={viewportWidth}
         gridSize={gridSize}
@@ -213,6 +219,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
   gridSize = 8,
   snapThreshold = 12,
   previewAnimations = false,
+  motionReplayNonceByElement = {},
   selectedElements = [],
   actionVisualState = "normal",
   statusVisualState = "normal",
@@ -240,6 +247,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
       <div ref={discardAnchorRef} className="pointer-events-none absolute left-2 top-1/2 h-20 w-14 -translate-y-1/2 opacity-0" />
       <BattleEditableElement
         element="status"
+        motionReplayNonce={motionReplayNonceByElement.status ?? 0}
         layout={layout}
         viewportWidth={viewportWidth}
         gridSize={gridSize}
@@ -271,6 +279,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
       </BattleEditableElement>
       <BattleEditableElement
         element="action"
+        motionReplayNonce={motionReplayNonceByElement.action ?? 0}
         layout={layout}
         viewportWidth={viewportWidth}
         gridSize={gridSize}
@@ -287,6 +296,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
       </BattleEditableElement>
       <BattleEditableElement
         element="playerTargetDeck"
+        motionReplayNonce={motionReplayNonceByElement.playerTargetDeck ?? 0}
         layout={layout}
         viewportWidth={viewportWidth}
         gridSize={gridSize}
@@ -309,6 +319,7 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
       </BattleEditableElement>
       <BattleEditableElement
         element="playerDeck"
+        motionReplayNonce={motionReplayNonceByElement.playerDeck ?? 0}
         layout={layout}
         viewportWidth={viewportWidth}
         gridSize={gridSize}
