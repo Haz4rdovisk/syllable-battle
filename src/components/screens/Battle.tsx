@@ -83,16 +83,19 @@ import {
 import { BattleDevWatcherSample, useBattleDevRuntime } from "./BattleDevRuntime";
 import {
   LiveBattleAnimationAnchorKey,
+  buildBattleDebugPointSnapshot,
   buildBattleProbeRow,
   buildLiveAnimationSnapshotEntries,
   createLiveAnimationAnchorPoints,
-  formatBattleDebugDelta,
   formatBattleDebugFallbackLine,
   formatBattleDebugPoint,
   formatBattleDebugSnapshot,
+  formatBattleProbeLine,
   getBattleDebugZoneSnapshotCenter,
   getLiveAnimationAnchorReferenceTarget,
   getVisibleBattleAnimationAnchors,
+  toBattleDebugScenePoint,
+  toBattleDebugScreenPoint,
 } from "./BattleDebugGeometry";
 import {
   BATTLE_SHARED_FLOW_TIMINGS,
@@ -1120,25 +1123,15 @@ export const Battle: React.FC<BattleProps> = ({
   }, [resolveBattleStageMetrics]);
   const getScreenPointFromScenePoint = useCallback(
     (point: BattleAnimationAnchorPoint | null | undefined) => {
-      if (!point) return null;
       const stageMetrics = getBattleStageMetrics();
-      if (!stageMetrics) return null;
-      return {
-        x: Math.round(stageMetrics.rect.left + point.x * stageMetrics.scaleX),
-        y: Math.round(stageMetrics.rect.top + point.y * stageMetrics.scaleY),
-      };
+      return toBattleDebugScreenPoint(point, stageMetrics);
     },
     [getBattleStageMetrics],
   );
   const getScenePointFromScreenPoint = useCallback(
     (point: { x: number; y: number } | null | undefined) => {
-      if (!point) return null;
       const stageMetrics = getBattleStageMetrics();
-      if (!stageMetrics) return null;
-      return {
-        x: Math.round((point.x - stageMetrics.rect.left) / stageMetrics.scaleX),
-        y: Math.round((point.y - stageMetrics.rect.top) / stageMetrics.scaleY),
-      };
+      return toBattleDebugScenePoint(point, stageMetrics);
     },
     [getBattleStageMetrics],
   );
@@ -1193,8 +1186,7 @@ export const Battle: React.FC<BattleProps> = ({
       ? `stage:${Math.round(stageMetrics.rect.width)}x${Math.round(stageMetrics.rect.height)} scale:${stageMetrics.scaleX.toFixed(3)},${stageMetrics.scaleY.toFixed(3)} off:${Math.round(stageMetrics.rect.left)},${Math.round(stageMetrics.rect.top)}`
       : "stage:-";
     const probeLines = liveAnchorProbeRows.map(
-      (row) =>
-        `probe:${row.anchor} scene:${formatBattleDebugPoint(row.point)} screen:${formatBattleDebugPoint(row.screen)} ref:${formatBattleDebugPoint(row.reference)} refScreen:${formatBattleDebugPoint(row.referenceScreen)} dScene:${formatBattleDebugDelta(row.deltaScene)} dScreen:${formatBattleDebugDelta(row.deltaScreen)}`,
+      (row) => formatBattleProbeLine(row),
     );
     const groupedSnapshotRows = buildLiveAnimationSnapshotEntries(
       activeBattleLayout.animations,
@@ -1266,32 +1258,40 @@ export const Battle: React.FC<BattleProps> = ({
             },
     };
     const toSnapshotWithMetrics = (point: BattleAnimationAnchorPoint | null | undefined) => {
-      if (!point || !stageResolution.rect || stageResolution.scaleX == null || stageResolution.scaleY == null) {
-        return null;
-      }
-      return {
-        left: stageResolution.rect.left + point.x * stageResolution.scaleX,
-        top: stageResolution.rect.top + point.y * stageResolution.scaleY,
-        width: 0,
-        height: 0,
-      } satisfies ZoneAnchorSnapshot;
+      return buildBattleDebugPointSnapshot(
+        point,
+        stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
+          ? {
+              rect: stageResolution.rect,
+              scaleX: stageResolution.scaleX,
+              scaleY: stageResolution.scaleY,
+            }
+          : null,
+      );
     };
     const toScreenPointWithMetrics = (point: BattleAnimationAnchorPoint | null | undefined) => {
-      const snapshot = toSnapshotWithMetrics(point);
-      if (!snapshot) return null;
-      return {
-        x: Math.round(snapshot.left),
-        y: Math.round(snapshot.top),
-      };
+      return toBattleDebugScreenPoint(
+        point,
+        stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
+          ? {
+              rect: stageResolution.rect,
+              scaleX: stageResolution.scaleX,
+              scaleY: stageResolution.scaleY,
+            }
+          : null,
+      );
     };
     const toScenePointWithMetrics = (point: { x: number; y: number } | null | undefined) => {
-      if (!point || !stageResolution.rect || stageResolution.scaleX == null || stageResolution.scaleY == null) {
-        return null;
-      }
-      return {
-        x: Math.round((point.x - stageResolution.rect.left) / stageResolution.scaleX),
-        y: Math.round((point.y - stageResolution.rect.top) / stageResolution.scaleY),
-      };
+      return toBattleDebugScenePoint(
+        point,
+        stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
+          ? {
+              rect: stageResolution.rect,
+              scaleX: stageResolution.scaleX,
+              scaleY: stageResolution.scaleY,
+            }
+          : null,
+      );
     };
     const visibleAnchors =
       getVisibleBattleAnimationAnchors(liveAnimationAnchorPoints);
@@ -1344,8 +1344,7 @@ export const Battle: React.FC<BattleProps> = ({
       anchors: `anchors:[${visibleAnchors.map(({ anchor, point }) => `${anchor}@${formatBattleDebugPoint(point)}`).join(" | ")}]`,
       anchorPoints: visibleAnchors.map(({ anchor, point }) => ({ anchor, point })),
       probes: probeRows.map(
-        (row) =>
-          `probe:${row.anchor} scene:${formatBattleDebugPoint(row.point)} screen:${formatBattleDebugPoint(row.screen)} ref:${formatBattleDebugPoint(row.reference)} refScreen:${formatBattleDebugPoint(row.referenceScreen)} dScene:${formatBattleDebugDelta(row.deltaScene)} dScreen:${formatBattleDebugDelta(row.deltaScreen)}`,
+        (row) => formatBattleProbeLine(row),
       ),
       probeRows,
       snapshots: [

@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildBattleDebugPointSnapshot,
   buildBattleProbeRow,
   formatBattleDebugDelta,
   formatBattleDebugFallbackLine,
   formatBattleDebugPoint,
   formatBattleDebugSnapshot,
+  formatBattleProbeLine,
   getBattleDebugZoneSnapshotCenter,
   getLiveAnimationAnchorReferenceTarget,
+  getPreviewAnimationAnchorReferenceTarget,
+  toBattleDebugScenePoint,
+  toBattleDebugScreenPoint,
 } from "./BattleDebugGeometry";
 import {
   normalizeBattleLayoutEditorPreviewState,
@@ -211,6 +216,79 @@ test("buildBattleProbeRow mantem deltas nulos quando faltam referencias", () => 
 
   assert.equal(row.deltaScene, null);
   assert.equal(row.deltaScreen, null);
+});
+
+test("formatBattleProbeLine preserva o output atual de runtime e preview", () => {
+  const row = buildBattleProbeRow({
+    anchor: "post-play-hand-draw-origin",
+    point: { x: 320, y: 460 },
+    screen: { x: 640, y: 820 },
+    reference: { x: 300, y: 440 },
+    referenceScreen: { x: 600, y: 780 },
+  });
+
+  assert.equal(
+    formatBattleProbeLine(row),
+    "probe:post-play-hand-draw-origin scene:320,460 screen:640,820 ref:300,440 refScreen:600,780 dScene:+20,+20 dScreen:+40,+40",
+  );
+  assert.equal(
+    formatBattleProbeLine(row, "visual"),
+    "probe:visual:post-play-hand-draw-origin scene:320,460 screen:640,820 ref:300,440 refScreen:600,780 dScene:+20,+20 dScreen:+40,+40",
+  );
+});
+
+test("helpers de conversao de stage preservam ida e volta scene-screen", () => {
+  const metrics = {
+    rect: { left: 100, top: 40 },
+    scaleX: 0.5,
+    scaleY: 0.75,
+  };
+
+  const screenPoint = toBattleDebugScreenPoint({ x: 320, y: 160 }, metrics);
+  assert.deepEqual(screenPoint, { x: 260, y: 160 });
+  assert.deepEqual(toBattleDebugScenePoint(screenPoint, metrics), {
+    x: 320,
+    y: 160,
+  });
+  assert.deepEqual(buildBattleDebugPointSnapshot({ x: 320, y: 160 }, metrics), {
+    left: 260,
+    top: 160,
+    width: 0,
+    height: 0,
+  });
+  assert.equal(toBattleDebugScreenPoint(null, metrics), null);
+  assert.equal(toBattleDebugScenePoint(null, metrics), null);
+});
+
+test("getPreviewAnimationAnchorReferenceTarget resolve casos puros do preview", () => {
+  assert.deepEqual(
+    getPreviewAnimationAnchorReferenceTarget("replacement-target-entry-3-origin", 2),
+    { kind: "zone", zoneId: "enemyTargetDeck" },
+  );
+  assert.deepEqual(
+    getPreviewAnimationAnchorReferenceTarget("post-play-hand-draw-origin", 2),
+    { kind: "zone", zoneId: "playerDeck" },
+  );
+  assert.deepEqual(
+    getPreviewAnimationAnchorReferenceTarget("hand-play-target-1-destination", 2),
+    { kind: "slot", zoneId: "playerField", slot: "slot-1" },
+  );
+  assert.deepEqual(
+    getPreviewAnimationAnchorReferenceTarget("mulligan-hand-return-2-destination", 2),
+    { kind: "zone", zoneId: "playerDeck" },
+  );
+  assert.deepEqual(
+    getPreviewAnimationAnchorReferenceTarget("target-attack-3-impact", 2),
+    { kind: "slot", zoneId: "enemyField", slot: "slot-1" },
+  );
+  assert.deepEqual(
+    getPreviewAnimationAnchorReferenceTarget("target-attack-2-destination", 2),
+    { kind: "zone", zoneId: "enemyTargetDeck" },
+  );
+  assert.equal(
+    getPreviewAnimationAnchorReferenceTarget("opening-target-entry-1-origin", 2),
+    null,
+  );
 });
 
 test("helpers de formatacao/debug retornam saidas uteis sem depender de DOM", () => {

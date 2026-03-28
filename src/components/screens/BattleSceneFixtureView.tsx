@@ -60,6 +60,16 @@ import {
   BATTLE_SHARED_FLOW_TIMINGS,
   BATTLE_SHARED_OPENING_TARGET_TIMINGS,
 } from "./battleSharedTimings";
+import {
+  buildBattleDebugPointSnapshot,
+  buildBattleProbeRow,
+  formatBattleDebugPoint,
+  formatBattleDebugSnapshot,
+  formatBattleProbeLine,
+  getPreviewAnimationAnchorReferenceTarget,
+  toBattleDebugScenePoint,
+  toBattleDebugScreenPoint,
+} from "./BattleDebugGeometry";
 
 const noopRef = () => {};
 const PLAYER = 0;
@@ -939,23 +949,27 @@ export const BattleSceneFixtureView: React.FC<{
 
   const getScenePointFromScreenPoint = useCallback(
     (point: { x: number; y: number } | null | undefined) =>
-      point
-        ? {
-            x: Math.round((point.x - stageMetrics.offsetX) / stageMetrics.scale),
-            y: Math.round((point.y - stageMetrics.offsetY) / stageMetrics.scale),
-          }
-        : null,
+      toBattleDebugScenePoint(point, {
+        rect: {
+          left: stageMetrics.offsetX,
+          top: stageMetrics.offsetY,
+        },
+        scaleX: stageMetrics.scale,
+        scaleY: stageMetrics.scale,
+      }),
     [stageMetrics.offsetX, stageMetrics.offsetY, stageMetrics.scale],
   );
 
   const getScreenPointFromScenePoint = useCallback(
     (point: { x: number; y: number } | null | undefined) =>
-      point
-        ? {
-            x: Math.round(stageMetrics.offsetX + point.x * stageMetrics.scale),
-            y: Math.round(stageMetrics.offsetY + point.y * stageMetrics.scale),
-          }
-        : null,
+      toBattleDebugScreenPoint(point, {
+        rect: {
+          left: stageMetrics.offsetX,
+          top: stageMetrics.offsetY,
+        },
+        scaleX: stageMetrics.scale,
+        scaleY: stageMetrics.scale,
+      }),
     [stageMetrics.offsetX, stageMetrics.offsetY, stageMetrics.scale],
   );
 
@@ -1019,45 +1033,28 @@ export const BattleSceneFixtureView: React.FC<{
           : null;
       }
 
-      if (anchor.startsWith("replacement-target-entry-")) {
-        const match = anchor.match(/^replacement-target-entry-(\d)-origin$/);
-        const replacementIndex = match ? Number(match[1]) : null;
-        if (replacementIndex == null) return null;
-        return getRectCenter(
-          replacementIndex >= 2 ? "enemyTargetDeck" : "playerTargetDeck",
+      const referenceTarget = getPreviewAnimationAnchorReferenceTarget(
+        anchor,
+        fixture.scene.board.playerFieldSlots.length,
+      );
+      if (referenceTarget?.kind === "zone") {
+        if (
+          referenceTarget.zoneId === "playerDeck" ||
+          referenceTarget.zoneId === "enemyDeck" ||
+          referenceTarget.zoneId === "playerTargetDeck" ||
+          referenceTarget.zoneId === "enemyTargetDeck"
+        ) {
+          return getRectCenter(referenceTarget.zoneId);
+        }
+        return null;
+      }
+      if (referenceTarget?.kind === "slot") {
+        const slotIndex = Number(referenceTarget.slot.replace("slot-", ""));
+        if (Number.isNaN(slotIndex)) return null;
+        return getFieldSlotCenter(
+          referenceTarget.zoneId === "enemyField" ? ENEMY : PLAYER,
+          slotIndex,
         );
-      }
-
-      if (anchor === "post-play-hand-draw-origin") {
-        return getRectCenter("playerDeck");
-      }
-
-      if (anchor.startsWith("hand-play-target-")) {
-        const match = anchor.match(/^hand-play-target-(\d)-destination$/);
-        const targetIndex = match ? Number(match[1]) : null;
-        if (targetIndex == null) return null;
-        return getFieldSlotCenter(PLAYER, targetIndex);
-      }
-
-      if (
-        anchor.startsWith("mulligan-hand-draw-") ||
-        anchor.startsWith("mulligan-hand-return-")
-      ) {
-        return getRectCenter("playerDeck");
-      }
-
-      if (anchor.startsWith("target-attack-") && anchor.endsWith("-impact")) {
-        const match = anchor.match(/^target-attack-(\d)-impact$/);
-        const attackIndex = match ? Number(match[1]) : null;
-        if (attackIndex == null) return null;
-        return getFieldSlotCenter(attackIndex >= 2 ? ENEMY : PLAYER, attackIndex % 2);
-      }
-
-      if (anchor.startsWith("target-attack-") && anchor.endsWith("-destination")) {
-        const match = anchor.match(/^target-attack-(\d)-destination$/);
-        const attackIndex = match ? Number(match[1]) : null;
-        if (attackIndex == null) return null;
-        return getRectCenter(attackIndex >= 2 ? "enemyTargetDeck" : "playerTargetDeck");
       }
 
       return null;
@@ -1079,42 +1076,29 @@ export const BattleSceneFixtureView: React.FC<{
         const referenceScreen = getScreenPointFromScenePoint(reference);
         return {
           label,
-          anchor,
-          point,
-          screen,
-          reference,
-          referenceScreen,
-          deltaScene: reference
-            ? {
-                x: Math.round(point.x - reference.x),
-                y: Math.round(point.y - reference.y),
-              }
-            : null,
-          deltaScreen:
-            screen && referenceScreen
-              ? {
-                  x: Math.round(screen.x - referenceScreen.x),
-                  y: Math.round(screen.y - referenceScreen.y),
-                }
-              : null,
+          ...buildBattleProbeRow({
+            anchor,
+            point,
+            screen,
+            reference,
+            referenceScreen,
+          }),
         };
       }),
     [getReferenceScenePointForAnchor, getScreenPointFromScenePoint, visibleAnimationAnchors],
   );
 
   const buildAnimationAnchorSnapshotFromPoint = useCallback(
-    (point: { x: number; y: number } | null | undefined) => {
-      const screenPoint = getScreenPointFromScenePoint(point);
-      return screenPoint
-        ? {
-            left: screenPoint.x,
-            top: screenPoint.y,
-            width: 0,
-            height: 0,
-          }
-        : null;
-    },
-    [getScreenPointFromScenePoint],
+    (point: { x: number; y: number } | null | undefined) =>
+      buildBattleDebugPointSnapshot(point, {
+        rect: {
+          left: stageMetrics.offsetX,
+          top: stageMetrics.offsetY,
+        },
+        scaleX: stageMetrics.scale,
+        scaleY: stageMetrics.scale,
+      }),
+    [stageMetrics.offsetX, stageMetrics.offsetY, stageMetrics.scale],
   );
 
   const buildAnimationAnchorSnapshot = useCallback(
@@ -1126,30 +1110,20 @@ export const BattleSceneFixtureView: React.FC<{
   );
 
   const debugLines = useMemo(() => {
-    const formatPoint = (
-      point: { x: number; y: number } | null | undefined,
-    ) => (point ? `${point.x},${point.y}` : "-");
-    const formatDelta = (
-      point: { x: number; y: number } | null | undefined,
-    ) => (point ? `${point.x >= 0 ? "+" : ""}${point.x},${point.y >= 0 ? "+" : ""}${point.y}` : "-");
-    const formatSnapshot = (snapshot: ZoneAnchorSnapshot | null | undefined) =>
-      snapshot
-        ? `${Math.round(snapshot.left)},${Math.round(snapshot.top)} ${Math.round(snapshot.width)}x${Math.round(snapshot.height)}`
-        : "-";
     const formatHandCard = (card: BattleHandLaneCard) =>
       `${card.syllable}#${card.id}${card.skipEntryAnimation ? "*" : ""}`;
     const formatIncomingHand = (card: BattleHandLaneIncomingCard) =>
-      `${card.card.syllable}#${card.card.id}@${card.finalIndex}/${card.finalTotal} from ${formatSnapshot(card.origin)}`;
+      `${card.card.syllable}#${card.card.id}@${card.finalIndex}/${card.finalTotal} from ${formatBattleDebugSnapshot(card.origin)}`;
     const formatOutgoingHand = (card: BattleHandLaneOutgoingCard) =>
-      `${card.card.syllable}#${card.card.id}@${card.initialIndex}/${card.initialTotal} -> ${formatSnapshot(card.destination)}`;
+      `${card.card.syllable}#${card.card.id}@${card.initialIndex}/${card.initialTotal} -> ${formatBattleDebugSnapshot(card.destination)}`;
     const formatTarget = (entity: VisualTargetEntity | null | undefined) =>
       entity
         ? `${entity.target.name}#${entity.id}@${entity.side[0]}${entity.slotIndex}`
         : "-";
     const formatIncomingTarget = (target: FixtureIncomingTarget) =>
-      `${formatTarget(target.entity)} from ${formatSnapshot(target.origin)} d:${target.delayMs ?? 0} t:${target.durationMs ?? 0}`;
+      `${formatTarget(target.entity)} from ${formatBattleDebugSnapshot(target.origin)} d:${target.delayMs ?? 0} t:${target.durationMs ?? 0}`;
     const formatOutgoingTarget = (target: FixtureOutgoingTarget) =>
-      `${formatTarget(target.entity)} impact:${formatSnapshot(target.impactDestination ?? null)} -> ${formatSnapshot(target.destination)} w:${target.windupMs ?? 0} a:${target.attackMs ?? 0} p:${target.pauseMs ?? 0} e:${target.exitMs ?? 0}`;
+      `${formatTarget(target.entity)} impact:${formatBattleDebugSnapshot(target.impactDestination ?? null)} -> ${formatBattleDebugSnapshot(target.destination)} w:${target.windupMs ?? 0} a:${target.attackMs ?? 0} p:${target.pauseMs ?? 0} e:${target.exitMs ?? 0}`;
     const formatHiddenFlags = (flags: boolean[] | undefined) =>
       flags && flags.length > 0
         ? flags.map((flag, index) => `${index}:${flag ? "1" : "0"}`).join(" ")
@@ -1169,7 +1143,7 @@ export const BattleSceneFixtureView: React.FC<{
       `stage:${viewportWidth}x${viewportHeight} scale:${stageMetrics.scale.toFixed(3)} off:${Math.round(stageMetrics.offsetX)},${Math.round(stageMetrics.offsetY)}`,
       `run:${animationRunId} loopGen:${loopGenerationRef.current} timers:${animationTimersRef.current.length}`,
       `anchorTool:${animationAnchorTool ?? "-"} selected:[${previewSelectedIndexes.join(",")}]`,
-      `anchors:[${visibleAnimationAnchors.map(({ label, anchor, point }) => `${label}:${anchor}@${formatPoint(point)}`).join(" | ")}]`,
+      `anchors:[${visibleAnimationAnchors.map(({ label, anchor, point }) => `${label}:${anchor}@${formatBattleDebugPoint(point)}`).join(" | ")}]`,
       `playerStable:[${previewPlayerStableCards.map(formatHandCard).join(",")}]`,
       `playerIncoming:[${incomingPreviewHands[PLAYER].map(formatIncomingHand).join(" | ")}]`,
       `playerOutgoing:[${outgoingPreviewHands[PLAYER].map(formatOutgoingHand).join(" | ")}]`,
@@ -1187,10 +1161,7 @@ export const BattleSceneFixtureView: React.FC<{
 
     if (anchorProbeRows.length > 0) {
       lines.push(
-        ...anchorProbeRows.map(
-          (row) =>
-            `probe:${row.label}:${row.anchor} scene:${formatPoint(row.point)} screen:${formatPoint(row.screen)} ref:${formatPoint(row.reference)} refScreen:${formatPoint(row.referenceScreen)} dScene:${formatDelta(row.deltaScene)} dScreen:${formatDelta(row.deltaScreen)}`,
-        ),
+        ...anchorProbeRows.map((row) => formatBattleProbeLine(row, row.label)),
       );
     }
 
@@ -1208,10 +1179,14 @@ export const BattleSceneFixtureView: React.FC<{
           .join(",")}]`,
       );
       lines.push(
-        `drawOrigin:${formatPoint(getAnimationAnchorPoint("post-play-hand-draw-origin"))}`,
+        `drawOrigin:${formatBattleDebugPoint(
+          getAnimationAnchorPoint("post-play-hand-draw-origin"),
+        )}`,
       );
       lines.push(
-        `drawOriginSnap:${formatSnapshot(buildAnimationAnchorSnapshot("post-play-hand-draw-origin"))}`,
+        `drawOriginSnap:${formatBattleDebugSnapshot(
+          buildAnimationAnchorSnapshot("post-play-hand-draw-origin"),
+        )}`,
       );
     }
 
@@ -1230,12 +1205,12 @@ export const BattleSceneFixtureView: React.FC<{
         `playTargetPreset:${targetIndex ?? "-"}`,
       );
       lines.push(
-        `playDestination:${formatPoint(
+        `playDestination:${formatBattleDebugPoint(
           getAnimationAnchorPoint(destinationAnchor),
         )}`,
       );
       lines.push(
-        `playDestinationSnap:${formatSnapshot(
+        `playDestinationSnap:${formatBattleDebugSnapshot(
           buildAnimationAnchorSnapshot(destinationAnchor),
         )}`,
       );
@@ -1301,14 +1276,14 @@ export const BattleSceneFixtureView: React.FC<{
           : null;
       lines.push(`replacementPreset:${replacementIndex ?? "-"}`);
       lines.push(
-        `replacementOrigin:${formatPoint(
+        `replacementOrigin:${formatBattleDebugPoint(
           getAnimationAnchorPoint(
             replacementAnchorKey,
           ),
         )}`,
       );
       lines.push(
-        `replacementOriginSnap:${formatSnapshot(
+        `replacementOriginSnap:${formatBattleDebugSnapshot(
           buildAnimationAnchorSnapshot(replacementAnchorKey),
         )}`,
       );
@@ -1338,26 +1313,26 @@ export const BattleSceneFixtureView: React.FC<{
         `remainingStableCount:${previewPlayerStableCards.length} plannedIncomingCount:${Math.max(0, (mulliganCount ?? 0) - incomingPreviewHands[PLAYER].length)}`,
       );
       lines.push(
-        `mulliganReturnAnchor:${formatPoint(
+        `mulliganReturnAnchor:${formatBattleDebugPoint(
           getAnimationAnchorPoint(
             mulliganReturnAnchor,
           ),
         )}`,
       );
       lines.push(
-        `mulliganReturnSnap:${formatSnapshot(
+        `mulliganReturnSnap:${formatBattleDebugSnapshot(
           buildAnimationAnchorSnapshot(mulliganReturnAnchor),
         )}`,
       );
       lines.push(
-        `mulliganDrawAnchor:${formatPoint(
+        `mulliganDrawAnchor:${formatBattleDebugPoint(
           getAnimationAnchorPoint(
             mulliganDrawAnchor,
           ),
         )}`,
       );
       lines.push(
-        `mulliganDrawSnap:${formatSnapshot(
+        `mulliganDrawSnap:${formatBattleDebugSnapshot(
           buildAnimationAnchorSnapshot(mulliganDrawAnchor),
         )}`,
       );
@@ -1379,18 +1354,20 @@ export const BattleSceneFixtureView: React.FC<{
             : null;
         lines.push(`attackPreset:${attackIndex ?? "-"}`);
         lines.push(
-          `impactAnchor:${formatPoint(getAnimationAnchorPoint(impactAnchor))}`,
+          `impactAnchor:${formatBattleDebugPoint(getAnimationAnchorPoint(impactAnchor))}`,
         );
         lines.push(
-          `attackDestination:${formatPoint(
+          `attackDestination:${formatBattleDebugPoint(
             getAnimationAnchorPoint(destinationAnchor),
           )}`,
         );
         lines.push(
-          `impactSnap:${formatSnapshot(buildAnimationAnchorSnapshot(impactAnchor))}`,
+          `impactSnap:${formatBattleDebugSnapshot(
+            buildAnimationAnchorSnapshot(impactAnchor),
+          )}`,
         );
         lines.push(
-          `attackDestinationSnap:${formatSnapshot(
+          `attackDestinationSnap:${formatBattleDebugSnapshot(
             buildAnimationAnchorSnapshot(destinationAnchor),
           )}`,
         );
@@ -1402,7 +1379,7 @@ export const BattleSceneFixtureView: React.FC<{
           "target-attack-2-impact",
           "target-attack-3-impact",
         ]
-          .map((anchor) => `${anchor}:${formatPoint(getAnimationAnchorPoint(anchor as BattleLayoutPreviewAnimationAnchorKey))}`)
+          .map((anchor) => `${anchor}:${formatBattleDebugPoint(getAnimationAnchorPoint(anchor as BattleLayoutPreviewAnimationAnchorKey))}`)
           .join(" | ")}]`,
       );
       lines.push(
@@ -1412,7 +1389,7 @@ export const BattleSceneFixtureView: React.FC<{
           "target-attack-2-destination",
           "target-attack-3-destination",
         ]
-          .map((anchor) => `${anchor}:${formatPoint(getAnimationAnchorPoint(anchor as BattleLayoutPreviewAnimationAnchorKey))}`)
+          .map((anchor) => `${anchor}:${formatBattleDebugPoint(getAnimationAnchorPoint(anchor as BattleLayoutPreviewAnimationAnchorKey))}`)
           .join(" | ")}]`,
       );
     }

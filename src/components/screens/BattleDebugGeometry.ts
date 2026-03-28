@@ -33,6 +33,12 @@ export type LiveBattleAnimationReferenceTarget =
   | { kind: "slot"; zoneId: BoardZoneId; slot: string }
   | null;
 
+export interface BattleDebugStageMetrics {
+  rect: { left: number; top: number };
+  scaleX: number;
+  scaleY: number;
+}
+
 export const getBattleDebugZoneSnapshotCenter = (
   snapshot: ZoneAnchorSnapshot | null | undefined,
 ): BattleDebugPoint | null => {
@@ -179,6 +185,12 @@ export const buildBattleProbeRow = <AnchorKey extends string>({
       : null,
 });
 
+export const formatBattleProbeLine = <AnchorKey extends string>(
+  row: BattleProbeRow<AnchorKey>,
+  label?: string | null,
+) =>
+  `probe:${label ? `${label}:` : ""}${row.anchor} scene:${formatBattleDebugPoint(row.point)} screen:${formatBattleDebugPoint(row.screen)} ref:${formatBattleDebugPoint(row.reference)} refScreen:${formatBattleDebugPoint(row.referenceScreen)} dScene:${formatBattleDebugDelta(row.deltaScene)} dScreen:${formatBattleDebugDelta(row.deltaScreen)}`;
+
 export const buildLiveAnimationSnapshotEntries = (
   animations: BattleAnimationLayoutConfig,
 ): Array<BattleAnimationSnapshotEntry<LiveBattleAnimationAnchorKey>> => [
@@ -323,6 +335,109 @@ export const formatBattleDebugSnapshot = (
   snapshot
     ? `${Math.round(snapshot.left)},${Math.round(snapshot.top)} ${Math.round(snapshot.width)}x${Math.round(snapshot.height)}`
     : "-";
+
+export const toBattleDebugScreenPoint = (
+  point: BattleAnimationAnchorPoint | BattleDebugPoint | null | undefined,
+  stageMetrics: BattleDebugStageMetrics | null | undefined,
+): BattleDebugPoint | null => {
+  if (!point || !stageMetrics) return null;
+  return {
+    x: Math.round(stageMetrics.rect.left + point.x * stageMetrics.scaleX),
+    y: Math.round(stageMetrics.rect.top + point.y * stageMetrics.scaleY),
+  };
+};
+
+export const toBattleDebugScenePoint = (
+  point: BattleDebugPoint | null | undefined,
+  stageMetrics: BattleDebugStageMetrics | null | undefined,
+): BattleDebugPoint | null => {
+  if (!point || !stageMetrics) return null;
+  return {
+    x: Math.round((point.x - stageMetrics.rect.left) / stageMetrics.scaleX),
+    y: Math.round((point.y - stageMetrics.rect.top) / stageMetrics.scaleY),
+  };
+};
+
+export const buildBattleDebugPointSnapshot = (
+  point: BattleAnimationAnchorPoint | BattleDebugPoint | null | undefined,
+  stageMetrics: BattleDebugStageMetrics | null | undefined,
+): ZoneAnchorSnapshot | null => {
+  const screenPoint = toBattleDebugScreenPoint(point, stageMetrics);
+  return screenPoint
+    ? {
+        left: screenPoint.x,
+        top: screenPoint.y,
+        width: 0,
+        height: 0,
+      }
+    : null;
+};
+
+export const getPreviewAnimationAnchorReferenceTarget = (
+  anchorKey: string,
+  targetsInPlay: number,
+): LiveBattleAnimationReferenceTarget => {
+  if (anchorKey.startsWith("replacement-target-entry-")) {
+    const match = anchorKey.match(/^replacement-target-entry-(\d+)-origin$/);
+    const index = match ? Number(match[1]) : Number.NaN;
+    if (Number.isNaN(index)) return null;
+    return {
+      kind: "zone",
+      zoneId: index >= targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck",
+    };
+  }
+
+  if (anchorKey === "post-play-hand-draw-origin") {
+    return {
+      kind: "zone",
+      zoneId: "playerDeck",
+    };
+  }
+
+  if (anchorKey.startsWith("hand-play-target-")) {
+    const match = anchorKey.match(/^hand-play-target-(\d+)-destination$/);
+    const index = match ? Number(match[1]) : Number.NaN;
+    if (Number.isNaN(index)) return null;
+    return {
+      kind: "slot",
+      zoneId: "playerField",
+      slot: `slot-${index}`,
+    };
+  }
+
+  if (
+    anchorKey.startsWith("mulligan-hand-draw-") ||
+    anchorKey.startsWith("mulligan-hand-return-")
+  ) {
+    return {
+      kind: "zone",
+      zoneId: "playerDeck",
+    };
+  }
+
+  if (anchorKey.startsWith("target-attack-") && anchorKey.endsWith("-impact")) {
+    const match = anchorKey.match(/^target-attack-(\d+)-impact$/);
+    const index = match ? Number(match[1]) : Number.NaN;
+    if (Number.isNaN(index)) return null;
+    return {
+      kind: "slot",
+      zoneId: index >= targetsInPlay ? "enemyField" : "playerField",
+      slot: `slot-${index % targetsInPlay}`,
+    };
+  }
+
+  if (anchorKey.startsWith("target-attack-") && anchorKey.endsWith("-destination")) {
+    const match = anchorKey.match(/^target-attack-(\d+)-destination$/);
+    const index = match ? Number(match[1]) : Number.NaN;
+    if (Number.isNaN(index)) return null;
+    return {
+      kind: "zone",
+      zoneId: index >= targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck",
+    };
+  }
+
+  return null;
+};
 
 export const formatBattleDebugFallbackLine = (entry: {
   createdAt: number;
