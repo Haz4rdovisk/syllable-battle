@@ -3858,17 +3858,19 @@ export const BattleLayoutEditor: React.FC = () => {
                     focusArea}
               </span>
             </div>
-            <div className="mt-1">
-              Busca: <span className="font-bold">{filteredNavigatorCount}</span>{" "}
-              resultado(s)
-            </div>
+            {normalizedNavigatorSearch ? (
+              <div className="mt-1">
+                Busca: <span className="font-bold">{filteredNavigatorCount}</span>{" "}
+                resultado(s)
+              </div>
+            ) : null}
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input
               type="text"
               value={groupName}
               onChange={(event) => setGroupName(event.target.value)}
-              placeholder="Nome do grupo"
+              placeholder="Nome do preset de selecao"
               className="rounded-xl border border-amber-900/20 bg-white/80 px-3 py-2 text-sm font-semibold text-amber-950 outline-none"
             />
             <Button
@@ -3876,23 +3878,7 @@ export const BattleLayoutEditor: React.FC = () => {
               onClick={saveSelectionAsGroup}
               className="rounded-xl bg-emerald-900 text-amber-50 hover:bg-emerald-800"
             >
-              Salvar grupo
-            </Button>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button
-              type="button"
-              onClick={() => void copySelectedGroupProperties()}
-              className="rounded-xl bg-amber-950 text-amber-50 hover:bg-amber-900"
-            >
-              Copiar grupo
-            </Button>
-            <Button
-              type="button"
-              onClick={pasteSelectedGroupProperties}
-              className="rounded-xl bg-amber-900 text-amber-50 hover:bg-amber-800"
-            >
-              Colar grupo
+              Salvar preset
             </Button>
           </div>
           <div className="space-y-3">
@@ -3983,7 +3969,7 @@ export const BattleLayoutEditor: React.FC = () => {
           {savedGroups.length > 0 ? (
             <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-white/55 p-3">
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/60">
-                Grupos salvos
+                Presets de selecao
               </div>
               <div className="space-y-2">
                 {savedGroups.map((group) => (
@@ -4003,7 +3989,7 @@ export const BattleLayoutEditor: React.FC = () => {
                         onClick={() => selectSavedGroup(group)}
                         className="h-8 rounded-lg bg-sky-900 px-3 text-xs font-bold uppercase tracking-[0.14em] text-amber-50 hover:bg-sky-800"
                       >
-                        Usar
+                        Aplicar
                       </Button>
                     </div>
                     <div className="mt-2 text-[11px] font-semibold text-amber-950/70">
@@ -4020,14 +4006,14 @@ export const BattleLayoutEditor: React.FC = () => {
                         onClick={() => updateGroupFromSelection(group.id)}
                         className="h-8 flex-1 rounded-lg bg-amber-900 px-3 text-xs font-bold uppercase tracking-[0.14em] text-amber-50 hover:bg-amber-800"
                       >
-                        Atualizar
+                        Atualizar selec.
                       </Button>
                       <Button
                         type="button"
                         onClick={() => deleteGroup(group.id)}
                         className="h-8 flex-1 rounded-lg bg-rose-900 px-3 text-xs font-bold uppercase tracking-[0.14em] text-amber-50 hover:bg-rose-800"
                       >
-                        Apagar
+                        Remover
                       </Button>
                     </div>
                   </div>
@@ -4035,6 +4021,31 @@ export const BattleLayoutEditor: React.FC = () => {
               </div>
             </div>
           ) : null}
+          <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-white/55 p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-950/60">
+              Props do grupo
+            </div>
+            <p className="text-xs leading-relaxed text-amber-950/75">
+              Copia e cola props/layout dos elementos selecionados. Nao salva um
+              preset de selecao.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={() => void copySelectedGroupProperties()}
+                className="rounded-xl bg-amber-950 text-amber-50 hover:bg-amber-900"
+              >
+                Copiar props
+              </Button>
+              <Button
+                type="button"
+                onClick={pasteSelectedGroupProperties}
+                className="rounded-xl bg-amber-900 text-amber-50 hover:bg-amber-800"
+              >
+                Colar props
+              </Button>
+            </div>
+          </div>
           <div className="rounded-2xl border border-amber-900/15 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/75">
             Selecionados:{" "}
             <span className="font-bold">
