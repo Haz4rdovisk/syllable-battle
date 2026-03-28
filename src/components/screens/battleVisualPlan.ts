@@ -7,6 +7,11 @@ import {
 } from "./battleFlow";
 import type { ResolvedBattlePlayAction } from "./battleResolution";
 
+export type BattleSimplePlayVisualResult = Pick<
+  ResolvedBattlePlayAction,
+  "damage" | "completedSlot" | "actorIndex" | "playedCard" | "drawnCards"
+>;
+
 export interface BattleSimplePlayVisualPlan {
   kind: "simple-play";
   actorIndex: 0 | 1;
@@ -40,7 +45,7 @@ export interface BattleSimplePlayVisualPlan {
 
 export const createSimplePlayVisualPlan = (args: {
   flow: BattleFlowTimings;
-  result: ResolvedBattlePlayAction;
+  result: BattleSimplePlayVisualResult;
   targetIndex: number;
   handIndex: number;
   stableHandCountBeforePlay: number;

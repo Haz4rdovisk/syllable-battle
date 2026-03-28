@@ -70,6 +70,7 @@ import {
   toBattleDebugScenePoint,
   toBattleDebugScreenPoint,
 } from "./BattleDebugGeometry";
+import { createSimplePlayVisualPlan } from "./battleVisualPlan";
 
 const noopRef = () => {};
 const PLAYER = 0;
@@ -2134,13 +2135,31 @@ export const BattleSceneFixtureView: React.FC<{
       const { removedIndex, playedCard, destination } = previewSetup;
       const { drawSourceIndex, drawnCard, removedCard, origin } =
         getPostPlayPreviewDrawData(removedIndex);
+      const visualPlan = createSimplePlayVisualPlan({
+        flow: BATTLE_SHARED_FLOW_TIMINGS,
+        result: {
+          damage: 0,
+          completedSlot: null,
+          actorIndex: PLAYER,
+          playedCard: playedCard.syllable,
+          drawnCards: drawnCard ? [drawnCard.syllable] : [],
+        },
+        targetIndex,
+        handIndex: removedIndex,
+        stableHandCountBeforePlay: defaultPlayerStableCards.length,
+      });
+      if (!visualPlan) return;
 
       setPreviewPlayerStableCards(
-        defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
+        defaultPlayerStableCards.filter(
+          (_, index) => index !== visualPlan.handExit.handIndex,
+        ),
       );
       setPreviewPendingTargetPlacements({
         [PLAYER]: fixture.scene.board.playerFieldSlots.map((_, index) =>
-          index === targetIndex ? playedCard.syllable : null,
+          index === visualPlan.targetProgressCommit.targetIndex
+            ? playedCard.syllable
+            : null,
         ),
         [ENEMY]: [],
       });
@@ -2159,8 +2178,8 @@ export const BattleSceneFixtureView: React.FC<{
             side: PLAYER,
             card: playedCard,
             destination,
-            initialIndex: removedIndex,
-            initialTotal: defaultPlayerStableCards.length,
+            initialIndex: visualPlan.handExit.handIndex,
+            initialTotal: visualPlan.handExit.handCountBefore,
             delayMs: 0,
             durationMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
             destinationMode: "zone-center",
@@ -2171,19 +2190,16 @@ export const BattleSceneFixtureView: React.FC<{
         [ENEMY]: [],
       });
 
-      const playTotalMs =
-        BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs +
-        BATTLE_SHARED_FLOW_TIMINGS.cardSettleMs;
       const clearPendingTimer = window.setTimeout(() => {
         if (loopGenerationRef.current !== generation) return;
         setPreviewPendingTargetPlacements({
           [PLAYER]: [],
           [ENEMY]: [],
         });
-      }, playTotalMs);
+      }, visualPlan.targetProgressCommit.atMs);
       animationTimersRef.current.push(clearPendingTimer);
 
-      if (origin && drawnCard) {
+      if (origin && drawnCard && visualPlan.postPlayDraw) {
         const drawTimer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;
           setPreviewPostPlayDebug((current) => ({
@@ -2200,22 +2216,19 @@ export const BattleSceneFixtureView: React.FC<{
                   id: `${drawnCard.id}-combo-incoming-${generation}`,
                 },
                 origin,
-                finalIndex: 4,
-                finalTotal: 5,
+                finalIndex: visualPlan.postPlayDraw.finalIndexBase,
+                finalTotal: visualPlan.postPlayDraw.finalTotal,
                 delayMs: 0,
-                durationMs: FIXTURE_POST_PLAY_DRAW_DURATION_MS,
+                durationMs: visualPlan.postPlayDraw.durationMs,
               },
             ],
             [ENEMY]: [],
           });
-        }, playTotalMs);
+        }, visualPlan.postPlayDraw.atMs);
         animationTimersRef.current.push(drawTimer);
       }
 
-      const totalMs =
-        playTotalMs +
-        FIXTURE_POST_PLAY_DRAW_DURATION_MS +
-        FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
+      const totalMs = visualPlan.finish.atMs;
       if (animationMode === "hand-play-draw-combo-loop") {
         const restartTimer = window.setTimeout(() => {
           if (loopGenerationRef.current !== generation) return;

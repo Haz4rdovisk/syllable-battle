@@ -101,6 +101,10 @@ import {
   BATTLE_SHARED_FLOW_TIMINGS,
   BATTLE_SHARED_OPENING_TARGET_TIMINGS,
 } from "./battleSharedTimings";
+import {
+  createSimplePlayVisualPlan,
+  type BattleSimplePlayVisualPlan,
+} from "./battleVisualPlan";
 
 const PLAYER = 0;
 const ENEMY = 1;
@@ -2712,13 +2716,24 @@ export const Battle: React.FC<BattleProps> = ({
     targetIndex,
     result,
     clearSelection,
+    visualPlan,
   }: {
     side: typeof PLAYER | typeof ENEMY;
     targetIndex: number;
     result: PlayResolution;
     clearSelection: boolean;
+    visualPlan?: BattleSimplePlayVisualPlan | null;
   }) => {
-    if (result.damage === 0) {
+    if (visualPlan?.postPlayDraw) {
+      queueHandDrawBatch(side, visualPlan.postPlayDraw.cards, {
+        initialDelayMs: visualPlan.postPlayDraw.atMs,
+        staggerMs: visualPlan.postPlayDraw.staggerMs,
+        durationMs: visualPlan.postPlayDraw.durationMs,
+        finalTotalOverride: visualPlan.postPlayDraw.finalTotal,
+        finalIndexBase: visualPlan.postPlayDraw.finalIndexBase,
+        originOverride: getPostPlayHandDrawOriginSnapshot(side),
+      });
+    } else if (result.damage === 0) {
       queueHandDrawBatch(side, result.drawnCards, {
         initialDelayMs: getPlayDrawStartDelayMs(FLOW),
         staggerMs: FLOW.drawStaggerMs,
@@ -2755,14 +2770,21 @@ export const Battle: React.FC<BattleProps> = ({
     }).forEach(emitBattleEvent);
 
     {
-      const t = setTimeout(() => commitPlayedTargetProgress(side, targetIndex), getPlayedCardCommitDelayMs(FLOW));
+      const t = setTimeout(
+        () =>
+          commitPlayedTargetProgress(
+            side,
+            visualPlan?.targetProgressCommit.targetIndex ?? targetIndex,
+          ),
+        visualPlan?.targetProgressCommit.atMs ?? getPlayedCardCommitDelayMs(FLOW),
+      );
       actionTimersRef.current.push(t);
     }
 
     if (result.damage > 0) {
       startCombatSequence(result);
     } else {
-      const t = setTimeout(finalizeTurn, getPlayFinishDelayMs(FLOW));
+      const t = setTimeout(finalizeTurn, visualPlan?.finish.atMs ?? getPlayFinishDelayMs(FLOW));
       actionTimersRef.current.push(t);
     }
   };
@@ -2854,6 +2876,14 @@ export const Battle: React.FC<BattleProps> = ({
       if (!result) return;
 
       const stableBeforePlay = stableHandsRef.current[side];
+      const simpleVisualPlan = createSimplePlayVisualPlan({
+        flow: FLOW,
+        result,
+        targetIndex: move.targetIndex,
+        handIndex: move.handIndex,
+        stableHandCountBeforePlay: stableBeforePlay.length,
+        handLayoutSlotCount: HAND_LAYOUT_SLOT_COUNT,
+      });
       const playedCardLayout = {
         index: move.handIndex,
         total: stableBeforePlay.length,
@@ -2872,8 +2902,9 @@ export const Battle: React.FC<BattleProps> = ({
             side,
             card: playedStableCard,
             destination,
-            initialIndex: playedCardLayout.index,
-            initialTotal: playedCardLayout.total,
+            initialIndex: simpleVisualPlan?.handExit.handIndex ?? playedCardLayout.index,
+            initialTotal:
+              simpleVisualPlan?.handExit.handCountBefore ?? playedCardLayout.total,
             delayMs: 0,
             durationMs: FLOW.cardToFieldMs,
             destinationMode: "zone-center",
@@ -2888,6 +2919,7 @@ export const Battle: React.FC<BattleProps> = ({
         targetIndex: move.targetIndex,
         result,
         clearSelection,
+        visualPlan: simpleVisualPlan,
       });
       return;
     }
