@@ -69,9 +69,6 @@ import {
 import {
   getMulliganDrawStartDelayMs,
   getMulliganFinishDelayMs,
-  getPlayDrawStartDelayMs,
-  getPlayFinishDelayMs,
-  getPlayedCardCommitDelayMs,
   resolveBotTurnAction,
 } from "./battleFlow";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
@@ -105,6 +102,10 @@ import {
   createSimplePlayVisualPlan,
   type BattleSimplePlayVisualPlan,
 } from "./battleVisualPlan";
+import {
+  applyBattleSimplePlayRuntime,
+  type BattleSimplePlayRuntimeGeometry,
+} from "./battleSimplePlayRuntime";
 
 const PLAYER = 0;
 const ENEMY = 1;
@@ -2710,11 +2711,6 @@ export const Battle: React.FC<BattleProps> = ({
     resolveBattlePlayAction(gameRef.current, handIndex, targetIndex);
 
   type PlayResolution = NonNullable<ReturnType<typeof resolvePlayInternal>>;
-  type SimplePlayVisualGeometry = {
-    handPlayDestination: ZoneAnchorSnapshot | null;
-    postPlayDrawOrigin: ZoneAnchorSnapshot | null;
-  };
-
   const emitResolvedPlayLogicalEvents = useCallback(
     ({
       side,
@@ -2744,7 +2740,7 @@ export const Battle: React.FC<BattleProps> = ({
     (
       side: typeof PLAYER | typeof ENEMY,
       targetIndex: number,
-    ): SimplePlayVisualGeometry => ({
+    ): BattleSimplePlayRuntimeGeometry => ({
       handPlayDestination:
         getHandPlayTargetDestinationSnapshot(side, targetIndex) ??
         snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${targetIndex}`),
@@ -2757,111 +2753,6 @@ export const Battle: React.FC<BattleProps> = ({
       zoneIdForSide,
     ],
   );
-
-  const queueSimplePlayVisualSequence = useCallback(
-    ({
-      side,
-      playedStableCard,
-      visualPlan,
-      geometry,
-    }: {
-      side: typeof PLAYER | typeof ENEMY;
-      playedStableCard: VisualHandCard | null;
-      visualPlan: BattleSimplePlayVisualPlan;
-      geometry: SimplePlayVisualGeometry;
-    }) => {
-      if (playedStableCard && geometry.handPlayDestination) {
-        appendOutgoingCard(side, {
-          id: `play-${playedStableCard.id}-${visualPlan.targetIndex}`,
-          side,
-          card: playedStableCard,
-          destination: geometry.handPlayDestination,
-          initialIndex: visualPlan.handExit.handIndex,
-          initialTotal: visualPlan.handExit.handCountBefore,
-          delayMs: visualPlan.handExit.atMs,
-          durationMs: FLOW.cardToFieldMs,
-          destinationMode: "zone-center",
-          endRotate: side === localPlayerIndex ? 8 : -8,
-          endScale: 1,
-        });
-      }
-
-      if (visualPlan.postPlayDraw) {
-        queueHandDrawBatch(side, visualPlan.postPlayDraw.cards, {
-          initialDelayMs: visualPlan.postPlayDraw.atMs,
-          staggerMs: visualPlan.postPlayDraw.staggerMs,
-          durationMs: visualPlan.postPlayDraw.durationMs,
-          finalTotalOverride: visualPlan.postPlayDraw.finalTotal,
-          finalIndexBase: visualPlan.postPlayDraw.finalIndexBase,
-          originOverride: geometry.postPlayDrawOrigin,
-        });
-      }
-    },
-    [appendOutgoingCard, localPlayerIndex, queueHandDrawBatch],
-  );
-
-  const applyResolvedPlayLogicalOutcome = ({
-    side,
-    targetIndex,
-    result,
-    clearSelection,
-    visualPlan,
-  }: {
-    side: typeof PLAYER | typeof ENEMY;
-    targetIndex: number;
-    result: PlayResolution;
-    clearSelection: boolean;
-    visualPlan?: BattleSimplePlayVisualPlan | null;
-  }) => {
-    if (!visualPlan && result.damage === 0) {
-      queueHandDrawBatch(side, result.drawnCards, {
-        initialDelayMs: getPlayDrawStartDelayMs(FLOW),
-        staggerMs: FLOW.drawStaggerMs,
-        durationMs: FLOW.drawTravelMs,
-        originOverride: getPostPlayHandDrawOriginSnapshot(side),
-      });
-    }
-
-    setGame((prev) => ({
-      ...prev,
-      players: result.nextPlayers as any,
-      winner: result.winner,
-      actedThisTurn: true,
-      combatLocked: result.damage > 0,
-      selectedHandIndexes: clearSelection ? [] : prev.selectedHandIndexes,
-      selectedCardForPlay: clearSelection ? null : prev.selectedCardForPlay,
-      currentMessage: null,
-      log: buildPlayChronicleEntries(side, result, game.players[side].targets[targetIndex]?.name ?? "").reduce(
-        (acc, entry) => addLog(acc, entry),
-        prev.log,
-      ),
-    }));
-
-    emitResolvedPlayLogicalEvents({
-      side,
-      targetIndex,
-      result,
-    });
-
-    {
-      const t = setTimeout(
-        () =>
-          commitPlayedTargetProgress(
-            side,
-            visualPlan?.targetProgressCommit.targetIndex ?? targetIndex,
-          ),
-        visualPlan?.targetProgressCommit.atMs ?? getPlayedCardCommitDelayMs(FLOW),
-      );
-      actionTimersRef.current.push(t);
-    }
-
-    if (result.damage > 0) {
-      startCombatSequence(result);
-    } else {
-      const t = setTimeout(finalizeTurn, visualPlan?.finish.atMs ?? getPlayFinishDelayMs(FLOW));
-      actionTimersRef.current.push(t);
-    }
-  };
 
   const applyResolvedMulliganFlow = ({
     side,
@@ -2968,41 +2859,40 @@ export const Battle: React.FC<BattleProps> = ({
       const [playedStableCard] = removeStableCards(side, [move.handIndex]);
       lockTargetSlot(side, move.targetIndex, true);
       setPendingTargetPlacement(side, move.targetIndex, result.playedCard);
+      const fallbackHandPlayDestination =
+        getHandPlayTargetDestinationSnapshot(side, move.targetIndex) ??
+        snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`);
+      const fallbackPostPlayDrawOrigin = getPostPlayHandDrawOriginSnapshot(side);
 
-      if (simpleVisualPlan && simpleVisualGeometry) {
-        queueSimplePlayVisualSequence({
-          side,
-          playedStableCard,
-          visualPlan: simpleVisualPlan,
-          geometry: simpleVisualGeometry,
-        });
-      } else if (playedStableCard) {
-        const destination =
-          getHandPlayTargetDestinationSnapshot(side, move.targetIndex) ??
-          snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${move.targetIndex}`);
-        if (destination) {
-          appendOutgoingCard(side, {
-            id: `play-${playedStableCard.id}-${move.targetIndex}`,
-            side,
-            card: playedStableCard,
-            destination,
-            initialIndex: playedCardLayout.index,
-            initialTotal: playedCardLayout.total,
-            delayMs: 0,
-            durationMs: FLOW.cardToFieldMs,
-            destinationMode: "zone-center",
-            endRotate: side === localPlayerIndex ? 8 : -8,
-            endScale: 1,
-          });
-        }
-      }
-
-      applyResolvedPlayLogicalOutcome({
+      applyBattleSimplePlayRuntime({
         side,
+        localPlayerIndex,
         targetIndex: move.targetIndex,
         result,
         clearSelection,
+        flow: FLOW,
+        playedStableCard,
+        playedCardLayout,
         visualPlan: simpleVisualPlan,
+        visualGeometry: simpleVisualGeometry,
+        fallbackHandPlayDestination,
+        fallbackPostPlayDrawOrigin,
+        appendOutgoingCard,
+        queueHandDrawBatch,
+        setGame,
+        buildNextLog: (prevLog) =>
+          buildPlayChronicleEntries(side, result, game.players[side].targets[move.targetIndex]?.name ?? "").reduce(
+            (acc, entry) => addLog(acc, entry),
+            prevLog,
+          ),
+        emitResolvedPlayLogicalEvents,
+        commitPlayedTargetProgress,
+        scheduleActionTimer: (callback, delayMs) => {
+          const t = setTimeout(callback, delayMs);
+          actionTimersRef.current.push(t);
+        },
+        startCombatSequence,
+        finalizeTurn,
       });
       return;
     }
