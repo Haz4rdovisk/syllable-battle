@@ -99,3 +99,4 @@ Contrato tecnico atual do editor/preset e do watcher/dump/probes.
 - O editor trabalha sobre overrides locais e sincroniza preview por `localStorage` + `postMessage`.
 - O runtime da batalha consome overrides ativos, mas cai para o preset base versionado quando necessario.
 - O watcher/dump/probes sao ferramentas de diagnostico em DEV, em memoria, sem efeito no runtime jogavel de producao.
+- Para um checklist operacional reutilizavel de nao-regressao, ver `docs/battle-non-regression-checklist.md`.

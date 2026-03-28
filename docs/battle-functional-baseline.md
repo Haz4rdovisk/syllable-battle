@@ -49,3 +49,4 @@ Rodar esta sequencia antes de mexer em regras, fluxo de turno, dano, compra, mul
 - Se um diff tocar battle runtime, executar esta baseline manual antes de considerar a tarefa pronta.
 - Se um diff tocar layout ou animacao, executar a baseline manual e, em caso de duvida visual, repetir os cenarios com debug habilitado.
 - Se um cenario falhar, capturar `Dump` antes de tentar corrigir para preservar a evidencia do comportamento quebrado.
+- Para um checklist tecnico mais curto cobrindo paridade geometrica, debug runtime e smoke multiplayer, ver `docs/battle-non-regression-checklist.md`.
