@@ -116,6 +116,52 @@ const getFixtureTurnFocusTone = (turnLabel: string): BattleTurnFocusTone => {
   if (normalized.includes("seu")) return "player";
   return "neutral";
 };
+
+const getAnimationAnchorReferenceBadgeLabel = (
+  anchor: BattleLayoutPreviewAnimationAnchorKey | null,
+) => {
+  if (!anchor) return "REF";
+  if (anchor.endsWith("-impact")) return "IMPACTO";
+  if (anchor.endsWith("-destination")) return "DESTINO";
+  return "ORIGEM";
+};
+
+const getVisibleAnimationAnchorLabel = (
+  anchor: BattleLayoutPreviewAnimationAnchorKey,
+) => {
+  if (anchor.startsWith("opening-target-entry-")) {
+    const index = anchor.match(/^opening-target-entry-(\d)-origin$/)?.[1] ?? "?";
+    return `${index} - nova origem`;
+  }
+  if (anchor.startsWith("replacement-target-entry-")) {
+    const index = anchor.match(/^replacement-target-entry-(\d)-origin$/)?.[1] ?? "?";
+    return `${index} - nova origem`;
+  }
+  if (anchor === "post-play-hand-draw-origin") {
+    return "nova origem";
+  }
+  if (anchor.startsWith("hand-play-target-")) {
+    const index = anchor.match(/^hand-play-target-(\d)-destination$/)?.[1] ?? "?";
+    return `${index} - novo destino`;
+  }
+  if (anchor.startsWith("mulligan-hand-draw-")) {
+    const index = anchor.match(/^mulligan-hand-draw-(\d)-origin$/)?.[1] ?? "?";
+    return `${index} - nova origem`;
+  }
+  if (anchor.startsWith("mulligan-hand-return-")) {
+    const index = anchor.match(/^mulligan-hand-return-(\d)-destination$/)?.[1] ?? "?";
+    return `${index} - novo destino`;
+  }
+  if (anchor.endsWith("-impact")) {
+    const index = anchor.match(/^target-attack-(\d)-impact$/)?.[1] ?? "?";
+    return `${index} - novo impacto`;
+  }
+  if (anchor.endsWith("-destination")) {
+    const index = anchor.match(/^target-attack-(\d)-destination$/)?.[1] ?? "?";
+    return `${index} - novo destino`;
+  }
+  return anchor;
+};
 const FIXTURE_MULLIGAN_DRAW_DURATION_MS = FIXTURE_POST_PLAY_DRAW_DURATION_MS;
 const FIXTURE_MULLIGAN_DRAW_SETTLE_MS = FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
 const FIXTURE_MULLIGAN_DRAW_STAGGER_MS =
@@ -782,7 +828,9 @@ export const BattleSceneFixtureView: React.FC<{
       const anchor =
         replacementTargetEntryAnchorToolByPreset[animationPreset] ?? null;
       const point = getAnimationAnchorPoint(anchor);
-      return point && anchor ? [{ label: "O", anchor, point }] : [];
+      return point && anchor
+        ? [{ label: getVisibleAnimationAnchorLabel(anchor), anchor, point }]
+        : [];
     }
 
     if (animationSet === "post-play-hand-draw") {
@@ -790,7 +838,9 @@ export const BattleSceneFixtureView: React.FC<{
       return point
         ? [
             {
-              label: "O",
+              label: getVisibleAnimationAnchorLabel(
+                "post-play-hand-draw-origin" as BattleLayoutPreviewAnimationAnchorKey,
+              ),
               anchor: "post-play-hand-draw-origin" as BattleLayoutPreviewAnimationAnchorKey,
               point,
             },
@@ -810,20 +860,26 @@ export const BattleSceneFixtureView: React.FC<{
             ] ?? null
           : null;
       const point = getAnimationAnchorPoint(anchor);
-      return point && anchor ? [{ label: "D", anchor, point }] : [];
+      return point && anchor
+        ? [{ label: getVisibleAnimationAnchorLabel(anchor), anchor, point }]
+        : [];
     }
 
     if (animationSet === "mulligan-hand-draw") {
       const anchor = mulliganDrawOriginAnchorToolByPreset[animationPreset] ?? null;
       const point = getAnimationAnchorPoint(anchor);
-      return point && anchor ? [{ label: "O", anchor, point }] : [];
+      return point && anchor
+        ? [{ label: getVisibleAnimationAnchorLabel(anchor), anchor, point }]
+        : [];
     }
 
     if (animationSet === "mulligan-hand-return") {
       const anchor =
         mulliganReturnDestinationAnchorToolByPreset[animationPreset] ?? null;
       const point = getAnimationAnchorPoint(anchor);
-      return point && anchor ? [{ label: "D", anchor, point }] : [];
+      return point && anchor
+        ? [{ label: getVisibleAnimationAnchorLabel(anchor), anchor, point }]
+        : [];
     }
 
     if (animationSet === "mulligan-complete-combo") {
@@ -841,10 +897,18 @@ export const BattleSceneFixtureView: React.FC<{
       const returnPoint = getAnimationAnchorPoint(returnAnchor);
       return [
         ...(drawPoint && drawAnchor
-          ? [{ label: "O", anchor: drawAnchor, point: drawPoint }]
+          ? [{
+              label: getVisibleAnimationAnchorLabel(drawAnchor),
+              anchor: drawAnchor,
+              point: drawPoint,
+            }]
           : []),
         ...(returnPoint && returnAnchor
-          ? [{ label: "D", anchor: returnAnchor, point: returnPoint }]
+          ? [{
+              label: getVisibleAnimationAnchorLabel(returnAnchor),
+              anchor: returnAnchor,
+              point: returnPoint,
+            }]
           : []),
       ];
     }
@@ -869,13 +933,25 @@ export const BattleSceneFixtureView: React.FC<{
       const destinationPoint = getAnimationAnchorPoint(destinationAnchor);
       return [
         ...(replacementPoint && replacementAnchor
-          ? [{ label: "O", anchor: replacementAnchor, point: replacementPoint }]
+          ? [{
+              label: getVisibleAnimationAnchorLabel(replacementAnchor),
+              anchor: replacementAnchor,
+              point: replacementPoint,
+            }]
           : []),
         ...(impactPoint && impactAnchor
-          ? [{ label: "I", anchor: impactAnchor, point: impactPoint }]
+          ? [{
+              label: getVisibleAnimationAnchorLabel(impactAnchor),
+              anchor: impactAnchor,
+              point: impactPoint,
+            }]
           : []),
         ...(destinationPoint && destinationAnchor
-          ? [{ label: "D", anchor: destinationAnchor, point: destinationPoint }]
+          ? [{
+              label: getVisibleAnimationAnchorLabel(destinationAnchor),
+              anchor: destinationAnchor,
+              point: destinationPoint,
+            }]
           : []),
       ];
     }
@@ -888,14 +964,14 @@ export const BattleSceneFixtureView: React.FC<{
       const entries = [
         impactAnchor
           ? {
-              label: "I",
+              label: getVisibleAnimationAnchorLabel(impactAnchor),
               anchor: impactAnchor,
               point: getAnimationAnchorPoint(impactAnchor),
             }
           : null,
         destinationAnchor
           ? {
-              label: "D",
+              label: getVisibleAnimationAnchorLabel(destinationAnchor),
               anchor: destinationAnchor,
               point: getAnimationAnchorPoint(destinationAnchor),
             }
@@ -914,19 +990,27 @@ export const BattleSceneFixtureView: React.FC<{
       return (
         [
           {
-            label: "0",
+            label: getVisibleAnimationAnchorLabel(
+              "opening-target-entry-0-origin" as BattleLayoutPreviewAnimationAnchorKey,
+            ),
             anchor: "opening-target-entry-0-origin" as BattleLayoutPreviewAnimationAnchorKey,
           },
           {
-            label: "1",
+            label: getVisibleAnimationAnchorLabel(
+              "opening-target-entry-1-origin" as BattleLayoutPreviewAnimationAnchorKey,
+            ),
             anchor: "opening-target-entry-1-origin" as BattleLayoutPreviewAnimationAnchorKey,
           },
           {
-            label: "2",
+            label: getVisibleAnimationAnchorLabel(
+              "opening-target-entry-2-origin" as BattleLayoutPreviewAnimationAnchorKey,
+            ),
             anchor: "opening-target-entry-2-origin" as BattleLayoutPreviewAnimationAnchorKey,
           },
           {
-            label: "3",
+            label: getVisibleAnimationAnchorLabel(
+              "opening-target-entry-3-origin" as BattleLayoutPreviewAnimationAnchorKey,
+            ),
             anchor: "opening-target-entry-3-origin" as BattleLayoutPreviewAnimationAnchorKey,
           },
         ]
@@ -946,14 +1030,7 @@ export const BattleSceneFixtureView: React.FC<{
     if (!selectedAnchor || !selectedPoint) return [];
     return [
       {
-        label:
-          animationPreset === "opening-target-entry-0"
-            ? "0"
-            : animationPreset === "opening-target-entry-1"
-              ? "1"
-              : animationPreset === "opening-target-entry-2"
-                ? "2"
-                : "3",
+        label: getVisibleAnimationAnchorLabel(selectedAnchor),
         anchor: selectedAnchor,
         point: selectedPoint,
       },
@@ -1107,6 +1184,18 @@ export const BattleSceneFixtureView: React.FC<{
         };
       }),
     [getReferenceScenePointForAnchor, getScreenPointFromScenePoint, visibleAnimationAnchors],
+  );
+  const activeAnimationAnchorReferencePoint = useMemo(
+    () => getReferenceScenePointForAnchor(animationAnchorTool),
+    [animationAnchorTool, getReferenceScenePointForAnchor],
+  );
+  const activeAnimationAnchorPoint = useMemo(
+    () => getAnimationAnchorPoint(animationAnchorTool),
+    [animationAnchorTool, getAnimationAnchorPoint],
+  );
+  const activeAnimationAnchorReferenceLabel = useMemo(
+    () => getAnimationAnchorReferenceBadgeLabel(animationAnchorTool),
+    [animationAnchorTool],
   );
 
   const buildAnimationAnchorSnapshotFromPoint = useCallback(
@@ -2848,6 +2937,7 @@ export const BattleSceneFixtureView: React.FC<{
               !(animationSet === "opening-target-entry-first-round" &&
                 animationPreset === "opening-target-entry-simultaneous") &&
               animationAnchorTool === anchor;
+            const isActive = animationAnchorTool === anchor;
             return (
               <button
                 key={`${anchor}-${label}`}
@@ -2859,13 +2949,14 @@ export const BattleSceneFixtureView: React.FC<{
                   isInteractive
                     ? "cursor-grab opacity-100"
                     : "pointer-events-none opacity-80",
+                  isActive ? "scale-110 border-amber-200 bg-amber-400/25 shadow-[0_0_34px_rgba(251,191,36,0.45)]" : "",
                 )}
                 style={{
                   left: `${point.x}px`,
                   top: `${point.y}px`,
                 }}
               >
-                <span className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 rounded-md bg-sky-950/90 px-1.5 py-0.5 text-[10px] font-black leading-none text-sky-100">
+                <span className="pointer-events-none absolute -top-6 left-1/2 min-w-max -translate-x-1/2 whitespace-nowrap rounded-md bg-sky-950/90 px-1.5 py-0.5 text-[10px] font-black leading-none text-sky-100">
                   {label}
                 </span>
                 <span className="pointer-events-none absolute inset-[5px] rounded-full border border-sky-200/80" />
@@ -2874,6 +2965,37 @@ export const BattleSceneFixtureView: React.FC<{
             );
           })
         : null}
+      {editorMode &&
+      animationAnchorTool &&
+      activeAnimationAnchorReferencePoint &&
+      activeAnimationAnchorPoint ? (
+        <div className="pointer-events-none absolute inset-0 z-[64]">
+          <svg className="absolute inset-0 h-full w-full overflow-visible">
+            <line
+              x1={activeAnimationAnchorReferencePoint.x}
+              y1={activeAnimationAnchorReferencePoint.y}
+              x2={activeAnimationAnchorPoint.x}
+              y2={activeAnimationAnchorPoint.y}
+              stroke="rgba(251,191,36,0.92)"
+              strokeWidth={2}
+              strokeDasharray="8 6"
+            />
+          </svg>
+          <div
+            className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-200 bg-amber-500/20 shadow-[0_0_28px_rgba(251,191,36,0.35)]"
+            style={{
+              left: `${activeAnimationAnchorReferencePoint.x}px`,
+              top: `${activeAnimationAnchorReferencePoint.y}px`,
+            }}
+          >
+            <span className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 rounded-md bg-amber-950/90 px-1.5 py-0.5 text-[10px] font-black leading-none text-amber-100">
+              {activeAnimationAnchorReferenceLabel}
+            </span>
+            <span className="pointer-events-none absolute inset-[5px] rounded-full border border-amber-100/80" />
+            <span className="pointer-events-none absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-100" />
+          </div>
+        </div>
+      ) : null}
       {editorMode && animationDebugEnabled ? (
         <div className="pointer-events-none absolute right-3 top-3 z-[90] max-w-[360px] rounded-lg border border-cyan-300/20 bg-black/75 px-3 py-2 font-mono text-[10px] leading-tight text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
           {debugLines.map((line) => (

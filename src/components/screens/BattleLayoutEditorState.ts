@@ -206,6 +206,8 @@ export const BATTLE_LAYOUT_EDITOR_ELEMENT_CLIPBOARD_KEY =
   "syllable-battle:battle-layout-editor-element-clipboard";
 export const BATTLE_LAYOUT_EDITOR_GROUP_CLIPBOARD_KEY =
   "syllable-battle:battle-layout-editor-group-clipboard";
+export const BATTLE_LAYOUT_EDITOR_ANCHOR_CLIPBOARD_KEY =
+  "syllable-battle:battle-layout-editor-anchor-clipboard";
 export const BATTLE_LAYOUT_EDITOR_PRESETS_KEY =
   "syllable-battle:battle-layout-editor-presets";
 export const BATTLE_LAYOUT_EDITOR_GROUPS_KEY =

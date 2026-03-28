@@ -41,6 +41,7 @@ import {
   BATTLE_LAYOUT_EDITOR_ELEMENT_CLIPBOARD_KEY,
   BATTLE_LAYOUT_EDITOR_BASELINE_KEY,
   BATTLE_LAYOUT_EDITOR_GROUP_CLIPBOARD_KEY,
+  BATTLE_LAYOUT_EDITOR_ANCHOR_CLIPBOARD_KEY,
   BATTLE_LAYOUT_EDITOR_GROUPS_KEY,
   BATTLE_LAYOUT_EDITOR_MESSAGE_TYPE,
   BATTLE_LAYOUT_MODEL_VERSION,
@@ -49,7 +50,11 @@ import {
   BATTLE_LAYOUT_PREVIEW_STATE_MESSAGE_TYPE,
   normalizeBattleLayoutEditorPreviewState,
 } from "./BattleLayoutEditorState";
-import { getBattleElementSceneRect } from "./BattleSceneSpace";
+import {
+  BATTLE_STAGE_HEIGHT,
+  BATTLE_STAGE_WIDTH,
+  getBattleElementSceneRect,
+} from "./BattleSceneSpace";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 
@@ -76,6 +81,12 @@ type LayoutSection = {
 };
 
 type AnimationPreviewLoopTarget = "idle" | "trajectory" | "motion" | "combined";
+type AnimationAnchorEditorItem = {
+  anchor: BattleLayoutPreviewAnimationAnchorKey;
+  kindLabel: "Origem" | "Destino" | "Impacto";
+  title: string;
+  referenceLabel: string;
+};
 
 const fixtureOptions: BattleSceneFixtureKey[] = [
   "calm",
@@ -706,6 +717,75 @@ const getAnimationAnchorStateKey = (
     default:
       return null;
   }
+};
+
+const getAnimationAnchorKindLabel = (
+  anchor: BattleLayoutPreviewAnimationAnchorKey,
+): AnimationAnchorEditorItem["kindLabel"] => {
+  if (anchor.endsWith("-impact")) return "Impacto";
+  if (anchor.endsWith("-destination")) return "Destino";
+  return "Origem";
+};
+
+const getAnimationAnchorTitle = (
+  anchor: BattleLayoutPreviewAnimationAnchorKey,
+) => {
+  if (anchor.startsWith("opening-target-entry-")) {
+    const match = anchor.match(/^opening-target-entry-(\d)-origin$/);
+    return `Entrada inicial ${match?.[1] ?? "?"}`;
+  }
+  if (anchor.startsWith("replacement-target-entry-")) {
+    const match = anchor.match(/^replacement-target-entry-(\d)-origin$/);
+    return `Reposicao de alvo ${match?.[1] ?? "?"}`;
+  }
+  if (anchor === "post-play-hand-draw-origin") {
+    return "Compra pos-jogada";
+  }
+  if (anchor.startsWith("hand-play-target-")) {
+    const match = anchor.match(/^hand-play-target-(\d)-destination$/);
+    return `Play da mao ${match?.[1] ?? "?"}`;
+  }
+  if (anchor.startsWith("mulligan-hand-return-")) {
+    const match = anchor.match(/^mulligan-hand-return-(\d)-destination$/);
+    return `Mulligan retorno ${match?.[1] ?? "?"}`;
+  }
+  if (anchor.startsWith("mulligan-hand-draw-")) {
+    const match = anchor.match(/^mulligan-hand-draw-(\d)-origin$/);
+    return `Mulligan compra ${match?.[1] ?? "?"}`;
+  }
+  if (anchor.startsWith("target-attack-")) {
+    const match = anchor.match(/^target-attack-(\d)-(impact|destination)$/);
+    return `Ataque ${match?.[1] ?? "?"}`;
+  }
+  return anchor;
+};
+
+const getAnimationAnchorReferenceLabel = (
+  anchor: BattleLayoutPreviewAnimationAnchorKey,
+) => {
+  if (
+    anchor.startsWith("opening-target-entry-") ||
+    anchor.startsWith("replacement-target-entry-")
+  ) {
+    return "Referencia real: deck de alvos";
+  }
+  if (
+    anchor === "post-play-hand-draw-origin" ||
+    anchor.startsWith("mulligan-hand-return-") ||
+    anchor.startsWith("mulligan-hand-draw-")
+  ) {
+    return "Referencia real: deck do jogador";
+  }
+  if (anchor.startsWith("hand-play-target-")) {
+    return "Referencia real: slot do campo";
+  }
+  if (anchor.endsWith("-impact")) {
+    return "Referencia real: slot de impacto";
+  }
+  if (anchor.endsWith("-destination")) {
+    return "Referencia real: destino no deck de alvos";
+  }
+  return "Referencia real do preset atual";
 };
 
 const getTargetAttackIndexFromPreset = (
@@ -1486,22 +1566,30 @@ export const BattleLayoutEditor: React.FC = () => {
     getSelectedMulliganReturnDestinationAnchorTool();
   const selectedTargetAttackImpactAnchorTool = getSelectedTargetAttackImpactAnchorTool();
   const selectedTargetAttackDestinationAnchorTool = getSelectedTargetAttackDestinationAnchorTool();
-  const isIndividualAnimationPreset =
-    selectedAnimationOriginAnchorTool !== null ||
-    selectedHandPlayTargetDestinationAnchorTool !== null ||
-    selectedMulliganReturnDestinationAnchorTool !== null ||
-    selectedTargetAttackImpactAnchorTool !== null ||
-    selectedTargetAttackDestinationAnchorTool !== null;
-  const isOriginAnchorAvailable = selectedAnimationOriginAnchorTool !== null;
-  const isImpactAnchorAvailable = selectedTargetAttackImpactAnchorTool !== null;
-  const isDestinationAnchorAvailable =
-    selectedHandPlayTargetDestinationAnchorTool !== null ||
-    selectedMulliganReturnDestinationAnchorTool !== null ||
-    selectedTargetAttackDestinationAnchorTool !== null;
-  const hasAnimationAnchorControls =
-    isOriginAnchorAvailable ||
-    isImpactAnchorAvailable ||
-    isDestinationAnchorAvailable;
+  const animationAnchorEditorItems = useMemo(() => {
+    const anchorKeys = [
+      selectedAnimationOriginAnchorTool,
+      selectedTargetAttackImpactAnchorTool,
+      selectedHandPlayTargetDestinationAnchorTool,
+      selectedMulliganReturnDestinationAnchorTool,
+      selectedTargetAttackDestinationAnchorTool,
+    ].filter(
+      (anchor): anchor is BattleLayoutPreviewAnimationAnchorKey => anchor !== null,
+    );
+
+    return anchorKeys.map<AnimationAnchorEditorItem>((anchor) => ({
+      anchor,
+      kindLabel: getAnimationAnchorKindLabel(anchor),
+      title: getAnimationAnchorTitle(anchor),
+      referenceLabel: getAnimationAnchorReferenceLabel(anchor),
+    }));
+  }, [
+    selectedAnimationOriginAnchorTool,
+    selectedHandPlayTargetDestinationAnchorTool,
+    selectedMulliganReturnDestinationAnchorTool,
+    selectedTargetAttackImpactAnchorTool,
+    selectedTargetAttackDestinationAnchorTool,
+  ]);
 
   useEffect(() => {
     layoutOverridesRef.current = layoutOverrides;
@@ -1561,6 +1649,172 @@ export const BattleLayoutEditor: React.FC = () => {
         layoutOverrides.animations?.targetAttack3Destination ?? null,
     });
   }, [layoutOverrides.animations]);
+
+  const resolveDefaultAnimationAnchorPoint = useCallback((
+    anchorTool: BattleLayoutPreviewAnimationAnchorKey,
+  ): BattleAnimationAnchorPoint => {
+    let anchorRect = getBattleElementSceneRect("playerTargetDeck", layout);
+
+    if (anchorTool.startsWith("opening-target-entry-")) {
+      const entryIndex = Number(anchorTool.match(/^opening-target-entry-(\d)-origin$/)?.[1] ?? 0);
+      const allStagedTargets = [
+        ...battleSceneFixtures[fixtureKey].scene.board.playerFieldSlots.map((slot, slotIndex) => ({
+          side: "player" as const,
+          slotIndex,
+          hasTarget: Boolean(slot.displayedTarget),
+        })),
+        ...battleSceneFixtures[fixtureKey].scene.board.enemyFieldSlots.map((slot, slotIndex) => ({
+          side: "enemy" as const,
+          slotIndex,
+          hasTarget: Boolean(slot.displayedTarget),
+        })),
+      ].filter((entry) => entry.hasTarget);
+      const selectedEntry = allStagedTargets[entryIndex];
+      anchorRect = getBattleElementSceneRect(
+        selectedEntry?.side === "enemy" ? "enemyTargetDeck" : "playerTargetDeck",
+        layout,
+      );
+    } else if (anchorTool.startsWith("replacement-target-entry-")) {
+      const replacementIndex = Number(
+        anchorTool.match(/^replacement-target-entry-(\d)-origin$/)?.[1] ?? 0,
+      );
+      anchorRect = getBattleElementSceneRect(
+        replacementIndex >= 2 ? "enemyTargetDeck" : "playerTargetDeck",
+        layout,
+      );
+    } else if (anchorTool === "post-play-hand-draw-origin") {
+      anchorRect = getBattleElementSceneRect("playerDeck", layout);
+    } else if (anchorTool.startsWith("hand-play-target-")) {
+      const index = Number(anchorTool.match(/^hand-play-target-(\d)-destination$/)?.[1] ?? 0);
+      const fieldRect = getBattleElementSceneRect("playerField", layout);
+      anchorRect = {
+        ...fieldRect,
+        x: fieldRect.x + (fieldRect.width / 2) * index,
+        width: fieldRect.width / 2,
+      };
+    } else if (anchorTool.startsWith("mulligan-hand-draw-")) {
+      anchorRect = getBattleElementSceneRect("playerDeck", layout);
+    } else if (anchorTool.startsWith("mulligan-hand-return-")) {
+      anchorRect = getBattleElementSceneRect("playerDeck", layout);
+    } else if (anchorTool.includes("-impact")) {
+      const targetIndex = Number(anchorTool.match(/^target-attack-(\d)-impact$/)?.[1] ?? 0);
+      const fieldRect = getBattleElementSceneRect(
+        targetIndex >= 2 ? "enemyField" : "playerField",
+        layout,
+      );
+      anchorRect = {
+        ...fieldRect,
+        x: fieldRect.x + (fieldRect.width / 2) * (targetIndex % 2),
+        width: fieldRect.width / 2,
+      };
+    } else if (anchorTool.includes("-destination")) {
+      anchorRect = getBattleElementSceneRect(
+        anchorTool.includes("target-attack-0") || anchorTool.includes("target-attack-1")
+          ? "playerTargetDeck"
+          : "enemyTargetDeck",
+        layout,
+      );
+    }
+
+    return {
+      x: Math.round(anchorRect.x + anchorRect.width / 2),
+      y: Math.round(anchorRect.y + anchorRect.height / 2),
+    };
+  }, [fixtureKey, layout]);
+
+  const commitAnimationAnchorPoint = useCallback((
+    anchorTool: BattleLayoutPreviewAnimationAnchorKey,
+    point: BattleAnimationAnchorPoint,
+  ) => {
+    const anchorStateKey = getAnimationAnchorStateKey(anchorTool);
+    if (!anchorStateKey) return;
+    const nextPoint = {
+      x: clampNumber(Math.round(point.x), 0, BATTLE_STAGE_WIDTH),
+      y: clampNumber(Math.round(point.y), 0, BATTLE_STAGE_HEIGHT),
+    };
+
+    setAnimationMode("idle");
+    setAnimationRunId((current) => current + 1);
+    setAnimationAnchors((current) => ({
+      ...current,
+      [anchorStateKey]: nextPoint,
+    }));
+    setLayoutOverrides((previous) =>
+      pruneBattleLayoutOverrides({
+        ...previous,
+        animations: {
+          ...(previous.animations ?? {}),
+          [anchorStateKey]: nextPoint,
+        },
+      }),
+    );
+  }, []);
+
+  const updateAnimationAnchorCoordinate = useCallback((
+    anchorTool: BattleLayoutPreviewAnimationAnchorKey,
+    axis: "x" | "y",
+    value: number,
+  ) => {
+    const anchorStateKey = getAnimationAnchorStateKey(anchorTool);
+    if (!anchorStateKey) return;
+    const currentPoint =
+      animationAnchors[anchorStateKey] ?? resolveDefaultAnimationAnchorPoint(anchorTool);
+    commitAnimationAnchorPoint(anchorTool, {
+      ...currentPoint,
+      [axis]: value,
+    });
+  }, [animationAnchors, commitAnimationAnchorPoint, resolveDefaultAnimationAnchorPoint]);
+
+  const copyAnimationAnchorPoint = useCallback(async (
+    anchorTool: BattleLayoutPreviewAnimationAnchorKey,
+  ) => {
+    if (typeof window === "undefined") return;
+    const anchorStateKey = getAnimationAnchorStateKey(anchorTool);
+    if (!anchorStateKey) return;
+    const point =
+      animationAnchors[anchorStateKey] ?? resolveDefaultAnimationAnchorPoint(anchorTool);
+    const payload = { anchor: anchorTool, point };
+    window.localStorage.setItem(
+      BATTLE_LAYOUT_EDITOR_ANCHOR_CLIPBOARD_KEY,
+      JSON.stringify(payload),
+    );
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(JSON.stringify(point, null, 2));
+    }
+  }, [animationAnchors, resolveDefaultAnimationAnchorPoint]);
+
+  const pasteAnimationAnchorPoint = useCallback((
+    anchorTool: BattleLayoutPreviewAnimationAnchorKey,
+  ) => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(BATTLE_LAYOUT_EDITOR_ANCHOR_CLIPBOARD_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        point?: Partial<BattleAnimationAnchorPoint>;
+      };
+      if (!parsed.point) return;
+      const anchorStateKey = getAnimationAnchorStateKey(anchorTool);
+      if (!anchorStateKey) return;
+      const currentPoint =
+        animationAnchors[anchorStateKey] ?? resolveDefaultAnimationAnchorPoint(anchorTool);
+      commitAnimationAnchorPoint(anchorTool, {
+        x: Number.isFinite(parsed.point.x) ? parsed.point.x : currentPoint.x,
+        y: Number.isFinite(parsed.point.y) ? parsed.point.y : currentPoint.y,
+      });
+    } catch {
+      // ignore invalid clipboard payload
+    }
+  }, [animationAnchors, commitAnimationAnchorPoint, resolveDefaultAnimationAnchorPoint]);
+
+  const resetAnimationAnchorPoint = useCallback((
+    anchorTool: BattleLayoutPreviewAnimationAnchorKey,
+  ) => {
+    commitAnimationAnchorPoint(
+      anchorTool,
+      resolveDefaultAnimationAnchorPoint(anchorTool),
+    );
+  }, [commitAnimationAnchorPoint, resolveDefaultAnimationAnchorPoint]);
 
   const selectElements = useCallback((
     nextFocus: BattleScenePreviewFocusArea,
@@ -2903,12 +3157,6 @@ export const BattleLayoutEditor: React.FC = () => {
   const isAnyAnimationPreviewLoopRunning =
     activeAnimationPreviewLoop !== "idle" ||
     animationMode === getAnimationModeForAction(animationSet, "loop");
-  const activeLocalMotionLabel =
-    activeSection?.title ??
-    (activeElementKey
-      ? sections.find((section) => section.elementKey === activeElementKey)?.title ??
-        activeElementKey
-      : null);
   const clearAnimationPreviewLoopTimer = useCallback(() => {
     if (typeof window === "undefined") return;
     if (animationPreviewLoopTimerRef.current !== null) {
@@ -3964,87 +4212,144 @@ export const BattleLayoutEditor: React.FC = () => {
               ))}
             </select>
           </label>
-          {hasAnimationAnchorControls ? (
-            <div className="flex gap-2">
-              {isOriginAnchorAvailable ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    ensureAnimationAnchor(selectedAnimationOriginAnchorTool);
-                    setAnimationMode("idle");
-                    setAnimationRunId((current) => current + 1);
-                    setAnimationAnchorTool((current) =>
-                      current === selectedAnimationOriginAnchorTool
-                        ? null
-                        : selectedAnimationOriginAnchorTool,
-                    );
-                  }}
-                  className={cn(
-                    "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
-                    animationAnchorTool === selectedAnimationOriginAnchorTool
-                      ? "bg-sky-800 hover:bg-sky-700"
-                      : "bg-sky-950 hover:bg-sky-900",
-                  )}
-                  disabled={!isIndividualAnimationPreset}
-                >
-                  Mover origem
-                </Button>
-              ) : null}
-              {isImpactAnchorAvailable ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    ensureAnimationAnchor(selectedTargetAttackImpactAnchorTool);
-                    setAnimationMode("idle");
-                    setAnimationRunId((current) => current + 1);
-                    setAnimationAnchorTool((current) =>
-                      current === selectedTargetAttackImpactAnchorTool
-                        ? null
-                        : selectedTargetAttackImpactAnchorTool,
-                    );
-                  }}
-                  className={cn(
-                    "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
-                    animationAnchorTool === selectedTargetAttackImpactAnchorTool
-                      ? "bg-sky-800 hover:bg-sky-700"
-                      : "bg-sky-950 hover:bg-sky-900",
-                  )}
-                  disabled={!isImpactAnchorAvailable}
-                >
-                  Mover impacto
-                </Button>
-              ) : null}
-              {isDestinationAnchorAvailable ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const destinationAnchorTool =
-                      selectedHandPlayTargetDestinationAnchorTool ??
-                      selectedMulliganReturnDestinationAnchorTool ??
-                      selectedTargetAttackDestinationAnchorTool;
-                    ensureAnimationAnchor(destinationAnchorTool);
-                    setAnimationMode("idle");
-                    setAnimationRunId((current) => current + 1);
-                    setAnimationAnchorTool((current) =>
-                      current === destinationAnchorTool
-                        ? null
-                        : destinationAnchorTool,
-                    );
-                  }}
-                  className={cn(
-                    "flex-1 rounded-xl border border-sky-300/20 text-sky-50",
-                    animationAnchorTool ===
-                      (selectedHandPlayTargetDestinationAnchorTool ??
-                        selectedMulliganReturnDestinationAnchorTool ??
-                        selectedTargetAttackDestinationAnchorTool)
-                      ? "bg-sky-800 hover:bg-sky-700"
-                      : "bg-sky-950 hover:bg-sky-900",
-                  )}
-                  disabled={!isDestinationAnchorAvailable}
-                >
-                  Mover destino
-                </Button>
-              ) : null}
+          {animationAnchorEditorItems.length > 0 ? (
+            <div className="space-y-2 rounded-2xl border border-sky-900/12 bg-white/70 p-3">
+              <div className="space-y-2">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-sky-950/60">
+                  Anchors e endpoints do preset atual
+                </div>
+                {animationAnchorEditorItems.map((item) => {
+                  const anchorStateKey = getAnimationAnchorStateKey(item.anchor);
+                  if (!anchorStateKey) return null;
+                  const point =
+                    animationAnchors[anchorStateKey] ??
+                    resolveDefaultAnimationAnchorPoint(item.anchor);
+                  const isActive = animationAnchorTool === item.anchor;
+
+                  return (
+                    <div
+                      key={item.anchor}
+                      className={cn(
+                        "space-y-2 rounded-2xl border p-3 transition-colors",
+                        isActive
+                          ? "border-sky-400/40 bg-sky-50/90"
+                          : "border-sky-900/12 bg-white/80",
+                      )}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="inline-flex rounded-full bg-sky-950 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-50">
+                            {item.kindLabel}
+                          </span>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              ensureAnimationAnchor(item.anchor);
+                              setAnimationMode("idle");
+                              setAnimationRunId((current) => current + 1);
+                              setAnimationAnchorTool((current) =>
+                                current === item.anchor ? null : item.anchor,
+                              );
+                            }}
+                            className={cn(
+                              "shrink-0 rounded-xl border border-sky-300/20 px-3 text-sm text-sky-50",
+                              isActive
+                                ? "bg-sky-800 hover:bg-sky-700"
+                                : "bg-sky-950 hover:bg-sky-900",
+                            )}
+                          >
+                            {isActive ? "Movendo" : "Mover"}
+                          </Button>
+                        </div>
+                        <div className="text-sm font-bold text-sky-950">
+                          {item.title}
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-mono text-[11px] text-sky-950/70">
+                            {item.anchor}
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-sky-950/70">
+                          {item.referenceLabel}
+                        </div>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        <label className="flex items-center justify-between gap-2 rounded-xl border border-sky-900/12 bg-sky-50/60 px-2.5 py-1.5">
+                          <span className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-950/70">
+                            X
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={BATTLE_STAGE_WIDTH}
+                            step={1}
+                            value={point.x}
+                            onChange={(event) =>
+                              updateAnimationAnchorCoordinate(
+                                item.anchor,
+                                "x",
+                                parseInputValue(
+                                  event.target.value,
+                                  point.x,
+                                  0,
+                                  BATTLE_STAGE_WIDTH,
+                                ),
+                              )}
+                            className="w-16 rounded-lg border border-sky-900/15 bg-white px-1.5 py-0.5 text-right text-sm font-semibold text-sky-950 outline-none"
+                          />
+                        </label>
+                        <label className="flex items-center justify-between gap-2 rounded-xl border border-sky-900/12 bg-sky-50/60 px-2.5 py-1.5">
+                          <span className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-950/70">
+                            Y
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={BATTLE_STAGE_HEIGHT}
+                            step={1}
+                            value={point.y}
+                            onChange={(event) =>
+                              updateAnimationAnchorCoordinate(
+                                item.anchor,
+                                "y",
+                                parseInputValue(
+                                  event.target.value,
+                                  point.y,
+                                  0,
+                                  BATTLE_STAGE_HEIGHT,
+                                ),
+                              )}
+                            className="w-16 rounded-lg border border-sky-900/15 bg-white px-1.5 py-0.5 text-right text-sm font-semibold text-sky-950 outline-none"
+                          />
+                        </label>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <Button
+                          type="button"
+                          onClick={() => void copyAnimationAnchorPoint(item.anchor)}
+                          className="rounded-xl border border-sky-900/12 bg-white/80 text-sky-950 hover:bg-white"
+                        >
+                          Copiar
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => pasteAnimationAnchorPoint(item.anchor)}
+                          className="rounded-xl border border-sky-900/12 bg-white/80 text-sky-950 hover:bg-white"
+                        >
+                          Colar
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => resetAnimationAnchorPoint(item.anchor)}
+                          className="rounded-xl border border-sky-900/12 bg-white/80 text-sky-950 hover:bg-white"
+                        >
+                          Resetar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
           <div className="space-y-2 rounded-2xl border border-emerald-900/12 bg-white/70 p-3">
