@@ -4,6 +4,7 @@ import { Menu } from "./components/screens/Menu";
 import { DeckSelection } from "./components/screens/DeckSelection";
 import { Lobby } from "./components/screens/Lobby";
 import { Battle } from "./components/screens/Battle";
+import { ContentInspector } from "./components/screens/ContentInspector";
 import { ProfileSetup } from "./components/screens/ProfileSetup";
 import { BattleLayoutEditor } from "./components/screens/BattleLayoutEditor";
 import { BattleLayoutPreview } from "./components/screens/BattleLayoutPreview";
@@ -259,11 +260,17 @@ export default function App() {
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-wood.png')] opacity-20" />
       </div>
 
-      <main className="relative z-10 h-full w-full overflow-hidden">
+      <main
+        className={`relative z-10 h-full w-full ${
+          devSceneMode === "content-inspector" ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"
+        }`}
+      >
         {devSceneMode === "layout-editor" ? (
           <BattleLayoutEditor />
         ) : devSceneMode === "layout-preview" ? (
           <BattleLayoutPreview />
+        ) : devSceneMode === "content-inspector" ? (
+          <ContentInspector />
         ) : !playerProfile || isEditingProfile ? (
           <ProfileSetup
             initialProfile={playerProfile}

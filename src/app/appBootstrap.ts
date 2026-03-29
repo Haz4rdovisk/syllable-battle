@@ -1,6 +1,6 @@
 import { PlayerProfile, normalizePlayerName } from "../types/game";
 
-export type DevSceneMode = "layout-editor" | "layout-preview" | null;
+export type DevSceneMode = "layout-editor" | "layout-preview" | "content-inspector" | null;
 
 export const PLAYER_PROFILE_STORAGE_KEY = "syllable-battle:player-profile";
 
@@ -8,6 +8,7 @@ export function resolveDevSceneMode(search: string): DevSceneMode {
   const params = new URLSearchParams(search);
   if (params.get("battle-layout-editor") === "1") return "layout-editor";
   if (params.get("battle-layout-preview") === "1") return "layout-preview";
+  if (params.get("content-inspector") === "1") return "content-inspector";
   return null;
 }
 
