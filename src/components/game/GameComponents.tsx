@@ -581,11 +581,6 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
         className,
       )}
     >
-      {active ? (
-        <div className="pointer-events-none absolute right-3 top-1 z-30 rounded-full border border-amber-300/35 bg-amber-100/14 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-amber-100">
-          Vez
-        </div>
-      ) : null}
       <AnimatePresence>
         {showDamagePopup && flashDamage > 0 && (
           <motion.div

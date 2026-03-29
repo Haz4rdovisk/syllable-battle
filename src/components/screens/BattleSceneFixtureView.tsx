@@ -589,9 +589,7 @@ export const BattleSceneFixtureView: React.FC<{
     animationTimersRef.current = [];
   }, []);
 
-  const resetPreviewAnimation = useCallback(() => {
-    clearAnimationTimers();
-    loopGenerationRef.current += 1;
+  const rehydrateFixturePreviewBaseline = useCallback(() => {
     setIncomingPreviewTargets({
       [PLAYER]: [],
       [ENEMY]: [],
@@ -636,34 +634,25 @@ export const BattleSceneFixtureView: React.FC<{
       [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
     });
     setPreviewBoardMessage(fixture.scene.board.currentMessage ?? null);
-  }, [clearAnimationTimers, defaultPlayerStableCards]);
+  }, [
+    defaultPlayerStableCards,
+    fixture.selectedIndexes,
+    fixture.scene.board.currentMessage,
+    fixture.scene.board.enemyPortrait?.active,
+    fixture.scene.board.enemyPortrait?.flashDamage,
+    fixture.scene.board.playerPortrait?.active,
+    fixture.scene.board.playerPortrait?.flashDamage,
+  ]);
+
+  const resetPreviewAnimation = useCallback(() => {
+    clearAnimationTimers();
+    loopGenerationRef.current += 1;
+    rehydrateFixturePreviewBaseline();
+  }, [clearAnimationTimers, rehydrateFixturePreviewBaseline]);
 
   useEffect(() => {
-    setPreviewPlayerStableCards(defaultPlayerStableCards);
-    setPreviewFreshCardIds([]);
-    setOutgoingPreviewHands({
-      [PLAYER]: [],
-      [ENEMY]: [],
-    });
-    setPreviewSelectedIndexes(fixture.selectedIndexes ?? []);
-    setPreviewPostPlayDebug({
-      removedIndex: null,
-      drawSourceIndex: null,
-      removedCardLabel: null,
-      drawnCardLabel: null,
-      committedCardLabel: null,
-      phase: "idle",
-    });
-    setPreviewPillFlashDamage({
-      [PLAYER]: fixture.scene.board.playerPortrait?.flashDamage ?? 0,
-      [ENEMY]: fixture.scene.board.enemyPortrait?.flashDamage ?? 0,
-    });
-    setPreviewPillActive({
-      [PLAYER]: fixture.scene.board.playerPortrait?.active ?? false,
-      [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
-    });
-    setPreviewBoardMessage(fixture.scene.board.currentMessage ?? null);
-  }, [defaultPlayerStableCards, fixture.selectedIndexes]);
+    resetPreviewAnimation();
+  }, [resetPreviewAnimation]);
 
   const readElementSnapshot = useCallback((elementKey: BattleEditableElementKey) => {
     if (typeof document === "undefined") return null;
@@ -2809,7 +2798,13 @@ export const BattleSceneFixtureView: React.FC<{
     };
   }, [animationMode, animationPreset, animationRunId, animationSet, clearAnimationTimers, defaultPlayerStableCards, fixture.scene.board.currentMessage, fixture.scene.board.enemyFieldSlots, fixture.scene.board.enemyPortrait?.active, fixture.scene.board.enemyPortrait?.flashDamage, fixture.scene.board.playerFieldSlots, fixture.scene.board.playerPortrait?.active, fixture.scene.board.playerPortrait?.flashDamage, getAnimationAnchorPoint, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
 
-  useEffect(() => () => resetPreviewAnimation(), [resetPreviewAnimation]);
+  useEffect(
+    () => () => {
+      clearAnimationTimers();
+      loopGenerationRef.current += 1;
+    },
+    [clearAnimationTimers],
+  );
 
   const createSlotRef = useCallback(
     (side: typeof PLAYER | typeof ENEMY, slotIndex: number) => (node: HTMLDivElement | null) => {
