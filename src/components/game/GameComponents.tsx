@@ -457,6 +457,7 @@ interface SyllableCardProps {
   newlyDrawn?: boolean;
   floating?: boolean;
   attentionPulse?: boolean;
+  staticDisplay?: boolean;
   onClick: () => void;
   style?: React.CSSProperties;
   sizePreset?: BattleCardSizePreset;
@@ -470,23 +471,24 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
   newlyDrawn = false,
   floating = false,
   attentionPulse = false,
+  staticDisplay = false,
   onClick,
   style,
   sizePreset = "default",
 }) => {
-  const disabledVisual = disabled && !floating && !newlyDrawn;
+  const disabledVisual = disabled && !floating && !newlyDrawn && !staticDisplay;
 
   return (
     <motion.button
       animate={
-        attentionPulse && !selected && !disabled && !floating
+        attentionPulse && !selected && !disabled && !floating && !staticDisplay
           ? {
               y: [0, -3, 0],
             }
           : {}
       }
       transition={
-        attentionPulse && !selected && !disabled && !floating
+        attentionPulse && !selected && !disabled && !floating && !staticDisplay
           ? {
               duration: 1.35,
               repeat: Infinity,
@@ -496,16 +498,21 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
       }
       whileHover={
         !disabled
-          ? {
-              y: -28,
-              scale: 1.12,
-              rotate: 0,
-              zIndex: 50,
-              transition: { type: "spring", stiffness: 300, damping: 20 },
-            }
+          ? staticDisplay
+            ? {
+                y: -4,
+                transition: { type: "spring", stiffness: 260, damping: 22 },
+              }
+            : {
+                y: -28,
+                scale: 1.12,
+                rotate: 0,
+                zIndex: 50,
+                transition: { type: "spring", stiffness: 300, damping: 20 },
+              }
           : {}
       }
-      whileTap={!disabled ? { scale: 0.95 } : {}}
+      whileTap={!disabled ? (staticDisplay ? { scale: 0.98 } : { scale: 0.95 }) : {}}
       onClick={onClick}
       disabled={disabled}
       style={style}
@@ -513,7 +520,9 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
         "relative flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 font-serif font-black shadow-2xl transition-all",
         battleCardSizePresetClass[sizePreset],
         selected
-          ? "z-40 -translate-y-4 border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_24px_44px_rgba(120,53,15,0.26)]"
+          ? staticDisplay
+            ? "border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_18px_30px_rgba(120,53,15,0.18)]"
+            : "z-40 -translate-y-4 border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_24px_44px_rgba(120,53,15,0.26)]"
           : playable
             ? "border-emerald-700 bg-emerald-100 text-emerald-900 shadow-[0_0_20px_rgba(52,211,153,0.2)] ring-2 ring-emerald-300/30"
             : "border-amber-900/40 bg-amber-50 text-amber-900/60",
@@ -521,7 +530,7 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
         disabledVisual && "cursor-not-allowed grayscale-[0.78] saturate-50 brightness-90",
       )}
     >
-      {selected ? (
+      {selected && !staticDisplay ? (
         <div className="pointer-events-none absolute top-2 z-20 rounded-full border border-amber-400/40 bg-amber-100/92 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-amber-950 shadow-[0_8px_18px_rgba(120,53,15,0.16)]">
           Selecionada
         </div>
