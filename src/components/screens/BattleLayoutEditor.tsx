@@ -4105,7 +4105,7 @@ export const BattleLayoutEditor: React.FC = () => {
 
   return (
     <div className="grid h-screen grid-cols-[340px_minmax(0,1fr)] overflow-hidden bg-[#102b1c]">
-      <aside className="overflow-y-auto border-r border-amber-900/20 bg-parchment/95 p-4 shadow-2xl">
+      <aside className="overflow-y-auto border-r border-amber-900/20 bg-[#fdf5e6] bg-[url('https://www.transparenttextures.com/patterns/old-mathematics.png')] p-4 shadow-2xl">
         <div className="mb-4 space-y-2">
           <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-950/70">
             Editor visual
