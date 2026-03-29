@@ -47,7 +47,7 @@ import {
   BattleHandLaneDebugSnapshot,
   BattleHandLaneOutgoingCard,
 } from "./BattleHandLane";
-import { BattleHandFocusFrame, BattleTurnFocusTone } from "./BattleHandFocusFrame";
+import { BattleHandFocusFrame } from "./BattleHandFocusFrame";
 import { BattleSceneViewModel, createBattleBoardSurfaceViewModel } from "./BattleSceneViewModel";
 import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleStatusPanel } from "./BattleStatusPanel";
@@ -3426,11 +3426,6 @@ export const Battle: React.FC<BattleProps> = ({
   const turnClock = introActive ? "--" : String(turnSecondsRemaining).padStart(2, "0");
   const turnClockUrgent = !introActive && game.winner === null && displayTurnRemainingMs <= TURN_TIMER.warningMs;
   const desktopTurnLabel = introActive ? "Inicio do Duelo" : game.turn === localPlayerIndex ? "Seu Turno" : "Turno do Oponente";
-  const turnFocusTone: BattleTurnFocusTone = introActive
-    ? "neutral"
-    : game.turn === localPlayerIndex
-      ? "player"
-      : "enemy";
   const desktopFallbackLabel =
     introPhase === "coin-choice"
       ? "Escolha a moeda"
@@ -3778,10 +3773,6 @@ export const Battle: React.FC<BattleProps> = ({
                 <div className="flex h-full w-full items-end justify-center overflow-visible">
                   <BattleHandFocusFrame
                     scale="desktop"
-                    turnLabel={desktopTurnLabel}
-                    clock={turnClock}
-                    clockUrgent={turnClockUrgent}
-                    tone={turnFocusTone}
                   >
                     {renderPlayerHand("desktop")}
                   </BattleHandFocusFrame>
@@ -3802,10 +3793,6 @@ export const Battle: React.FC<BattleProps> = ({
                     scale="mobile"
                     compact
                     className={compactFooterFrameClassName}
-                    turnLabel={desktopTurnLabel}
-                    clock={turnClock}
-                    clockUrgent={turnClockUrgent}
-                    tone={turnFocusTone}
                   >
                     {renderPlayerHand("mobile")}
                   </BattleHandFocusFrame>
@@ -3923,10 +3910,6 @@ export const Battle: React.FC<BattleProps> = ({
                 >
                   <BattleHandFocusFrame
                     scale="mobile"
-                    turnLabel={desktopTurnLabel}
-                    clock={turnClock}
-                    clockUrgent={turnClockUrgent}
-                    tone={turnFocusTone}
                   >
                     {renderPlayerHand("mobile")}
                   </BattleHandFocusFrame>
@@ -3950,7 +3933,7 @@ export const Battle: React.FC<BattleProps> = ({
             />
           </div>
         </BattleEditableElement>
-          <BattleEditableElement
+        <BattleEditableElement
             element="playerField"
             layout={activeBattleLayout}
             className="absolute left-0 top-0"

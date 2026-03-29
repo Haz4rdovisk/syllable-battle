@@ -680,7 +680,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Mover ${element}`}
-            className="absolute inset-0 cursor-move rounded-2xl border-2 border-amber-300/85 shadow-[0_0_0_1px_rgba(120,53,15,0.35)]"
+            className="absolute inset-0 z-[200] cursor-move rounded-2xl border-2 border-amber-300/85 shadow-[0_0_0_1px_rgba(120,53,15,0.35)]"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -694,7 +694,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar largura ${element}`}
-            className="absolute -right-2 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+            className="absolute -right-2 top-1/2 z-[210] h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -704,7 +704,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar esquerda ${element}`}
-            className="absolute -left-2 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+            className="absolute -left-2 top-1/2 z-[210] h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -714,7 +714,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar altura ${element}`}
-            className="absolute -bottom-2 left-1/2 h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+            className="absolute -bottom-2 left-1/2 z-[210] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -724,7 +724,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar topo ${element}`}
-            className="absolute -top-2 left-1/2 h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+            className="absolute -top-2 left-1/2 z-[210] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -734,7 +734,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar base direita ${element}`}
-            className="absolute -bottom-2 -right-2 h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+            className="absolute -bottom-2 -right-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -744,7 +744,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar base esquerda ${element}`}
-            className="absolute -bottom-2 -left-2 h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+            className="absolute -bottom-2 -left-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -754,7 +754,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar topo direita ${element}`}
-            className="absolute -top-2 -right-2 h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+            className="absolute -top-2 -right-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -764,7 +764,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
           <button
             type="button"
             aria-label={`Redimensionar topo esquerda ${element}`}
-            className="absolute -top-2 -left-2 h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+            className="absolute -top-2 -left-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();

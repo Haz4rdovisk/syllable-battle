@@ -15,7 +15,7 @@ import {
   BattleHandLaneIncomingCard,
   BattleHandLaneOutgoingCard,
 } from "./BattleHandLane";
-import { BattleHandFocusFrame, BattleTurnFocusTone } from "./BattleHandFocusFrame";
+import { BattleHandFocusFrame } from "./BattleHandFocusFrame";
 import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleStatusPanel } from "./BattleStatusPanel";
@@ -109,13 +109,6 @@ const FIXTURE_MULLIGAN_RETURN_SETTLE_MS =
 const FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS = 680;
 const FIXTURE_MULLIGAN_DRAW_START_DELAY_MS =
   BATTLE_SHARED_FLOW_TIMINGS.mulliganDrawDelayMs;
-
-const getFixtureTurnFocusTone = (turnLabel: string): BattleTurnFocusTone => {
-  const normalized = turnLabel.trim().toLowerCase();
-  if (normalized.includes("oponente")) return "enemy";
-  if (normalized.includes("seu")) return "player";
-  return "neutral";
-};
 
 const getAnimationAnchorReferenceBadgeLabel = (
   anchor: BattleLayoutPreviewAnimationAnchorKey | null,
@@ -3228,13 +3221,7 @@ export const BattleSceneFixtureView: React.FC<{
                 className={cn("flex items-end justify-center", getPreviewAreaClass(focusArea, ["bottomHand"]))}
               >
                 <div className="flex h-full w-full items-end justify-center overflow-visible">
-                  <BattleHandFocusFrame
-                    scale="desktop"
-                    turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
-                    clock={fixture.scene.rightSidebar.hud.clock}
-                    clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
-                    tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
-                  >
+                  <BattleHandFocusFrame scale="desktop">
                     <BattleHandLane
                       side={0}
                       presentation="local"
@@ -3296,10 +3283,6 @@ export const BattleSceneFixtureView: React.FC<{
                     scale="mobile"
                     compact
                     className={compactFooterFrameClassName}
-                    turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
-                    clock={fixture.scene.rightSidebar.hud.clock}
-                    clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
-                    tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
                   >
                     <BattleHandLane
                       side={0}
@@ -3517,13 +3500,7 @@ export const BattleSceneFixtureView: React.FC<{
                     getPreviewAreaClass(focusArea, ["bottomHand"]),
                   )}
                 >
-                  <BattleHandFocusFrame
-                    scale="mobile"
-                    turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
-                    clock={fixture.scene.rightSidebar.hud.clock}
-                    clockUrgent={fixture.scene.rightSidebar.hud.clockUrgent}
-                    tone={getFixtureTurnFocusTone(fixture.scene.rightSidebar.hud.turnLabel)}
-                  >
+                  <BattleHandFocusFrame scale="mobile">
                     <BattleHandLane
                       side={0}
                       presentation="local"
