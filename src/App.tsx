@@ -5,6 +5,7 @@ import { DeckSelection } from "./components/screens/DeckSelection";
 import { Lobby } from "./components/screens/Lobby";
 import { Battle } from "./components/screens/Battle";
 import { ContentInspector } from "./components/screens/ContentInspector";
+import { ContentEditor } from "./components/screens/ContentEditor";
 import { ProfileSetup } from "./components/screens/ProfileSetup";
 import { BattleLayoutEditor } from "./components/screens/BattleLayoutEditor";
 import { BattleLayoutPreview } from "./components/screens/BattleLayoutPreview";
@@ -262,7 +263,9 @@ export default function App() {
 
       <main
         className={`relative z-10 h-full w-full ${
-          devSceneMode === "content-inspector" ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"
+          devSceneMode === "content-inspector" || devSceneMode === "content-editor"
+            ? "overflow-y-auto overflow-x-hidden"
+            : "overflow-hidden"
         }`}
       >
         {devSceneMode === "layout-editor" ? (
@@ -271,6 +274,8 @@ export default function App() {
           <BattleLayoutPreview />
         ) : devSceneMode === "content-inspector" ? (
           <ContentInspector />
+        ) : devSceneMode === "content-editor" ? (
+          <ContentEditor />
         ) : !playerProfile || isEditingProfile ? (
           <ProfileSetup
             initialProfile={playerProfile}
