@@ -18,9 +18,19 @@ import {
   formatRarityBreakdown,
   inspectDeckCatalog,
 } from "../../data/contentInsights";
+import {
+  CONTENT_CATALOG,
+  CONTENT_PIPELINE,
+  getCardsForDeck,
+  getCatalogCardById,
+  getCatalogDeckById,
+  getMostReusedCards,
+  getSharedTargetsBetweenDecks,
+  getTargetsForDeck,
+} from "../../data/content";
 import { cn } from "../../lib/utils";
 
-const inspections = inspectDeckCatalog(DECKS);
+const inspections = inspectDeckCatalog(CONTENT_PIPELINE.runtimeDecks);
 
 const warningToneClass: Record<"info" | "warning", string> = {
   info: "border-sky-300/25 bg-sky-500/10 text-sky-100",
@@ -101,6 +111,28 @@ export const ContentInspector: React.FC = () => {
     return compareDeckMetrics(selectedInspection.deck, compareInspection.deck);
   }, [compareInspection, selectedInspection]);
 
+  const selectedDeckDefinition = useMemo(
+    () => (selectedInspection ? getCatalogDeckById(CONTENT_CATALOG, selectedInspection.deck.id) : null),
+    [selectedInspection],
+  );
+
+  const selectedCatalogTargets = useMemo(
+    () => (selectedInspection ? getTargetsForDeck(CONTENT_CATALOG, selectedInspection.deck.id) : []),
+    [selectedInspection],
+  );
+
+  const selectedCatalogCards = useMemo(
+    () => (selectedInspection ? getCardsForDeck(CONTENT_CATALOG, selectedInspection.deck.id) : []),
+    [selectedInspection],
+  );
+
+  const selectedSharedTargets = useMemo(
+    () => (selectedInspection ? getSharedTargetsBetweenDecks(CONTENT_CATALOG, selectedInspection.deck.id) : []),
+    [selectedInspection],
+  );
+
+  const mostReusedCards = useMemo(() => getMostReusedCards(CONTENT_CATALOG, 5), []);
+
   if (!selectedInspection) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#1a1a1a] p-6 text-amber-50">
@@ -175,7 +207,15 @@ export const ContentInspector: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-emerald-300/12 bg-emerald-500/8 px-4 py-3 text-sm text-emerald-100/90">
-            A ferramenta le o catalogo real validado pelo pipeline atual e continua em modo somente leitura.
+            A ferramenta le o catalogo normalizado do pipeline novo, usa a mesma projecao runtime de{" "}
+            <span className="font-black text-emerald-50">{DECKS.length}</span> decks e continua em modo somente
+            leitura.
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-sky-300/12 bg-sky-500/8 px-4 py-3 text-sm text-sky-100/90">
+            Fonte unica: <span className="font-black text-sky-50">{CONTENT_CATALOG.cards.length}</span> cartas
+            canonicas, <span className="font-black text-sky-50">{CONTENT_CATALOG.targets.length}</span> targets e{" "}
+            <span className="font-black text-sky-50">{CONTENT_CATALOG.decks.length}</span> deck definitions.
           </div>
 
           <div className="mt-5 space-y-3 rounded-[24px] border border-amber-200/10 bg-black/15 p-4">
@@ -498,6 +538,111 @@ export const ContentInspector: React.FC = () => {
                 </div>
               </Panel>
 
+              <Panel title="Leituras do Catalogo Normalizado" icon={<BookOpenText className="h-5 w-5" />}>
+                <div className="space-y-5">
+                  <Subsection
+                    title="Deck definition ativo"
+                    subtitle="Leitura direta da camada de catálogo, antes da projeção para o runtime."
+                  >
+                    {selectedDeckDefinition ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <InfoTile label="Visual theme" value={selectedDeckDefinition.visualTheme} />
+                        <InfoTile label="Cards canonicos" value={String(selectedCatalogCards.length)} />
+                        <InfoTile label="Target definitions" value={String(selectedCatalogTargets.length)} />
+                        <InfoTile
+                          label="Copias no card pool"
+                          value={String(
+                            Object.values(selectedDeckDefinition.cardPool).reduce((sum, count) => sum + count, 0),
+                          )}
+                        />
+                      </div>
+                    ) : (
+                      <EmptyCallout text="Deck definition nao encontrado no catalogo normalizado." />
+                    )}
+                  </Subsection>
+
+                  <Subsection
+                    title="Cards usados por este deck"
+                    subtitle="Mostra a relacao entre pool de cartas canonicas e os targets que consomem cada card."
+                  >
+                    {selectedCatalogCards.length === 0 ? (
+                      <EmptyCallout text="Nenhum card canonico encontrado para este deck." />
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedCatalogCards.slice(0, 6).map((entry) => (
+                          <div
+                            key={entry.card.id}
+                            className="rounded-2xl border border-amber-200/10 bg-black/20 p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <div className="font-serif text-xl font-black text-amber-50">{entry.card.syllable}</div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-100/45">
+                                  {entry.card.id}
+                                </div>
+                              </div>
+                              <Badge className="border border-amber-300/20 bg-amber-500/10 text-amber-50">
+                                x{entry.copiesInDeck} no deck
+                              </Badge>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {entry.usedByTargets.map((target) => (
+                                <span
+                                  key={`${entry.card.id}-${target.id}`}
+                                  className="rounded-full border border-amber-200/12 bg-amber-50/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-50"
+                                >
+                                  {target.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Subsection>
+
+                  <Subsection
+                    title="Targets definidos no catálogo"
+                    subtitle="Resolve o deck via targetIds da camada nova, sem depender apenas da projeção runtime."
+                  >
+                    {selectedCatalogTargets.length === 0 ? (
+                      <EmptyCallout text="Nenhum target normalizado encontrado para este deck." />
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedCatalogTargets.slice(0, 4).map((target) => (
+                          <div
+                            key={target.id}
+                            className="rounded-2xl border border-amber-200/10 bg-black/20 p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="font-serif text-xl font-black text-amber-50">{target.name}</div>
+                              <Badge className="border border-sky-300/25 bg-sky-500/10 text-sky-100">
+                                {target.cardIds.length} cards
+                              </Badge>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {target.cardIds.map((cardId, index) => {
+                                const card = getCatalogCardById(CONTENT_CATALOG, cardId);
+                                const label = card?.syllable ?? cardId;
+
+                                return (
+                                  <span
+                                    key={`${target.id}-${cardId}-${index}`}
+                                    className="rounded-full border border-amber-200/12 bg-amber-50/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-50"
+                                  >
+                                    {label}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Subsection>
+                </div>
+              </Panel>
+
               <Panel title="Comparacao entre Decks" icon={<ArrowRightLeft className="h-5 w-5" />}>
                 {compareInspection ? (
                   <div className="space-y-4">
@@ -573,6 +718,59 @@ export const ContentInspector: React.FC = () => {
                       </div>
                     );
                   })}
+                </div>
+              </Panel>
+
+              <Panel title="Relacoes do Catalogo" icon={<Sparkles className="h-5 w-5" />}>
+                <div className="space-y-5">
+                  <Subsection
+                    title="Cards mais reutilizados no catálogo"
+                    subtitle="Leitura transversal do catálogo novo, útil para tooling futuro e autoria mínima."
+                  >
+                    <div className="space-y-3">
+                      {mostReusedCards.map((entry) => (
+                        <div key={entry.card.id} className="rounded-2xl border border-amber-200/10 bg-black/20 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="font-serif text-xl font-black text-amber-50">{entry.card.syllable}</div>
+                            <Badge className="border border-emerald-300/25 bg-emerald-500/10 text-emerald-100">
+                              {entry.deckCount} deck(s)
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-sm leading-relaxed text-amber-50/75">
+                            {entry.targetCount} target(s) e {entry.totalCopies} copias totais no catálogo.
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </Subsection>
+
+                  <Subsection
+                    title="Alvos compartilhados entre decks"
+                    subtitle="Hoje ajuda a detectar acoplamentos de autoria e futura reutilização de target definitions."
+                  >
+                    {selectedSharedTargets.length === 0 ? (
+                      <EmptyCallout text="Nenhum target compartilhado por id com outros decks no catálogo atual." />
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedSharedTargets.map((entry) => (
+                          <div
+                            key={entry.target.id}
+                            className="rounded-2xl border border-amber-200/10 bg-black/20 p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="font-serif text-xl font-black text-amber-50">{entry.target.name}</div>
+                              <Badge className="border border-sky-300/25 bg-sky-500/10 text-sky-100">
+                                {entry.deckIds.length} deck(s)
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm leading-relaxed text-amber-50/75">
+                              Compartilhado por: {entry.deckIds.join(", ")}.
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Subsection>
                 </div>
               </Panel>
             </div>

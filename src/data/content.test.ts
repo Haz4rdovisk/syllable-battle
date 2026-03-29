@@ -1,8 +1,45 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CONFIG } from "../logic/gameLogic";
-import { DeckContentError, DECKS, loadDeckCatalog } from "./content";
+import {
+  CONTENT_CATALOG,
+  CONTENT_PIPELINE,
+  DeckContentError,
+  DECKS,
+  loadContentCatalog,
+  loadDeckCatalog,
+} from "./content";
 import { RawDeckDefinition } from "./content/types";
+
+test("CONTENT_CATALOG expõe o catálogo normalizado como fonte de verdade", () => {
+  assert.ok(CONTENT_CATALOG.cards.length > 0);
+  assert.ok(CONTENT_CATALOG.targets.length >= DECKS.length * CONFIG.targetsInPlay);
+  assert.equal(CONTENT_PIPELINE.catalog, CONTENT_CATALOG);
+  assert.equal(CONTENT_PIPELINE.runtimeDecks, DECKS);
+
+  CONTENT_CATALOG.cards.forEach((card) => {
+    assert.ok(card.id.startsWith("syllable."));
+    assert.equal(card.syllable, card.syllable.toUpperCase());
+    assert.equal(CONTENT_CATALOG.cardsById[card.id], card);
+  });
+
+  CONTENT_CATALOG.targets.forEach((target) => {
+    assert.equal(CONTENT_CATALOG.targetsById[target.id], target);
+    target.cardIds.forEach((cardId) => {
+      assert.ok(CONTENT_CATALOG.cardsById[cardId]);
+    });
+  });
+
+  CONTENT_CATALOG.decks.forEach((deck) => {
+    assert.equal(CONTENT_CATALOG.decksById[deck.id], deck);
+    deck.targetIds.forEach((targetId) => {
+      assert.ok(CONTENT_CATALOG.targetsById[targetId]);
+    });
+    Object.keys(deck.cardPool).forEach((cardId) => {
+      assert.ok(CONTENT_CATALOG.cardsById[cardId]);
+    });
+  });
+});
 
 test("DECKS expõe um catálogo válido e utilizável pelo runtime atual", () => {
   assert.ok(DECKS.length >= 4);
@@ -27,6 +64,46 @@ test("DECKS expõe um catálogo válido e utilizável pelo runtime atual", () =>
       });
     });
   });
+});
+
+test("loadContentCatalog normaliza decks em deck definitions e cards canônicos por sílaba", () => {
+  const catalog = loadContentCatalog([
+    {
+      id: "mini",
+      name: "Mini",
+      description: "Deck mínimo válido.",
+      emoji: "🧪",
+      visualTheme: "harvest",
+      syllables: {
+        BA: 3,
+        NA: 2,
+      },
+      targets: [
+        {
+          id: "banana",
+          name: "BANANA",
+          emoji: "🍌",
+          syllables: ["BA", "NA", "NA"],
+          rarity: "raro",
+        },
+        {
+          id: "baba",
+          name: "BABA",
+          emoji: "🫧",
+          syllables: ["BA", "BA"],
+          rarity: "comum",
+        },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(
+    catalog.cards.map((card) => card.syllable).sort(),
+    ["BA", "NA"],
+  );
+  assert.deepEqual(catalog.decks[0]?.targetIds, ["banana", "baba"]);
+  assert.deepEqual(catalog.targetsById.banana?.cardIds, ["syllable.ba", "syllable.na", "syllable.na"]);
+  assert.equal(catalog.decks[0]?.cardPool["syllable.ba"], 3);
 });
 
 test("loadDeckCatalog rejeita targets impossíveis de completar com as sílabas do deck", () => {

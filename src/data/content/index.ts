@@ -2,16 +2,23 @@ import { CONFIG } from "../../logic/gameLogic";
 import { Deck, Rarity, Target, normalizeRarity } from "../../types/game";
 import { rawDeckCatalog } from "./decks";
 import { DECK_VISUAL_THEME_CLASSES } from "./themes";
-import { RawDeckDefinition, RawTargetDefinition } from "./types";
+import {
+  CardDefinition,
+  ContentCatalog,
+  DeckDefinition,
+  NormalizedContentCatalog,
+  RawDeckDefinition,
+  RawTargetDefinition,
+  TargetDefinition,
+} from "./types";
 
-const normalizeSyllable = (value: string) =>
-  value.trim().toUpperCase();
+const CARD_ID_PREFIX = "syllable.";
 
-const normalizeContentId = (value: string) =>
-  value.trim().toLowerCase();
+const normalizeSyllable = (value: string) => value.trim().toUpperCase();
 
-const normalizeFreeText = (value: string) =>
-  value.trim().replace(/\s+/g, " ");
+const normalizeContentId = (value: string) => value.trim().toLowerCase();
+
+const normalizeFreeText = (value: string) => value.trim().replace(/\s+/g, " ");
 
 const normalizeOptionalText = (value: string | undefined) => {
   if (value === undefined) return undefined;
@@ -41,13 +48,26 @@ const readRarity = (value: string): Rarity | null => {
   return null;
 };
 
-const countOccurrences = (syllables: string[]) => {
+const countOccurrences = (values: string[]) => {
   const counts = new Map<string, number>();
-  syllables.forEach((syllable) => {
-    counts.set(syllable, (counts.get(syllable) ?? 0) + 1);
+  values.forEach((value) => {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
   });
   return counts;
 };
+
+const createCardId = (syllable: string) => `${CARD_ID_PREFIX}${normalizeContentId(syllable)}`;
+
+const createIndex = <T extends { id: string }>(entries: T[]) =>
+  entries.reduce<Record<string, T>>((acc, entry) => {
+    acc[entry.id] = entry;
+    return acc;
+  }, {});
+
+export interface ContentPipeline {
+  catalog: NormalizedContentCatalog;
+  runtimeDecks: Deck[];
+}
 
 export class DeckContentError extends Error {
   constructor(public readonly issues: string[]) {
@@ -83,11 +103,30 @@ function validateSyllableList(
   });
 }
 
+function getOrCreateCard(cardsById: Map<string, CardDefinition>, syllable: string): CardDefinition {
+  const normalizedSyllable = normalizeSyllable(syllable);
+  const cardId = createCardId(normalizedSyllable);
+  const existing = cardsById.get(cardId);
+
+  if (existing) {
+    return existing;
+  }
+
+  const cardDefinition: CardDefinition = {
+    id: cardId,
+    syllable: normalizedSyllable,
+  };
+
+  cardsById.set(cardId, cardDefinition);
+  return cardDefinition;
+}
+
 function validateTarget(
   rawTarget: RawTargetDefinition,
   deckLabel: string,
   issues: string[],
-): Target {
+  cardsById: Map<string, CardDefinition>,
+): TargetDefinition {
   const targetId = normalizeContentId(rawTarget.id);
   if (!targetId) {
     issues.push(`${deckLabel} target id is required.`);
@@ -95,32 +134,53 @@ function validateTarget(
 
   const rarity = readRarity(String(rawTarget.rarity ?? ""));
   if (!rarity) {
-    issues.push(`${deckLabel} target "${targetId || rawTarget.name || "unknown"}" has invalid rarity "${rawTarget.rarity}".`);
+    issues.push(
+      `${deckLabel} target "${targetId || rawTarget.name || "unknown"}" has invalid rarity "${rawTarget.rarity}".`,
+    );
   }
 
-  const name = validateRequiredText(String(rawTarget.name ?? ""), `${deckLabel} target "${targetId || "unknown"}" name`, issues);
-  const emoji = validateRequiredText(String(rawTarget.emoji ?? ""), `${deckLabel} target "${targetId || name || "unknown"}" emoji`, issues);
-  const syllables = validateSyllableList(rawTarget.syllables, `${deckLabel} target "${targetId || name || "unknown"}" syllables`, issues);
+  const name = validateRequiredText(
+    String(rawTarget.name ?? ""),
+    `${deckLabel} target "${targetId || "unknown"}" name`,
+    issues,
+  );
+  const emoji = validateRequiredText(
+    String(rawTarget.emoji ?? ""),
+    `${deckLabel} target "${targetId || name || "unknown"}" emoji`,
+    issues,
+  );
+  const syllables = validateSyllableList(
+    rawTarget.syllables,
+    `${deckLabel} target "${targetId || name || "unknown"}" syllables`,
+    issues,
+  );
 
   return {
     id: targetId,
     name,
     emoji,
-    syllables,
+    cardIds: syllables.map((syllable) => getOrCreateCard(cardsById, syllable).id),
     rarity: rarity ?? "comum",
     description: normalizeOptionalText(rawTarget.description),
   };
 }
 
-function validateDeck(rawDeck: RawDeckDefinition, issues: string[]): Deck {
+function validateDeckDefinition(
+  rawDeck: RawDeckDefinition,
+  issues: string[],
+  cardsById: Map<string, CardDefinition>,
+): { deck: DeckDefinition; targets: TargetDefinition[] } {
   const deckId = normalizeContentId(rawDeck.id);
   const deckLabel = deckId ? `deck "${deckId}"` : "deck";
   const name = validateRequiredText(String(rawDeck.name ?? ""), `${deckLabel} name`, issues);
-  const description = validateRequiredText(String(rawDeck.description ?? ""), `${deckLabel} description`, issues);
+  const description = validateRequiredText(
+    String(rawDeck.description ?? ""),
+    `${deckLabel} description`,
+    issues,
+  );
   const emoji = validateRequiredText(String(rawDeck.emoji ?? ""), `${deckLabel} emoji`, issues);
-  const color = DECK_VISUAL_THEME_CLASSES[rawDeck.visualTheme];
 
-  if (!color) {
+  if (!DECK_VISUAL_THEME_CLASSES[rawDeck.visualTheme]) {
     issues.push(`${deckLabel} uses unknown visualTheme "${String(rawDeck.visualTheme)}".`);
   }
 
@@ -128,23 +188,28 @@ function validateDeck(rawDeck: RawDeckDefinition, issues: string[]): Deck {
     issues.push(`${deckLabel} must define at least one syllable count.`);
   }
 
-  const syllables = Object.entries(rawDeck.syllables ?? {}).reduce<Record<string, number>>((acc, [rawSyllable, rawCount]) => {
-    const syllable = normalizeSyllable(rawSyllable);
-    const count = Number(rawCount);
-    if (!syllable) {
-      issues.push(`${deckLabel} contains an empty syllable key.`);
+  const cardPool = Object.entries(rawDeck.syllables ?? {}).reduce<Record<string, number>>(
+    (acc, [rawSyllable, rawCount]) => {
+      const syllable = normalizeSyllable(rawSyllable);
+      const count = Number(rawCount);
+      if (!syllable) {
+        issues.push(`${deckLabel} contains an empty syllable key.`);
+        return acc;
+      }
+      if (!Number.isInteger(count) || count <= 0) {
+        issues.push(`${deckLabel} syllable "${syllable}" must have a positive integer count.`);
+        return acc;
+      }
+
+      const card = getOrCreateCard(cardsById, syllable);
+      acc[card.id] = count;
       return acc;
-    }
-    if (!Number.isInteger(count) || count <= 0) {
-      issues.push(`${deckLabel} syllable "${syllable}" must have a positive integer count.`);
-      return acc;
-    }
-    acc[syllable] = count;
-    return acc;
-  }, {});
+    },
+    {},
+  );
 
   const normalizedTargets = Array.isArray(rawDeck.targets)
-    ? rawDeck.targets.map((target) => validateTarget(target, deckLabel, issues))
+    ? rawDeck.targets.map((target) => validateTarget(target, deckLabel, issues, cardsById))
     : [];
 
   if (!Array.isArray(rawDeck.targets) || rawDeck.targets.length === 0) {
@@ -155,8 +220,8 @@ function validateDeck(rawDeck: RawDeckDefinition, issues: string[]): Deck {
     issues.push(`${deckLabel} must define at least ${CONFIG.targetsInPlay} targets to fill the board.`);
   }
 
-  const totalSyllableCount = Object.values(syllables).reduce((sum, count) => sum + count, 0);
-  if (totalSyllableCount < CONFIG.handSize) {
+  const totalCardCount = Object.values(cardPool).reduce((sum, count) => sum + count, 0);
+  if (totalCardCount < CONFIG.handSize) {
     issues.push(`${deckLabel} must have at least ${CONFIG.handSize} syllables to draw the opening hand.`);
   }
 
@@ -168,32 +233,45 @@ function validateDeck(rawDeck: RawDeckDefinition, issues: string[]): Deck {
     }
     targetIds.add(target.id);
 
-    const deckCounts = countOccurrences(
-      Object.entries(syllables).flatMap(([syllable, count]) => Array.from({ length: count }, () => syllable)),
-    );
-    const targetCounts = countOccurrences(target.syllables);
-    targetCounts.forEach((requiredCount, syllable) => {
-      if ((deckCounts.get(syllable) ?? 0) < requiredCount) {
-        issues.push(`${deckLabel} target "${target.id}" needs ${requiredCount}x "${syllable}", but the deck provides ${(deckCounts.get(syllable) ?? 0)}.`);
+    const targetCounts = countOccurrences(target.cardIds);
+    targetCounts.forEach((requiredCount, cardId) => {
+      const availableCount = cardPool[cardId] ?? 0;
+      if (availableCount < requiredCount) {
+        const syllable = cardsById.get(cardId)?.syllable ?? cardId;
+        issues.push(
+          `${deckLabel} target "${target.id}" needs ${requiredCount}x "${syllable}", but the deck provides ${availableCount}.`,
+        );
       }
     });
   });
 
   return {
-    id: deckId,
-    name,
-    description,
-    emoji,
-    color: color ?? DECK_VISUAL_THEME_CLASSES.harvest,
-    syllables,
+    deck: {
+      id: deckId,
+      name,
+      description,
+      emoji,
+      visualTheme: rawDeck.visualTheme,
+      cardPool,
+      targetIds: normalizedTargets.map((target) => target.id),
+    },
     targets: normalizedTargets,
   };
 }
 
-export function loadDeckCatalog(rawDecks: RawDeckDefinition[]): Deck[] {
+export function loadContentCatalog(rawDecks: RawDeckDefinition[]): NormalizedContentCatalog {
   const issues: string[] = [];
+  const cardsRegistry = new Map<string, CardDefinition>();
+  const decks: DeckDefinition[] = [];
+  const targets: TargetDefinition[] = [];
   const deckIds = new Set<string>();
-  const decks = rawDecks.map((rawDeck) => validateDeck(rawDeck, issues));
+  const targetIds = new Set<string>();
+
+  rawDecks.forEach((rawDeck) => {
+    const normalized = validateDeckDefinition(rawDeck, issues, cardsRegistry);
+    decks.push(normalized.deck);
+    targets.push(...normalized.targets);
+  });
 
   decks.forEach((deck) => {
     if (!deck.id) return;
@@ -204,13 +282,116 @@ export function loadDeckCatalog(rawDecks: RawDeckDefinition[]): Deck[] {
     deckIds.add(deck.id);
   });
 
+  targets.forEach((target) => {
+    if (!target.id) return;
+    if (targetIds.has(target.id)) {
+      issues.push(`Duplicate target id "${target.id}".`);
+      return;
+    }
+    targetIds.add(target.id);
+  });
+
+  const cards = [...cardsRegistry.values()];
+  const catalog: ContentCatalog = {
+    cards,
+    targets,
+    decks,
+  };
+
+  const normalizedCatalog: NormalizedContentCatalog = {
+    ...catalog,
+    cardsById: createIndex(cards),
+    targetsById: createIndex(targets),
+    decksById: createIndex(decks),
+  };
+
+  normalizedCatalog.decks.forEach((deck) => {
+    deck.targetIds.forEach((targetId) => {
+      if (!normalizedCatalog.targetsById[targetId]) {
+        issues.push(`Deck "${deck.id}" references unknown target "${targetId}".`);
+      }
+    });
+
+    Object.keys(deck.cardPool).forEach((cardId) => {
+      if (!normalizedCatalog.cardsById[cardId]) {
+        issues.push(`Deck "${deck.id}" references unknown card "${cardId}".`);
+      }
+    });
+  });
+
+  normalizedCatalog.targets.forEach((target) => {
+    target.cardIds.forEach((cardId) => {
+      if (!normalizedCatalog.cardsById[cardId]) {
+        issues.push(`Target "${target.id}" references unknown card "${cardId}".`);
+      }
+    });
+  });
+
   if (issues.length > 0) {
     throw new DeckContentError(issues);
   }
 
-  return decks;
+  return normalizedCatalog;
+}
+
+export function adaptTargetDefinitionToRuntimeTarget(
+  target: TargetDefinition,
+  catalog: NormalizedContentCatalog,
+): Target {
+  return {
+    id: target.id,
+    name: target.name,
+    emoji: target.emoji,
+    syllables: target.cardIds.map((cardId) => catalog.cardsById[cardId]?.syllable ?? cardId),
+    rarity: target.rarity,
+    description: target.description,
+  };
+}
+
+export function adaptDeckDefinitionToRuntimeDeck(
+  deck: DeckDefinition,
+  catalog: NormalizedContentCatalog,
+): Deck {
+  const color = DECK_VISUAL_THEME_CLASSES[deck.visualTheme] ?? DECK_VISUAL_THEME_CLASSES.harvest;
+  const syllables = Object.entries(deck.cardPool).reduce<Record<string, number>>((acc, [cardId, count]) => {
+    const syllable = catalog.cardsById[cardId]?.syllable;
+    if (!syllable) return acc;
+    acc[syllable] = (acc[syllable] ?? 0) + count;
+    return acc;
+  }, {});
+
+  return {
+    id: deck.id,
+    name: deck.name,
+    description: deck.description,
+    emoji: deck.emoji,
+    color,
+    syllables,
+    targets: deck.targetIds.map((targetId) =>
+      adaptTargetDefinitionToRuntimeTarget(catalog.targetsById[targetId], catalog),
+    ),
+  };
+}
+
+export function adaptCatalogToRuntimeDecks(catalog: NormalizedContentCatalog): Deck[] {
+  return catalog.decks.map((deck) => adaptDeckDefinitionToRuntimeDeck(deck, catalog));
+}
+
+export function buildContentPipeline(rawDecks: RawDeckDefinition[]): ContentPipeline {
+  const catalog = loadContentCatalog(rawDecks);
+  return {
+    catalog,
+    runtimeDecks: adaptCatalogToRuntimeDecks(catalog),
+  };
+}
+
+export function loadDeckCatalog(rawDecks: RawDeckDefinition[]): Deck[] {
+  return buildContentPipeline(rawDecks).runtimeDecks;
 }
 
 export { rawDeckCatalog };
+export * from "./selectors";
 
-export const DECKS = loadDeckCatalog(rawDeckCatalog);
+export const CONTENT_PIPELINE = buildContentPipeline(rawDeckCatalog);
+export const CONTENT_CATALOG = CONTENT_PIPELINE.catalog;
+export const DECKS = CONTENT_PIPELINE.runtimeDecks;
