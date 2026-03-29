@@ -427,11 +427,11 @@ export const BattleSceneFixtureView: React.FC<{
   const isCompactShellPreview = viewportWidth < 1024;
   const isCompactTightPreview = isCompactShellPreview && viewportHeight <= 464;
   const compactTopShellClassName = isCompactTightPreview
-    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 px-2.5 py-1.5 shadow-xl lg:hidden"
-    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 px-3 py-2 shadow-xl lg:hidden sm:px-4";
+    ? "h-full w-full px-2.5 py-1.5 lg:hidden"
+    : "h-full w-full px-3 py-2 lg:hidden sm:px-4";
   const compactControlShellClassName = isCompactTightPreview
-    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 p-1.5 shadow-xl lg:hidden"
-    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden";
+    ? "h-full w-full p-1.5 lg:hidden"
+    : "h-full w-full p-2 lg:hidden";
   const compactFooterFrameClassName = isCompactTightPreview ? "origin-top scale-[0.86]" : undefined;
   const compactShellSlots = getBattleCompactShellSlots(layout, isCompactTightPreview);
   const majorGridMultiplier = stageMetrics.scale < 0.55 || isCompactPreview ? 8 : 4;

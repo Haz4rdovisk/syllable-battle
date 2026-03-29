@@ -2045,11 +2045,11 @@ export const Battle: React.FC<BattleProps> = ({
   }, []);
   const isCompactTightViewport = !isDesktopViewport && viewportHeight <= 464;
   const compactTopShellClassName = isCompactTightViewport
-    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 px-2.5 py-1.5 shadow-xl lg:hidden"
-    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 px-3 py-2 shadow-xl lg:hidden sm:px-4";
+    ? "h-full w-full px-2.5 py-1.5 lg:hidden"
+    : "h-full w-full px-3 py-2 lg:hidden sm:px-4";
   const compactControlShellClassName = isCompactTightViewport
-    ? "h-full w-full rounded-[1.75rem] border border-white/10 bg-black/35 p-1.5 shadow-xl lg:hidden"
-    : "h-full w-full rounded-[2rem] border border-white/10 bg-black/35 p-2 shadow-xl lg:hidden";
+    ? "h-full w-full p-1.5 lg:hidden"
+    : "h-full w-full p-2 lg:hidden";
   const compactFooterFrameClassName = isCompactTightViewport ? "origin-top scale-[0.86]" : undefined;
   const compactShellSlots = getBattleCompactShellSlots(
     activeBattleLayout,
