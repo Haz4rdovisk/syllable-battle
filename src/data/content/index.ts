@@ -165,6 +165,23 @@ function validateTarget(
   };
 }
 
+function readTargetCopies(
+  rawTarget: RawTargetDefinition,
+  deckLabel: string,
+  targetLabel: string,
+  issues: string[],
+) {
+  if (rawTarget.copies === undefined) return 1;
+
+  const copies = Number(rawTarget.copies);
+  if (!Number.isInteger(copies) || copies <= 0) {
+    issues.push(`${deckLabel} target "${targetLabel}" copies must be a positive integer.`);
+    return 1;
+  }
+
+  return copies;
+}
+
 function validateDeckDefinition(
   rawDeck: RawDeckDefinition,
   issues: string[],
@@ -209,14 +226,26 @@ function validateDeckDefinition(
   );
 
   const normalizedTargets = Array.isArray(rawDeck.targets)
-    ? rawDeck.targets.map((target) => validateTarget(target, deckLabel, issues, cardsById))
+    ? rawDeck.targets.map((target) => {
+        const normalizedTarget = validateTarget(target, deckLabel, issues, cardsById);
+        return {
+          target: normalizedTarget,
+          copies: readTargetCopies(
+            target,
+            deckLabel,
+            normalizedTarget.id || normalizedTarget.name || "unknown",
+            issues,
+          ),
+        };
+      })
     : [];
 
   if (!Array.isArray(rawDeck.targets) || rawDeck.targets.length === 0) {
     issues.push(`${deckLabel} must define at least one target.`);
   }
 
-  if (normalizedTargets.length < CONFIG.targetsInPlay) {
+  const totalTargetCopies = normalizedTargets.reduce((sum, entry) => sum + entry.copies, 0);
+  if (totalTargetCopies < CONFIG.targetsInPlay) {
     issues.push(`${deckLabel} must define at least ${CONFIG.targetsInPlay} targets to fill the board.`);
   }
 
@@ -226,7 +255,7 @@ function validateDeckDefinition(
   }
 
   const targetIds = new Set<string>();
-  normalizedTargets.forEach((target) => {
+  normalizedTargets.forEach(({ target }) => {
     if (!target.id) return;
     if (targetIds.has(target.id)) {
       issues.push(`${deckLabel} has duplicate target id "${target.id}".`);
@@ -253,9 +282,9 @@ function validateDeckDefinition(
       emoji,
       visualTheme: rawDeck.visualTheme,
       cardPool,
-      targetIds: normalizedTargets.map((target) => target.id),
+      targetIds: normalizedTargets.flatMap(({ target, copies }) => Array.from({ length: copies }, () => target.id)),
     },
-    targets: normalizedTargets,
+    targets: normalizedTargets.map(({ target }) => target),
   };
 }
 

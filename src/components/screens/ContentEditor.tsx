@@ -6,6 +6,8 @@ import {
   BarChart3,
   BookOpenText,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   FilePenLine,
   Layers3,
   Plus,
@@ -13,7 +15,6 @@ import {
   Save,
   Search,
   Shield,
-  Sparkles,
   Swords,
   Trash2,
 } from "lucide-react";
@@ -21,7 +22,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
-import { getCardsForDeck, getCatalogDeckById, getTargetsForDeck } from "../../data/content";
+import { getCardsForDeck, getCatalogDeckById } from "../../data/content";
 import {
   ContentEditorDeckDraft,
   ContentEditorTargetDraft,
@@ -31,10 +32,11 @@ import {
   createEmptyContentEditorSyllableRow,
   createEmptyContentEditorTarget,
   getContentEditorLocalIssues,
+  hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
 } from "../../data/content/editor";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
-import { DeckVisualThemeId, TargetDefinition } from "../../data/content/types";
+import { DeckVisualThemeId } from "../../data/content/types";
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
 import { RARITY_DAMAGE, normalizeRarity } from "../../types/game";
 
@@ -59,6 +61,24 @@ const idleSaveStatus: SaveStatus = {
   message: "Edicao local em memoria ate salvar no source bruto do deck selecionado.",
 };
 
+const normalizeEditorSyllable = (value: string) => value.trim().toUpperCase();
+
+const getDerivedCardsGridColumns = (width: number) => {
+  if (width >= 1280) return 4;
+  if (width >= 640) return 3;
+  return 2;
+};
+
+const getTargetGridColumns = (width: number) => {
+  if (width >= 1280) return 3;
+  return 2;
+};
+
+const getTargetCopiesDisplayValue = (copiesText: string) => {
+  const copies = Number(copiesText);
+  return Number.isInteger(copies) && copies > 0 ? copies : 0;
+};
+
 const getRarityToneClass = (rarity: string) => {
   const normalized = normalizeRarity(rarity);
   if (normalized === "comum") return "bg-slate-500";
@@ -81,12 +101,16 @@ export const ContentEditor: React.FC = () => {
   const [draft, setDraft] = useState<ContentEditorDeckDraft>(() =>
     createDraftForDeck(initialSourceDecks, rawDeckCatalogEntries[0]?.id ?? ""),
   );
-  const [selectedTargetId, setSelectedTargetId] = useState(() => draft.targets[0]?.id ?? "");
-  const [selectedCardId, setSelectedCardId] = useState("");
+  const [selectedTargetId, setSelectedTargetId] = useState("");
+  const [selectedSyllableRowId, setSelectedSyllableRowId] = useState("");
+  const [targetGridColumns, setTargetGridColumns] = useState(() =>
+    typeof window !== "undefined" ? getTargetGridColumns(window.innerWidth) : 2,
+  );
   const [derivedCardsGridColumns, setDerivedCardsGridColumns] = useState(() =>
-    typeof window !== "undefined" && window.innerWidth >= 640 ? 3 : 2,
+    typeof window !== "undefined" ? getDerivedCardsGridColumns(window.innerWidth) : 2,
   );
   const [deckSearchValue, setDeckSearchValue] = useState("");
+  const [isDeckDescriptionExpanded, setIsDeckDescriptionExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(idleSaveStatus);
   const deferredDeckSearch = useDeferredValue(deckSearchValue.trim().toLowerCase());
@@ -103,9 +127,14 @@ export const ContentEditor: React.FC = () => {
   const selectedDeckEntry = useMemo(() => getRawDeckCatalogEntry(selectedDeckId), [selectedDeckId]);
   const persistedDeck = sourceDecksById[selectedDeckId] ?? null;
   const draftRawDeck = useMemo(() => hydrateRawDeckDefinitionFromDraft(draft), [draft]);
+  const draftPreviewRawDeck = useMemo(() => hydratePreviewRawDeckDefinitionFromDraft(draft), [draft]);
+  const persistedPreviewDeck = useMemo(
+    () => (persistedDeck ? hydratePreviewRawDeckDefinitionFromDraft(createContentEditorDeckDraft(persistedDeck)) : null),
+    [persistedDeck],
+  );
   const isDirty = useMemo(
-    () => JSON.stringify(draftRawDeck) !== JSON.stringify(persistedDeck),
-    [draftRawDeck, persistedDeck],
+    () => JSON.stringify(draftPreviewRawDeck) !== JSON.stringify(persistedPreviewDeck),
+    [draftPreviewRawDeck, persistedPreviewDeck],
   );
 
   const localIssues = useMemo(() => getContentEditorLocalIssues(draft), [draft]);
@@ -115,31 +144,78 @@ export const ContentEditor: React.FC = () => {
     () => (preview.ok ? getCatalogDeckById(preview.pipeline.catalog, selectedDeckId) : null),
     [preview, selectedDeckId],
   );
-  const selectedCatalogTargets = useMemo(
-    () => (preview.ok ? getTargetsForDeck(preview.pipeline.catalog, selectedDeckId) : []),
-    [preview, selectedDeckId],
-  );
   const selectedCatalogCards = useMemo(
     () => (preview.ok ? getCardsForDeck(preview.pipeline.catalog, selectedDeckId) : []),
     [preview, selectedDeckId],
   );
   const pipelineIssues = useMemo(() => ("issues" in preview ? preview.issues : []), [preview]);
   const selectedTargetDraft = useMemo(
-    () => draft.targets.find((target) => target.id === selectedTargetId) ?? draft.targets[0] ?? null,
+    () => draft.targets.find((target) => target.id === selectedTargetId) ?? null,
     [draft.targets, selectedTargetId],
   );
-  const selectedCardEntry = useMemo(
-    () => selectedCatalogCards.find((entry) => entry.card.id === selectedCardId) ?? null,
-    [selectedCardId, selectedCatalogCards],
+  const derivedTargetIdsLabel = useMemo(() => {
+    if (!preview.ok) return "draft invalido";
+    return selectedDeckDefinition?.targetIds.join(", ") || "nenhum";
+  }, [preview, selectedDeckDefinition]);
+  const derivedTargetIdCount = useMemo(
+    () => (preview.ok ? selectedDeckDefinition?.targetIds.length ?? 0 : 0),
+    [preview, selectedDeckDefinition],
   );
-  const expandedCardRowEndIndex = useMemo(() => {
-    if (!selectedCardEntry) return -1;
-    const selectedIndex = selectedCatalogCards.findIndex((entry) => entry.card.id === selectedCardEntry.card.id);
+  const targetGridItems = useMemo(
+    () => [
+      ...draft.targets.map((target) => ({ kind: "target" as const, id: target.id, target })),
+      { kind: "add" as const, id: "__add-target__" },
+    ],
+    [draft.targets],
+  );
+  const syllableGridItems = useMemo(
+    () => [
+      ...draft.syllableRows.map((row) => ({ kind: "row" as const, id: row.id, row })),
+      { kind: "add" as const, id: "__add-syllable__" },
+    ],
+    [draft.syllableRows],
+  );
+  const selectedSyllableRow = useMemo(
+    () => draft.syllableRows.find((row) => row.id === selectedSyllableRowId) ?? null,
+    [draft.syllableRows, selectedSyllableRowId],
+  );
+  const selectedSyllableNormalized = useMemo(
+    () => (selectedSyllableRow ? normalizeEditorSyllable(selectedSyllableRow.syllable) : ""),
+    [selectedSyllableRow],
+  );
+  const selectedSyllableCardId = useMemo(
+    () => (selectedSyllableNormalized ? `syllable.${selectedSyllableNormalized.toLowerCase()}` : ""),
+    [selectedSyllableNormalized],
+  );
+  const selectedSyllableUsedByTargets = useMemo(
+    () =>
+      selectedSyllableNormalized
+        ? draft.targets.filter((target) =>
+            target.syllablesText
+              .split(/[\n,]/)
+              .map((entry) => normalizeEditorSyllable(entry))
+              .filter((entry) => entry.length > 0)
+              .includes(selectedSyllableNormalized),
+          )
+        : [],
+    [draft.targets, selectedSyllableNormalized],
+  );
+  const expandedTargetRowEndIndex = useMemo(() => {
+    if (!selectedTargetId) return -1;
+    const selectedIndex = targetGridItems.findIndex((item) => item.kind === "target" && item.id === selectedTargetId);
+    if (selectedIndex < 0) return -1;
+
+    const rowStartIndex = Math.floor(selectedIndex / targetGridColumns) * targetGridColumns;
+    return Math.min(targetGridItems.length - 1, rowStartIndex + targetGridColumns - 1);
+  }, [selectedTargetId, targetGridColumns, targetGridItems]);
+  const expandedSyllableRowEndIndex = useMemo(() => {
+    if (!selectedSyllableRowId) return -1;
+    const selectedIndex = draft.syllableRows.findIndex((row) => row.id === selectedSyllableRowId);
     if (selectedIndex < 0) return -1;
 
     const rowStartIndex = Math.floor(selectedIndex / derivedCardsGridColumns) * derivedCardsGridColumns;
-    return Math.min(selectedCatalogCards.length - 1, rowStartIndex + derivedCardsGridColumns - 1);
-  }, [derivedCardsGridColumns, selectedCardEntry, selectedCatalogCards]);
+    return Math.min(draft.syllableRows.length - 1, rowStartIndex + derivedCardsGridColumns - 1);
+  }, [derivedCardsGridColumns, draft.syllableRows, selectedSyllableRowId]);
 
   const filteredDeckEntries = useMemo(
     () =>
@@ -154,21 +230,22 @@ export const ContentEditor: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!draft.targets.some((target) => target.id === selectedTargetId)) {
-      setSelectedTargetId(draft.targets[0]?.id ?? "");
+    if (selectedTargetId && !draft.targets.some((target) => target.id === selectedTargetId)) {
+      setSelectedTargetId("");
     }
   }, [draft.targets, selectedTargetId]);
 
   useEffect(() => {
-    if (selectedCardId && !selectedCatalogCards.some((entry) => entry.card.id === selectedCardId)) {
-      setSelectedCardId("");
+    if (selectedSyllableRowId && !draft.syllableRows.some((row) => row.id === selectedSyllableRowId)) {
+      setSelectedSyllableRowId("");
     }
-  }, [selectedCardId, selectedCatalogCards]);
+  }, [draft.syllableRows, selectedSyllableRowId]);
 
   useEffect(() => {
     const syncColumns = () => {
       if (typeof window === "undefined") return;
-      setDerivedCardsGridColumns(window.innerWidth >= 640 ? 3 : 2);
+      setTargetGridColumns(getTargetGridColumns(window.innerWidth));
+      setDerivedCardsGridColumns(getDerivedCardsGridColumns(window.innerWidth));
     };
 
     syncColumns();
@@ -193,8 +270,8 @@ export const ContentEditor: React.FC = () => {
       const nextDraft = createContentEditorDeckDraft(nextDeck);
       setSelectedDeckId(nextDeckId);
       setDraft(nextDraft);
-      setSelectedTargetId(nextDraft.targets[0]?.id ?? "");
-      setSelectedCardId("");
+      setSelectedTargetId("");
+      setSelectedSyllableRowId("");
       setSaveStatus(idleSaveStatus);
     });
   };
@@ -204,8 +281,8 @@ export const ContentEditor: React.FC = () => {
     if (!baselineDeck) return;
     const nextDraft = createContentEditorDeckDraft(baselineDeck);
     setDraft(nextDraft);
-    setSelectedTargetId(nextDraft.targets[0]?.id ?? "");
-    setSelectedCardId("");
+    setSelectedTargetId("");
+    setSelectedSyllableRowId("");
     setSaveStatus(idleSaveStatus);
   };
 
@@ -239,10 +316,12 @@ export const ContentEditor: React.FC = () => {
   };
 
   const addSyllableRow = () => {
+    const nextRow = createEmptyContentEditorSyllableRow();
     updateDraft((current) => ({
       ...current,
-      syllableRows: [...current.syllableRows, createEmptyContentEditorSyllableRow()],
+      syllableRows: [...current.syllableRows, nextRow],
     }));
+    setSelectedSyllableRowId(nextRow.id);
   };
 
   const updateTarget = (
@@ -276,11 +355,8 @@ export const ContentEditor: React.FC = () => {
 
   const removeTarget = (targetId: string) => {
     updateDraft((current) => {
-      const currentIndex = current.targets.findIndex((target) => target.id === targetId);
       const nextTargets = current.targets.filter((target) => target.id !== targetId);
-      const nextSelected =
-        nextTargets[currentIndex] ?? nextTargets[Math.max(0, currentIndex - 1)] ?? null;
-      setSelectedTargetId(nextSelected?.id ?? "");
+      setSelectedTargetId("");
       return {
         ...current,
         targets: nextTargets,
@@ -524,7 +600,7 @@ export const ContentEditor: React.FC = () => {
                 />
                 <MetricCard
                   label="TargetIds derivados"
-                  value={String(draft.targets.length)}
+                  value={String(derivedTargetIdCount)}
                   icon={<Shield className="h-4 w-4" />}
                 />
                 <MetricCard
@@ -536,10 +612,9 @@ export const ContentEditor: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-            <div className="space-y-6">
+          <div className="space-y-6">
               <Panel title="Deck Ativo" icon={<FilePenLine className="h-5 w-5" />}>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 xl:grid-cols-[11rem_13rem_minmax(0,1fr)_7rem] xl:items-end">
                   <Field label="Deck id (fixo)">
                     <input
                       value={draft.id}
@@ -578,341 +653,366 @@ export const ContentEditor: React.FC = () => {
                     />
                   </Field>
 
-                  <Field label="Descricao" className="md:col-span-2">
-                    <textarea
-                      value={draft.description}
-                      onChange={(event) => updateDeckField("description", event.target.value)}
-                      rows={4}
-                      className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                    />
-                  </Field>
-                </div>
-              </Panel>
-
-              <Panel title="Distribuicao de Silabas" icon={<Layers3 className="h-5 w-5" />}>
-                <div className="space-y-3">
-                  {draft.syllableRows.map((row) => (
-                    <div key={row.id} className="grid gap-3 rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4 md:grid-cols-[1fr_10rem_auto]">
-                      <input
-                        value={row.syllable}
-                        onChange={(event) => updateSyllableRow(row.id, { syllable: event.target.value.toUpperCase() })}
-                        placeholder="Silaba"
-                        className="rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        value={row.count}
-                        onChange={(event) => updateSyllableRow(row.id, { count: event.target.value })}
-                        className="rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                      />
-                      <Button
-                        variant="ghost"
-                        className="border border-amber-900/15 bg-amber-50/45 text-amber-950 hover:bg-amber-100/70"
-                        onClick={() => removeSyllableRow(row.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Button
-                    variant="ghost"
-                    className="border border-amber-900/15 bg-amber-50/45 text-amber-950 hover:bg-amber-100/70"
-                    onClick={addSyllableRow}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Adicionar silaba
-                  </Button>
-                </div>
-              </Panel>
-
-              <Panel title="Validacao e Save" icon={<Save className="h-5 w-5" />}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <InfoTile label="Modo" value="deck-scoped" />
-                  <InfoTile label="Source bruto" value={selectedDeckEntry.filePath} compact />
-                  <InfoTile
-                    label="Pipeline"
-                    value={preview.ok ? "valido" : "com erro"}
-                    tone={preview.ok ? "success" : "warning"}
-                  />
-                  <InfoTile
-                    label="Dirty"
-                    value={isDirty ? "sim" : "nao"}
-                    tone={isDirty ? "warning" : "success"}
-                  />
-                </div>
-
-                <div
-                  className={cn(
-                    "mt-4 rounded-2xl border px-4 py-4 text-sm",
-                    saveStatus.tone === "success"
-                      ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
-                      : saveStatus.tone === "error"
-                        ? "border-rose-700/15 bg-rose-100/85 text-rose-950"
-                        : "border-amber-900/12 bg-[rgba(255,252,244,0.88)] text-amber-950/80",
-                  )}
-                >
-                  {saveStatus.message}
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {localIssues.length > 0 ? (
-                    localIssues.map((issue) => <IssueRow key={issue} issue={issue} tone="warning" />)
-                  ) : null}
-
-                  {!preview.ok
-                    ? pipelineIssues.map((issue) => <IssueRow key={issue} issue={issue} tone="warning" />)
-                    : (
-                        <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-4 text-sm text-emerald-950">
-                          O draft recompila no pipeline real e continua gerando o Deck final do runtime via adapter atual.
-                        </div>
-                      )}
-
-                  {duplicateTargetId ? (
-                    <IssueRow
-                      issue={`O target selecionado "${selectedTargetDraft?.id}" conflita com um id de outro deck do catalogo.`}
-                      tone="warning"
-                    />
-                  ) : null}
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    variant="ghost"
-                    className="border border-amber-900/15 bg-amber-50/45 text-amber-950 hover:bg-amber-100/70"
-                    onClick={resetDraft}
-                    disabled={!isDirty}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Resetar draft
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950 hover:bg-emerald-200/80"
-                    onClick={handleSave}
-                    disabled={!canSave}
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSaving ? "Salvando..." : "Salvar source bruto"}
-                  </Button>
-                </div>
-              </Panel>
-            </div>
-
-            <div className="space-y-6">
-              <Panel title="Targets do Deck" icon={<BookOpenText className="h-5 w-5" />}>
-                <div className="mb-4 flex flex-wrap gap-3">
-                  <Button
-                    variant="ghost"
-                    className="border border-amber-900/15 bg-amber-50/45 text-amber-950 hover:bg-amber-100/70"
-                    onClick={addTarget}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Novo target
-                  </Button>
-                  <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
-                    targetIds derivados: {draft.targets.map((target) => target.id).join(", ") || "nenhum"}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-                  {draft.targets.map((target) => {
-                    const isActive = target.id === selectedTargetDraft?.id;
-                    return (
-                      <button
-                        key={target.id}
-                        type="button"
-                        onClick={() => setSelectedTargetId(target.id)}
-                        className="text-left"
-                      >
-                        <DraftTargetCard target={target} active={isActive} />
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {selectedTargetDraft ? (
-                  <div className="paper-panel mt-6 rounded-[28px] border-2 border-amber-900/25 p-5 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)]">
-                    <div className="mb-4 flex flex-wrap items-center gap-3">
-                      <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
-                        id interno: {selectedTargetDraft.id}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        className="border border-amber-900/15 bg-amber-50/50 text-amber-950 hover:bg-amber-100/70"
-                        onClick={() => moveTarget(selectedTargetDraft.id, -1)}
-                        disabled={draft.targets[0]?.id === selectedTargetDraft.id}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                        Subir
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="border border-amber-900/15 bg-amber-50/50 text-amber-950 hover:bg-amber-100/70"
-                        onClick={() => moveTarget(selectedTargetDraft.id, 1)}
-                        disabled={draft.targets[draft.targets.length - 1]?.id === selectedTargetDraft.id}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                        Descer
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="border border-rose-300/25 bg-rose-500/10 text-rose-900 hover:bg-rose-500/15"
-                        onClick={() => removeTarget(selectedTargetDraft.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Remover
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-4">
-                      <Field label="Nome">
-                        <input
-                          value={selectedTargetDraft.name}
-                          onChange={(event) => updateTarget(selectedTargetDraft.id, { name: event.target.value })}
-                          className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                        />
-                      </Field>
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Field label="Emoji">
-                          <input
-                            value={selectedTargetDraft.emoji}
-                            onChange={(event) => updateTarget(selectedTargetDraft.id, { emoji: event.target.value })}
-                            className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                          />
-                        </Field>
-
-                        <Field label="Rarity">
-                          <select
-                            value={selectedTargetDraft.rarity}
-                            onChange={(event) => updateTarget(selectedTargetDraft.id, { rarity: event.target.value })}
-                            className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                          >
-                            <option value="comum">comum</option>
-                            <option value="raro">raro</option>
-                            <option value="epico">epico</option>
-                            <option value="lendario">lendario</option>
-                          </select>
-                        </Field>
+                  <div className="xl:col-span-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsDeckDescriptionExpanded((current) => !current)}
+                      className="flex h-11 w-full items-center justify-between rounded-[18px] border border-amber-900/12 bg-[rgba(255,252,244,0.7)] px-3 py-2 text-left transition hover:bg-[rgba(255,252,244,0.92)]"
+                    >
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">Descricao</div>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-900/12 bg-amber-100/55 text-amber-950">
+                        {isDeckDescriptionExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                       </div>
+                    </button>
 
-                      <Field label="Descricao">
-                        <textarea
-                          value={selectedTargetDraft.description}
-                          onChange={(event) => updateTarget(selectedTargetDraft.id, { description: event.target.value })}
-                          rows={3}
-                          className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                        />
-                      </Field>
-
-                      <Field label="Silabas do target">
-                        <input
-                          value={selectedTargetDraft.syllablesText}
-                          onChange={(event) => updateTarget(selectedTargetDraft.id, { syllablesText: event.target.value.toUpperCase() })}
-                          placeholder="Ex.: BA, NA, NA"
-                          className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30"
-                        />
-                      </Field>
-                    </div>
+                    {isDeckDescriptionExpanded ? (
+                      <textarea
+                        value={draft.description}
+                        onChange={(event) => updateDeckField("description", event.target.value)}
+                        rows={2}
+                        className="mt-3 w-full resize-none rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                      />
+                    ) : null}
                   </div>
-                ) : (
-                  <EmptyCallout text="Nenhum target no draft atual." />
-                )}
+                </div>
               </Panel>
 
-              <Panel title="Cards Derivados por Silaba" icon={<Sparkles className="h-5 w-5" />}>
-                {selectedCatalogCards.length === 0 ? (
-                  <EmptyCallout text="Sem cards derivados enquanto o draft estiver invalido ou sem card pool valido." />
-                ) : (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    {selectedCatalogCards.map((entry, index) => (
-                      <React.Fragment key={entry.card.id}>
-                        <DerivedSyllableCard
-                          syllable={entry.card.syllable}
-                          copies={entry.copiesInDeck}
-                          selected={selectedCardEntry?.card.id === entry.card.id}
-                          onClick={() =>
-                            setSelectedCardId((current) => (current === entry.card.id ? "" : entry.card.id))
-                          }
-                        />
+              <div className="space-y-6">
+                <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
+                  <Panel title="Targets do Deck" icon={<BookOpenText className="h-5 w-5" />}>
+                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+                    {targetGridItems.map((item, index) => (
+                      <React.Fragment key={item.id}>
+                        {item.kind === "target" ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedTargetId((current) => (current === item.target.id ? "" : item.target.id))
+                            }
+                            className="text-left"
+                          >
+                            <DraftTargetCard
+                              target={item.target}
+                              active={item.target.id === selectedTargetDraft?.id}
+                              copies={getTargetCopiesDisplayValue(item.target.copies)}
+                            />
+                          </button>
+                        ) : (
+                          <button type="button" onClick={addTarget} className="text-left">
+                            <AddTargetCard />
+                          </button>
+                        )}
 
-                        {selectedCardEntry && index === expandedCardRowEndIndex ? (
-                          <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-5 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] sm:col-span-3">
-                            <div>
-                              <div>
-                                <div className="font-serif text-3xl font-black text-amber-950">{selectedCardEntry.card.syllable}</div>
-                                <div className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                  {selectedCardEntry.card.id}
-                                </div>
+                        {selectedTargetDraft && index === expandedTargetRowEndIndex ? (
+                          <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-5 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3">
+                            <div className="mb-4 flex items-center gap-3">
+                              <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
+                                id interno: {selectedTargetDraft.id}
+                              </Badge>
+                              <div className="ml-auto flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                className="h-10 min-w-[5.75rem] rounded-2xl border border-amber-900/15 bg-amber-50/50 px-3 text-amber-950 hover:bg-amber-100/70"
+                                onClick={() => moveTarget(selectedTargetDraft.id, -1)}
+                                disabled={draft.targets[0]?.id === selectedTargetDraft.id}
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                                Subir
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="h-10 min-w-[5.75rem] rounded-2xl border border-amber-900/15 bg-amber-50/50 px-3 text-amber-950 hover:bg-amber-100/70"
+                                onClick={() => moveTarget(selectedTargetDraft.id, 1)}
+                                disabled={draft.targets[draft.targets.length - 1]?.id === selectedTargetDraft.id}
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                                Descer
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="h-10 min-w-[5.75rem] rounded-2xl border border-rose-300/25 bg-rose-500/10 px-3 text-rose-900 hover:bg-rose-500/15"
+                                onClick={() => removeTarget(selectedTargetDraft.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Remover
+                              </Button>
                               </div>
                             </div>
-                            <div className="mt-4 text-[11px] font-black uppercase tracking-[0.28em] text-amber-900/50">
-                              Relacao no deck atual
-                            </div>
-                            <div className="mt-4 grid grid-cols-2 gap-3">
-                              <InfoTile label="Copias no deck" value={String(selectedCardEntry.copiesInDeck)} mini />
-                              <InfoTile label="Targets usando" value={String(selectedCardEntry.usedByTargets.length)} mini />
-                            </div>
-                            <div className="mt-4 text-[11px] font-black uppercase tracking-[0.28em] text-amber-900/50">
-                              Aparece em
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {selectedCardEntry.usedByTargets.map((target) => (
-                                <span
-                                  key={`${selectedCardEntry.card.id}-${target.id}`}
-                                  className="rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-amber-950 shadow-sm"
-                                >
-                                  {target.name}
-                                </span>
-                              ))}
+
+                            <div className="grid gap-4">
+                              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_7rem]">
+                                <Field label="Nome">
+                                  <input
+                                    value={selectedTargetDraft.name}
+                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { name: event.target.value })}
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  />
+                                </Field>
+
+                                <Field label="Copia">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={selectedTargetDraft.copies}
+                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { copies: event.target.value })}
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-3 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <Field label="Emoji">
+                                  <input
+                                    value={selectedTargetDraft.emoji}
+                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { emoji: event.target.value })}
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  />
+                                </Field>
+
+                                <Field label="Rarity">
+                                  <select
+                                    value={selectedTargetDraft.rarity}
+                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { rarity: event.target.value })}
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  >
+                                    <option value="comum">comum</option>
+                                    <option value="raro">raro</option>
+                                    <option value="epico">epico</option>
+                                    <option value="lendario">lendario</option>
+                                  </select>
+                                </Field>
+                              </div>
+
+                              <Field label="Descricao">
+                                <textarea
+                                  value={selectedTargetDraft.description}
+                                  onChange={(event) => updateTarget(selectedTargetDraft.id, { description: event.target.value })}
+                                  rows={3}
+                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                />
+                              </Field>
+
+                              <Field label="Silabas do target">
+                                <input
+                                  value={selectedTargetDraft.syllablesText}
+                                  onChange={(event) => updateTarget(selectedTargetDraft.id, { syllablesText: event.target.value.toUpperCase() })}
+                                  placeholder="Ex.: BA, NA, NA"
+                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30"
+                                />
+                              </Field>
                             </div>
                           </div>
                         ) : null}
                       </React.Fragment>
                     ))}
                   </div>
-                )}
-              </Panel>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
+                      targetIds derivados: {derivedTargetIdsLabel}
+                    </Badge>
+                  </div>
+                  </Panel>
 
-              <Panel title="Preview do Pipeline" icon={<CheckCircle2 className="h-5 w-5" />}>
-                {preview.ok && selectedDeckDefinition && preview.selectedRuntimeDeck ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <InfoTile label="Deck final runtime" value={preview.selectedRuntimeDeck.name} tone="success" />
-                      <InfoTile label="Targets finais" value={String(preview.selectedRuntimeDeck.targets.length)} tone="success" />
-                      <InfoTile
-                        label="Silabas totais runtime"
-                        value={String(
-                          Object.values(preview.selectedRuntimeDeck.syllables).reduce((sum, count) => sum + count, 0),
-                        )}
-                        tone="success"
-                        mini
-                      />
-                      <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact />
-                    </div>
+                  <Panel title="Silabas do Deck" icon={<Layers3 className="h-5 w-5" />}>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                      {syllableGridItems.map((item, index) => (
+                        <React.Fragment key={item.id}>
+                          {item.kind === "row" ? (
+                            <DerivedSyllableCard
+                              syllable={item.row.syllable || "?"}
+                              copies={Math.max(0, Number(item.row.count) || 0)}
+                              selected={item.row.id === selectedSyllableRowId}
+                              onClick={() =>
+                                setSelectedSyllableRowId((current) => (current === item.row.id ? "" : item.row.id))
+                              }
+                            />
+                          ) : (
+                            <button type="button" onClick={addSyllableRow} className="text-left">
+                              <AddSyllableCard />
+                            </button>
+                          )}
 
-                    <div className="rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-4 text-sm text-sky-950">
-                      O runtime continua consumindo o mesmo shape final de <span className="font-black">Deck</span>,
-                      vindo do adapter atual do catalogo.
-                    </div>
+                          {selectedSyllableRow && index === expandedSyllableRowEndIndex ? (
+                            <div className="paper-panel col-span-2 rounded-[24px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_16px_30px_rgba(0,0,0,0.12)] sm:col-span-3 xl:col-span-4">
+                              <div className="mb-4 flex flex-wrap items-center gap-3">
+                                <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
+                                  id interno: {selectedSyllableCardId || "syllable.sem-id"}
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  className="ml-auto h-10 min-w-[5.75rem] rounded-2xl border border-rose-300/25 bg-rose-500/10 px-3 text-rose-900 hover:bg-rose-500/15"
+                                  onClick={() => removeSyllableRow(selectedSyllableRow.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Remover
+                                </Button>
+                              </div>
 
-                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-                      {selectedCatalogTargets.map((target) => (
-                        <div key={target.id}>
-                          <ResolvedTargetCard target={target} />
-                        </div>
+                              <div className="grid gap-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <Field label="Silaba">
+                                    <input
+                                      value={selectedSyllableRow.syllable}
+                                      onChange={(event) =>
+                                        updateSyllableRow(selectedSyllableRow.id, {
+                                          syllable: event.target.value.toUpperCase(),
+                                        })
+                                      }
+                                      placeholder="Silaba"
+                                      className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30"
+                                    />
+                                  </Field>
+
+                                  <Field label="Copias">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={selectedSyllableRow.count}
+                                      onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
+                                      className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-3 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                    />
+                                  </Field>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-[10rem_minmax(0,1fr)]">
+                                  <InfoTile label="Targets usando" value={String(selectedSyllableUsedByTargets.length)} />
+
+                                  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4">
+                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                                      Aparece em
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {selectedSyllableUsedByTargets.length > 0 ? (
+                                        selectedSyllableUsedByTargets.map((target) => (
+                                          <span
+                                            key={`${selectedSyllableRow.id}-${target.id}`}
+                                            className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm"
+                                          >
+                                            {target.name}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
+                                          Nenhum target usa
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                        </React.Fragment>
                       ))}
                     </div>
-                  </div>
-                ) : (
-                  <EmptyCallout text="O preview do pipeline real aparece aqui assim que o draft voltar a ficar valido." />
-                )}
-              </Panel>
-            </div>
+                    <div className="mt-auto flex flex-wrap gap-3 pt-4">
+                      <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
+                        {preview.ok ? "cards derivados: validos" : "cards derivados: preview indisponivel"}
+                      </Badge>
+                    </div>
+                  </Panel>
+                </div>
+
+                <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
+                  <Panel title="Validacao e Save" icon={<Save className="h-5 w-5" />}>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <InfoTile label="Modo" value="deck-scoped" />
+                      <InfoTile label="Source bruto" value={selectedDeckEntry.filePath} compact />
+                      <InfoTile
+                        label="Pipeline"
+                        value={preview.ok ? "valido" : "com erro"}
+                        tone={preview.ok ? "success" : "warning"}
+                      />
+                      <InfoTile
+                        label="Dirty"
+                        value={isDirty ? "sim" : "nao"}
+                        tone={isDirty ? "warning" : "success"}
+                      />
+                    </div>
+
+                    <div
+                      className={cn(
+                        "mt-4 rounded-2xl border px-4 py-4 text-sm",
+                        saveStatus.tone === "success"
+                          ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
+                          : saveStatus.tone === "error"
+                            ? "border-rose-700/15 bg-rose-100/85 text-rose-950"
+                            : "border-amber-900/12 bg-[rgba(255,252,244,0.88)] text-amber-950/80",
+                      )}
+                    >
+                      {saveStatus.message}
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {localIssues.length > 0 ? (
+                        localIssues.map((issue) => <IssueRow key={issue} issue={issue} tone="warning" />)
+                      ) : null}
+
+                      {!preview.ok
+                        ? pipelineIssues.map((issue) => <IssueRow key={issue} issue={issue} tone="warning" />)
+                        : (
+                            <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-4 text-sm text-emerald-950">
+                              O draft recompila no pipeline real e continua gerando o Deck final do runtime via adapter atual.
+                            </div>
+                          )}
+
+                      {duplicateTargetId ? (
+                        <IssueRow
+                          issue={`O target selecionado "${selectedTargetDraft?.id}" conflita com um id de outro deck do catalogo.`}
+                          tone="warning"
+                        />
+                      ) : null}
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <Button
+                        variant="ghost"
+                        className="border border-amber-900/15 bg-amber-50/45 text-amber-950 hover:bg-amber-100/70"
+                        onClick={resetDraft}
+                        disabled={!isDirty}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Resetar draft
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950 hover:bg-emerald-200/80"
+                        onClick={handleSave}
+                        disabled={!canSave}
+                      >
+                        <Save className="h-4 w-4" />
+                        {isSaving ? "Salvando..." : "Salvar source bruto"}
+                      </Button>
+                    </div>
+                  </Panel>
+                  <Panel title="Preview do Pipeline" icon={<CheckCircle2 className="h-5 w-5" />}>
+                    {preview.ok && selectedDeckDefinition && preview.selectedRuntimeDeck ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <InfoTile label="Deck final runtime" value={preview.selectedRuntimeDeck.name} tone="success" />
+                          <InfoTile label="Targets finais" value={String(preview.selectedRuntimeDeck.targets.length)} tone="success" />
+                          <InfoTile
+                            label="Silabas totais runtime"
+                            value={String(
+                              Object.values(preview.selectedRuntimeDeck.syllables).reduce((sum, count) => sum + count, 0),
+                            )}
+                            tone="success"
+                            mini
+                          />
+                          <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact />
+                        </div>
+
+                        <div className="rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-4 text-sm text-sky-950">
+                          O runtime continua consumindo o mesmo shape final de <span className="font-black">Deck</span>,
+                          vindo do adapter atual do catalogo.
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyCallout text="O preview do pipeline real aparece aqui assim que o draft voltar a ficar valido." />
+                    )}
+                  </Panel>
+                </div>
+              </div>
           </div>
         </section>
       </main>
@@ -923,7 +1023,8 @@ export const ContentEditor: React.FC = () => {
 const DraftTargetCard: React.FC<{
   target: ContentEditorTargetDraft;
   active: boolean;
-}> = ({ target, active }) => {
+  copies: number;
+}> = ({ target, active, copies }) => {
   const normalizedRarity = normalizeRarity(target.rarity);
   const damage = RARITY_DAMAGE[normalizedRarity];
   const syllables = target.syllablesText
@@ -932,112 +1033,93 @@ const DraftTargetCard: React.FC<{
     .filter((entry) => entry.length > 0);
 
   return (
-    <div
-      className={cn(
-        "card-base relative flex aspect-[126/176] w-full flex-col overflow-hidden rounded-[1.1rem] border transition-all duration-300",
-        active
-          ? "border-amber-300 shadow-[0_20px_34px_rgba(0,0,0,0.2)] ring-4 ring-amber-300/35"
-          : "border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)]",
-      )}
-    >
+    <div className="relative flex w-full items-start justify-center pb-10 text-center">
       <div
         className={cn(
-          "flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white",
-          getRarityToneClass(target.rarity),
+          "card-base relative flex aspect-[126/176] w-full flex-col overflow-hidden rounded-[1.1rem] border transition-all duration-300",
+          active
+            ? "border-amber-300 shadow-[0_20px_34px_rgba(0,0,0,0.2)] ring-4 ring-amber-300/35"
+            : "border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)]",
         )}
       >
-        <span className="truncate">{getRarityLabel(target.rarity)}</span>
-        <div className="flex items-center gap-1.5">
-          <Swords className="h-4 w-4" />
-          <span>{damage}</span>
-        </div>
-      </div>
-
-      <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
-        <div className="relative translate-y-3 text-[4.9rem] leading-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]">
-          {target.emoji || "?"}
-        </div>
-      </div>
-
-      <div className="mt-auto shrink-0 bg-parchment/90 px-2.5 pb-2.5 pt-4">
-        <div className="text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950">
-          {target.name || "NOVO TARGET"}
-        </div>
-        <div className="mt-1 text-center text-[9px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-          {target.id}
-        </div>
-        <div className="mt-2.5 flex flex-wrap justify-center gap-1">
-          {syllables.length > 0 ? (
-            syllables.map((syllable, index) => (
-              <div
-                key={`${target.id}-${syllable}-${index}`}
-                className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm"
-              >
-                {syllable}
-              </div>
-            ))
-          ) : (
-            <div className="rounded-full border border-amber-900/12 bg-white/70 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-900/40 shadow-sm">
-              SEM SILABAS
-            </div>
+        <div
+          className={cn(
+            "flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white",
+            getRarityToneClass(target.rarity),
           )}
+        >
+          <span className="truncate">{getRarityLabel(target.rarity)}</span>
+          <div className="flex items-center gap-1.5">
+            <Swords className="h-4 w-4" />
+            <span>{damage}</span>
+          </div>
         </div>
+
+        <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
+          <div className="relative translate-y-3 text-[4.9rem] leading-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]">
+            {target.emoji || "?"}
+          </div>
+        </div>
+
+        <div className="mt-auto shrink-0 bg-parchment/90 px-2.5 pb-2.5 pt-4">
+          <div className="text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950">
+            {target.name || "NOVO TARGET"}
+          </div>
+          <div className="mt-2.5 flex flex-wrap justify-center gap-1">
+            {syllables.length > 0 ? (
+              syllables.map((syllable, index) => (
+                <div
+                  key={`${target.id}-${syllable}-${index}`}
+                  className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm"
+                >
+                  {syllable}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-full border border-amber-900/12 bg-white/70 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-900/40 shadow-sm">
+                SEM SILABAS
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
       </div>
 
-      <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
+      <span className="absolute bottom-[6px] left-1/2 -translate-x-1/2 rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-0.5 text-xs font-black text-amber-950 shadow-sm">
+        x{copies}
+      </span>
     </div>
   );
 };
 
-const ResolvedTargetCard: React.FC<{
-  target: TargetDefinition;
-}> = ({ target }) => {
-  const normalizedRarity = normalizeRarity(target.rarity);
-  const damage = RARITY_DAMAGE[normalizedRarity];
-
-  return (
-    <div className="card-base relative flex aspect-[126/176] w-full flex-col overflow-hidden rounded-[1.1rem] shadow-[0_14px_26px_rgba(0,0,0,0.15)]">
-      <div
-        className={cn(
-          "flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white",
-          getRarityToneClass(target.rarity),
-        )}
-      >
-        <span className="truncate">{getRarityLabel(target.rarity)}</span>
-        <div className="flex items-center gap-1.5">
-          <Swords className="h-4 w-4" />
-          <span>{damage}</span>
-        </div>
-      </div>
-
-      <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
-        <div className="relative translate-y-3 text-[4.9rem] leading-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]">
-          {target.emoji || "?"}
-        </div>
-      </div>
-
-      <div className="mt-auto shrink-0 bg-parchment/90 px-2.5 pb-2.5 pt-4">
-        <div className="text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950">
-          {target.name}
-        </div>
-        <div className="mt-2.5 flex flex-wrap justify-center gap-1">
-          {target.cardIds.map((cardId, index) => (
-            <div
-              key={`${target.id}-${cardId}-${index}`}
-              className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm"
-            >
-              {cardId.replace("syllable.", "").toUpperCase()}
-            </div>
-          ))}
-        </div>
+const AddTargetCard: React.FC = () => (
+  <div className="relative flex w-full items-start justify-center pb-10 text-center">
+    <div className="relative flex aspect-[126/176] w-full flex-col items-center justify-center overflow-hidden rounded-[1.1rem] border border-dashed border-amber-900/18 bg-amber-50/45 p-3 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
+      <Plus className="h-10 w-10" />
+      <div className="mt-3 px-3 text-center text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">
+        Adicionar target
       </div>
 
       <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
     </div>
-  );
-};
+  </div>
+);
+
+const AddSyllableCard: React.FC = () => (
+  <div className="relative flex min-h-[150px] w-full items-start justify-center pb-3 text-center">
+    <div className="origin-top scale-[0.78]">
+      <div className="relative flex h-[150px] w-[110px] flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-amber-900/18 bg-amber-50/45 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
+        <Plus className="h-10 w-10" />
+        <div className="mt-3 px-3 text-center text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">
+          Adicionar silaba
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
+      </div>
+    </div>
+  </div>
+);
 
 const DerivedSyllableCard: React.FC<{
   syllable: string;
@@ -1047,18 +1129,19 @@ const DerivedSyllableCard: React.FC<{
   interactive?: boolean;
 }> = ({ syllable, copies, selected, onClick, interactive = true }) => {
   return (
-    <div className="flex w-full flex-col items-center gap-0 text-center">
-      <div className={cn("origin-top scale-[0.72] -mb-3", !interactive && "pointer-events-none")}>
+    <div className="relative flex min-h-[150px] w-full items-start justify-center pb-3 text-center">
+      <div className={cn("origin-top scale-[0.78]", !interactive && "pointer-events-none")}>
           <SyllableCard
             syllable={syllable}
             selected={selected}
             playable={false}
             disabled={false}
             staticDisplay
+            sizePreset="hand-desktop"
             onClick={interactive ? () => onClick?.() : () => {}}
           />
       </div>
-      <span className="-mt-3 rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-0.5 text-xs font-black text-amber-950 shadow-sm">
+      <span className="absolute bottom-[9px] left-1/2 -translate-x-1/2 rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-0.5 text-xs font-black text-amber-950 shadow-sm">
         x{copies}
       </span>
     </div>
@@ -1069,8 +1152,9 @@ const Panel: React.FC<{
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
-}> = ({ title, icon, children }) => (
-  <section className="paper-panel rounded-[28px] border-2 border-[#8d6e63]/30 p-5 shadow-[0_18px_34px_rgba(0,0,0,0.12)]">
+  className?: string;
+}> = ({ title, icon, children, className }) => (
+  <section className={cn("paper-panel flex flex-col rounded-[28px] border-2 border-[#8d6e63]/30 p-5 shadow-[0_18px_34px_rgba(0,0,0,0.12)]", className)}>
     <div className="mb-4 flex items-center gap-3">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-900/12 bg-amber-100/55 text-amber-950">
         {icon}

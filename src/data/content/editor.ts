@@ -49,6 +49,7 @@ export interface ContentEditorSyllableRow {
 export interface ContentEditorTargetDraft {
   id: string;
   name: string;
+  copies: string;
   description: string;
   emoji: string;
   rarity: string;
@@ -99,6 +100,7 @@ export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEd
     targets: deck.targets.map((target) => ({
       id: target.id,
       name: target.name,
+      copies: String(target.copies ?? 1),
       description: target.description ?? "",
       emoji: target.emoji,
       rarity: target.rarity,
@@ -107,7 +109,13 @@ export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEd
   };
 }
 
-export function hydrateRawDeckDefinitionFromDraft(draft: ContentEditorDeckDraft): RawDeckDefinition {
+function buildRawDeckDefinitionFromDraft(
+  draft: ContentEditorDeckDraft,
+  options: {
+    preserveDraftCopies: boolean;
+  },
+): RawDeckDefinition {
+  const { preserveDraftCopies } = options;
   const syllables = draft.syllableRows.reduce<Record<string, number>>((acc, row) => {
     acc[row.syllable] = Number(row.count);
     return acc;
@@ -115,10 +123,22 @@ export function hydrateRawDeckDefinitionFromDraft(draft: ContentEditorDeckDraft)
 
   const targets: RawTargetDefinition[] = draft.targets.map((target) => {
     const description = target.description.trim();
+    const copies = Number(target.copies);
+    const copiesText = target.copies.trim();
+    const copiesValue =
+      preserveDraftCopies && copiesText.length === 0
+        ? 0
+        : Number.isFinite(copies)
+          ? copies
+          : Number.NaN;
+    const shouldPersistCopies = preserveDraftCopies
+      ? target.copies.length > 0 || copiesValue !== 1
+      : Number.isInteger(copies) && copies > 1;
 
     return {
       id: target.id,
       name: target.name,
+      ...(shouldPersistCopies ? { copies: copiesValue } : {}),
       ...(description ? { description } : {}),
       emoji: target.emoji,
       rarity: target.rarity,
@@ -140,6 +160,14 @@ export function hydrateRawDeckDefinitionFromDraft(draft: ContentEditorDeckDraft)
   };
 }
 
+export function hydrateRawDeckDefinitionFromDraft(draft: ContentEditorDeckDraft): RawDeckDefinition {
+  return buildRawDeckDefinitionFromDraft(draft, { preserveDraftCopies: false });
+}
+
+export function hydratePreviewRawDeckDefinitionFromDraft(draft: ContentEditorDeckDraft): RawDeckDefinition {
+  return buildRawDeckDefinitionFromDraft(draft, { preserveDraftCopies: true });
+}
+
 export function replaceRawDeckInCatalog(
   entries: RawDeckCatalogEntry[],
   deckId: string,
@@ -153,7 +181,7 @@ export function buildContentEditorPreview(
   deckId: string,
   draft: ContentEditorDeckDraft,
 ): ContentEditorPreviewResult {
-  const nextDeck = hydrateRawDeckDefinitionFromDraft(draft);
+  const nextDeck = hydratePreviewRawDeckDefinitionFromDraft(draft);
 
   try {
     const pipeline = buildContentPipeline(replaceRawDeckInCatalog(entries, deckId, nextDeck));
@@ -199,6 +227,7 @@ export function createEmptyContentEditorTarget(existingIds: Iterable<string>): C
   return {
     id: createUniqueTargetId(existingIds),
     name: "NOVO TARGET",
+    copies: "1",
     description: "",
     emoji: "?",
     rarity: "comum",
@@ -226,6 +255,13 @@ export function getContentEditorLocalIssues(draft: ContentEditorDeckDraft) {
       return;
     }
     seenDeckSyllables.add(normalized);
+  });
+
+  draft.targets.forEach((target) => {
+    const copies = Number(target.copies);
+    if (!Number.isInteger(copies) || copies <= 0) {
+      issues.push(`Target "${target.id}" precisa ter copias com inteiro positivo.`);
+    }
   });
 
   return issues;

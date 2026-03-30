@@ -46,6 +46,7 @@ export interface RawTargetDefinition {
   syllables: string[];
   rarity: string;
   description?: string;
+  copies?: number;
 }
 
 export interface RawDeckDefinition {

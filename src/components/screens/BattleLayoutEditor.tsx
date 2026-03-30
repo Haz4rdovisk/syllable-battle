@@ -3927,6 +3927,28 @@ export const BattleLayoutEditor: React.FC = () => {
     window.open(runtimeUrl.toString(), "_blank", "noopener,noreferrer");
   }, []);
 
+  const openContentInspector = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const inspectorUrl = new URL(window.location.href);
+    inspectorUrl.searchParams.delete("battle-layout-editor");
+    inspectorUrl.searchParams.delete("battle-layout-preview");
+    inspectorUrl.searchParams.delete("battle-layout-debug");
+    inspectorUrl.searchParams.set("content-inspector", "1");
+    inspectorUrl.searchParams.delete("content-editor");
+    window.open(inspectorUrl.toString(), "_blank", "noopener,noreferrer");
+  }, []);
+
+  const openContentEditor = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const editorUrl = new URL(window.location.href);
+    editorUrl.searchParams.delete("battle-layout-editor");
+    editorUrl.searchParams.delete("battle-layout-preview");
+    editorUrl.searchParams.delete("battle-layout-debug");
+    editorUrl.searchParams.set("content-editor", "1");
+    editorUrl.searchParams.delete("content-inspector");
+    window.open(editorUrl.toString(), "_blank", "noopener,noreferrer");
+  }, []);
+
   const layoutPropertyControls: LayoutNumberControl[] =
     activeElementKey && activeElementConfig && !isMultiSelection
     ? [
@@ -5867,20 +5889,34 @@ export const BattleLayoutEditor: React.FC = () => {
                 </span>
               </label>
 
-              <div className="flex h-[48px] items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+              <div className="grid h-[48px] grid-cols-2 grid-rows-2 gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
                 <Button
                   type="button"
                   onClick={openRuntimeView}
-                  className="h-[36px] rounded-md border border-emerald-300/20 bg-emerald-950/40 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-emerald-100 hover:bg-emerald-900/60"
+                  className="h-[18px] rounded-md border border-emerald-300/20 bg-emerald-950/40 px-1.5 py-0 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-100 hover:bg-emerald-900/60"
                 >
                   Runtime
                 </Button>
                 <Button
                   type="button"
                   onClick={openDebugPreview}
-                  className="h-[36px] rounded-md border border-cyan-300/20 bg-cyan-950/40 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100 hover:bg-cyan-900/60"
+                  className="h-[18px] rounded-md border border-cyan-300/20 bg-cyan-950/40 px-1.5 py-0 text-[7px] font-black uppercase tracking-[0.08em] text-cyan-100 hover:bg-cyan-900/60"
                 >
                   Debug
+                </Button>
+                <Button
+                  type="button"
+                  onClick={openContentInspector}
+                  className="h-[18px] rounded-md border border-amber-300/20 bg-amber-950/40 px-1.5 py-0 text-[7px] font-black uppercase tracking-[0.08em] text-amber-100 hover:bg-amber-900/60"
+                >
+                  Inspector
+                </Button>
+                <Button
+                  type="button"
+                  onClick={openContentEditor}
+                  className="h-[18px] rounded-md border border-fuchsia-300/20 bg-fuchsia-950/40 px-1.5 py-0 text-[7px] font-black uppercase tracking-[0.08em] text-fuchsia-100 hover:bg-fuchsia-900/60"
+                >
+                  Editor
                 </Button>
               </div>
             </div>

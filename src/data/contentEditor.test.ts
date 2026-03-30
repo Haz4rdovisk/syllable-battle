@@ -5,6 +5,7 @@ import {
   buildContentEditorPreview,
   createContentEditorDeckDraft,
   createRawDeckDefinitionSource,
+  hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
 } from "./content/editor";
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from "./content/decks";
@@ -47,6 +48,73 @@ test("content editor reutiliza a validacao real do pipeline", () => {
   assert.ok(
     preview.issues.some((issue) => issue.includes('target "vaca" needs') && issue.includes('"ZZ"')),
   );
+});
+
+test("content editor nao mascara copies invalido como 1 no preview do pipeline", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+  draft.targets[0] = {
+    ...draft.targets[0],
+    copies: "0",
+  };
+
+  const previewDeck = hydratePreviewRawDeckDefinitionFromDraft(draft);
+  assert.equal(previewDeck.targets[0]?.copies, 0);
+
+  const saveDeck = hydrateRawDeckDefinitionFromDraft(draft);
+  assert.equal(saveDeck.targets[0]?.copies, undefined);
+
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  assert.equal(preview.ok, false);
+  if (preview.ok) return;
+
+  assert.ok(preview.issues.some((issue) => issue.includes('target "vaca" copies must be a positive integer')));
+});
+
+test("content editor persiste copies de alvo e replica target no deck final", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+  draft.targets[0] = {
+    ...draft.targets[0],
+    copies: "2",
+  };
+
+  const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
+  assert.equal(rawDeck.targets[0]?.copies, 2);
+
+  const source = createRawDeckDefinitionSource(entry.exportName, rawDeck);
+  assert.ok(source.includes("copies: 2"));
+
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  assert.equal(preview.ok, true);
+  if (!preview.ok) return;
+
+  const copiesInRuntime = preview.selectedRuntimeDeck?.targets.filter((target) => target.id === draft.targets[0]?.id).length;
+  assert.equal(copiesInRuntime, 2);
+});
+
+test("content editor omite copies no source bruto quando o valor volta para 1", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+  draft.targets[0] = {
+    ...draft.targets[0],
+    copies: "1",
+  };
+
+  const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
+  assert.equal(rawDeck.targets[0]?.copies, undefined);
+
+  const source = createRawDeckDefinitionSource(entry.exportName, rawDeck);
+  assert.ok(!source.includes("copies:"));
 });
 
 test("content editor gera source bruto para o deck correto", () => {

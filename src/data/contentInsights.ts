@@ -29,6 +29,7 @@ export interface DeckSyllableBottleneck {
 }
 
 export interface DeckTargetCompetition {
+  instanceKey: string;
   targetId: string;
   targetName: string;
   sharedSyllables: string[];
@@ -114,14 +115,34 @@ function countSyllableOccurrences(targetSyllables: string[], syllable: string) {
   return targetSyllables.reduce((count, entry) => count + (entry === syllable ? 1 : 0), 0);
 }
 
+function getDeckTargetInstances(deck: Deck) {
+  const targetCounts = deck.targets.reduce<Map<string, number>>((acc, target) => {
+    acc.set(target.id, (acc.get(target.id) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+  const targetIndexes = new Map<string, number>();
+
+  return deck.targets.map((target, index) => {
+    const occurrence = (targetIndexes.get(target.id) ?? 0) + 1;
+    targetIndexes.set(target.id, occurrence);
+
+    return {
+      instanceKey: `${target.id}-${index}`,
+      target,
+      displayName:
+        (targetCounts.get(target.id) ?? 0) > 1 ? `${target.name} #${occurrence}` : target.name,
+    };
+  });
+}
+
 function getSyllableUsage(deck: Deck) {
   const usage = new Map<string, string[]>();
 
-  deck.targets.forEach((target) => {
+  getDeckTargetInstances(deck).forEach(({ target, displayName }) => {
     const uniqueSyllables = new Set(target.syllables);
     uniqueSyllables.forEach((syllable) => {
       const current = usage.get(syllable) ?? [];
-      usage.set(syllable, [...current, target.name]);
+      usage.set(syllable, [...current, displayName]);
     });
   });
 
@@ -248,27 +269,29 @@ export function getDeckSyllableBottlenecks(deck: Deck): DeckSyllableBottleneck[]
 }
 
 export function getDeckTargetCompetition(deck: Deck): DeckTargetCompetition[] {
-  return deck.targets
-    .map((target) => {
+  const targetInstances = getDeckTargetInstances(deck);
+
+  return targetInstances
+    .map(({ instanceKey, target, displayName }) => {
       const uniqueSyllables = [...new Set(target.syllables)];
       const sharedSyllables = uniqueSyllables.filter((syllable) =>
-        deck.targets.some(
-          (otherTarget) => otherTarget.id !== target.id && otherTarget.syllables.includes(syllable),
+        targetInstances.some(
+          (otherEntry) => otherEntry.instanceKey !== instanceKey && otherEntry.target.syllables.includes(syllable),
         ),
       );
-      const competingTargets = deck.targets
+      const competingTargets = targetInstances
         .filter(
-          (otherTarget) =>
-            otherTarget.id !== target.id &&
-            sharedSyllables.some((syllable) => otherTarget.syllables.includes(syllable)),
+          (otherEntry) =>
+            otherEntry.instanceKey !== instanceKey &&
+            sharedSyllables.some((syllable) => otherEntry.target.syllables.includes(syllable)),
         )
-        .map((otherTarget) => otherTarget.name);
+        .map((otherEntry) => otherEntry.displayName);
       const pressureScore = round(
         average(
           sharedSyllables.map((syllable) => {
             const availableCopies = deck.syllables[syllable] ?? 0;
-            const requiredAcrossTargets = deck.targets.reduce(
-              (total, entry) => total + countSyllableOccurrences(entry.syllables, syllable),
+            const requiredAcrossTargets = targetInstances.reduce(
+              (total, entry) => total + countSyllableOccurrences(entry.target.syllables, syllable),
               0,
             );
             return requiredAcrossTargets / Math.max(1, availableCopies);
@@ -277,8 +300,9 @@ export function getDeckTargetCompetition(deck: Deck): DeckTargetCompetition[] {
       );
 
       return {
+        instanceKey,
         targetId: target.id,
-        targetName: target.name,
+        targetName: displayName,
         sharedSyllables,
         competingTargets,
         pressureScore,

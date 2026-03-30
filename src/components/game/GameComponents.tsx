@@ -499,10 +499,12 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
       whileHover={
         !disabled
           ? staticDisplay
-            ? {
-                y: -4,
-                transition: { type: "spring", stiffness: 260, damping: 22 },
-              }
+            ? selected
+              ? {}
+              : {
+                  y: -4,
+                  transition: { type: "spring", stiffness: 260, damping: 22 },
+                }
             : {
                 y: -28,
                 scale: 1.12,
@@ -512,7 +514,7 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
               }
           : {}
       }
-      whileTap={!disabled ? (staticDisplay ? { scale: 0.98 } : { scale: 0.95 }) : {}}
+      whileTap={!disabled ? (staticDisplay ? (selected ? {} : { scale: 0.98 }) : { scale: 0.95 }) : {}}
       onClick={onClick}
       disabled={disabled}
       style={style}

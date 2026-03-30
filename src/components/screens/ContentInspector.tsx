@@ -26,6 +26,7 @@ import {
   getCatalogDeckById,
   getMostReusedCards,
   getSharedTargetsBetweenDecks,
+  getTargetInstancesForDeck,
   getTargetsForDeck,
 } from "../../data/content";
 import { cn } from "../../lib/utils";
@@ -116,8 +117,13 @@ export const ContentInspector: React.FC = () => {
     [selectedInspection],
   );
 
-  const selectedCatalogTargets = useMemo(
+  const selectedCatalogTargetDefinitions = useMemo(
     () => (selectedInspection ? getTargetsForDeck(CONTENT_CATALOG, selectedInspection.deck.id) : []),
+    [selectedInspection],
+  );
+
+  const selectedCatalogTargetInstances = useMemo(
+    () => (selectedInspection ? getTargetInstancesForDeck(CONTENT_CATALOG, selectedInspection.deck.id) : []),
     [selectedInspection],
   );
 
@@ -436,7 +442,7 @@ export const ContentInspector: React.FC = () => {
                       <div className="space-y-3">
                         {targetCompetition.slice(0, 4).map((entry) => (
                           <div
-                            key={entry.targetId}
+                            key={entry.instanceKey}
                             className="rounded-2xl border border-amber-200/10 bg-black/20 p-4"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -482,10 +488,10 @@ export const ContentInspector: React.FC = () => {
                 </div>
               </Panel>
 
-              <Panel title="Targets do Deck" icon={<SearchCheck className="h-5 w-5" />}>
+              <Panel title="Targets em Runtime" icon={<SearchCheck className="h-5 w-5" />}>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {deck.targets.map((target) => (
-                    <div key={target.id} className="rounded-[24px] border border-amber-200/10 bg-black/20 p-4">
+                  {deck.targets.map((target, index) => (
+                    <div key={`${target.id}-${index}`} className="rounded-[24px] border border-amber-200/10 bg-black/20 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
                           <div className="text-4xl leading-none">{target.emoji}</div>
@@ -502,7 +508,7 @@ export const ContentInspector: React.FC = () => {
                             rarityToneClass[target.rarity],
                           )}
                         >
-                          {target.rarity}
+                          {target.rarity} · instância {index + 1}
                         </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -548,7 +554,8 @@ export const ContentInspector: React.FC = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <InfoTile label="Visual theme" value={selectedDeckDefinition.visualTheme} />
                         <InfoTile label="Cards canonicos" value={String(selectedCatalogCards.length)} />
-                        <InfoTile label="Target definitions" value={String(selectedCatalogTargets.length)} />
+                        <InfoTile label="Target definitions" value={String(selectedCatalogTargetDefinitions.length)} />
+                        <InfoTile label="Target instances" value={String(selectedCatalogTargetInstances.length)} />
                         <InfoTile
                           label="Copias no card pool"
                           value={String(
@@ -605,11 +612,11 @@ export const ContentInspector: React.FC = () => {
                     title="Targets definidos no catálogo"
                     subtitle="Resolve o deck via targetIds da camada nova, sem depender apenas da projeção runtime."
                   >
-                    {selectedCatalogTargets.length === 0 ? (
+                    {selectedCatalogTargetDefinitions.length === 0 ? (
                       <EmptyCallout text="Nenhum target normalizado encontrado para este deck." />
                     ) : (
                       <div className="space-y-3">
-                        {selectedCatalogTargets.slice(0, 4).map((target) => (
+                        {selectedCatalogTargetDefinitions.slice(0, 4).map((target) => (
                           <div
                             key={target.id}
                             className="rounded-2xl border border-amber-200/10 bg-black/20 p-4"

@@ -9,6 +9,7 @@ import {
   getDecksUsingCard,
   getMostReusedCards,
   getSharedTargetsBetweenDecks,
+  getTargetInstancesForDeck,
   getTargetsForDeck,
   getTargetsUsingCard,
 } from "./content";
@@ -23,16 +24,50 @@ test("selectors básicos resolvem deck, target e card por id", () => {
   assert.equal(vaCard?.syllable, "VA");
 });
 
-test("getTargetsForDeck e getCardsForDeck expõem relações úteis do deck normalizado", () => {
+test("getTargetsForDeck expõe definitions únicas e getTargetInstancesForDeck expõe instâncias do deck", () => {
   const farmTargets = getTargetsForDeck(CONTENT_CATALOG, "farm");
+  const farmTargetInstances = getTargetInstancesForDeck(CONTENT_CATALOG, "farm");
   const farmCards = getCardsForDeck(CONTENT_CATALOG, "farm");
   const vaEntry = farmCards.find((entry) => entry.card.id === "syllable.va");
 
   assert.equal(farmTargets.length, 6);
+  assert.equal(farmTargetInstances.length, 6);
   assert.ok(vaEntry);
   assert.equal(vaEntry?.copiesInDeck, 4);
   assert.ok(vaEntry?.usedByTargets.some((target) => target.id === "vaca"));
   assert.ok(vaEntry?.usedByTargets.some((target) => target.id === "cavalo"));
+});
+
+test("selectors separam definitions únicas de instâncias duplicadas por copies", () => {
+  const catalog = {
+    ...CONTENT_CATALOG,
+    decks: CONTENT_CATALOG.decks.map((deck) =>
+      deck.id === "farm" ? { ...deck, targetIds: ["vaca", "vaca", "porco"] } : deck,
+    ),
+    decksById: {
+      ...CONTENT_CATALOG.decksById,
+      farm: {
+        ...CONTENT_CATALOG.decksById.farm,
+        targetIds: ["vaca", "vaca", "porco"],
+      },
+    },
+  };
+
+  const farmTargetDefinitions = getTargetsForDeck(catalog, "farm");
+  const farmTargetInstances = getTargetInstancesForDeck(catalog, "farm");
+
+  assert.deepEqual(
+    farmTargetDefinitions.map((target) => target.id),
+    ["vaca", "porco"],
+  );
+  assert.deepEqual(
+    farmTargetInstances.map((entry) => entry.target.id),
+    ["vaca", "vaca", "porco"],
+  );
+  assert.deepEqual(
+    farmTargetInstances.map((entry) => entry.instanceKey),
+    ["vaca-0", "vaca-1", "porco-2"],
+  );
 });
 
 test("getTargetsUsingCard e getDecksUsingCard relacionam cards com targets e decks", () => {

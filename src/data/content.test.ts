@@ -54,11 +54,8 @@ test("DECKS expõe um catálogo válido e utilizável pelo runtime atual", () =>
     assert.ok(totalSyllables >= CONFIG.handSize);
     assert.ok(deck.targets.length >= CONFIG.targetsInPlay);
 
-    const targetIds = new Set<string>();
     deck.targets.forEach((target) => {
       assert.ok(target.id.length > 0);
-      assert.ok(!targetIds.has(target.id));
-      targetIds.add(target.id);
       target.syllables.forEach((syllable) => {
         assert.ok(deck.syllables[syllable] > 0);
       });
@@ -104,6 +101,45 @@ test("loadContentCatalog normaliza decks em deck definitions e cards canônicos 
   assert.deepEqual(catalog.decks[0]?.targetIds, ["banana", "baba"]);
   assert.deepEqual(catalog.targetsById.banana?.cardIds, ["syllable.ba", "syllable.na", "syllable.na"]);
   assert.equal(catalog.decks[0]?.cardPool["syllable.ba"], 3);
+});
+
+test("loadContentCatalog e loadDeckCatalog preservam copies persistido no deck bruto", () => {
+  const deckWithCopies: RawDeckDefinition = {
+    id: "mini-copies",
+    name: "Mini Copies",
+    description: "Deck bruto persistido com copies.",
+    emoji: "🧪",
+    visualTheme: "harvest",
+    syllables: {
+      BA: 3,
+      NA: 2,
+      BO: 2,
+      LA: 1,
+    },
+    targets: [
+      {
+        id: "banana",
+        name: "BANANA",
+        emoji: "🍌",
+        syllables: ["BA", "NA", "NA"],
+        rarity: "raro",
+        copies: 2,
+      },
+      {
+        id: "bola",
+        name: "BOLA",
+        emoji: "⚽",
+        syllables: ["BO", "LA"],
+        rarity: "comum",
+      },
+    ],
+  };
+
+  const catalog = loadContentCatalog([deckWithCopies]);
+  const runtimeDecks = loadDeckCatalog([deckWithCopies]);
+
+  assert.deepEqual(catalog.decks[0]?.targetIds, ["banana", "banana", "bola"]);
+  assert.equal(runtimeDecks[0]?.targets.filter((target) => target.id === "banana").length, 2);
 });
 
 test("loadDeckCatalog rejeita targets impossíveis de completar com as sílabas do deck", () => {

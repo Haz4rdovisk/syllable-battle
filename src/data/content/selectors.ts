@@ -11,6 +11,13 @@ export interface CatalogCardUsage {
   usedByTargets: TargetDefinition[];
 }
 
+export interface CatalogTargetInstance {
+  instanceKey: string;
+  instanceIndex: number;
+  targetId: string;
+  target: TargetDefinition;
+}
+
 export interface CatalogCardReuse {
   card: CardDefinition;
   deckCount: number;
@@ -39,9 +46,31 @@ export function getTargetsForDeck(catalog: NormalizedContentCatalog, deckId: str
   const deck = getCatalogDeckById(catalog, deckId);
   if (!deck) return [];
 
-  return deck.targetIds
+  return [...new Set(deck.targetIds)]
     .map((targetId) => getCatalogTargetById(catalog, targetId))
     .filter((target): target is TargetDefinition => !!target);
+}
+
+export function getTargetInstancesForDeck(
+  catalog: NormalizedContentCatalog,
+  deckId: string,
+): CatalogTargetInstance[] {
+  const deck = getCatalogDeckById(catalog, deckId);
+  if (!deck) return [];
+
+  return deck.targetIds
+    .map((targetId, instanceIndex) => {
+      const target = getCatalogTargetById(catalog, targetId);
+      if (!target) return null;
+
+      return {
+        instanceKey: `${target.id}-${instanceIndex}`,
+        instanceIndex,
+        targetId,
+        target,
+      };
+    })
+    .filter((entry): entry is CatalogTargetInstance => !!entry);
 }
 
 export function getCardsForDeck(catalog: NormalizedContentCatalog, deckId: string): CatalogCardUsage[] {

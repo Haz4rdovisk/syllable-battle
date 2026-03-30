@@ -19,14 +19,50 @@ export const farmDeck: RawDeckDefinition = {
     O: 3,
     VE: 3,
     LHA: 3,
-    LO: 3,
+    LO: 3
   },
   targets: [
-    { id: "vaca", name: "VACA", syllables: ["VA", "CA"], rarity: "comum", emoji: "🐮" },
-    { id: "porco", name: "PORCO", syllables: ["POR", "CO"], rarity: "comum", emoji: "🐷" },
-    { id: "galinha", name: "GALINHA", syllables: ["GA", "LI", "NHA"], rarity: "raro", emoji: "🐔" },
-    { id: "pato", name: "PATO", syllables: ["PA", "TO"], rarity: "comum", emoji: "🦆" },
-    { id: "ovelha", name: "OVELHA", syllables: ["O", "VE", "LHA"], rarity: "raro", emoji: "🐑" },
-    { id: "cavalo", name: "CAVALO", syllables: ["CA", "VA", "LO"], rarity: "raro", emoji: "🐴" },
-  ],
+    {
+      id: "vaca",
+      name: "VACA",
+      emoji: "🐮",
+      rarity: "comum",
+      syllables: ["VA", "CA"]
+    },
+    {
+      id: "porco",
+      name: "PORCO",
+      emoji: "🐷",
+      rarity: "comum",
+      syllables: ["POR", "CO"]
+    },
+    {
+      id: "galinha",
+      name: "GALINHA",
+      emoji: "🐔",
+      rarity: "raro",
+      syllables: ["GA", "LI", "NHA"]
+    },
+    {
+      id: "pato",
+      name: "PATO",
+      emoji: "🦆",
+      rarity: "comum",
+      syllables: ["PA", "TO"]
+    },
+    {
+      id: "ovelha",
+      name: "OVELHA",
+      emoji: "🐑",
+      rarity: "raro",
+      syllables: ["O", "VE", "LHA"]
+    },
+    {
+      id: "cavalo",
+      name: "CAVALO",
+      emoji: "🐴",
+      rarity: "raro",
+      syllables: ["CA", "VA", "LO"]
+    }
+  ]
 };

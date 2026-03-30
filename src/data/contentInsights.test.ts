@@ -125,6 +125,31 @@ test("getDeckTargetCompetition sinaliza targets que disputam o mesmo pool de sil
   assert.ok((banana?.pressureScore ?? 0) >= 1);
 });
 
+test("getDeckTargetCompetition distingue instancias duplicadas quando copies gera targets repetidos", () => {
+  const deck = createDeck({
+    syllables: {
+      VA: 4,
+      CA: 4,
+      LO: 3,
+    },
+    targets: [
+      { id: "vaca", name: "VACA", emoji: "🐮", syllables: ["VA", "CA"], rarity: "comum" },
+      { id: "vaca", name: "VACA", emoji: "🐮", syllables: ["VA", "CA"], rarity: "comum" },
+      { id: "cavalo", name: "CAVALO", emoji: "🐴", syllables: ["CA", "VA", "LO"], rarity: "raro" },
+    ],
+  });
+
+  const competition = getDeckTargetCompetition(deck);
+
+  assert.ok(competition.some((entry) => entry.instanceKey === "vaca-0" && entry.targetName === "VACA #1"));
+  assert.ok(competition.some((entry) => entry.instanceKey === "vaca-1" && entry.targetName === "VACA #2"));
+  assert.ok(
+    competition.some(
+      (entry) => entry.targetId === "cavalo" && entry.competingTargets.includes("VACA #1") && entry.competingTargets.includes("VACA #2"),
+    ),
+  );
+});
+
 test("getDeckRelativeChecks compara o deck contra o catalogo real", () => {
   const aggressiveDeck = createDeck({
     id: "aggressive",
