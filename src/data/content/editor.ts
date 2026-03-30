@@ -77,6 +77,18 @@ export type ContentEditorPreviewResult =
       issues: string[];
     };
 
+export interface ContentEditorSourceDiffLine {
+  type: "context" | "added" | "removed";
+  value: string;
+}
+
+export interface ContentEditorSourceDiff {
+  hasChanges: boolean;
+  addedCount: number;
+  removedCount: number;
+  lines: ContentEditorSourceDiffLine[];
+}
+
 export function cloneRawDeckDefinition(deck: RawDeckDefinition): RawDeckDefinition {
   return {
     ...deck,
@@ -271,4 +283,70 @@ export function createRawDeckDefinitionSource(exportName: string, deck: RawDeckD
   return `import { RawDeckDefinition } from "../types";\n\nexport const ${exportName}: RawDeckDefinition = ${serializeValue(
     deck,
   )};\n`;
+}
+
+export function buildContentEditorSourceDiff(
+  currentSource: string,
+  nextSource: string,
+  contextLines = 2,
+): ContentEditorSourceDiff {
+  if (currentSource === nextSource) {
+    return {
+      hasChanges: false,
+      addedCount: 0,
+      removedCount: 0,
+      lines: [],
+    };
+  }
+
+  const currentLines = currentSource.split("\n");
+  const nextLines = nextSource.split("\n");
+
+  let start = 0;
+  while (
+    start < currentLines.length &&
+    start < nextLines.length &&
+    currentLines[start] === nextLines[start]
+  ) {
+    start += 1;
+  }
+
+  let currentEnd = currentLines.length - 1;
+  let nextEnd = nextLines.length - 1;
+  while (
+    currentEnd >= start &&
+    nextEnd >= start &&
+    currentLines[currentEnd] === nextLines[nextEnd]
+  ) {
+    currentEnd -= 1;
+    nextEnd -= 1;
+  }
+
+  const contextStart = Math.max(0, start - contextLines);
+  const contextAfterStart = nextEnd + 1;
+  const contextAfterEnd = Math.min(nextLines.length, contextAfterStart + contextLines);
+  const lines: ContentEditorSourceDiffLine[] = [];
+
+  currentLines.slice(contextStart, start).forEach((line) => {
+    lines.push({ type: "context", value: line });
+  });
+
+  currentLines.slice(start, currentEnd + 1).forEach((line) => {
+    lines.push({ type: "removed", value: line });
+  });
+
+  nextLines.slice(start, nextEnd + 1).forEach((line) => {
+    lines.push({ type: "added", value: line });
+  });
+
+  nextLines.slice(contextAfterStart, contextAfterEnd).forEach((line) => {
+    lines.push({ type: "context", value: line });
+  });
+
+  return {
+    hasChanges: true,
+    addedCount: Math.max(0, nextEnd - start + 1),
+    removedCount: Math.max(0, currentEnd - start + 1),
+    lines,
+  };
 }

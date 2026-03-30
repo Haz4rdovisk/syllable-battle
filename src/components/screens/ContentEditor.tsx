@@ -26,11 +26,13 @@ import { getCardsForDeck, getCatalogDeckById } from "../../data/content";
 import {
   ContentEditorDeckDraft,
   ContentEditorTargetDraft,
+  buildContentEditorSourceDiff,
   buildContentEditorPreview,
   cloneRawDeckDefinition,
   createContentEditorDeckDraft,
   createEmptyContentEditorSyllableRow,
   createEmptyContentEditorTarget,
+  createRawDeckDefinitionSource,
   getContentEditorLocalIssues,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
@@ -94,6 +96,184 @@ const getRarityLabel = (rarity: string) => {
   return normalized.toUpperCase();
 };
 
+type LocalizedIssue = {
+  scope: string;
+  focus?: string;
+  message: string;
+  raw?: string;
+};
+
+const describeEditorIssue = (issue: string): LocalizedIssue => {
+  const localTargetCopiesMatch = issue.match(/^Target "([^"]+)" precisa ter copias com inteiro positivo\.$/);
+  if (localTargetCopiesMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${localTargetCopiesMatch[1]} · Copia`,
+      message: "Use um inteiro positivo maior que zero para definir quantas copias desse alvo entram no deck.",
+      raw: issue,
+    };
+  }
+
+  const localDuplicateSyllableMatch = issue.match(/^Deck "([^"]+)" repete a silaba "([^"]+)" nas linhas (\d+) do editor\.$/);
+  if (localDuplicateSyllableMatch) {
+    return {
+      scope: "Silabas do Deck",
+      focus: `Silaba ${localDuplicateSyllableMatch[2]} · Linha ${localDuplicateSyllableMatch[3]}`,
+      message: "A mesma silaba apareceu mais de uma vez no deck. Cada linha deve representar uma silaba unica.",
+      raw: issue,
+    };
+  }
+
+  const pipelineTargetCopiesMatch = issue.match(/^deck "([^"]+)" target "([^"]+)" copies must be a positive integer\.$/i);
+  if (pipelineTargetCopiesMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${pipelineTargetCopiesMatch[2]} · Copia`,
+      message: "O pipeline real rejeitou esse alvo porque o campo Copia precisa ser um inteiro positivo.",
+      raw: issue,
+    };
+  }
+
+  const pipelineTargetNeedsMatch = issue.match(
+    /^deck "([^"]+)" target "([^"]+)" needs (\d+)x "([^"]+)", but the deck provides (\d+)\.$/i,
+  );
+  if (pipelineTargetNeedsMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${pipelineTargetNeedsMatch[2]} · Silabas`,
+      message: `Esse alvo pede ${pipelineTargetNeedsMatch[3]}x ${pipelineTargetNeedsMatch[4]}, mas o deck so fornece ${pipelineTargetNeedsMatch[5]}.`,
+      raw: issue,
+    };
+  }
+
+  const targetSyllablesMissingMatch = issue.match(
+    /^deck "([^"]+)" target "([^"]+)" syllables must contain at least one syllable\.$/i,
+  );
+  if (targetSyllablesMissingMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${targetSyllablesMissingMatch[2]} · Silabas`,
+      message: "Cada alvo precisa ter pelo menos uma silaba vinculada.",
+      raw: issue,
+    };
+  }
+
+  const targetSyllableEntryMatch = issue.match(
+    /^deck "([^"]+)" target "([^"]+)" syllables\[(\d+)\] must be a non-empty syllable\.$/i,
+  );
+  if (targetSyllableEntryMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${targetSyllableEntryMatch[2]} · Silabas`,
+      message: `Existe uma entrada vazia ou invalida na lista de silabas desse alvo (item ${Number(targetSyllableEntryMatch[3]) + 1}).`,
+      raw: issue,
+    };
+  }
+
+  const duplicateDeckTargetIdMatch = issue.match(/^deck "([^"]+)" has duplicate target id "([^"]+)"\.$/i);
+  if (duplicateDeckTargetIdMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${duplicateDeckTargetIdMatch[2]} · id interno`,
+      message: "Esse id interno ficou duplicado dentro do deck atual.",
+      raw: issue,
+    };
+  }
+
+  const duplicateTargetIdMatch = issue.match(/^Duplicate target id "([^"]+)"\.$/i);
+  if (duplicateTargetIdMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${duplicateTargetIdMatch[1]} · id interno`,
+      message: "Esse id interno conflita com outro target ja registrado no catalogo.",
+      raw: issue,
+    };
+  }
+
+  const deckSyllableCountMatch = issue.match(/^deck "([^"]+)" syllable "([^"]+)" must have a positive integer count\.$/i);
+  if (deckSyllableCountMatch) {
+    return {
+      scope: "Silabas do Deck",
+      focus: `Silaba ${deckSyllableCountMatch[2]} · Copias`,
+      message: "Cada linha de silaba precisa ter um numero inteiro positivo de copias.",
+      raw: issue,
+    };
+  }
+
+  const deckMustDefineTargetsMatch = issue.match(/^deck "([^"]+)" must define at least one target\.$/i);
+  if (deckMustDefineTargetsMatch) {
+    return {
+      scope: "Targets do Deck",
+      message: "O deck precisa ter pelo menos um alvo para continuar valido.",
+      raw: issue,
+    };
+  }
+
+  const deckMustDefineSyllablesMatch = issue.match(/^deck "([^"]+)" must define at least one syllable count\.$/i);
+  if (deckMustDefineSyllablesMatch) {
+    return {
+      scope: "Silabas do Deck",
+      message: "O deck precisa definir pelo menos uma silaba no pool bruto.",
+      raw: issue,
+    };
+  }
+
+  const deckNameRequiredMatch = issue.match(/^deck "([^"]+)" name is required\.$/i);
+  if (deckNameRequiredMatch) {
+    return {
+      scope: "Deck Ativo",
+      focus: "Nome",
+      message: "O deck precisa ter um nome preenchido.",
+      raw: issue,
+    };
+  }
+
+  const deckDescriptionRequiredMatch = issue.match(/^deck "([^"]+)" description is required\.$/i);
+  if (deckDescriptionRequiredMatch) {
+    return {
+      scope: "Deck Ativo",
+      focus: "Descricao",
+      message: "O deck precisa ter uma descricao preenchida.",
+      raw: issue,
+    };
+  }
+
+  const deckEmojiRequiredMatch = issue.match(/^deck "([^"]+)" emoji is required\.$/i);
+  if (deckEmojiRequiredMatch) {
+    return {
+      scope: "Deck Ativo",
+      focus: "Emoji",
+      message: "O deck precisa ter um emoji preenchido.",
+      raw: issue,
+    };
+  }
+
+  const deckTargetsToFillBoardMatch = issue.match(/^deck "([^"]+)" must define at least (\d+) targets to fill the board\.$/i);
+  if (deckTargetsToFillBoardMatch) {
+    return {
+      scope: "Pipeline real",
+      focus: "Board minimo",
+      message: `O deck ainda nao tem alvos suficientes para preencher o board minimo (${deckTargetsToFillBoardMatch[2]}).`,
+      raw: issue,
+    };
+  }
+
+  const deckHandSizeMatch = issue.match(/^deck "([^"]+)" must have at least (\d+) syllables to draw the opening hand\.$/i);
+  if (deckHandSizeMatch) {
+    return {
+      scope: "Pipeline real",
+      focus: "Mao inicial",
+      message: `O deck precisa ter pelo menos ${deckHandSizeMatch[2]} silabas para montar a mao inicial.`,
+      raw: issue,
+    };
+  }
+
+  return {
+    scope: "Pipeline real",
+    message: issue,
+  };
+};
+
 export const ContentEditor: React.FC = () => {
   const initialSourceDecks = useMemo(createSourceDeckState, []);
   const [sourceDecksById, setSourceDecksById] = useState(initialSourceDecks);
@@ -110,7 +290,9 @@ export const ContentEditor: React.FC = () => {
     typeof window !== "undefined" ? getDerivedCardsGridColumns(window.innerWidth) : 2,
   );
   const [deckSearchValue, setDeckSearchValue] = useState("");
-  const [isDeckDescriptionExpanded, setIsDeckDescriptionExpanded] = useState(false);
+  const [isDeckActiveExpanded, setIsDeckActiveExpanded] = useState(false);
+  const [isSaveDiffExpanded, setIsSaveDiffExpanded] = useState(true);
+  const [isGeneratedSourceExpanded, setIsGeneratedSourceExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(idleSaveStatus);
   const deferredDeckSearch = useDeferredValue(deckSearchValue.trim().toLowerCase());
@@ -161,6 +343,21 @@ export const ContentEditor: React.FC = () => {
     () => (preview.ok ? selectedDeckDefinition?.targetIds.length ?? 0 : 0),
     [preview, selectedDeckDefinition],
   );
+  const persistedSource = useMemo(
+    () =>
+      selectedDeckEntry && persistedDeck
+        ? createRawDeckDefinitionSource(selectedDeckEntry.exportName, persistedDeck)
+        : "",
+    [persistedDeck, selectedDeckEntry],
+  );
+  const nextSaveSource = useMemo(
+    () => (selectedDeckEntry ? createRawDeckDefinitionSource(selectedDeckEntry.exportName, draftRawDeck) : ""),
+    [draftRawDeck, selectedDeckEntry],
+  );
+  const saveSourceDiff = useMemo(
+    () => buildContentEditorSourceDiff(persistedSource, nextSaveSource),
+    [nextSaveSource, persistedSource],
+  );
   const targetGridItems = useMemo(
     () => [
       ...draft.targets.map((target) => ({ kind: "target" as const, id: target.id, target })),
@@ -210,12 +407,12 @@ export const ContentEditor: React.FC = () => {
   }, [selectedTargetId, targetGridColumns, targetGridItems]);
   const expandedSyllableRowEndIndex = useMemo(() => {
     if (!selectedSyllableRowId) return -1;
-    const selectedIndex = draft.syllableRows.findIndex((row) => row.id === selectedSyllableRowId);
+    const selectedIndex = syllableGridItems.findIndex((item) => item.kind === "row" && item.id === selectedSyllableRowId);
     if (selectedIndex < 0) return -1;
 
     const rowStartIndex = Math.floor(selectedIndex / derivedCardsGridColumns) * derivedCardsGridColumns;
-    return Math.min(draft.syllableRows.length - 1, rowStartIndex + derivedCardsGridColumns - 1);
-  }, [derivedCardsGridColumns, draft.syllableRows, selectedSyllableRowId]);
+    return Math.min(syllableGridItems.length - 1, rowStartIndex + derivedCardsGridColumns - 1);
+  }, [derivedCardsGridColumns, selectedSyllableRowId, syllableGridItems]);
 
   const filteredDeckEntries = useMemo(
     () =>
@@ -390,6 +587,72 @@ export const ContentEditor: React.FC = () => {
     });
     return allOtherTargetIds.has(selectedTargetDraft.id);
   }, [selectedDeckId, selectedTargetDraft, sourceEntries]);
+  const savePreviewBlockers = useMemo(() => {
+    const blockers: string[] = [];
+    if (localIssues.length > 0) blockers.push("Corrija os erros locais do draft para liberar o save.");
+    if (!preview.ok) blockers.push("O pipeline real ainda esta com erro para este deck.");
+    if (duplicateTargetId) blockers.push("Existe um conflito de id interno com outro target do catalogo.");
+    return blockers;
+  }, [duplicateTargetId, localIssues.length, preview.ok]);
+  const canPreviewSaveArtifacts = savePreviewBlockers.length === 0;
+  const localizedLocalIssues = useMemo(() => localIssues.map(describeEditorIssue), [localIssues]);
+  const localizedPipelineIssues = useMemo(
+    () => (!preview.ok ? pipelineIssues.map(describeEditorIssue) : []),
+    [pipelineIssues, preview.ok],
+  );
+  const duplicateTargetIssue = useMemo<LocalizedIssue | null>(() => {
+    if (!duplicateTargetId || !selectedTargetDraft) return null;
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${selectedTargetDraft.id} · id interno`,
+      message: "Esse id interno conflita com um target de outro deck do catalogo.",
+    };
+  }, [duplicateTargetId, selectedTargetDraft]);
+  const selectedTargetCopiesHasIssue = useMemo(
+    () =>
+      Boolean(
+        selectedTargetDraft &&
+          [...localIssues, ...pipelineIssues].some(
+            (issue) =>
+              issue.includes(`Target "${selectedTargetDraft.id}" precisa ter copias`) ||
+              issue.includes(`target "${selectedTargetDraft.id}" copies must be a positive integer`),
+          ),
+      ),
+    [localIssues, pipelineIssues, selectedTargetDraft],
+  );
+  const selectedTargetSyllablesHasIssue = useMemo(
+    () =>
+      Boolean(
+        selectedTargetDraft &&
+          pipelineIssues.some(
+            (issue) =>
+              issue.includes(`target "${selectedTargetDraft.id}" needs`) ||
+              issue.includes(`target "${selectedTargetDraft.id}" syllables`),
+          ),
+      ),
+    [pipelineIssues, selectedTargetDraft],
+  );
+  const selectedSyllableFieldHasIssue = useMemo(
+    () =>
+      Boolean(
+        selectedSyllableRow &&
+          normalizeEditorSyllable(selectedSyllableRow.syllable) &&
+          localIssues.some((issue) =>
+            issue.includes(`repete a silaba "${normalizeEditorSyllable(selectedSyllableRow.syllable)}"`),
+          ),
+      ),
+    [localIssues, selectedSyllableRow],
+  );
+  const selectedSyllableCountHasIssue = useMemo(
+    () =>
+      Boolean(
+        selectedSyllableNormalized &&
+          pipelineIssues.some((issue) =>
+            issue.includes(`syllable "${selectedSyllableNormalized}" must have a positive integer count`),
+          ),
+      ),
+    [pipelineIssues, selectedSyllableNormalized],
+  );
 
   const canSave = import.meta.env.DEV && preview.ok && localIssues.length === 0 && !duplicateTargetId && !isSaving;
 
@@ -573,8 +836,18 @@ export const ContentEditor: React.FC = () => {
           >
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex items-start gap-4">
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[28px] border border-white/15 bg-black/15 text-5xl shadow-[0_12px_24px_rgba(0,0,0,0.2)]">
-                  {draft.emoji || "?"}
+                <div className="flex shrink-0 flex-col items-center gap-3">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/15 bg-black/15 text-5xl shadow-[0_12px_24px_rgba(0,0,0,0.2)]">
+                    {draft.emoji || "?"}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDeckActiveExpanded((current) => !current)}
+                    className="flex items-center gap-2 rounded-2xl border border-white/15 bg-black/15 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-50 transition hover:bg-black/25"
+                  >
+                    Editar
+                    {isDeckActiveExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                 </div>
                 <div>
                   <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-100/60">
@@ -613,69 +886,61 @@ export const ContentEditor: React.FC = () => {
           </div>
 
           <div className="space-y-6">
-              <Panel title="Deck Ativo" icon={<FilePenLine className="h-5 w-5" />}>
-                <div className="grid gap-4 xl:grid-cols-[11rem_13rem_minmax(0,1fr)_7rem] xl:items-end">
-                  <Field label="Deck id (fixo)">
-                    <input
-                      value={draft.id}
-                      readOnly
-                      className="w-full rounded-2xl border border-amber-900/15 bg-amber-100/55 px-4 py-3 text-sm text-amber-950/70 outline-none"
-                    />
-                  </Field>
+              {isDeckActiveExpanded ? (
+                <Panel
+                  title="Deck Ativo"
+                  icon={<FilePenLine className="h-5 w-5" />}
+                >
+                  <div className="grid gap-4 xl:grid-cols-[11rem_13rem_minmax(0,1fr)_7rem] xl:items-end">
+                    <Field label="Deck id (fixo)">
+                      <input
+                        value={draft.id}
+                        readOnly
+                        className="w-full rounded-2xl border border-amber-900/15 bg-amber-100/55 px-4 py-3 text-sm text-amber-950/70 outline-none"
+                      />
+                    </Field>
 
-                  <Field label="Visual theme seguro">
-                    <select
-                      value={draft.visualTheme}
-                      onChange={(event) => updateDeckField("visualTheme", event.target.value as DeckVisualThemeId)}
-                      className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                    >
-                      {themeIds.map((themeId) => (
-                        <option key={themeId} value={themeId}>
-                          {themeId}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                    <Field label="Visual theme seguro">
+                      <select
+                        value={draft.visualTheme}
+                        onChange={(event) => updateDeckField("visualTheme", event.target.value as DeckVisualThemeId)}
+                        className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                      >
+                        {themeIds.map((themeId) => (
+                          <option key={themeId} value={themeId}>
+                            {themeId}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
 
-                  <Field label="Nome">
-                    <input
-                      value={draft.name}
-                      onChange={(event) => updateDeckField("name", event.target.value)}
-                      className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                    />
-                  </Field>
+                    <Field label="Nome">
+                      <input
+                        value={draft.name}
+                        onChange={(event) => updateDeckField("name", event.target.value)}
+                        className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                      />
+                    </Field>
 
-                  <Field label="Emoji">
-                    <input
-                      value={draft.emoji}
-                      onChange={(event) => updateDeckField("emoji", event.target.value)}
-                      className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
-                    />
-                  </Field>
+                    <Field label="Emoji">
+                      <input
+                        value={draft.emoji}
+                        onChange={(event) => updateDeckField("emoji", event.target.value)}
+                        className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                      />
+                    </Field>
 
-                  <div className="xl:col-span-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsDeckDescriptionExpanded((current) => !current)}
-                      className="flex h-11 w-full items-center justify-between rounded-[18px] border border-amber-900/12 bg-[rgba(255,252,244,0.7)] px-3 py-2 text-left transition hover:bg-[rgba(255,252,244,0.92)]"
-                    >
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">Descricao</div>
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-900/12 bg-amber-100/55 text-amber-950">
-                        {isDeckDescriptionExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                      </div>
-                    </button>
-
-                    {isDeckDescriptionExpanded ? (
+                    <Field label="Descricao" className="xl:col-span-4">
                       <textarea
                         value={draft.description}
                         onChange={(event) => updateDeckField("description", event.target.value)}
                         rows={2}
-                        className="mt-3 w-full resize-none rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                        className="w-full resize-none rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
                       />
-                    ) : null}
+                    </Field>
                   </div>
-                </div>
-              </Panel>
+                </Panel>
+              ) : null}
 
               <div className="space-y-6">
                 <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
@@ -755,7 +1020,12 @@ export const ContentEditor: React.FC = () => {
                                     min={1}
                                     value={selectedTargetDraft.copies}
                                     onChange={(event) => updateTarget(selectedTargetDraft.id, { copies: event.target.value })}
-                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-3 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                    className={cn(
+                                      "w-full rounded-2xl border px-3 py-3 text-sm text-amber-950 outline-none transition",
+                                      selectedTargetCopiesHasIssue
+                                        ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                        : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                    )}
                                   />
                                 </Field>
                               </div>
@@ -797,7 +1067,12 @@ export const ContentEditor: React.FC = () => {
                                   value={selectedTargetDraft.syllablesText}
                                   onChange={(event) => updateTarget(selectedTargetDraft.id, { syllablesText: event.target.value.toUpperCase() })}
                                   placeholder="Ex.: BA, NA, NA"
-                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30"
+                                  className={cn(
+                                    "w-full rounded-2xl border px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35",
+                                    selectedTargetSyllablesHasIssue
+                                      ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                      : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                  )}
                                 />
                               </Field>
                             </div>
@@ -859,7 +1134,12 @@ export const ContentEditor: React.FC = () => {
                                         })
                                       }
                                       placeholder="Silaba"
-                                      className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30"
+                                      className={cn(
+                                        "w-full rounded-2xl border px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35",
+                                        selectedSyllableFieldHasIssue
+                                          ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                          : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                      )}
                                     />
                                   </Field>
 
@@ -869,7 +1149,12 @@ export const ContentEditor: React.FC = () => {
                                       min={0}
                                       value={selectedSyllableRow.count}
                                       onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
-                                      className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-3 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                      className={cn(
+                                        "w-full rounded-2xl border px-3 py-3 text-sm text-amber-950 outline-none transition",
+                                        selectedSyllableCountHasIssue
+                                          ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                          : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                      )}
                                     />
                                   </Field>
                                 </div>
@@ -913,20 +1198,52 @@ export const ContentEditor: React.FC = () => {
                   </Panel>
                 </div>
 
-                <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
+                <div className="space-y-6">
+                  <Panel title="Preview do Pipeline" icon={<CheckCircle2 className="h-5 w-5" />}>
+                    {preview.ok && selectedDeckDefinition && preview.selectedRuntimeDeck ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <InfoTile label="Deck final runtime" value={preview.selectedRuntimeDeck.name} tone="success" slim plainValue />
+                          <InfoTile label="Targets finais" value={String(preview.selectedRuntimeDeck.targets.length)} tone="success" slim plainValue />
+                          <InfoTile
+                            label="Silabas totais runtime"
+                            value={String(
+                              Object.values(preview.selectedRuntimeDeck.syllables).reduce((sum, count) => sum + count, 0),
+                            )}
+                            tone="success"
+                            mini
+                            slim
+                            plainValue
+                          />
+                          <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact slim plainValue />
+                        </div>
+
+                        <div className="rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-4 text-sm text-sky-950">
+                          O runtime continua consumindo o mesmo shape final de <span className="font-black">Deck</span>,
+                          vindo do adapter atual do catalogo.
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyCallout text="O preview do pipeline real aparece aqui assim que o draft voltar a ficar valido." />
+                    )}
+                  </Panel>
                   <Panel title="Validacao e Save" icon={<Save className="h-5 w-5" />}>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <InfoTile label="Modo" value="deck-scoped" />
-                      <InfoTile label="Source bruto" value={selectedDeckEntry.filePath} compact />
+                      <InfoTile label="Modo" value="deck-scoped" slim plainValue />
+                      <InfoTile label="Source bruto" value={selectedDeckEntry.filePath} slim plainValue />
                       <InfoTile
                         label="Pipeline"
                         value={preview.ok ? "valido" : "com erro"}
                         tone={preview.ok ? "success" : "warning"}
+                        slim
+                        plainValue
                       />
                       <InfoTile
                         label="Dirty"
                         value={isDirty ? "sim" : "nao"}
                         tone={isDirty ? "warning" : "success"}
+                        slim
+                        plainValue
                       />
                     </div>
 
@@ -945,23 +1262,128 @@ export const ContentEditor: React.FC = () => {
 
                     <div className="mt-4 space-y-3">
                       {localIssues.length > 0 ? (
-                        localIssues.map((issue) => <IssueRow key={issue} issue={issue} tone="warning" />)
+                        localizedLocalIssues.map((issue) => (
+                          <IssueRow key={`local-${issue.scope}-${issue.focus}-${issue.message}`} issue={issue} tone="warning" />
+                        ))
                       ) : null}
 
                       {!preview.ok
-                        ? pipelineIssues.map((issue) => <IssueRow key={issue} issue={issue} tone="warning" />)
+                        ? localizedPipelineIssues.map((issue) => (
+                            <IssueRow key={`pipeline-${issue.scope}-${issue.focus}-${issue.message}`} issue={issue} tone="warning" />
+                          ))
                         : (
                             <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-4 text-sm text-emerald-950">
                               O draft recompila no pipeline real e continua gerando o Deck final do runtime via adapter atual.
                             </div>
                           )}
 
-                      {duplicateTargetId ? (
-                        <IssueRow
-                          issue={`O target selecionado "${selectedTargetDraft?.id}" conflita com um id de outro deck do catalogo.`}
-                          tone="warning"
-                        />
-                      ) : null}
+                      {duplicateTargetIssue ? <IssueRow issue={duplicateTargetIssue} tone="warning" /> : null}
+                    </div>
+
+                    <div className="mt-5 space-y-4">
+                      <div className="rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4">
+                        <button
+                          type="button"
+                          onClick={() => setIsSaveDiffExpanded((current) => !current)}
+                          className="flex w-full items-center justify-between gap-3 text-left"
+                        >
+                          <div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                              Diff antes do save
+                            </div>
+                            <div className="mt-1 text-sm text-amber-950/70">
+                              O que vai entrar no arquivo bruto quando o save estiver liberado.
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {canPreviewSaveArtifacts ? (
+                              <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                                {saveSourceDiff.hasChanges
+                                  ? `+${saveSourceDiff.addedCount} / -${saveSourceDiff.removedCount}`
+                                  : "sem mudancas"}
+                              </Badge>
+                            ) : null}
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-900/12 bg-amber-100/55 text-amber-950">
+                              {isSaveDiffExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </div>
+                          </div>
+                        </button>
+
+                        {isSaveDiffExpanded ? (
+                          canPreviewSaveArtifacts ? (
+                            saveSourceDiff.hasChanges ? (
+                              <pre className="mt-4 max-h-64 overflow-auto rounded-2xl border border-amber-900/10 bg-[#2b2119] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
+                                {saveSourceDiff.lines.map((line, index) => (
+                                  <div
+                                    key={`${line.type}-${index}-${line.value}`}
+                                    className={cn(
+                                      "whitespace-pre-wrap rounded px-2",
+                                      line.type === "added" && "bg-emerald-500/20 text-emerald-100",
+                                      line.type === "removed" && "bg-rose-500/20 text-rose-100",
+                                      line.type === "context" && "text-amber-50/85",
+                                    )}
+                                  >
+                                    <span className="mr-2 inline-block w-4 text-center">
+                                      {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                                    </span>
+                                    {line.value}
+                                  </div>
+                                ))}
+                              </pre>
+                            ) : (
+                              <div className="mt-4">
+                                <EmptyCallout text="Nao ha mudancas no source bruto em relacao ao que ja esta salvo." />
+                              </div>
+                            )
+                          ) : (
+                            <div className="mt-4 space-y-2">
+                              {savePreviewBlockers.map((blocker) => (
+                                <IssueRow
+                                  key={`preview-blocker-${blocker}`}
+                                  issue={{ scope: "Preview de save", message: blocker }}
+                                  tone="info"
+                                />
+                              ))}
+                            </div>
+                          )
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4">
+                        <button
+                          type="button"
+                          onClick={() => setIsGeneratedSourceExpanded((current) => !current)}
+                          className="flex w-full items-center justify-between gap-3 text-left"
+                        >
+                          <div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                              Source gerado para save
+                            </div>
+                            <div className="mt-1 text-sm text-amber-950/70">
+                              Preview do arquivo TypeScript que sera gravado no deck selecionado.
+                            </div>
+                          </div>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-900/12 bg-amber-100/55 text-amber-950">
+                            {isGeneratedSourceExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </div>
+                        </button>
+
+                        {isGeneratedSourceExpanded ? (
+                          canPreviewSaveArtifacts ? (
+                            <pre className="mt-4 max-h-80 overflow-auto rounded-2xl border border-amber-900/10 bg-[#201710] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
+                              {nextSaveSource}
+                            </pre>
+                          ) : (
+                            <div className="mt-4">
+                              <EmptyCallout text="O source gerado para save aparece aqui assim que o draft voltar a ficar valido para gravacao." />
+                            </div>
+                          )
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-3">
@@ -984,32 +1406,6 @@ export const ContentEditor: React.FC = () => {
                         {isSaving ? "Salvando..." : "Salvar source bruto"}
                       </Button>
                     </div>
-                  </Panel>
-                  <Panel title="Preview do Pipeline" icon={<CheckCircle2 className="h-5 w-5" />}>
-                    {preview.ok && selectedDeckDefinition && preview.selectedRuntimeDeck ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                          <InfoTile label="Deck final runtime" value={preview.selectedRuntimeDeck.name} tone="success" />
-                          <InfoTile label="Targets finais" value={String(preview.selectedRuntimeDeck.targets.length)} tone="success" />
-                          <InfoTile
-                            label="Silabas totais runtime"
-                            value={String(
-                              Object.values(preview.selectedRuntimeDeck.syllables).reduce((sum, count) => sum + count, 0),
-                            )}
-                            tone="success"
-                            mini
-                          />
-                          <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact />
-                        </div>
-
-                        <div className="rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-4 text-sm text-sky-950">
-                          O runtime continua consumindo o mesmo shape final de <span className="font-black">Deck</span>,
-                          vindo do adapter atual do catalogo.
-                        </div>
-                      </div>
-                    ) : (
-                      <EmptyCallout text="O preview do pipeline real aparece aqui assim que o draft voltar a ficar valido." />
-                    )}
                   </Panel>
                 </div>
               </div>
@@ -1108,9 +1504,9 @@ const AddTargetCard: React.FC = () => (
 );
 
 const AddSyllableCard: React.FC = () => (
-  <div className="relative flex min-h-[150px] w-full items-start justify-center pb-3 text-center">
-    <div className="origin-top scale-[0.78]">
-      <div className="relative flex h-[150px] w-[110px] flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-amber-900/18 bg-amber-50/45 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
+  <div className="relative flex min-h-[144px] w-full items-start justify-center pb-3 text-center">
+    <div className="origin-top scale-[0.75]">
+      <div className="relative flex h-[144px] w-[110px] flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-amber-900/18 bg-amber-50/45 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
         <Plus className="h-10 w-10" />
         <div className="mt-3 px-3 text-center text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">
           Adicionar silaba
@@ -1129,8 +1525,8 @@ const DerivedSyllableCard: React.FC<{
   interactive?: boolean;
 }> = ({ syllable, copies, selected, onClick, interactive = true }) => {
   return (
-    <div className="relative flex min-h-[150px] w-full items-start justify-center pb-3 text-center">
-      <div className={cn("origin-top scale-[0.78]", !interactive && "pointer-events-none")}>
+    <div className="relative flex min-h-[144px] w-full items-start justify-center pb-3 text-center">
+      <div className={cn("origin-top scale-[0.75]", !interactive && "pointer-events-none")}>
           <SyllableCard
             syllable={syllable}
             selected={selected}
@@ -1153,13 +1549,15 @@ const Panel: React.FC<{
   icon: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-}> = ({ title, icon, children, className }) => (
+  headerAction?: React.ReactNode;
+}> = ({ title, icon, children, className, headerAction }) => (
   <section className={cn("paper-panel flex flex-col rounded-[28px] border-2 border-[#8d6e63]/30 p-5 shadow-[0_18px_34px_rgba(0,0,0,0.12)]", className)}>
     <div className="mb-4 flex items-center gap-3">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-900/12 bg-amber-100/55 text-amber-950">
         {icon}
       </div>
       <h3 className="font-serif text-2xl font-black tracking-tight text-amber-950">{title}</h3>
+      {headerAction ? <div className="ml-auto">{headerAction}</div> : null}
     </div>
     {children}
   </section>
@@ -1200,11 +1598,14 @@ const InfoTile: React.FC<{
   tone?: "default" | "success" | "warning";
   compact?: boolean;
   mini?: boolean;
-}> = ({ label, value, tone = "default", compact = false, mini = false }) => (
+  slim?: boolean;
+  plainValue?: boolean;
+}> = ({ label, value, tone = "default", compact = false, mini = false, slim = false, plainValue = false }) => (
   <div
     className={cn(
       "rounded-2xl border px-4 py-4",
       mini && "px-3 py-3",
+      slim && "px-3.5 py-3",
       tone === "success"
         ? "border-emerald-700/15 bg-emerald-100/85"
         : tone === "warning"
@@ -1212,11 +1613,16 @@ const InfoTile: React.FC<{
           : "border-amber-900/12 bg-[rgba(255,252,244,0.88)]",
     )}
   >
-    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">{label}</div>
+    <div className={cn("text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45", slim && "text-[10px] tracking-[0.18em]")}>{label}</div>
     <div
       className={cn(
-        "mt-2 font-serif font-black text-amber-950",
-        compact ? "text-sm break-all leading-snug" : mini ? "text-xl" : "text-2xl",
+        "mt-2 font-black text-amber-950",
+        plainValue ? "font-sans" : "font-serif",
+        compact
+          ? cn("text-sm break-all leading-snug", slim && "text-[12px]")
+          : mini
+            ? cn("text-xl", slim && "text-lg")
+            : cn("text-2xl", slim && "text-lg"),
       )}
     >
       {value}
@@ -1225,7 +1631,7 @@ const InfoTile: React.FC<{
 );
 
 const IssueRow: React.FC<{
-  issue: string;
+  issue: LocalizedIssue;
   tone: "warning" | "info";
 }> = ({ issue, tone }) => (
   <div
@@ -1238,7 +1644,20 @@ const IssueRow: React.FC<{
   >
     <div className="flex items-start gap-3">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-      <span>{issue}</span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-black uppercase tracking-[0.16em] text-current/70">{issue.scope}</span>
+          {issue.focus ? (
+            <span className="rounded-full border border-current/15 bg-white/50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-current/80">
+              {issue.focus}
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-2 leading-relaxed">{issue.message}</div>
+        {issue.raw && issue.raw !== issue.message ? (
+          <div className="mt-2 text-[11px] text-current/60">{issue.raw}</div>
+        ) : null}
+      </div>
     </div>
   </div>
 );

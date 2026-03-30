@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DECKS } from "./content";
 import {
+  buildContentEditorSourceDiff,
   buildContentEditorPreview,
   createContentEditorDeckDraft,
   createRawDeckDefinitionSource,
@@ -128,4 +129,24 @@ test("content editor gera source bruto para o deck correto", () => {
   assert.ok(source.includes('export const oceanDeck: RawDeckDefinition = {'));
   assert.ok(source.includes('id: "ocean"'));
   assert.ok(source.includes('visualTheme: "abyss"'));
+});
+
+test("content editor gera diff legivel do source bruto antes do save", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+  draft.targets[0] = {
+    ...draft.targets[0],
+    copies: "2",
+  };
+
+  const currentSource = createRawDeckDefinitionSource(entry.exportName, entry.deck);
+  const nextSource = createRawDeckDefinitionSource(entry.exportName, hydrateRawDeckDefinitionFromDraft(draft));
+  const diff = buildContentEditorSourceDiff(currentSource, nextSource);
+
+  assert.equal(diff.hasChanges, true);
+  assert.ok(diff.addedCount > 0);
+  assert.ok(diff.lines.some((line) => line.type === "added" && line.value.includes("copies: 2")));
 });
