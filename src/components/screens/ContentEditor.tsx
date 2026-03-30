@@ -1504,9 +1504,9 @@ const AddTargetCard: React.FC = () => (
 );
 
 const AddSyllableCard: React.FC = () => (
-  <div className="relative flex min-h-[144px] w-full items-start justify-center pb-3 text-center">
-    <div className="origin-top scale-[0.75]">
-      <div className="relative flex h-[144px] w-[110px] flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-amber-900/18 bg-amber-50/45 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
+  <div className="relative flex min-h-[168px] w-full items-start justify-center pb-3 text-center">
+    <div className="origin-top scale-[0.84]">
+      <div className="relative flex h-[150px] w-[116px] flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-amber-900/18 bg-amber-50/45 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
         <Plus className="h-10 w-10" />
         <div className="mt-3 px-3 text-center text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">
           Adicionar silaba
@@ -1525,8 +1525,8 @@ const DerivedSyllableCard: React.FC<{
   interactive?: boolean;
 }> = ({ syllable, copies, selected, onClick, interactive = true }) => {
   return (
-    <div className="relative flex min-h-[144px] w-full items-start justify-center pb-3 text-center">
-      <div className={cn("origin-top scale-[0.75]", !interactive && "pointer-events-none")}>
+    <div className="relative flex min-h-[168px] w-full items-start justify-center pb-3 text-center">
+      <div className={cn("origin-top scale-[0.84]", !interactive && "pointer-events-none")}>
           <SyllableCard
             syllable={syllable}
             selected={selected}
