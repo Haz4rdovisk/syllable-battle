@@ -24,6 +24,7 @@ import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
 import { getCardsForDeck, getCatalogDeckById } from "../../data/content";
 import {
+  buildContentEditorReviewSummary,
   ContentEditorDeckDraft,
   ContentEditorTargetDraft,
   buildContentEditorSourceDiff,
@@ -308,6 +309,10 @@ export const ContentEditor: React.FC = () => {
 
   const selectedDeckEntry = useMemo(() => getRawDeckCatalogEntry(selectedDeckId), [selectedDeckId]);
   const persistedDeck = sourceDecksById[selectedDeckId] ?? null;
+  const baselineDraft = useMemo(
+    () => (persistedDeck ? createContentEditorDeckDraft(persistedDeck) : draft),
+    [draft, persistedDeck],
+  );
   const draftRawDeck = useMemo(() => hydrateRawDeckDefinitionFromDraft(draft), [draft]);
   const draftPreviewRawDeck = useMemo(() => hydratePreviewRawDeckDefinitionFromDraft(draft), [draft]);
   const persistedPreviewDeck = useMemo(
@@ -595,6 +600,27 @@ export const ContentEditor: React.FC = () => {
     return blockers;
   }, [duplicateTargetId, localIssues.length, preview.ok]);
   const canPreviewSaveArtifacts = savePreviewBlockers.length === 0;
+  const reviewSummary = useMemo(
+    () =>
+      buildContentEditorReviewSummary(baselineDraft, draft, {
+        pipelineOk: preview.ok,
+        sourceReady: canPreviewSaveArtifacts,
+        hasSourceChanges: saveSourceDiff.hasChanges,
+        localIssueCount: localIssues.length,
+        pipelineIssueCount: preview.ok ? 0 : pipelineIssues.length,
+        blockerCount: savePreviewBlockers.length,
+      }),
+    [
+      baselineDraft,
+      canPreviewSaveArtifacts,
+      draft,
+      localIssues.length,
+      pipelineIssues.length,
+      preview.ok,
+      savePreviewBlockers.length,
+      saveSourceDiff.hasChanges,
+    ],
+  );
   const localizedLocalIssues = useMemo(() => localIssues.map(describeEditorIssue), [localIssues]);
   const localizedPipelineIssues = useMemo(
     () => (!preview.ok ? pipelineIssues.map(describeEditorIssue) : []),
@@ -1280,6 +1306,34 @@ export const ContentEditor: React.FC = () => {
                       {duplicateTargetIssue ? <IssueRow issue={duplicateTargetIssue} tone="warning" /> : null}
                     </div>
 
+                    <div className="mt-5 rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                            Review gate antes do save
+                          </div>
+                          <div className="mt-1 text-sm text-amber-950/70">
+                            Resumo curto do que mudou neste deck antes de gravar o source bruto.
+                          </div>
+                        </div>
+                        <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                          {reviewSummary.hasMeaningfulChanges ? "com mudancas" : "sem mudancas"}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                        {reviewSummary.categories.map((category) => (
+                          <ReviewGateTile
+                            key={category.id}
+                            label={category.label}
+                            headline={category.headline}
+                            detail={category.detail}
+                            tone={category.tone}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="mt-5 space-y-4">
                       <div className="rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4">
                         <button
@@ -1627,6 +1681,28 @@ const InfoTile: React.FC<{
     >
       {value}
     </div>
+  </div>
+);
+
+const ReviewGateTile: React.FC<{
+  label: string;
+  headline: string;
+  detail: string;
+  tone: "default" | "success" | "warning";
+}> = ({ label, headline, detail, tone }) => (
+  <div
+    className={cn(
+      "rounded-2xl border px-4 py-4",
+      tone === "success"
+        ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
+        : tone === "warning"
+          ? "border-amber-900/15 bg-amber-100/80 text-amber-950"
+          : "border-amber-900/12 bg-white/80 text-amber-950",
+    )}
+  >
+    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-current/55">{label}</div>
+    <div className="mt-2 font-serif text-lg font-black text-current">{headline}</div>
+    <div className="mt-2 text-sm leading-relaxed text-current/75">{detail}</div>
   </div>
 );
 

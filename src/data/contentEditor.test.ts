@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DECKS } from "./content";
 import {
+  buildContentEditorReviewSummary,
   buildContentEditorSourceDiff,
   buildContentEditorPreview,
   createContentEditorDeckDraft,
@@ -149,4 +150,66 @@ test("content editor gera diff legivel do source bruto antes do save", () => {
   assert.equal(diff.hasChanges, true);
   assert.ok(diff.addedCount > 0);
   assert.ok(diff.lines.some((line) => line.type === "added" && line.value.includes("copies: 2")));
+});
+
+test("content editor resume mudancas por categoria antes do save", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const baseline = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck);
+
+  draft.name = "Fazenda Turbo";
+  draft.targets[0] = {
+    ...draft.targets[0],
+    copies: "2",
+  };
+  draft.syllableRows[0] = {
+    ...draft.syllableRows[0],
+    count: "5",
+  };
+
+  const summary = buildContentEditorReviewSummary(baseline, draft, {
+    pipelineOk: true,
+    sourceReady: true,
+    hasSourceChanges: true,
+    localIssueCount: 0,
+    pipelineIssueCount: 0,
+    blockerCount: 0,
+  });
+
+  assert.equal(summary.hasMeaningfulChanges, true);
+  assert.equal(summary.categories.find((category) => category.id === "metadata")?.changed, true);
+  assert.equal(summary.categories.find((category) => category.id === "targets")?.changed, true);
+  assert.equal(summary.categories.find((category) => category.id === "syllables")?.changed, true);
+  assert.equal(summary.categories.find((category) => category.id === "pipeline")?.headline, "pipeline ok");
+  assert.equal(summary.categories.find((category) => category.id === "source")?.headline, "pronto para save");
+});
+
+test("content editor resume bloqueio de pipeline e source no review gate", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const baseline = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck);
+
+  draft.targets[0] = {
+    ...draft.targets[0],
+    copies: "0",
+  };
+
+  const summary = buildContentEditorReviewSummary(baseline, draft, {
+    pipelineOk: false,
+    sourceReady: false,
+    hasSourceChanges: true,
+    localIssueCount: 1,
+    pipelineIssueCount: 1,
+    blockerCount: 2,
+  });
+
+  assert.equal(summary.categories.find((category) => category.id === "pipeline")?.headline, "com erro");
+  assert.equal(summary.categories.find((category) => category.id === "source")?.headline, "bloqueado");
+  assert.match(summary.categories.find((category) => category.id === "source")?.detail ?? "", /2 bloqueador/);
 });
