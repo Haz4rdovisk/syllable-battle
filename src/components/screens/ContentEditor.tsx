@@ -93,7 +93,8 @@ const createDraftForDeck = (entries: RawDeckCatalogEntry[], targets: typeof rawT
 
 const idleSaveStatus: SaveStatus = {
   tone: "idle",
-  message: "Edicao local em memoria ate salvar no source bruto do deck selecionado.",
+  message:
+    "Edicao local em memoria ate salvar no source bruto do deck selecionado. Os alvos salvam no catalogo global bruto compartilhado, o pool segue derivado e o deck recompila no pipeline real antes da projecao legado usada pela battle.",
 };
 
 const normalizeEditorSyllable = (value: string) => value.trim().toUpperCase();
@@ -1254,7 +1255,7 @@ export const ContentEditor: React.FC = () => {
   }
 
   return (
-    <div className="min-h-full w-full overflow-y-auto bg-[#efe3c8] text-amber-950">
+    <div className="min-h-full w-full bg-[#efe3c8] text-amber-950">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#efe3c8]" />
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/old-mathematics.png')] opacity-70" />
@@ -1264,7 +1265,7 @@ export const ContentEditor: React.FC = () => {
       </div>
 
       <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1720px] flex-col gap-6 p-4 sm:p-6 lg:flex-row lg:gap-8 lg:p-8">
-        <aside className="paper-panel w-full shrink-0 rounded-[28px] border-2 border-[#8d6e63]/35 p-4 shadow-[0_20px_40px_rgba(0,0,0,0.12)] lg:w-[24rem] lg:p-5">
+        <aside className="relative paper-panel w-full shrink-0 rounded-[28px] border-2 border-[#8d6e63]/35 p-4 shadow-[0_20px_40px_rgba(0,0,0,0.12)] lg:sticky lg:top-8 lg:flex lg:max-h-[calc(100vh-4rem)] lg:w-[24rem] lg:self-start lg:flex-col lg:p-5">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-900/45">Dev Only</div>
@@ -1284,24 +1285,7 @@ export const ContentEditor: React.FC = () => {
             </Button>
           </div>
 
-          <div className="rounded-2xl border border-sky-700/12 bg-sky-100/80 px-4 py-3 text-sm text-sky-950/85 shadow-sm">
-            Edita um deck por vez, mas os alvos agora salvam no catalogo global bruto compartilhado. O pool segue derivado e o deck recompila no pipeline real antes da projecao legado usada pela battle.
-          </div>
-
-          <div className="mt-3 rounded-2xl border border-emerald-700/12 bg-emerald-100/80 px-4 py-3 text-sm text-emerald-950/85 shadow-sm">
-            Save dev-only grava <span className="font-black text-emerald-950">{draftSaveEntry.filePath}</span>, reescreve o indice bruto de decks e atualiza <span className="font-black text-emerald-950">{RAW_TARGET_CATALOG_FILE_PATH}</span>.
-          </div>
-
-          <Button
-            variant="ghost"
-            className="mt-4 w-full justify-center border border-amber-900/15 bg-amber-50/55 text-amber-950 hover:bg-amber-100/75"
-            onClick={addDeck}
-          >
-            <Plus className="h-4 w-4" />
-            Adicionar deck
-          </Button>
-
-          <label className="mt-5 block">
+          <label className="mt-4 block">
             <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/50">
               <Search className="h-4 w-4" />
               Decks
@@ -1314,7 +1298,7 @@ export const ContentEditor: React.FC = () => {
             />
           </label>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-1 lg:py-2 no-scrollbar">
             {filteredDeckEntries.map((entry) => {
               const isActive = entry.id === selectedDeckId;
               const isEdited = isActive && isDirty;
@@ -1326,9 +1310,9 @@ export const ContentEditor: React.FC = () => {
                   type="button"
                   onClick={() => openDeck(entry.id)}
                   className={cn(
-                    "w-full overflow-hidden rounded-[28px] border text-left transition-all",
+                    "w-full overflow-hidden rounded-[28px] border text-left transition-all duration-300 hover:-translate-y-1",
                     isActive
-                      ? "border-amber-700/28 bg-[#fffaf0]/96 shadow-[0_18px_30px_rgba(0,0,0,0.12)]"
+                      ? "border-amber-300/60 bg-[#fffaf0]/96 ring-2 ring-amber-300/35"
                       : "border-amber-900/12 bg-[#fffaf0]/88 hover:border-amber-900/18 hover:bg-[#fffdf7]",
                   )}
                 >
@@ -1376,13 +1360,17 @@ export const ContentEditor: React.FC = () => {
                 </button>
               );
             })}
+
+            <button type="button" onClick={addDeck} className="w-full text-left">
+              <AddDeckCard />
+            </button>
           </div>
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col gap-6">
+        <section className="relative flex min-w-0 flex-1 flex-col gap-6">
           <div
             className={cn(
-              "rounded-[32px] border border-amber-200/10 bg-gradient-to-br p-6 shadow-[0_24px_60px_rgba(0,0,0,0.32)]",
+              "rounded-[32px] border border-amber-200/10 bg-gradient-to-br p-6 shadow-[0_10px_22px_rgba(0,0,0,0.16)]",
               DECK_VISUAL_THEME_CLASSES[draft.visualTheme],
             )}
           >
@@ -1435,7 +1423,7 @@ export const ContentEditor: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 pb-6">
               {isDeckActiveExpanded ? (
                 <Panel
                   title="Deck Ativo"
@@ -2151,7 +2139,9 @@ export const ContentEditor: React.FC = () => {
                           ))
                         : (
                             <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-4 text-sm text-emerald-950">
-                              O draft recompila no pipeline real e continua gerando o Deck final do runtime via adapter atual.
+                              O draft recompila no pipeline real e continua gerando o Deck final do runtime via adapter atual. O save dev-only grava{" "}
+                              <span className="font-black">{draftSaveEntry.filePath}</span>, reescreve o indice bruto de decks e atualiza{" "}
+                              <span className="font-black">{RAW_TARGET_CATALOG_FILE_PATH}</span>.
                             </div>
                           )}
 
@@ -2473,6 +2463,19 @@ const AddTargetCard: React.FC<{
 
       <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
     </div>
+  </div>
+);
+
+const AddDeckCard: React.FC = () => (
+  <div className="relative flex min-h-[132px] w-full items-center justify-center overflow-hidden rounded-[28px] border border-dashed border-amber-900/18 bg-amber-50/45 p-4 text-amber-950 transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70">
+    <div className="flex items-center gap-3 text-center">
+      <Plus className="h-7 w-7" />
+      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">
+        Criar deck
+      </div>
+    </div>
+
+    <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
   </div>
 );
 

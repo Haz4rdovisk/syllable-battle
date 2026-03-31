@@ -53,6 +53,7 @@
     @apply rounded-2xl border-2 border-[#8d6e63] bg-[#fdf5e6] p-4 shadow-xl;
     background-image: url("https://www.transparenttextures.com/patterns/old-mathematics.png");
   }
+
 }
 
 @keyframes cardEnter {
