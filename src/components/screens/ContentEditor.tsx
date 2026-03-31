@@ -26,7 +26,6 @@ import {
   buildMinimumDeckPoolFromTargets,
   buildContentEditorReviewSummary,
   buildContentEditorTargetNameValidation,
-  buildContentEditorTargetCoverage,
   clampContentEditorSyllableCount,
   cloneRawDeckCatalogEntry,
   ContentEditorDeckDraft,
@@ -44,6 +43,7 @@ import {
   getContentEditorLocalIssues,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
+  normalizeContentEditorPoolAdjustments,
   parseContentEditorTargetSyllables,
   removeContentEditorTargetSyllableAt,
 } from "../../data/content/editor";
@@ -366,8 +366,8 @@ export const ContentEditor: React.FC = () => {
     [selectedDeckModel],
   );
   const effectivePoolRows = useMemo(
-    () => syncDeckPoolWithTargetMinimums(draft.syllableRows, draft.targets),
-    [draft.syllableRows, draft.targets],
+    () => syncDeckPoolWithTargetMinimums(draft.manualPoolAdjustments, draft.targets),
+    [draft.manualPoolAdjustments, draft.targets],
   );
   const draftPoolCopies = useMemo(
     () => effectivePoolRows.reduce((sum, row) => sum + Math.max(0, Number(row.count) || 0), 0),
@@ -394,22 +394,9 @@ export const ContentEditor: React.FC = () => {
       }, {}),
     [draft.targets],
   );
-  const targetCoverageById = useMemo(
-    () =>
-      draft.targets.reduce<Record<string, ReturnType<typeof buildContentEditorTargetCoverage>>>((acc, target) => {
-        acc[target.id] = buildContentEditorTargetCoverage(target.syllablesText, effectivePoolRows);
-        return acc;
-      }, {}),
-    [draft.targets, effectivePoolRows],
-  );
   const missingTargetCount = useMemo(
-    () =>
-      draft.targets.filter((target) => {
-        const validation = targetNameValidationById[target.id];
-        const coverage = targetCoverageById[target.id];
-        return !validation?.matchesName || Boolean(coverage?.hasMissingSyllables);
-      }).length,
-    [draft.targets, targetCoverageById, targetNameValidationById],
+    () => draft.targets.filter((target) => !targetNameValidationById[target.id]?.matchesName).length,
+    [draft.targets, targetNameValidationById],
   );
   const requiredPoolCounts = useMemo(
     () => buildMinimumDeckPoolFromTargets(draft.targets),
@@ -584,40 +571,44 @@ export const ContentEditor: React.FC = () => {
     let constraintMessage = "";
 
     setDraft((current) => {
-      const nextRows = syncDeckPoolWithTargetMinimums(current.syllableRows, current.targets).map((row) => {
-        if (row.id !== rowId) return row;
+      const nextRows = normalizeContentEditorPoolAdjustments(
+        syncDeckPoolWithTargetMinimums(current.manualPoolAdjustments, current.targets).map((row) => {
+          if (row.id !== rowId) return row;
 
-        const nextRow = { ...row, ...patch, mode: "manual" as const };
-        if (patch.count === undefined) {
-          return nextRow;
-        }
+          const nextRow = { ...row, ...patch, mode: "manual" as const };
+          if (patch.count === undefined) {
+            return nextRow;
+          }
 
-        const minimumRequired = requiredPoolCounts.get(normalizeEditorSyllable(nextRow.syllable)) ?? 0;
-        const clampedCount = clampContentEditorSyllableCount(nextRow.count, nextRow.syllable, current.targets);
+          const minimumRequired = requiredPoolCounts.get(normalizeEditorSyllable(nextRow.syllable)) ?? 0;
+          const clampedCount = clampContentEditorSyllableCount(nextRow.count, nextRow.syllable, current.targets);
 
-        if (clampedCount !== nextRow.count && minimumRequired > 0) {
-          const blockingTargets = current.targets
-            .filter(
-              (target) =>
-                targetNameValidationById[target.id]?.matchesName &&
-                parseContentEditorTargetSyllables(target.syllablesText).includes(
-                  normalizeEditorSyllable(nextRow.syllable),
-                ),
-            )
-            .map((target) => target.name);
+          if (clampedCount !== nextRow.count && minimumRequired > 0) {
+            const blockingTargets = current.targets
+              .filter(
+                (target) =>
+                  targetNameValidationById[target.id]?.matchesName &&
+                  parseContentEditorTargetSyllables(target.syllablesText).includes(
+                    normalizeEditorSyllable(nextRow.syllable),
+                  ),
+              )
+              .map((target) => target.name);
 
-          constraintMessage = `Nao da para baixar ${normalizeEditorSyllable(nextRow.syllable)} abaixo de ${minimumRequired} porque ${blockingTargets.join(", ")} usam essa silaba.`;
-        }
+            constraintMessage = `Nao da para baixar ${normalizeEditorSyllable(nextRow.syllable)} abaixo de ${minimumRequired} porque ${blockingTargets.join(", ")} usam essa silaba.`;
+          }
 
-        return {
-          ...nextRow,
-          count: clampedCount,
-        };
-      });
+          return {
+            ...nextRow,
+            count: clampedCount,
+            mode: "manual" as const,
+          };
+        }),
+        current.targets,
+      );
 
       return {
         ...current,
-        syllableRows: nextRows,
+        manualPoolAdjustments: nextRows,
       };
     });
 
@@ -651,14 +642,14 @@ export const ContentEditor: React.FC = () => {
     targetId: string,
     patch: Partial<ContentEditorDeckDraft["targets"][number]>,
   ) => {
-    updateDraft((current) => ({
-      ...current,
-      targets: current.targets.map((target) => (target.id === targetId ? { ...target, ...patch } : target)),
-      syllableRows: syncDeckPoolWithTargetMinimums(
-        current.syllableRows,
-        current.targets.map((target) => (target.id === targetId ? { ...target, ...patch } : target)),
-      ),
-    }));
+    updateDraft((current) => {
+      const nextTargets = current.targets.map((target) => (target.id === targetId ? { ...target, ...patch } : target));
+      return {
+        ...current,
+        targets: nextTargets,
+        manualPoolAdjustments: normalizeContentEditorPoolAdjustments(current.manualPoolAdjustments, nextTargets),
+      };
+    });
   };
 
   const removeSyllableFromTarget = (targetId: string, index: number) => {
@@ -695,7 +686,7 @@ export const ContentEditor: React.FC = () => {
       return {
         ...current,
         targets: nextTargets,
-        syllableRows: syncDeckPoolWithTargetMinimums(current.syllableRows, nextTargets),
+        manualPoolAdjustments: normalizeContentEditorPoolAdjustments(current.manualPoolAdjustments, nextTargets),
       };
     });
   };

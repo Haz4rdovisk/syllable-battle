@@ -135,6 +135,15 @@ export const ContentInspector: React.FC = () => {
   const selectedDeckTargetDefinitions = useMemo(() => selectedDeckModel?.targetDefinitions ?? [], [selectedDeckModel]);
   const selectedDeckTargetInstances = useMemo(() => selectedDeckModel?.targetInstances ?? [], [selectedDeckModel]);
   const selectedDeckCards = useMemo(() => selectedDeckModel?.cards ?? [], [selectedDeckModel]);
+  const selectedDeckTargetCopiesById = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    selectedDeckTargetInstances.forEach((entry) => {
+      counts.set(entry.targetId, (counts.get(entry.targetId) ?? 0) + 1);
+    });
+
+    return counts;
+  }, [selectedDeckTargetInstances]);
   const requiredCardCopiesById = useMemo(() => {
     const counts = new Map<string, number>();
 
@@ -160,6 +169,10 @@ export const ContentInspector: React.FC = () => {
   );
   const selectedDeckMinimumPoolCopies = useMemo(
     () => selectedDeckPoolEntries.reduce((sum, entry) => sum + entry.minimumRequired, 0),
+    [selectedDeckPoolEntries],
+  );
+  const selectedDeckActualPoolCopies = useMemo(
+    () => selectedDeckPoolEntries.reduce((sum, entry) => sum + entry.copiesInDeck, 0),
     [selectedDeckPoolEntries],
   );
   const selectedDeckExtraPoolCopies = useMemo(
@@ -413,7 +426,117 @@ export const ContentInspector: React.FC = () => {
 
           <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
             <div className="space-y-6">
-              <Panel title="Warnings de Integridade e Balanceamento" icon={<AlertTriangle className="h-5 w-5" />}>
+              <Panel title="Leitura Local do Deck" icon={<BookOpenText className="h-5 w-5" />}>
+                <div className="space-y-5">
+                  <Subsection
+                    title="Targets do deck"
+                    subtitle="Os alvos deck-scoped continuam sendo a origem do pool minimo deste deck."
+                  >
+                    {selectedDeckDefinition ? (
+                      <div className="space-y-3">
+                        {selectedDeckTargetDefinitions.slice(0, 8).map((target) => (
+                          <div key={target.id} className={inspectorCardClass}>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className="text-3xl leading-none">{target.emoji}</div>
+                                <div>
+                                  <div className="font-serif text-xl font-black text-amber-950">{target.name}</div>
+                                  <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                                    {target.id}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
+                                  x{selectedDeckTargetCopiesById.get(target.id) ?? 0}
+                                </Badge>
+                                <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                                  {target.cardIds.length} silabas
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {target.cardIds.map((cardId, index) => (
+                                <span key={`${target.id}-${cardId}-${index}`} className={inspectorChipClass}>
+                                  {selectedDeckCards.find((entry) => entry.cardId === cardId)?.card.syllable ?? cardId}
+                                </span>
+                              ))}
+                            </div>
+                            {target.description ? (
+                              <p className="mt-3 text-sm leading-relaxed text-amber-950/75">{target.description}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyCallout text="Nenhum target normalizado encontrado para este deck." />
+                    )}
+                  </Subsection>
+
+                  <Subsection
+                    title="Pool local do deck"
+                    subtitle="Leitura do pool real: minimo gerado pelos targets, copias reais e extras manuais."
+                  >
+                    {selectedDeckPoolEntries.length === 0 ? (
+                      <EmptyCallout text="Nenhuma silaba encontrada no pool deste deck." />
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedDeckPoolEntries.slice(0, 8).map((entry) => (
+                          <div key={entry.cardId} className={inspectorCardClass}>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <div className="font-serif text-xl font-black text-amber-950">{entry.card.syllable}</div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                                  {entry.card.id}
+                                </div>
+                              </div>
+                              <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                                x{entry.copiesInDeck} real
+                              </Badge>
+                            </div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                              <InfoTile label="Minimo" value={String(entry.minimumRequired)} mini slim />
+                              <InfoTile label="Extras" value={String(entry.extraCopies)} mini slim />
+                              <InfoTile label="Targets usando" value={String(entry.usedByTargets.length)} mini slim />
+                              <InfoTile label="Status" value={entry.minimumRequired > 0 ? "ativo" : "extra"} mini slim />
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {(entry.usedByTargets ?? []).map((target) => (
+                                <span key={`${entry.cardId}-${target.id}`} className={inspectorChipClass}>
+                                  {target.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Subsection>
+
+                  <Subsection
+                    title="Resumo local"
+                    subtitle="Leitura deck-first antes de qualquer comparacao com outros decks."
+                  >
+                    {selectedDeckDefinition ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <InfoTile label="Visual theme" value={selectedDeckDefinition.visualTheme} />
+                        <InfoTile label="Targets unicos" value={String(selectedDeckTargetDefinitions.length)} />
+                        <InfoTile label="Targets em jogo" value={String(selectedDeckTargetInstances.length)} />
+                        <InfoTile label="Silabas no pool" value={String(selectedDeckCards.length)} />
+                        <InfoTile label="Pool minimo" value={String(selectedDeckMinimumPoolCopies)} />
+                        <InfoTile label="Copias reais" value={String(selectedDeckActualPoolCopies)} />
+                        <InfoTile label="Extras manuais" value={String(selectedDeckExtraPoolCopies)} />
+                        <InfoTile label="Silabas sem alvo" value={String(selectedDeckUnusedPoolEntries.length)} />
+                        <InfoTile label="Warnings locais" value={String(warnings.length)} />
+                      </div>
+                    ) : (
+                      <EmptyCallout text="Deck definition nao encontrado no catalogo normalizado." />
+                    )}
+                  </Subsection>
+                </div>
+              </Panel>
+
+              <Panel title="Warnings Locais e Balanceamento" icon={<AlertTriangle className="h-5 w-5" />}>
                 {warnings.length === 0 ? (
                   <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-4 text-sm text-emerald-950">
                     Nenhum warning heuristico relevante para este deck no recorte atual.
@@ -438,7 +561,7 @@ export const ContentInspector: React.FC = () => {
                 )}
               </Panel>
 
-              <Panel title="Checks Acionaveis" icon={<Sparkles className="h-5 w-5" />}>
+              <Panel title="Checks Secundarios" icon={<Sparkles className="h-5 w-5" />}>
                 <div className="space-y-5">
                   <Subsection
                     title="Silabas gargalo"
@@ -497,10 +620,7 @@ export const ContentInspector: React.FC = () => {
                     )}
                   </Subsection>
 
-                  <Subsection
-                    title="Leitura relativa do catalogo"
-                    subtitle="Compara este deck com o restante do catalogo real ja validado."
-                  >
+                  <Subsection title="Comparacao com o catalogo" subtitle="Leitura secundaria contra o resto do catalogo real.">
                     {relativeChecks.length === 0 ? (
                       <EmptyCallout text="Nenhum desvio relativo forte contra o restante do catalogo atual." />
                     ) : (
@@ -578,101 +698,8 @@ export const ContentInspector: React.FC = () => {
                 </div>
               </Panel>
 
-              <Panel title="Estrutura do Deck Atual" icon={<BookOpenText className="h-5 w-5" />}>
-                <div className="space-y-5">
-                  <Subsection
-                    title="Deck model ativo"
-                    subtitle="Leitura local do deck atual, derivada do source bruto antes da projeção runtime."
-                  >
-                    {selectedDeckDefinition ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        <InfoTile label="Visual theme" value={selectedDeckDefinition.visualTheme} />
-                        <InfoTile label="Silabas no pool" value={String(selectedDeckCards.length)} />
-                        <InfoTile label="Targets unicos" value={String(selectedDeckTargetDefinitions.length)} />
-                        <InfoTile label="Targets em jogo" value={String(selectedDeckTargetInstances.length)} />
-                        <InfoTile label="Pool minimo" value={String(selectedDeckMinimumPoolCopies)} />
-                        <InfoTile label="Extras manuais" value={String(selectedDeckExtraPoolCopies)} />
-                        <InfoTile label="Silabas sem alvo" value={String(selectedDeckUnusedPoolEntries.length)} />
-                      </div>
-                    ) : (
-                      <EmptyCallout text="Deck definition nao encontrado no catalogo normalizado." />
-                    )}
-                  </Subsection>
-
-                  <Subsection
-                    title="Pool local do deck"
-                    subtitle="Cada sílaba mostra o mínimo exigido pelos alvos deste deck e o que sobrou como ajuste manual."
-                  >
-                    {selectedDeckPoolEntries.length === 0 ? (
-                      <EmptyCallout text="Nenhuma sílaba encontrada no pool deste deck." />
-                    ) : (
-                      <div className="space-y-3">
-                        {selectedDeckPoolEntries.slice(0, 8).map((entry) => {
-                          return (
-                          <div key={entry.cardId} className={inspectorCardClass}>
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <div className="font-serif text-xl font-black text-amber-950">{entry.card.syllable}</div>
-                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                  {entry.card.id}
-                                </div>
-                              </div>
-                              <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
-                                x{entry.copiesInDeck} no deck
-                              </Badge>
-                            </div>
-                            <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                              <InfoTile label="Minimo" value={String(entry.minimumRequired)} mini slim />
-                              <InfoTile label="Extras" value={String(entry.extraCopies)} mini slim />
-                              <InfoTile label="Targets usando" value={String(entry.usedByTargets.length)} mini slim />
-                              <InfoTile label="Status" value={entry.minimumRequired > 0 ? "ativo" : "extra"} mini slim />
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {(entry.usedByTargets ?? []).map((target) => (
-                                <span key={`${entry.cardId}-${target.id}`} className={inspectorChipClass}>
-                                  {target.name}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                        })}
-                      </div>
-                    )}
-                  </Subsection>
-
-                  <Subsection
-                    title="Targets do deck model"
-                    subtitle="Os alvos continuam deck-scoped e são a origem do pool mínimo deste deck."
-                  >
-                    {selectedDeckTargetDefinitions.length === 0 ? (
-                      <EmptyCallout text="Nenhum target normalizado encontrado para este deck." />
-                    ) : (
-                      <div className="space-y-3">
-                            {selectedDeckTargetDefinitions.slice(0, 6).map((target) => (
-                              <div key={target.id} className={inspectorCardClass}>
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="font-serif text-xl font-black text-amber-950">{target.name}</div>
-                              <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
-                                {target.cardIds.length} silabas
-                              </Badge>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {target.cardIds.map((cardId, index) => (
-                                <span key={`${target.id}-${cardId}-${index}`} className={inspectorChipClass}>
-                                  {selectedDeckCards.find((entry) => entry.cardId === cardId)?.card.syllable ?? cardId}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Subsection>
-                </div>
-              </Panel>
-
-              <Panel title="Comparacao entre Decks" icon={<ArrowRightLeft className="h-5 w-5" />}>
+              <Panel title="Comparacoes Secundarias" icon={<ArrowRightLeft className="h-5 w-5" />}>
+                <div className="space-y-4">
                 {compareInspection ? (
                   <div className="space-y-4">
                     <label className="block">
@@ -725,6 +752,7 @@ export const ContentInspector: React.FC = () => {
                 ) : (
                   <EmptyCallout text="Nao ha outro deck disponivel para comparacao." />
                 )}
+                </div>
               </Panel>
 
               <Panel title="Distribuicao de Silabas" icon={<BookOpenText className="h-5 w-5" />}>

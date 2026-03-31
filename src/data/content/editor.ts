@@ -3,10 +3,6 @@ import { ContentPipeline, DeckContentError, buildContentPipeline } from "./index
 import { RawDeckCatalogEntry } from "./decks";
 import { DeckModel, DeckVisualThemeId, RawDeckDefinition, RawTargetDefinition } from "./types";
 
-let draftSequence = 0;
-
-const nextDraftId = (prefix: string) => `${prefix}-${++draftSequence}`;
-
 const isValidIdentifier = (value: string) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
 const DECK_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -41,7 +37,7 @@ const serializeValue = (value: unknown, indentLevel = 0): string => {
   return JSON.stringify(value);
 };
 
-export interface ContentEditorSyllableRow {
+export interface ContentEditorPoolAdjustment {
   id: string;
   syllable: string;
   count: string;
@@ -58,19 +54,6 @@ export interface ContentEditorTargetDraft {
   syllablesText: string;
 }
 
-export interface ContentEditorTargetCoverageEntry {
-  syllable: string;
-  required: number;
-  available: number;
-  missing: number;
-}
-
-export interface ContentEditorTargetCoverage {
-  syllables: string[];
-  entries: ContentEditorTargetCoverageEntry[];
-  hasMissingSyllables: boolean;
-}
-
 export interface ContentEditorTargetNameValidation {
   normalizedName: string;
   normalizedSyllableWord: string;
@@ -85,7 +68,7 @@ export interface ContentEditorDeckDraft {
   description: string;
   emoji: string;
   visualTheme: DeckVisualThemeId;
-  syllableRows: ContentEditorSyllableRow[];
+  manualPoolAdjustments: ContentEditorPoolAdjustment[];
   targets: ContentEditorTargetDraft[];
 }
 
@@ -136,6 +119,11 @@ const normalizeDeckSlug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const normalizeEditorSyllable = (value: string) => value.trim().toUpperCase();
+
+const createContentEditorPoolAdjustmentId = (syllable: string) =>
+  `syllable-${normalizeEditorSyllable(syllable).toLowerCase()}`;
+
 const toExportIdentifier = (deckId: string) => {
   const parts = deckId
     .split(/[^a-zA-Z0-9]+/)
@@ -179,6 +167,7 @@ export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEd
     rarity: target.rarity,
     syllablesText: target.syllables.join(", "),
   }));
+  const requiredCounts = buildMinimumDeckPoolFromTargets(targets);
 
   return {
     id: deck.id,
@@ -186,11 +175,11 @@ export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEd
     description: deck.description,
     emoji: deck.emoji,
     visualTheme: deck.visualTheme,
-    syllableRows: syncDeckPoolWithTargetMinimums(
+    manualPoolAdjustments: normalizeContentEditorPoolAdjustments(
       Object.entries(deck.syllables).map(([syllable, count]) => ({
-        id: nextDraftId("syllable"),
+        id: createContentEditorPoolAdjustmentId(syllable),
         syllable,
-        count: String(count),
+        count: String(Math.max(0, count - (requiredCounts.get(normalizeEditorSyllable(syllable)) ?? 0))),
         mode: "manual",
       })),
       targets,
@@ -282,10 +271,13 @@ function buildRawDeckDefinitionFromDraft(
   },
 ): RawDeckDefinition {
   const { preserveDraftCopies } = options;
-  const syllables = syncDeckPoolWithTargetMinimums(draft.syllableRows, draft.targets).reduce<Record<string, number>>((acc, row) => {
-    acc[row.syllable] = Number(row.count);
-    return acc;
-  }, {});
+  const syllables = syncDeckPoolWithTargetMinimums(draft.manualPoolAdjustments, draft.targets).reduce<Record<string, number>>(
+    (acc, row) => {
+      acc[row.syllable] = Number(row.count);
+      return acc;
+    },
+    {},
+  );
 
   const targets: RawTargetDefinition[] = draft.targets.map((target) => {
     const description = target.description.trim();
@@ -448,35 +440,6 @@ export function removeContentEditorTargetSyllableAt(value: string, index: number
   return formatContentEditorTargetSyllables(nextSyllables);
 }
 
-export function buildContentEditorTargetCoverage(
-  syllablesText: string,
-  rows: ContentEditorSyllableRow[],
-): ContentEditorTargetCoverage {
-  const syllables = parseContentEditorTargetSyllables(syllablesText);
-  const availableCounts = buildSyllableCountMap(rows);
-  const requiredCounts = new Map<string, number>();
-
-  syllables.forEach((syllable) => {
-    requiredCounts.set(syllable, (requiredCounts.get(syllable) ?? 0) + 1);
-  });
-
-  const entries = [...requiredCounts.entries()].map(([syllable, required]) => {
-    const available = Math.max(0, Number(availableCounts.get(syllable) ?? 0));
-    return {
-      syllable,
-      required,
-      available,
-      missing: Math.max(0, required - available),
-    };
-  });
-
-  return {
-    syllables,
-    entries,
-    hasMissingSyllables: entries.some((entry) => entry.missing > 0),
-  };
-}
-
 export function buildContentEditorTargetNameValidation(
   name: string,
   syllablesText: string,
@@ -495,23 +458,6 @@ export function buildContentEditorTargetNameValidation(
   };
 }
 
-export function buildContentEditorDerivedCatalogSyllables(
-  targets: ContentEditorTargetDraft[],
-) {
-  const derivedSyllables = new Set<string>();
-
-  targets.forEach((target) => {
-    const validation = buildContentEditorTargetNameValidation(target.name, target.syllablesText);
-    if (!validation.matchesName) return;
-
-    validation.syllables.forEach((syllable) => {
-      derivedSyllables.add(syllable);
-    });
-  });
-
-  return [...derivedSyllables];
-}
-
 export function buildMinimumDeckPoolFromTargets(targets: ContentEditorTargetDraft[]) {
   const requiredCounts = new Map<string, number>();
 
@@ -525,6 +471,37 @@ export function buildMinimumDeckPoolFromTargets(targets: ContentEditorTargetDraf
   });
 
   return requiredCounts;
+}
+
+export function normalizeContentEditorPoolAdjustments(
+  adjustments: ContentEditorPoolAdjustment[],
+  targets: ContentEditorTargetDraft[],
+) {
+  const requiredCounts = buildMinimumDeckPoolFromTargets(targets);
+  if (requiredCounts.size === 0) return [];
+
+  const normalizedRows = new Map<string, ContentEditorPoolAdjustment>();
+
+  adjustments.forEach((adjustment) => {
+    const syllable = normalizeEditorSyllable(adjustment.syllable);
+    if (!syllable || !requiredCounts.has(syllable)) return;
+
+    const parsedCount = Number(adjustment.count);
+    const extraCount = Math.max(0, Number.isFinite(parsedCount) ? parsedCount : 0);
+    if (extraCount <= 0) return;
+
+    const existingRow = normalizedRows.get(syllable);
+    if (!existingRow || Number(existingRow.count) < extraCount) {
+      normalizedRows.set(syllable, {
+        id: existingRow?.id ?? adjustment.id ?? createContentEditorPoolAdjustmentId(syllable),
+        syllable,
+        count: String(extraCount),
+        mode: "manual",
+      });
+    }
+  });
+
+  return [...normalizedRows.values()];
 }
 
 export function getContentEditorRequiredSyllableCount(
@@ -552,76 +529,33 @@ export function clampContentEditorSyllableCount(
 }
 
 export function syncDeckPoolWithTargetMinimums(
-  rows: ContentEditorSyllableRow[],
+  manualPoolAdjustments: ContentEditorPoolAdjustment[],
   targets: ContentEditorTargetDraft[],
 ) {
   const requiredCounts = buildMinimumDeckPoolFromTargets(targets);
   if (requiredCounts.size === 0) return [];
 
-  const nextRows: ContentEditorSyllableRow[] = [];
-  const rowsBySyllable = new Map<string, ContentEditorSyllableRow>();
+  const normalizedAdjustments = normalizeContentEditorPoolAdjustments(manualPoolAdjustments, targets);
+  const adjustmentsBySyllable = normalizedAdjustments.reduce<Map<string, ContentEditorPoolAdjustment>>((acc, row) => {
+    acc.set(row.syllable, row);
+    return acc;
+  }, new Map());
 
-  rows.forEach((row) => {
-    const normalized = row.syllable.trim().toUpperCase();
-    if (!normalized) return;
-    if (!requiredCounts.has(normalized)) return;
+  return [...requiredCounts.entries()].map(([syllable, requiredCount]) => {
+    const adjustment = adjustmentsBySyllable.get(syllable);
+    const extraCount = Number(adjustment?.count ?? 0);
 
-    const existingRow = rowsBySyllable.get(normalized);
-    if (!existingRow) {
-      const normalizedCount = Number(row.count);
-      rowsBySyllable.set(normalized, {
-        ...row,
-        syllable: normalized,
-        count: Number.isFinite(normalizedCount) ? row.count : "0",
-      });
-      nextRows.push(rowsBySyllable.get(normalized)!);
-      return;
-    }
-
-    const existingCount = Number(existingRow.count);
-    const nextCount = Number(row.count);
-    if (Number.isFinite(nextCount) && (!Number.isFinite(existingCount) || nextCount > existingCount)) {
-      existingRow.count = row.count;
-    }
-    if (row.mode === "manual") {
-      existingRow.mode = "manual";
-    }
+    return {
+      id: adjustment?.id ?? createContentEditorPoolAdjustmentId(syllable),
+      syllable,
+      count: String(requiredCount + Math.max(0, Number.isFinite(extraCount) ? extraCount : 0)),
+      mode: adjustment ? ("manual" as const) : ("auto" as const),
+    };
   });
-
-  requiredCounts.forEach((requiredCount, syllable) => {
-    const existingRow = rowsBySyllable.get(syllable);
-    if (!existingRow) {
-      nextRows.push({
-        id: nextDraftId("syllable"),
-        syllable,
-        count: String(requiredCount),
-        mode: "auto",
-      });
-      return;
-    }
-
-    const currentCount = Number(existingRow.count);
-    const effectiveCount = Number.isFinite(currentCount) ? Math.max(currentCount, requiredCount) : requiredCount;
-    existingRow.count = String(effectiveCount);
-    existingRow.mode = effectiveCount > requiredCount ? "manual" : "auto";
-  });
-
-  return nextRows;
 }
 
 export function getContentEditorLocalIssues(draft: ContentEditorDeckDraft) {
   const issues: string[] = [];
-  const seenDeckSyllables = new Set<string>();
-
-  draft.syllableRows.forEach((row, index) => {
-    const normalized = row.syllable.trim().toUpperCase();
-    if (!normalized) return;
-    if (seenDeckSyllables.has(normalized)) {
-      issues.push(`Deck "${draft.id}" repete a silaba "${normalized}" nas linhas ${index + 1} do editor.`);
-      return;
-    }
-    seenDeckSyllables.add(normalized);
-  });
 
   draft.targets.forEach((target) => {
     const copies = Number(target.copies);
@@ -758,7 +692,7 @@ const normalizeDraftTargetSyllables = (value: string) =>
     .filter((entry) => entry.length > 0)
     .join("|");
 
-const buildSyllableCountMap = (rows: ContentEditorSyllableRow[]) => {
+const buildSyllableCountMap = (rows: ContentEditorPoolAdjustment[]) => {
   const counts = new Map<string, number>();
 
   rows.forEach((row) => {
@@ -809,8 +743,12 @@ export function buildContentEditorReviewSummary(
   const draftTargetOrder = draft.targets.map((target) => target.id).join("|");
   const targetOrderChanged = baselineTargetOrder !== draftTargetOrder;
 
-  const baselineSyllableMap = buildSyllableCountMap(baseline.syllableRows);
-  const draftSyllableMap = buildSyllableCountMap(draft.syllableRows);
+  const baselineSyllableMap = buildSyllableCountMap(
+    syncDeckPoolWithTargetMinimums(baseline.manualPoolAdjustments, baseline.targets),
+  );
+  const draftSyllableMap = buildSyllableCountMap(
+    syncDeckPoolWithTargetMinimums(draft.manualPoolAdjustments, draft.targets),
+  );
   const addedSyllables = [...draftSyllableMap.keys()].filter((syllable) => !baselineSyllableMap.has(syllable)).length;
   const removedSyllables = [...baselineSyllableMap.keys()].filter((syllable) => !draftSyllableMap.has(syllable)).length;
   const changedSyllableCounts = [...draftSyllableMap.entries()].filter(

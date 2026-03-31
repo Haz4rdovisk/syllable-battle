@@ -3,9 +3,7 @@ import test from "node:test";
 import { DECK_MODELS_BY_ID, RUNTIME_DECKS_BY_ID } from "./content";
 import {
   appendContentEditorTargetSyllable,
-  buildContentEditorDerivedCatalogSyllables,
   buildContentEditorTargetNameValidation,
-  buildContentEditorTargetCoverage,
   clampContentEditorSyllableCount,
   buildContentEditorReviewSummary,
   buildContentEditorSourceDiff,
@@ -32,7 +30,7 @@ const createSaveableNewDeckDraft = () => {
   draft.description = "Deck novo montado a partir do catalogo canonico.";
   draft.emoji = "🧪";
   draft.visualTheme = "dune";
-  draft.syllableRows = [{ id: "row-va", syllable: "VA", count: "2", mode: "manual" }];
+  draft.manualPoolAdjustments = [{ id: "row-va", syllable: "VA", count: "1", mode: "manual" }];
   draft.targets = [
     {
       id: `${entry.id}-vaca`,
@@ -73,6 +71,19 @@ test("content editor roundtrip preserva o deck bruto e o deck final do runtime",
 
   assert.deepEqual(preview.selectedDeckModel, DECK_MODELS_BY_ID[entry.id]);
   assert.deepEqual(preview.selectedRuntimeDeck, RUNTIME_DECKS_BY_ID[entry.id] ?? null);
+});
+
+test("content editor draft guarda apenas ajustes manuais do pool e deriva o resto dos alvos", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+
+  assert.ok(draft.manualPoolAdjustments.every((row) => Number(row.count) > 0));
+
+  const draftRawDeck = hydrateRawDeckDefinitionFromDraft(draft);
+  assert.deepEqual(draftRawDeck.syllables, entry.deck.syllables);
 });
 
 test("content editor reutiliza a validacao real do pipeline", () => {
@@ -197,20 +208,6 @@ test("content editor monta silabas de target pelo builder sem perder duplicatas"
   assert.equal(removed, "VA, CA");
 });
 
-test("content editor mede cobertura do target contra o pool atual do deck", () => {
-  const coverage = buildContentEditorTargetCoverage("VA, CA, CA, ZZ", [
-    { id: "row-va", syllable: "VA", count: "1" },
-    { id: "row-ca", syllable: "CA", count: "1" },
-  ]);
-
-  assert.equal(coverage.hasMissingSyllables, true);
-  assert.deepEqual(coverage.entries, [
-    { syllable: "VA", required: 1, available: 1, missing: 0 },
-    { syllable: "CA", required: 2, available: 1, missing: 1 },
-    { syllable: "ZZ", required: 1, available: 0, missing: 1 },
-  ]);
-});
-
 test("content editor valida nome do alvo concatenando as silabas normalizadas", () => {
   const validation = buildContentEditorTargetNameValidation("Borboleta", "BOR, BO, LE, TA");
 
@@ -287,32 +284,6 @@ test("content editor nao deixa baixar copies abaixo do minimo exigido pelos alvo
   assert.equal(clampContentEditorSyllableCount("5", "NA", targets), "5");
 });
 
-test("content editor deriva o catalogo do uso real dos targets validos", () => {
-  const derivedCatalog = buildContentEditorDerivedCatalogSyllables(
-    [
-      {
-        id: "banana",
-        name: "Banana",
-        copies: "1",
-        description: "",
-        emoji: "🍌",
-        rarity: "comum",
-        syllablesText: "BA, NA, NA",
-      },
-      {
-        id: "invalido",
-        name: "Pato",
-        copies: "1",
-        description: "",
-        emoji: "🦆",
-        rarity: "comum",
-        syllablesText: "PA",
-      },
-    ],
-  );
-
-  assert.deepEqual(derivedCatalog, ["BA", "NA"]);
-});
 
 
 test("content editor deriva o pool salvo dos targets validos e remove silabas orfas", () => {
@@ -322,9 +293,9 @@ test("content editor deriva o pool salvo dos targets validos e remove silabas or
     description: "Deck para validar derivacao do pool.",
     emoji: "ðŸ§ª",
     visualTheme: "harvest",
-    syllableRows: [
-      { id: "row-ba", syllable: "BA", count: "3", mode: "manual" },
-      { id: "row-na", syllable: "NA", count: "4", mode: "manual" },
+    manualPoolAdjustments: [
+      { id: "row-ba", syllable: "BA", count: "2", mode: "manual" },
+      { id: "row-na", syllable: "NA", count: "2", mode: "manual" },
       { id: "row-zz", syllable: "ZZ", count: "7", mode: "manual" },
     ],
     targets: [
@@ -353,7 +324,7 @@ test("content editor nao depende de pool previo para aceitar alvo valido com sil
     description: "Deck para validar alvo primeiro.",
     emoji: "ðŸ§ª",
     visualTheme: "harvest",
-    syllableRows: [],
+    manualPoolAdjustments: [],
     targets: [
       {
         id: "banana",
@@ -373,23 +344,6 @@ test("content editor nao depende de pool previo para aceitar alvo valido com sil
   });
 });
 
-test("content editor remove silabas orfas do catalogo derivado ao remover o alvo", () => {
-  const withTarget = buildContentEditorDerivedCatalogSyllables([
-    {
-      id: "lagarta",
-      name: "Lagarta",
-      copies: "1",
-      description: "",
-      emoji: "🐛",
-      rarity: "comum",
-      syllablesText: "LA, GAR, TA",
-    },
-  ]);
-  const withoutTarget = buildContentEditorDerivedCatalogSyllables([]);
-
-  assert.deepEqual(withTarget, ["LA", "GAR", "TA"]);
-  assert.deepEqual(withoutTarget, []);
-});
 
 test("content editor valida metadata canonica de save para deck novo", () => {
   const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
@@ -571,10 +525,7 @@ test("content editor resume mudancas por categoria antes do save", () => {
     ...draft.targets[0],
     copies: "2",
   };
-  draft.syllableRows[0] = {
-    ...draft.syllableRows[0],
-    count: "5",
-  };
+  draft.manualPoolAdjustments = [{ id: "manual-va", syllable: "VA", count: "3", mode: "manual" }];
 
   const summary = buildContentEditorReviewSummary(baseline, draft, {
     pipelineOk: true,
