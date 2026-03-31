@@ -6,7 +6,6 @@ import {
   buildContentEditorDerivedCatalogSyllables,
   buildContentEditorTargetNameValidation,
   buildContentEditorTargetCoverage,
-  buildContentEditorTargetResolution,
   clampContentEditorSyllableCount,
   buildContentEditorReviewSummary,
   buildContentEditorSourceDiff,
@@ -212,29 +211,6 @@ test("content editor mede cobertura do target contra o pool atual do deck", () =
   ]);
 });
 
-test("content editor resolve silabas livres do target sem depender do pool atual", () => {
-  const resolution = buildContentEditorTargetResolution(
-    "VA, ZZ, ZZ",
-    [{ id: "row-va", syllable: "VA", count: "1" }],
-    ["VA", "CA", "PA"],
-  );
-
-  assert.deepEqual(
-    resolution.entries.map((entry) => ({
-      syllable: entry.syllable,
-      existsInCatalog: entry.existsInCatalog,
-      missing: entry.missing,
-    })),
-    [
-      { syllable: "VA", existsInCatalog: true, missing: 0 },
-      { syllable: "ZZ", existsInCatalog: false, missing: 2 },
-    ],
-  );
-  assert.equal(resolution.missingCatalogEntries.length, 1);
-  assert.equal(resolution.missingPoolEntries.length, 1);
-  assert.equal(resolution.missingPoolEntries[0]?.syllable, "ZZ");
-});
-
 test("content editor valida nome do alvo concatenando as silabas normalizadas", () => {
   const validation = buildContentEditorTargetNameValidation("Borboleta", "BOR, BO, LE, TA");
 
@@ -333,10 +309,9 @@ test("content editor deriva o catalogo do uso real dos targets validos", () => {
         syllablesText: "PA",
       },
     ],
-    ["VA", "CA"],
   );
 
-  assert.deepEqual(derivedCatalog, ["VA", "CA", "BA", "NA"]);
+  assert.deepEqual(derivedCatalog, ["BA", "NA"]);
 });
 
 

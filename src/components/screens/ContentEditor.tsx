@@ -25,9 +25,7 @@ import { SyllableCard } from "../game/GameComponents";
 import {
   buildMinimumDeckPoolFromTargets,
   buildContentEditorReviewSummary,
-  buildContentEditorDerivedCatalogSyllables,
   buildContentEditorTargetNameValidation,
-  buildContentEditorTargetResolution,
   buildContentEditorTargetCoverage,
   clampContentEditorSyllableCount,
   cloneRawDeckCatalogEntry,
@@ -49,7 +47,6 @@ import {
   parseContentEditorTargetSyllables,
   removeContentEditorTargetSyllableAt,
 } from "../../data/content/editor";
-import { CARD_CATALOG } from "../../data/content";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
 import { RawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
@@ -385,18 +382,9 @@ export const ContentEditor: React.FC = () => {
     () => (selectedTargetDraft ? parseContentEditorTargetSyllables(selectedTargetDraft.syllablesText) : []),
     [selectedTargetDraft],
   );
-  const baseCatalogSyllables = useMemo(() => CARD_CATALOG.map((entry) => entry.card.syllable), []);
-  const catalogSyllables = useMemo(
-    () => buildContentEditorDerivedCatalogSyllables(draft.targets, baseCatalogSyllables),
-    [baseCatalogSyllables, draft.targets],
-  );
   const selectedTargetNameValidation = useMemo(
     () => buildContentEditorTargetNameValidation(selectedTargetDraft?.name ?? "", selectedTargetDraft?.syllablesText ?? ""),
     [selectedTargetDraft],
-  );
-  const selectedTargetResolution = useMemo(
-    () => buildContentEditorTargetResolution(selectedTargetDraft?.syllablesText ?? "", effectivePoolRows, catalogSyllables),
-    [catalogSyllables, effectivePoolRows, selectedTargetDraft],
   );
   const targetNameValidationById = useMemo(
     () =>
@@ -1319,48 +1307,6 @@ export const ContentEditor: React.FC = () => {
                                   </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                  <div className="rounded-2xl border border-amber-900/12 bg-white/65 p-4">
-                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                      Status das silabas
-                                    </div>
-                                    <div className="mt-3 space-y-2">
-                                      {selectedTargetResolution.entries.length > 0 ? (
-                                        selectedTargetResolution.entries.map((entry) => (
-                                          <div
-                                            key={`resolution-${selectedTargetDraft.id}-${entry.syllable}`}
-                                            className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-900/12 bg-white/80 px-3 py-2 text-sm text-amber-950"
-                                          >
-                                            <span className="font-black tracking-[0.16em]">{entry.syllable}</span>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              <span
-                                                className={cn(
-                                                  "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em]",
-                                                  baseCatalogSyllables.includes(entry.syllable)
-                                                    ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
-                                                    : entry.existsInCatalog
-                                                      ? "border-sky-700/12 bg-sky-100/85 text-sky-950"
-                                                      : "border-amber-900/12 bg-white/85 text-amber-950",
-                                                )}
-                                              >
-                                                {baseCatalogSyllables.includes(entry.syllable)
-                                                  ? "catalogo base"
-                                                  : entry.existsInCatalog
-                                                    ? "catalogo derivado"
-                                                    : "aguarda alvo valido"}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <div className="text-sm text-amber-950/60">
-                                          Defina silabas para ver a resolucao.
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                </div>
                               </div>
                             </div>
                           </div>

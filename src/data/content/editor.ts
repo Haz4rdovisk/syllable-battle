@@ -71,16 +71,6 @@ export interface ContentEditorTargetCoverage {
   hasMissingSyllables: boolean;
 }
 
-export interface ContentEditorTargetResolutionEntry extends ContentEditorTargetCoverageEntry {
-  existsInCatalog: boolean;
-}
-
-export interface ContentEditorTargetResolution {
-  entries: ContentEditorTargetResolutionEntry[];
-  missingCatalogEntries: ContentEditorTargetResolutionEntry[];
-  missingPoolEntries: ContentEditorTargetResolutionEntry[];
-}
-
 export interface ContentEditorTargetNameValidation {
   normalizedName: string;
   normalizedSyllableWord: string;
@@ -505,38 +495,10 @@ export function buildContentEditorTargetNameValidation(
   };
 }
 
-export function buildContentEditorTargetResolution(
-  syllablesText: string,
-  rows: ContentEditorSyllableRow[],
-  catalogSyllables: Iterable<string>,
-): ContentEditorTargetResolution {
-  const knownSyllables = new Set(
-    [...catalogSyllables]
-      .map((syllable) => String(syllable ?? "").trim().toUpperCase())
-      .filter((syllable) => syllable.length > 0),
-  );
-  const coverage = buildContentEditorTargetCoverage(syllablesText, rows);
-  const entries = coverage.entries.map((entry) => ({
-    ...entry,
-    existsInCatalog: knownSyllables.has(entry.syllable),
-  }));
-
-  return {
-    entries,
-    missingCatalogEntries: entries.filter((entry) => !entry.existsInCatalog),
-    missingPoolEntries: entries.filter((entry) => entry.missing > 0),
-  };
-}
-
 export function buildContentEditorDerivedCatalogSyllables(
   targets: ContentEditorTargetDraft[],
-  baseCatalogSyllables: Iterable<string> = [],
 ) {
-  const derivedSyllables = new Set(
-    [...baseCatalogSyllables]
-      .map((syllable) => String(syllable ?? "").trim().toUpperCase())
-      .filter((syllable) => syllable.length > 0),
-  );
+  const derivedSyllables = new Set<string>();
 
   targets.forEach((target) => {
     const validation = buildContentEditorTargetNameValidation(target.name, target.syllablesText);
