@@ -1,6 +1,7 @@
 import {
   CardDefinition,
   DeckDefinition,
+  DeckModel,
   NormalizedContentCatalog,
   TargetDefinition,
 } from "./types";
@@ -40,6 +41,36 @@ export function getCatalogTargetById(catalog: NormalizedContentCatalog, targetId
 
 export function getCatalogCardById(catalog: NormalizedContentCatalog, cardId: string) {
   return catalog.cardsById[cardId] ?? null;
+}
+
+export function getDeckModelById(
+  deckModelsById: Record<string, DeckModel>,
+  deckId: string,
+) {
+  return deckModelsById[deckId] ?? null;
+}
+
+export function getTargetsForDeckModel(deckModel: DeckModel): TargetDefinition[] {
+  return deckModel.targetDefinitions;
+}
+
+export function getTargetInstancesForDeckModel(
+  deckModel: DeckModel,
+): CatalogTargetInstance[] {
+  return deckModel.targetInstances.map((entry) => ({
+    instanceKey: entry.instanceKey,
+    instanceIndex: entry.instanceIndex,
+    targetId: entry.targetId,
+    target: entry.target,
+  }));
+}
+
+export function getCardsForDeckModel(deckModel: DeckModel): CatalogCardUsage[] {
+  return deckModel.cards.map((entry) => ({
+    card: entry.card,
+    copiesInDeck: entry.copiesInDeck,
+    usedByTargets: entry.usedByTargets,
+  }));
 }
 
 export function getTargetsForDeck(catalog: NormalizedContentCatalog, deckId: string): TargetDefinition[] {
@@ -104,19 +135,29 @@ export function getTargetsUsingCard(catalog: NormalizedContentCatalog, cardId: s
   return catalog.targets.filter((target) => target.cardIds.includes(cardId));
 }
 
+export function getDeckModelsUsingCard(deckModels: DeckModel[], cardId: string): DeckModel[] {
+  return deckModels.filter((deckModel) =>
+    deckModel.cards.some((entry) => entry.card.id === cardId && entry.copiesInDeck > 0),
+  );
+}
+
 export function getDecksUsingCard(catalog: NormalizedContentCatalog, cardId: string): DeckDefinition[] {
   return catalog.decks.filter((deck) => (deck.cardPool[cardId] ?? 0) > 0);
 }
 
 export function getMostReusedCards(
   catalog: NormalizedContentCatalog,
+  deckModels: DeckModel[],
   limit = 5,
 ): CatalogCardReuse[] {
   return catalog.cards
     .map((card) => {
-      const decksUsingCard = getDecksUsingCard(catalog, card.id);
+      const decksUsingCard = getDeckModelsUsingCard(deckModels, card.id);
       const targetsUsingCard = getTargetsUsingCard(catalog, card.id);
-      const totalCopies = decksUsingCard.reduce((sum, deck) => sum + (deck.cardPool[card.id] ?? 0), 0);
+      const totalCopies = decksUsingCard.reduce((sum, deckModel) => {
+        const cardEntry = deckModel.cards.find((entry) => entry.card.id === card.id);
+        return sum + (cardEntry?.copiesInDeck ?? 0);
+      }, 0);
 
       return {
         card,
@@ -132,6 +173,28 @@ export function getMostReusedCards(
       return left.card.syllable.localeCompare(right.card.syllable);
     })
     .slice(0, limit);
+}
+
+export function getSharedTargetsBetweenDeckModels(
+  deckModel: DeckModel,
+  deckModels: DeckModel[],
+): CatalogSharedTarget[] {
+  return getTargetsForDeckModel(deckModel)
+    .map((target) => {
+      const deckIds = deckModels
+        .filter((entry) => entry.targetInstances.some((instance) => instance.targetId === target.id))
+        .map((entry) => entry.id);
+
+      return {
+        target,
+        deckIds,
+      };
+    })
+    .filter((entry) => entry.deckIds.length > 1)
+    .sort((left, right) => {
+      if (right.deckIds.length !== left.deckIds.length) return right.deckIds.length - left.deckIds.length;
+      return left.target.name.localeCompare(right.target.name);
+    });
 }
 
 export function getSharedTargetsBetweenDecks(

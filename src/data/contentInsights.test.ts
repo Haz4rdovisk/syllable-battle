@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Deck } from "../types/game";
+import { normalizeRarity, Rarity } from "../types/game";
+import { adaptDeckModelToRuntimeDeck, CONTENT_CATALOG, DECK_MODELS_BY_ID } from "./content";
 import {
   compareDeckMetrics,
   formatRarityBreakdown,
@@ -10,28 +11,90 @@ import {
   getDeckSyllableBottlenecks,
   getDeckTargetCompetition,
 } from "./contentInsights";
+import { DeckModel, DeckVisualThemeId } from "./content/types";
 
-const createDeck = (overrides: Partial<Deck> = {}): Deck => ({
-  id: "deck-test",
-  name: "Deck Teste",
-  description: "Deck de teste.",
-  emoji: "🧪",
-  color: "from-slate-700 to-slate-900",
-  syllables: {
+interface TargetSeed {
+  id: string;
+  name: string;
+  emoji: string;
+  syllables: string[];
+  rarity: Rarity;
+  description?: string;
+}
+
+const createDeckModel = (
+  overrides: Partial<{
+    id: string;
+    name: string;
+    description: string;
+    emoji: string;
+    visualTheme: DeckVisualThemeId;
+    syllables: Record<string, number>;
+    targets: TargetSeed[];
+  }> = {},
+): DeckModel => {
+  const id = overrides.id ?? "deck-test";
+  const name = overrides.name ?? "Deck Teste";
+  const description = overrides.description ?? "Deck de teste.";
+  const emoji = overrides.emoji ?? "T";
+  const visualTheme = overrides.visualTheme ?? "harvest";
+  const syllables = overrides.syllables ?? {
     BA: 2,
     NA: 2,
     LO: 2,
     BO: 2,
-  },
-  targets: [
-    { id: "banana", name: "BANANA", emoji: "🍌", syllables: ["BA", "NA", "NA"], rarity: "raro" },
-    { id: "lobo", name: "LOBO", emoji: "🐺", syllables: ["LO", "BO"], rarity: "comum" },
-  ],
-  ...overrides,
-});
+  };
+  const targets = overrides.targets ?? [
+    { id: "banana", name: "BANANA", emoji: "B", syllables: ["BA", "NA", "NA"], rarity: "raro" },
+    { id: "lobo", name: "LOBO", emoji: "L", syllables: ["LO", "BO"], rarity: "comum" },
+  ];
 
-test("getDeckContentMetrics resume o deck final consumido pelo runtime", () => {
-  const deck = createDeck({
+  const cards = Object.entries(syllables).map(([syllable, copiesInDeck]) => ({
+    cardId: `syllable.${syllable.toLowerCase()}`,
+    card: {
+      id: `syllable.${syllable.toLowerCase()}`,
+      syllable,
+    },
+    copiesInDeck,
+  }));
+  const cardsBySyllable = new Map(cards.map((entry) => [entry.card.syllable, entry.card.id]));
+  const targetDefinitions = targets.map((target) => ({
+    id: target.id,
+    name: target.name,
+    emoji: target.emoji,
+    cardIds: target.syllables.map((syllable) => cardsBySyllable.get(syllable) ?? `syllable.${syllable.toLowerCase()}`),
+    rarity: target.rarity,
+    description: target.description,
+  }));
+  const definition = {
+    id,
+    name,
+    description,
+    emoji,
+    visualTheme,
+    cardPool: Object.fromEntries(cards.map((entry) => [entry.card.id, entry.copiesInDeck])),
+    targetIds: targetDefinitions.map((target) => target.id),
+  };
+
+  return {
+    id,
+    definition,
+    cards: cards.map((entry) => ({
+      ...entry,
+      usedByTargets: targetDefinitions.filter((target) => target.cardIds.includes(entry.card.id)),
+    })),
+    targetDefinitions,
+    targetInstances: targetDefinitions.map((target, instanceIndex) => ({
+      instanceKey: `${target.id}-${instanceIndex}`,
+      instanceIndex,
+      targetId: target.id,
+      target,
+    })),
+  };
+};
+
+test("getDeckContentMetrics resume o deck model central fora da battle", () => {
+  const deckModel = createDeckModel({
     syllables: {
       BA: 4,
       NA: 3,
@@ -40,7 +103,7 @@ test("getDeckContentMetrics resume o deck final consumido pelo runtime", () => {
     },
   });
 
-  const metrics = getDeckContentMetrics(deck);
+  const metrics = getDeckContentMetrics(deckModel);
 
   assert.equal(metrics.totalSyllables, 13);
   assert.equal(metrics.uniqueSyllables, 4);
@@ -51,8 +114,8 @@ test("getDeckContentMetrics resume o deck final consumido pelo runtime", () => {
   assert.equal(metrics.rarityCounts.raro, 1);
 });
 
-test("getDeckContentWarnings gera avisos claros para perfis mais arriscados", () => {
-  const deck = createDeck({
+test("getDeckContentWarnings gera avisos claros para deck model com perfil arriscado", () => {
+  const deckModel = createDeckModel({
     syllables: {
       TU: 2,
       BA: 2,
@@ -63,20 +126,20 @@ test("getDeckContentWarnings gera avisos claros para perfis mais arriscados", ()
       AO: 2,
     },
     targets: [
-      { id: "tubarao", name: "TUBARAO", emoji: "🦈", syllables: ["TU", "BA", "RAO"], rarity: "épico" },
-      { id: "escorpiao", name: "ESCORPIAO", emoji: "🦂", syllables: ["ES", "COR", "PI", "AO"], rarity: "épico" },
+      { id: "tubarao", name: "TUBARAO", emoji: "S", syllables: ["TU", "BA", "RAO"], rarity: "epico" as Rarity },
+      { id: "escorpiao", name: "ESCORPIAO", emoji: "E", syllables: ["ES", "COR", "PI", "AO"], rarity: "epico" as Rarity },
     ],
   });
 
-  const warnings = getDeckContentWarnings(deck);
+  const warnings = getDeckContentWarnings(deckModel);
 
   assert.ok(warnings.some((warning) => warning.id === "long-target"));
   assert.ok(warnings.some((warning) => warning.id === "damage-profile"));
   assert.ok(warnings.some((warning) => warning.id === "thin-syllable-pool"));
 });
 
-test("getDeckSyllableBottlenecks destaca silabas com alta pressao no catalogo interno", () => {
-  const deck = createDeck({
+test("getDeckSyllableBottlenecks destaca silabas com alta pressao no deck model", () => {
+  const deckModel = createDeckModel({
     syllables: {
       BA: 2,
       NA: 2,
@@ -85,13 +148,13 @@ test("getDeckSyllableBottlenecks destaca silabas com alta pressao no catalogo in
       LA: 1,
     },
     targets: [
-      { id: "banana", name: "BANANA", emoji: "🍌", syllables: ["BA", "NA", "NA"], rarity: "raro" },
-      { id: "bolo", name: "BOLO", emoji: "🍰", syllables: ["BO", "LO"], rarity: "comum" },
-      { id: "bala", name: "BALA", emoji: "🍬", syllables: ["BA", "LA"], rarity: "comum" },
+      { id: "banana", name: "BANANA", emoji: "B", syllables: ["BA", "NA", "NA"], rarity: "raro" },
+      { id: "bolo", name: "BOLO", emoji: "O", syllables: ["BO", "LO"], rarity: "comum" },
+      { id: "bala", name: "BALA", emoji: "A", syllables: ["BA", "LA"], rarity: "comum" },
     ],
   });
 
-  const bottlenecks = getDeckSyllableBottlenecks(deck);
+  const bottlenecks = getDeckSyllableBottlenecks(deckModel);
 
   assert.ok(bottlenecks.some((entry) => entry.syllable === "NA"));
   const naEntry = bottlenecks.find((entry) => entry.syllable === "NA");
@@ -100,8 +163,8 @@ test("getDeckSyllableBottlenecks destaca silabas com alta pressao no catalogo in
   assert.ok(bottlenecks.some((entry) => entry.syllable === "BO"));
 });
 
-test("getDeckTargetCompetition sinaliza targets que disputam o mesmo pool de silabas", () => {
-  const deck = createDeck({
+test("getDeckTargetCompetition sinaliza disputa entre targets usando deck model", () => {
+  const deckModel = createDeckModel({
     syllables: {
       BA: 2,
       NA: 2,
@@ -110,13 +173,13 @@ test("getDeckTargetCompetition sinaliza targets que disputam o mesmo pool de sil
       CA: 2,
     },
     targets: [
-      { id: "banana", name: "BANANA", emoji: "🍌", syllables: ["BA", "NA", "NA"], rarity: "raro" },
-      { id: "barco", name: "BARCO", emoji: "⛵", syllables: ["BA", "CA"], rarity: "comum" },
-      { id: "bolo", name: "BOLO", emoji: "🍰", syllables: ["BO", "LO"], rarity: "comum" },
+      { id: "banana", name: "BANANA", emoji: "B", syllables: ["BA", "NA", "NA"], rarity: "raro" },
+      { id: "barco", name: "BARCO", emoji: "R", syllables: ["BA", "CA"], rarity: "comum" },
+      { id: "bolo", name: "BOLO", emoji: "O", syllables: ["BO", "LO"], rarity: "comum" },
     ],
   });
 
-  const competition = getDeckTargetCompetition(deck);
+  const competition = getDeckTargetCompetition(deckModel);
   const banana = competition.find((entry) => entry.targetId === "banana");
 
   assert.ok(banana);
@@ -126,46 +189,50 @@ test("getDeckTargetCompetition sinaliza targets que disputam o mesmo pool de sil
 });
 
 test("getDeckTargetCompetition distingue instancias duplicadas quando copies gera targets repetidos", () => {
-  const deck = createDeck({
+  const duplicatedDeckModel = createDeckModel({
     syllables: {
       VA: 4,
       CA: 4,
       LO: 3,
     },
     targets: [
-      { id: "vaca", name: "VACA", emoji: "🐮", syllables: ["VA", "CA"], rarity: "comum" },
-      { id: "vaca", name: "VACA", emoji: "🐮", syllables: ["VA", "CA"], rarity: "comum" },
-      { id: "cavalo", name: "CAVALO", emoji: "🐴", syllables: ["CA", "VA", "LO"], rarity: "raro" },
+      { id: "vaca", name: "VACA", emoji: "V", syllables: ["VA", "CA"], rarity: "comum" },
+      { id: "vaca", name: "VACA", emoji: "V", syllables: ["VA", "CA"], rarity: "comum" },
+      { id: "cavalo", name: "CAVALO", emoji: "C", syllables: ["CA", "VA", "LO"], rarity: "raro" },
     ],
   });
 
-  const competition = getDeckTargetCompetition(deck);
+  const competition = getDeckTargetCompetition(duplicatedDeckModel);
 
   assert.ok(competition.some((entry) => entry.instanceKey === "vaca-0" && entry.targetName === "VACA #1"));
   assert.ok(competition.some((entry) => entry.instanceKey === "vaca-1" && entry.targetName === "VACA #2"));
   assert.ok(
     competition.some(
-      (entry) => entry.targetId === "cavalo" && entry.competingTargets.includes("VACA #1") && entry.competingTargets.includes("VACA #2"),
+      (entry) =>
+        entry.targetId === "cavalo" &&
+        entry.competingTargets.includes("VACA #1") &&
+        entry.competingTargets.includes("VACA #2"),
     ),
   );
 });
 
-test("getDeckRelativeChecks compara o deck contra o catalogo real", () => {
-  const aggressiveDeck = createDeck({
+test("getDeckRelativeChecks compara deck models contra o catalogo central", () => {
+  const aggressiveDeck = createDeckModel({
     id: "aggressive",
     name: "Agressivo",
     syllables: {
-      BA: 2,
+      DRA: 2,
+      GAO: 2,
+      TOR: 2,
       NA: 2,
-      RA: 2,
-      TO: 2,
+      DO: 2,
     },
     targets: [
-      { id: "dragao", name: "DRAGAO", emoji: "🐉", syllables: ["DRA", "GAO"], rarity: "lendário" },
-      { id: "tornado", name: "TORNADO", emoji: "🌪️", syllables: ["TOR", "NA", "DO"], rarity: "épico" },
+      { id: "dragao", name: "DRAGAO", emoji: "D", syllables: ["DRA", "GAO"], rarity: "lendario" as Rarity },
+      { id: "tornado", name: "TORNADO", emoji: "T", syllables: ["TOR", "NA", "DO"], rarity: "epico" as Rarity },
     ],
   });
-  const steadyDeck = createDeck({
+  const steadyDeck = createDeckModel({
     id: "steady",
     name: "Estavel",
     syllables: {
@@ -181,8 +248,8 @@ test("getDeckRelativeChecks compara o deck contra o catalogo real", () => {
   assert.ok(checks.some((check) => check.id === "relative-damage"));
 });
 
-test("compareDeckMetrics expande comparacao entre decks para a UI dev-only", () => {
-  const baseDeck = createDeck({
+test("compareDeckMetrics expande comparacao entre deck models para a UI dev-only", () => {
+  const baseDeck = createDeckModel({
     id: "base",
     syllables: {
       BA: 4,
@@ -191,7 +258,7 @@ test("compareDeckMetrics expande comparacao entre decks para a UI dev-only", () 
       BO: 3,
     },
   });
-  const compareDeck = createDeck({
+  const compareDeck = createDeckModel({
     id: "compare",
     syllables: {
       BA: 2,
@@ -211,13 +278,22 @@ test("compareDeckMetrics expande comparacao entre decks para a UI dev-only", () 
   assert.equal(totalSyllables?.deltaDisplay, "+5");
 });
 
+test("insights mantem compatibilidade com Deck legado quando preciso", () => {
+  const deckModel = DECK_MODELS_BY_ID.farm;
+  const runtimeDeck = adaptDeckModelToRuntimeDeck(deckModel, CONTENT_CATALOG);
+
+  assert.deepEqual(getDeckContentMetrics(runtimeDeck), getDeckContentMetrics(deckModel));
+});
+
 test("formatRarityBreakdown compacta a distribuicao de raridade para a UI", () => {
+  const epic = normalizeRarity("epico");
+  const legendary = normalizeRarity("lendario");
   const formatted = formatRarityBreakdown({
     comum: 1,
     raro: 2,
-    épico: 0,
-    lendário: 0,
-  });
+    [epic]: 0,
+    [legendary]: 0,
+  } as Record<Rarity, number>);
 
   assert.equal(formatted, "COMUM: 1 • RARO: 2");
 });

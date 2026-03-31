@@ -22,11 +22,14 @@ import {
   CONTENT_PIPELINE,
   getCatalogCardById,
   getMostReusedCards,
-  getSharedTargetsBetweenDecks,
+  getSharedTargetsBetweenDeckModels,
 } from "../../data/content";
 import { cn } from "../../lib/utils";
 
-const inspections = inspectDeckCatalog(CONTENT_PIPELINE.runtimeDecks);
+const inspections = inspectDeckCatalog(
+  CONTENT_PIPELINE.deckModels,
+  CONTENT_PIPELINE.runtimeDecksById,
+);
 
 const warningToneClass: Record<"info" | "warning", string> = {
   info: "border-sky-700/12 bg-sky-100/85 text-sky-950",
@@ -64,7 +67,9 @@ const inspectorInputClass =
   "w-full rounded-2xl border border-amber-900/15 bg-white/80 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30";
 
 export const ContentInspector: React.FC = () => {
-  const [selectedDeckId, setSelectedDeckId] = useState<string>(() => inspections[0]?.deck.id ?? "");
+  const [selectedDeckId, setSelectedDeckId] = useState<string>(
+    () => inspections[0]?.deckModel?.id ?? inspections[0]?.deck?.id ?? "",
+  );
   const [searchValue, setSearchValue] = useState("");
   const [warningsOnly, setWarningsOnly] = useState(false);
   const [compareDeckId, setCompareDeckId] = useState("");
@@ -73,10 +78,12 @@ export const ContentInspector: React.FC = () => {
   const filteredInspections = useMemo(
     () =>
       inspections.filter((inspection) => {
+        const deckId = inspection.deckModel?.id ?? inspection.deck?.id ?? "";
+        const deckName = inspection.deckModel?.definition.name ?? inspection.deck?.name ?? "";
         const matchesSearch =
           deferredSearchValue.length === 0 ||
-          inspection.deck.name.toLowerCase().includes(deferredSearchValue) ||
-          inspection.deck.id.toLowerCase().includes(deferredSearchValue);
+          deckName.toLowerCase().includes(deferredSearchValue) ||
+          deckId.toLowerCase().includes(deferredSearchValue);
         const matchesWarningFilter = !warningsOnly || inspection.warnings.length > 0;
 
         return matchesSearch && matchesWarningFilter;
@@ -86,41 +93,45 @@ export const ContentInspector: React.FC = () => {
 
   const selectedInspection = useMemo(
     () =>
-      filteredInspections.find((inspection) => inspection.deck.id === selectedDeckId) ??
+      filteredInspections.find((inspection) => (inspection.deckModel?.id ?? inspection.deck?.id) === selectedDeckId) ??
       filteredInspections[0] ??
       null,
     [filteredInspections, selectedDeckId],
   );
 
   const compareCandidates = useMemo(
-    () => inspections.filter((inspection) => inspection.deck.id !== selectedInspection?.deck.id),
+    () =>
+      inspections.filter(
+        (inspection) => (inspection.deckModel?.id ?? inspection.deck?.id) !== (selectedInspection?.deckModel?.id ?? selectedInspection?.deck?.id),
+      ),
     [selectedInspection],
   );
 
   const activeCompareDeckId = useMemo(() => {
     if (
       compareDeckId &&
-      compareDeckId !== selectedInspection?.deck.id &&
-      compareCandidates.some((inspection) => inspection.deck.id === compareDeckId)
+      compareDeckId !== (selectedInspection?.deckModel?.id ?? selectedInspection?.deck?.id) &&
+      compareCandidates.some((inspection) => (inspection.deckModel?.id ?? inspection.deck?.id) === compareDeckId)
     ) {
       return compareDeckId;
     }
 
-    return compareCandidates[0]?.deck.id ?? "";
+    return compareCandidates[0]?.deckModel?.id ?? compareCandidates[0]?.deck?.id ?? "";
   }, [compareCandidates, compareDeckId, selectedInspection]);
 
   const compareInspection = useMemo(
-    () => inspections.find((inspection) => inspection.deck.id === activeCompareDeckId) ?? null,
+    () =>
+      inspections.find((inspection) => (inspection.deckModel?.id ?? inspection.deck?.id) === activeCompareDeckId) ?? null,
     [activeCompareDeckId],
   );
 
   const metricComparison = useMemo(() => {
-    if (!selectedInspection || !compareInspection) return [];
-    return compareDeckMetrics(selectedInspection.deck, compareInspection.deck);
+    if (!selectedInspection?.deckModel || !compareInspection?.deckModel) return [];
+    return compareDeckMetrics(selectedInspection.deckModel, compareInspection.deckModel);
   }, [compareInspection, selectedInspection]);
 
   const selectedDeckModel = useMemo(
-    () => (selectedInspection ? CONTENT_PIPELINE.deckModelsById[selectedInspection.deck.id] ?? null : null),
+    () => selectedInspection?.deckModel ?? null,
     [selectedInspection],
   );
 
@@ -145,13 +156,19 @@ export const ContentInspector: React.FC = () => {
   );
 
   const selectedSharedTargets = useMemo(
-    () => (selectedInspection ? getSharedTargetsBetweenDecks(CONTENT_CATALOG, selectedInspection.deck.id) : []),
-    [selectedInspection],
+    () =>
+      selectedDeckModel
+        ? getSharedTargetsBetweenDeckModels(selectedDeckModel, CONTENT_PIPELINE.deckModels)
+        : [],
+    [selectedDeckModel],
   );
 
-  const mostReusedCards = useMemo(() => getMostReusedCards(CONTENT_CATALOG, 5), []);
+  const mostReusedCards = useMemo(
+    () => getMostReusedCards(CONTENT_CATALOG, CONTENT_PIPELINE.deckModels, 5),
+    [],
+  );
 
-  if (!selectedInspection) {
+  if (!selectedInspection || !selectedInspection.deckModel || !selectedInspection.deck) {
     return (
       <div className="min-h-screen bg-[#f4ede2] px-6 py-10 text-amber-950">
         <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -292,52 +309,61 @@ export const ContentInspector: React.FC = () => {
           </div>
 
           <div className="mt-5 space-y-3">
-            {filteredInspections.map((inspection) => (
-              <button
-                key={inspection.deck.id}
-                type="button"
-                onClick={() => setSelectedDeckId(inspection.deck.id)}
-                className={cn(
-                  "w-full rounded-[24px] border p-4 text-left transition-all",
-                  deck.id === inspection.deck.id
-                    ? "border-amber-900/20 bg-amber-50/95 shadow-[0_18px_34px_rgba(0,0,0,0.1)]"
-                    : "border-amber-900/12 bg-white/70 hover:border-amber-900/18 hover:bg-white/90",
-                )}
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div
-                      className={cn(
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-2xl shadow-inner",
-                        inspection.deck.color,
-                      )}
-                    >
-                      {inspection.deck.emoji}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate font-serif text-xl font-black text-amber-950">
-                        {inspection.deck.name}
-                      </div>
-                      <div className="truncate text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                        {inspection.deck.id}
-                      </div>
-                    </div>
-                  </div>
-                  <Badge
+                {filteredInspections.map((inspection) => {
+                  const inspectionDeck = inspection.deck;
+                  const inspectionDeckModel = inspection.deckModel;
+                  const inspectionId = inspectionDeckModel?.id ?? inspectionDeck?.id ?? "";
+                  const inspectionName = inspectionDeckModel?.definition.name ?? inspectionDeck?.name ?? inspectionId;
+                  const inspectionEmoji = inspectionDeckModel?.definition.emoji ?? inspectionDeck?.emoji ?? "🃏";
+                  const inspectionColor = inspectionDeck?.color ?? "from-slate-700 to-slate-900";
+
+                  return (
+                  <button
+                    key={inspectionId}
+                    type="button"
+                    onClick={() => setSelectedDeckId(inspectionId)}
                     className={cn(
-                      "border",
-                      inspection.warnings.length > 0
-                        ? warningBadgeClass.warning
-                        : "border-emerald-700/15 bg-emerald-100/85 text-emerald-950",
+                      "w-full rounded-[24px] border p-4 text-left transition-all",
+                      deck.id === inspectionId
+                        ? "border-amber-900/20 bg-amber-50/95 shadow-[0_18px_34px_rgba(0,0,0,0.1)]"
+                        : "border-amber-900/12 bg-white/70 hover:border-amber-900/18 hover:bg-white/90",
                     )}
                   >
-                    {inspection.warnings.length > 0
-                      ? `${inspection.warnings.length} warning${inspection.warnings.length > 1 ? "s" : ""}`
-                      : "sem warning"}
-                  </Badge>
-                </div>
-              </button>
-            ))}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div
+                          className={cn(
+                            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-2xl shadow-inner",
+                            inspectionColor,
+                          )}
+                        >
+                          {inspectionEmoji}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-serif text-xl font-black text-amber-950">
+                            {inspectionName}
+                          </div>
+                          <div className="truncate text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                            {inspectionId}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge
+                        className={cn(
+                          "border",
+                          inspection.warnings.length > 0
+                            ? warningBadgeClass.warning
+                            : "border-emerald-700/15 bg-emerald-100/85 text-emerald-950",
+                        )}
+                      >
+                        {inspection.warnings.length > 0
+                          ? `${inspection.warnings.length} warning${inspection.warnings.length > 1 ? "s" : ""}`
+                          : "sem warning"}
+                      </Badge>
+                    </div>
+                  </button>
+                  );
+                })}
           </div>
         </aside>
 
@@ -620,9 +646,9 @@ export const ContentInspector: React.FC = () => {
                       <EmptyCallout text="Nenhum target normalizado encontrado para este deck." />
                     ) : (
                       <div className="space-y-3">
-                        {selectedCatalogTargetDefinitions.slice(0, 4).map((target) => (
-                          <div key={target.id} className={inspectorCardClass}>
-                            <div className="flex flex-wrap items-center justify-between gap-3">
+                            {selectedCatalogTargetDefinitions.slice(0, 4).map((target) => (
+                              <div key={target.id} className={inspectorCardClass}>
+                                <div className="flex flex-wrap items-center justify-between gap-3">
                               <div className="font-serif text-xl font-black text-amber-950">{target.name}</div>
                               <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
                                 {target.cardIds.length} cards

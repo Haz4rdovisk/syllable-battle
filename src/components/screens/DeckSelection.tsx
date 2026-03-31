@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/button";
 import { Deck, normalizeRarity } from "../../types/game";
-import { DECKS } from "../../data/decks";
+import { CONTENT_PIPELINE } from "../../data/content";
 import { AnimatePresence, motion, Variants } from "motion/react";
 import { ChevronLeft, Info, BookOpen, X, Swords } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -18,6 +18,11 @@ interface DeckSelectionProps {
   phaseKey?: string;
 }
 
+interface DeckSelectionEntry {
+  deckModel: (typeof CONTENT_PIPELINE.deckModels)[number];
+  runtimeDeck: Deck;
+}
+
 export const DeckSelection: React.FC<DeckSelectionProps> = ({
   onSelectDeck,
   onBack,
@@ -30,11 +35,27 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
 }) => {
   const [openedDeckId, setOpenedDeckId] = useState<string | null>(null);
   const [cardsInteractive, setCardsInteractive] = useState(false);
-  const openedDeck = useMemo(() => DECKS.find((deck) => deck.id === openedDeckId) ?? null, [openedDeckId]);
+
+  const deckEntries = useMemo(
+    () =>
+      CONTENT_PIPELINE.deckModels
+        .map((deckModel) => {
+          const runtimeDeck = CONTENT_PIPELINE.runtimeDecksById[deckModel.id] ?? null;
+          if (!runtimeDeck) return null;
+          return { deckModel, runtimeDeck };
+        })
+        .filter((entry): entry is DeckSelectionEntry => !!entry),
+    [],
+  );
+
+  const openedDeck = useMemo(
+    () => deckEntries.find((entry) => entry.deckModel.id === openedDeckId) ?? null,
+    [deckEntries, openedDeckId],
+  );
 
   const statusTitle = isPreparingBattle
     ? "AMBOS OS DECKS FORAM ESCOLHIDOS - PARTIDA INICIANDO..."
-      : selectedDeckId
+    : selectedDeckId
       ? remoteSelectedDeckId
         ? "AMBOS OS DECKS ESTAO PRONTOS"
         : "SEU DECK PRONTO - AGUARDANDO O ADVERSARIO"
@@ -52,34 +73,29 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
 
   const openedDeckSyllables = useMemo(() => {
     if (!openedDeck) return [];
-    return (Object.entries(openedDeck.syllables) as Array<[string, number]>).sort((a, b) => {
-      if (b[1] !== a[1]) return b[1] - a[1];
-      return a[0].localeCompare(b[0]);
-    });
+
+    return [...openedDeck.deckModel.cards]
+      .sort((left, right) => {
+        if (right.copiesInDeck !== left.copiesInDeck) return right.copiesInDeck - left.copiesInDeck;
+        return left.card.syllable.localeCompare(right.card.syllable);
+      })
+      .map((entry) => [entry.card.syllable, entry.copiesInDeck] as const);
   }, [openedDeck]);
 
-  const getRarityToneClass = (rarity: Deck["targets"][number]["rarity"]) => {
-    const normalized = normalizeRarity(rarity);
-    if (normalized === "comum") return "bg-slate-500";
-    if (normalized === "raro") return "bg-amber-600";
-    if (normalized === "\u00E9pico") return "bg-purple-700";
-    return "bg-rose-800";
-  };
+  const openedDeckTargets = useMemo(() => {
+    if (!openedDeck) return [];
 
-  const getRarityLabel = (rarity: Deck["targets"][number]["rarity"]) => {
-    const normalized = normalizeRarity(rarity);
-    if (normalized === "\u00E9pico") return "EPICO";
-    if (normalized === "lend\u00E1rio") return "LENDARIO";
-    return normalized.toUpperCase();
-  };
-
-  const getRarityDamage = (rarity: Deck["targets"][number]["rarity"]) => {
-    const normalized = normalizeRarity(rarity);
-    if (normalized === "comum") return 1;
-    if (normalized === "raro") return 2;
-    if (normalized === "\u00E9pico") return 3;
-    return 4;
-  };
+    return openedDeck.deckModel.targetInstances.map((entry) => ({
+      instanceKey: entry.instanceKey,
+      id: entry.target.id,
+      name: entry.target.name,
+      emoji: entry.target.emoji,
+      rarity: entry.target.rarity,
+      syllables: entry.target.cardIds.map(
+        (cardId) => CONTENT_PIPELINE.catalog.cardsById[cardId]?.syllable ?? cardId,
+      ),
+    }));
+  }, [openedDeck]);
 
   const selectionPhaseKey = phaseKey ?? title;
 
@@ -110,6 +126,29 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
       scale: 1,
       transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
     },
+  };
+
+  const getRarityToneClass = (rarity: Deck["targets"][number]["rarity"]) => {
+    const normalized = normalizeRarity(rarity);
+    if (normalized === "comum") return "bg-slate-500";
+    if (normalized === "raro") return "bg-amber-600";
+    if (normalized === "épico") return "bg-purple-700";
+    return "bg-rose-800";
+  };
+
+  const getRarityLabel = (rarity: Deck["targets"][number]["rarity"]) => {
+    const normalized = normalizeRarity(rarity);
+    if (normalized === "épico") return "EPICO";
+    if (normalized === "lendário") return "LENDARIO";
+    return normalized.toUpperCase();
+  };
+
+  const getRarityDamage = (rarity: Deck["targets"][number]["rarity"]) => {
+    const normalized = normalizeRarity(rarity);
+    if (normalized === "comum") return 1;
+    if (normalized === "raro") return 2;
+    if (normalized === "épico") return 3;
+    return 4;
   };
 
   return (
@@ -158,19 +197,19 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
           exit={{ opacity: 0, y: -14, transition: { duration: 0.28, ease: "easeInOut" } }}
           className="grid shrink-0 grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-2.5"
         >
-          {DECKS.map((deck) => (
+          {deckEntries.map(({ deckModel, runtimeDeck }) => (
             <motion.div
-              key={deck.id}
+              key={deckModel.id}
               variants={deckCardVariants}
               className="relative mx-auto w-full max-w-[340px] lg:max-w-[324px]"
             >
               <motion.div
                 whileHover={
-                  !cardsInteractive || selectedDeckId === deck.id || isPreparingBattle ? undefined : { y: -12 }
+                  !cardsInteractive || selectedDeckId === deckModel.id || isPreparingBattle ? undefined : { y: -12 }
                 }
                 whileTap={!cardsInteractive || isPreparingBattle ? undefined : { scale: 0.98 }}
                 animate={
-                  selectedDeckId === deck.id
+                  selectedDeckId === deckModel.id
                     ? {
                         y: [0, -6, 0],
                         boxShadow: [
@@ -182,35 +221,37 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                     : {}
                 }
                 transition={
-                  selectedDeckId === deck.id
+                  selectedDeckId === deckModel.id
                     ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
                     : undefined
                 }
                 className={cn(
                   "group relative cursor-pointer overflow-hidden rounded-[40px] border-4 border-[#d4af37] bg-[#3e2723] p-1 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.6)]",
                   "before:absolute before:inset-0 before:bg-[url('https://www.transparenttextures.com/patterns/leather.png')] before:opacity-40",
-                  selectedDeckId === deck.id && "ring-4 ring-emerald-300/70 shadow-[0_0_0_2px_rgba(110,231,183,0.3)]",
+                  selectedDeckId === deckModel.id && "ring-4 ring-emerald-300/70 shadow-[0_0_0_2px_rgba(110,231,183,0.3)]",
                   (!cardsInteractive || isPreparingBattle) && "pointer-events-none",
                   isPreparingBattle && "opacity-90",
                 )}
                 onClick={() => {
                   if (!cardsInteractive || isPreparingBattle) return;
-                  onSelectDeck(deck);
+                  onSelectDeck(runtimeDeck);
                 }}
               >
                 <div
                   className={cn(
                     "relative z-10 flex h-[292px] flex-col rounded-[36px] border-2 border-[#d4af37]/40 bg-gradient-to-br p-5 sm:h-[340px] sm:p-6",
-                    deck.color,
+                    runtimeDeck.color,
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-5xl drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] sm:text-[3.35rem]">{deck.emoji}</div>
+                    <div className="text-5xl drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] sm:text-[3.35rem]">
+                      {deckModel.definition.emoji}
+                    </div>
                     <div className="flex flex-col items-end gap-2">
                       <div className="rounded-full border border-amber-400/20 bg-black/30 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-amber-200">
-                        {deck.targets.length} CARTAS
+                        {deckModel.targetInstances.length} CARTAS
                       </div>
-                      {selectedDeckId === deck.id && (
+                      {selectedDeckId === deckModel.id && (
                         <div className="rounded-full border border-emerald-300/30 bg-emerald-950/70 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
                           DECK SELECIONADO
                         </div>
@@ -220,19 +261,21 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
 
                   <div className="mt-6 space-y-2.5">
                     <h3 className="text-[2rem] font-serif font-black text-amber-100 transition-colors group-hover:text-amber-400 sm:text-[2.15rem]">
-                      {deck.name}
+                      {deckModel.definition.name}
                     </h3>
-                    <p className="text-[13px] font-serif italic leading-relaxed text-amber-100/60 sm:text-sm">"{deck.description}"</p>
+                    <p className="text-[13px] font-serif italic leading-relaxed text-amber-100/60 sm:text-sm">
+                      "{deckModel.definition.description}"
+                    </p>
                   </div>
 
                   <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-5">
                     <div className="flex -space-x-3">
-                      {deck.targets.slice(0, 4).map((target, index) => (
+                      {deckModel.targetInstances.slice(0, 4).map((entry) => (
                         <div
-                          key={index}
+                          key={entry.instanceKey}
                           className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#d4af37] bg-[#3e2723] text-xl shadow-lg"
                         >
-                          {target.emoji}
+                          {entry.target.emoji}
                         </div>
                       ))}
                     </div>
@@ -241,10 +284,10 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                       onClick={(event) => {
                         event.stopPropagation();
                         if (!cardsInteractive) return;
-                        setOpenedDeckId(deck.id);
+                        setOpenedDeckId(deckModel.id);
                       }}
                       className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber-300/30 bg-amber-50/10 px-4 py-2 text-sm font-black text-amber-300 shadow-[0_10px_20px_rgba(0,0,0,0.22)] transition-all hover:-translate-y-0.5 hover:border-amber-200/45 hover:bg-amber-50/16 hover:text-amber-100 active:translate-y-0"
-                      aria-label={`Abrir grimorio do deck ${deck.name}`}
+                      aria-label={`Abrir grimorio do deck ${deckModel.definition.name}`}
                     >
                       <BookOpen className="h-4 w-4" />
                       ABRIR
@@ -287,16 +330,26 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
               onClick={(event) => event.stopPropagation()}
               className="paper-panel relative max-h-[88vh] w-full max-w-6xl overflow-hidden border-4 border-[#3e2723]/30 p-0 shadow-[0_30px_80px_rgba(0,0,0,0.45)]"
             >
-              <div className={cn("relative overflow-hidden px-8 py-7 text-amber-50", "bg-gradient-to-br", openedDeck.color)}>
+              <div
+                className={cn(
+                  "relative overflow-hidden px-8 py-7 text-amber-50",
+                  "bg-gradient-to-br",
+                  openedDeck.runtimeDeck.color,
+                )}
+              >
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.18),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(0,0,0,0.18),transparent_42%)]" />
                 <div className="relative flex items-start justify-between gap-6">
                   <div className="flex items-center gap-5">
                     <div className="flex h-20 w-20 items-center justify-center rounded-[28px] border-2 border-amber-200/30 bg-black/15 text-5xl shadow-[0_12px_24px_rgba(0,0,0,0.22)]">
-                      {openedDeck.emoji}
+                      {openedDeck.deckModel.definition.emoji}
                     </div>
                     <div className="flex flex-col justify-center">
-                        <h3 className="text-4xl font-serif font-black tracking-tight">{openedDeck.name}</h3>
-                        <p className="mt-2 max-w-2xl text-sm font-serif italic text-amber-50/75">{openedDeck.description}</p>
+                      <h3 className="text-4xl font-serif font-black tracking-tight">
+                        {openedDeck.deckModel.definition.name}
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-sm font-serif italic text-amber-50/75">
+                        {openedDeck.deckModel.definition.description}
+                      </p>
                     </div>
                   </div>
                   <Button
@@ -318,13 +371,13 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                       <h4 className="mt-2 text-2xl font-serif font-black text-amber-950">Bestiario do Duelo</h4>
                     </div>
                     <div className="rounded-full border border-amber-900/15 bg-amber-900/5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-amber-900/60">
-                      {openedDeck.targets.length} cartas de alvo
+                      {openedDeck.deckModel.targetInstances.length} cartas de alvo
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-                    {openedDeck.targets.map((target) => (
-                      <div key={target.id} className="mx-auto w-full max-w-[146px]">
+                    {openedDeckTargets.map((target) => (
+                      <div key={target.instanceKey} className="mx-auto w-full max-w-[146px]">
                         <div className="card-base relative flex aspect-[126/176] w-full flex-col overflow-hidden rounded-[1.1rem] shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)]">
                           <div
                             className={cn(
@@ -332,20 +385,24 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                               getRarityToneClass(target.rarity),
                             )}
                           >
-                              <span className="truncate">{getRarityLabel(target.rarity)}</span>
-                              <div className="flex items-center gap-1.5">
-                                <Swords className="h-4 w-4" />
-                                <span>{getRarityDamage(target.rarity)}</span>
-                              </div>
+                            <span className="truncate">{getRarityLabel(target.rarity)}</span>
+                            <div className="flex items-center gap-1.5">
+                              <Swords className="h-4 w-4" />
+                              <span>{getRarityDamage(target.rarity)}</span>
                             </div>
+                          </div>
 
                           <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
-                            <div className="relative translate-y-3 text-[4.9rem] leading-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]">{target.emoji}</div>
+                            <div className="relative translate-y-3 text-[4.9rem] leading-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]">
+                              {target.emoji}
+                            </div>
                           </div>
 
                           <div className="mt-auto shrink-0 bg-parchment/90 px-2.5 pb-2.5 pt-4">
-                            <div className="text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950">{target.name}</div>
+                            <div className="text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950">
+                              {target.name}
+                            </div>
                             <div className="mt-2.5 flex flex-wrap justify-center gap-1">
                               {target.syllables.map((syllable, index) => (
                                 <div

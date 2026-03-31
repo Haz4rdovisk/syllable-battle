@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { DECKS } from "../data/decks";
+import { CONTENT_PIPELINE } from "../data/content";
 import { makeInitialGame } from "../logic/gameLogic";
 import type { BattleRoomSession, BattleRoomState } from "../lib/battleRoomSession";
 import type {
@@ -44,6 +44,16 @@ function compareBattleActions(a: BattleSubmittedAction, b: BattleSubmittedAction
   if (a.sequence !== b.sequence) return a.sequence - b.sequence;
   if (a.side !== b.side) return a.side === "player" ? -1 : 1;
   return a.id.localeCompare(b.id);
+}
+
+function resolveDeckModel(deckId: string | undefined | null) {
+  if (!deckId) return null;
+  return CONTENT_PIPELINE.deckModelsById[deckId] ?? null;
+}
+
+function resolveRuntimeDeck(deckId: string | undefined | null) {
+  if (!deckId) return null;
+  return CONTENT_PIPELINE.runtimeDecksById[deckId] ?? null;
 }
 
 export function useAppRoomLifecycle({
@@ -138,17 +148,17 @@ export function useAppRoomLifecycle({
       clearBattleTransitionTimer();
       setIsPreparingBattle(false);
       battleTransitionSetupVersionRef.current = null;
-      setPlayerDeck(localDeckId ? (DECKS.find((deck) => deck.id === localDeckId) ?? null) : null);
-      setEnemyBattleDeck(
-        remoteDeckId ? (DECKS.find((deck) => deck.id === remoteDeckId) ?? null) : null,
-      );
+      setPlayerDeck(resolveRuntimeDeck(localDeckId));
+      setEnemyBattleDeck(resolveRuntimeDeck(remoteDeckId));
       setPendingBattleActions([]);
 
       if (bothDecksSelected && !activeRoomState.initialGame && roomLocalSide === "player") {
-        const nextPlayerDeck = DECKS.find((deck) => deck.id === localDeckId) ?? null;
-        const nextEnemyDeck = DECKS.find((deck) => deck.id === remoteDeckId) ?? null;
+        const nextPlayerDeckModel = resolveDeckModel(localDeckId);
+        const nextEnemyDeckModel = resolveDeckModel(remoteDeckId);
+        const nextPlayerDeck = resolveRuntimeDeck(localDeckId);
+        const nextEnemyDeck = resolveRuntimeDeck(remoteDeckId);
 
-        if (nextPlayerDeck && nextEnemyDeck) {
+        if (nextPlayerDeckModel && nextEnemyDeckModel && nextPlayerDeck && nextEnemyDeck) {
           activeRoomSession.publishBattleSetup(
             makeInitialGame("multiplayer", nextPlayerDeck, nextEnemyDeck, roomId),
           );
@@ -161,9 +171,11 @@ export function useAppRoomLifecycle({
 
     if (!localDeckId || !remoteDeckId) return;
 
-    const nextPlayerDeck = DECKS.find((deck) => deck.id === localDeckId) ?? null;
-    const nextEnemyDeck = DECKS.find((deck) => deck.id === remoteDeckId) ?? null;
-    if (!nextPlayerDeck || !nextEnemyDeck) return;
+    const nextPlayerDeckModel = resolveDeckModel(localDeckId);
+    const nextEnemyDeckModel = resolveDeckModel(remoteDeckId);
+    const nextPlayerDeck = resolveRuntimeDeck(localDeckId);
+    const nextEnemyDeck = resolveRuntimeDeck(remoteDeckId);
+    if (!nextPlayerDeckModel || !nextEnemyDeckModel || !nextPlayerDeck || !nextEnemyDeck) return;
 
     if (!activeRoomState.initialGame && roomLocalSide === "player") {
       activeRoomSession.publishBattleSetup(

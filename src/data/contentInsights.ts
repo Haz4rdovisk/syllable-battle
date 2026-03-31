@@ -1,5 +1,6 @@
 import { CONFIG } from "../logic/gameLogic";
 import { Deck, RARITY_DAMAGE, Rarity, normalizeRarity } from "../types/game";
+import { DeckModel } from "./content/types";
 
 export interface DeckContentWarning {
   id: string;
@@ -56,12 +57,36 @@ export interface DeckMetricComparison {
 }
 
 export interface DeckContentInspection {
-  deck: Deck;
+  deckModel: DeckModel | null;
+  deck: Deck | null;
   metrics: DeckContentMetrics;
   warnings: DeckContentWarning[];
   bottlenecks: DeckSyllableBottleneck[];
   targetCompetition: DeckTargetCompetition[];
   relativeChecks: DeckRelativeCheck[];
+}
+
+type DeckContentSource = DeckModel | Deck;
+
+interface InsightCardEntry {
+  cardId: string;
+  syllable: string;
+  copiesInDeck: number;
+}
+
+interface InsightTargetInstance {
+  instanceKey: string;
+  targetId: string;
+  targetName: string;
+  cardIds: string[];
+  syllables: string[];
+  rarity: Rarity;
+}
+
+interface ResolvedInsightTargetInstance {
+  instanceKey: string;
+  target: InsightTargetInstance;
+  displayName: string;
 }
 
 const rarityOrder: Rarity[] = ["comum", "raro", "épico", "lendário"];
@@ -115,30 +140,86 @@ function countSyllableOccurrences(targetSyllables: string[], syllable: string) {
   return targetSyllables.reduce((count, entry) => count + (entry === syllable ? 1 : 0), 0);
 }
 
-function getDeckTargetInstances(deck: Deck) {
-  const targetCounts = deck.targets.reduce<Map<string, number>>((acc, target) => {
-    acc.set(target.id, (acc.get(target.id) ?? 0) + 1);
+function isDeckModel(source: DeckContentSource): source is DeckModel {
+  return "definition" in source && "cards" in source && "targetInstances" in source;
+}
+
+function getDeckName(source: DeckContentSource) {
+  return isDeckModel(source) ? source.definition.name : source.name;
+}
+
+function getDeckId(source: DeckContentSource) {
+  return isDeckModel(source) ? source.id : source.id;
+}
+
+function getDeckCardEntries(source: DeckContentSource): InsightCardEntry[] {
+  if (isDeckModel(source)) {
+    return source.cards.map((entry) => ({
+      cardId: entry.card.id,
+      syllable: entry.card.syllable,
+      copiesInDeck: entry.copiesInDeck,
+    }));
+  }
+
+  return Object.entries(source.syllables).map(([syllable, copiesInDeck]) => ({
+    cardId: syllable,
+    syllable,
+    copiesInDeck,
+  }));
+}
+
+function getDeckCardCopies(source: DeckContentSource) {
+  return getDeckCardEntries(source).reduce<Map<string, number>>((acc, entry) => {
+    acc.set(entry.syllable, entry.copiesInDeck);
+    return acc;
+  }, new Map<string, number>());
+}
+
+function getDeckTargetInstances(source: DeckContentSource): ResolvedInsightTargetInstance[] {
+  const sourceTargets = isDeckModel(source)
+    ? source.targetInstances.map((entry) => ({
+        instanceKey: entry.instanceKey,
+        targetId: entry.targetId,
+        targetName: entry.target.name,
+        cardIds: entry.target.cardIds,
+        syllables: entry.target.cardIds.map((cardId) => {
+          const cardEntry = source.cards.find((entry) => entry.card.id === cardId);
+          return cardEntry?.card.syllable ?? cardId;
+        }),
+        rarity: normalizeRarity(entry.target.rarity),
+      }))
+    : source.targets.map((target, index) => ({
+        instanceKey: `${target.id}-${index}`,
+        targetId: target.id,
+        targetName: target.name,
+        cardIds: target.syllables,
+        syllables: target.syllables,
+        rarity: normalizeRarity(target.rarity),
+      }));
+
+  const targetCounts = sourceTargets.reduce<Map<string, number>>((acc, target) => {
+    acc.set(target.targetId, (acc.get(target.targetId) ?? 0) + 1);
     return acc;
   }, new Map<string, number>());
   const targetIndexes = new Map<string, number>();
 
-  return deck.targets.map((target, index) => {
-    const occurrence = (targetIndexes.get(target.id) ?? 0) + 1;
-    targetIndexes.set(target.id, occurrence);
+  return sourceTargets.map((target) => {
+    const occurrence = (targetIndexes.get(target.targetId) ?? 0) + 1;
+    targetIndexes.set(target.targetId, occurrence);
 
     return {
-      instanceKey: `${target.id}-${index}`,
+      ...target,
       target,
       displayName:
-        (targetCounts.get(target.id) ?? 0) > 1 ? `${target.name} #${occurrence}` : target.name,
+        (targetCounts.get(target.targetId) ?? 0) > 1 ? `${target.targetName} #${occurrence}` : target.targetName,
     };
   });
 }
 
-function getSyllableUsage(deck: Deck) {
+function getSyllableUsage(source: DeckContentSource) {
   const usage = new Map<string, string[]>();
 
-  getDeckTargetInstances(deck).forEach(({ target, displayName }) => {
+  getDeckTargetInstances(source).forEach(({ target, displayName }) => {
     const uniqueSyllables = new Set(target.syllables);
     uniqueSyllables.forEach((syllable) => {
       const current = usage.get(syllable) ?? [];
@@ -149,15 +230,17 @@ function getSyllableUsage(deck: Deck) {
   return usage;
 }
 
-export function getDeckContentMetrics(deck: Deck): DeckContentMetrics {
-  const syllableCounts = Object.values(deck.syllables);
-  const targetLengths = deck.targets.map((target) => target.syllables.length);
-  const rarityCounts = deck.targets.reduce<Record<Rarity, number>>((acc, target) => {
-    const rarity = normalizeRarity(target.rarity);
+export function getDeckContentMetrics(deck: DeckContentSource): DeckContentMetrics {
+  const cardEntries = getDeckCardEntries(deck);
+  const targetInstances = getDeckTargetInstances(deck);
+  const syllableCounts = cardEntries.map((entry) => entry.copiesInDeck);
+  const targetLengths = targetInstances.map((target) => target.target.cardIds.length);
+  const rarityCounts = targetInstances.reduce<Record<Rarity, number>>((acc, target) => {
+    const rarity = normalizeRarity(target.target.rarity);
     acc[rarity] += 1;
     return acc;
   }, createEmptyRarityCounts());
-  const totalSyllables = syllableCounts.reduce((sum, count) => sum + count, 0);
+  const totalSyllables = cardEntries.reduce((sum, entry) => sum + entry.copiesInDeck, 0);
 
   return {
     totalSyllables,
@@ -166,7 +249,7 @@ export function getDeckContentMetrics(deck: Deck): DeckContentMetrics {
     averageTargetLength: round(average(targetLengths)),
     longestTargetLength: Math.max(0, ...targetLengths),
     averageDamage: round(
-      average(deck.targets.map((target) => RARITY_DAMAGE[normalizeRarity(target.rarity)])),
+      average(targetInstances.map((target) => RARITY_DAMAGE[target.target.rarity])),
     ),
     singleUseSyllableCount: syllableCounts.filter((count) => count === 1).length,
     highestSyllableCount: Math.max(0, ...syllableCounts),
@@ -174,14 +257,16 @@ export function getDeckContentMetrics(deck: Deck): DeckContentMetrics {
   };
 }
 
-export function getDeckContentWarnings(deck: Deck): DeckContentWarning[] {
+export function getDeckContentWarnings(deck: DeckContentSource): DeckContentWarning[] {
   const metrics = getDeckContentMetrics(deck);
+  const targetInstances = getDeckTargetInstances(deck);
+  const cardCopies = getDeckCardCopies(deck);
   const warnings: DeckContentWarning[] = [];
-  const uncommonOrHigher = deck.targets.filter(
-    (target) => RARITY_DAMAGE[normalizeRarity(target.rarity)] >= RARITY_DAMAGE.raro,
+  const uncommonOrHigher = targetInstances.filter(
+    (target) => RARITY_DAMAGE[target.target.rarity] >= RARITY_DAMAGE.raro,
   ).length;
-  const lowCoverageTargets = deck.targets.filter((target) =>
-    target.syllables.some((syllable) => (deck.syllables[syllable] ?? 0) <= 2),
+  const lowCoverageTargets = targetInstances.filter((target) =>
+    target.target.syllables.some((syllable) => (cardCopies.get(syllable) ?? 0) <= 2),
   ).length;
 
   if (metrics.longestTargetLength >= 4) {
@@ -193,7 +278,7 @@ export function getDeckContentWarnings(deck: Deck): DeckContentWarning[] {
     });
   }
 
-  if (metrics.averageDamage >= 2.5 || uncommonOrHigher >= Math.ceil(deck.targets.length * 0.66)) {
+  if (metrics.averageDamage >= 2.5 || uncommonOrHigher >= Math.ceil(targetInstances.length * 0.66)) {
     warnings.push({
       id: "damage-profile",
       severity: "warning",
@@ -220,7 +305,7 @@ export function getDeckContentWarnings(deck: Deck): DeckContentWarning[] {
     });
   }
 
-  if (lowCoverageTargets >= Math.ceil(deck.targets.length / 2)) {
+  if (lowCoverageTargets >= Math.ceil(targetInstances.length / 2)) {
     warnings.push({
       id: "tight-coverage",
       severity: "info",
@@ -229,7 +314,7 @@ export function getDeckContentWarnings(deck: Deck): DeckContentWarning[] {
     });
   }
 
-  if (deck.targets.length === CONFIG.targetsInPlay) {
+  if (targetInstances.length === CONFIG.targetsInPlay) {
     warnings.push({
       id: "minimum-target-count",
       severity: "info",
@@ -241,14 +326,16 @@ export function getDeckContentWarnings(deck: Deck): DeckContentWarning[] {
   return warnings;
 }
 
-export function getDeckSyllableBottlenecks(deck: Deck): DeckSyllableBottleneck[] {
+export function getDeckSyllableBottlenecks(deck: DeckContentSource): DeckSyllableBottleneck[] {
   const usage = getSyllableUsage(deck);
+  const cardCopies = getDeckCardCopies(deck);
+  const targetInstances = getDeckTargetInstances(deck);
 
   return [...usage.entries()]
     .map(([syllable, affectedTargets]) => {
-      const availableCopies = deck.syllables[syllable] ?? 0;
-      const requiredAcrossTargets = deck.targets.reduce(
-        (total, target) => total + countSyllableOccurrences(target.syllables, syllable),
+      const availableCopies = cardCopies.get(syllable) ?? 0;
+      const requiredAcrossTargets = targetInstances.reduce(
+        (total, target) => total + countSyllableOccurrences(target.target.syllables, syllable),
         0,
       );
 
@@ -268,8 +355,9 @@ export function getDeckSyllableBottlenecks(deck: Deck): DeckSyllableBottleneck[]
     });
 }
 
-export function getDeckTargetCompetition(deck: Deck): DeckTargetCompetition[] {
+export function getDeckTargetCompetition(deck: DeckContentSource): DeckTargetCompetition[] {
   const targetInstances = getDeckTargetInstances(deck);
+  const cardCopies = getDeckCardCopies(deck);
 
   return targetInstances
     .map(({ instanceKey, target, displayName }) => {
@@ -289,7 +377,7 @@ export function getDeckTargetCompetition(deck: Deck): DeckTargetCompetition[] {
       const pressureScore = round(
         average(
           sharedSyllables.map((syllable) => {
-            const availableCopies = deck.syllables[syllable] ?? 0;
+            const availableCopies = cardCopies.get(syllable) ?? 0;
             const requiredAcrossTargets = targetInstances.reduce(
               (total, entry) => total + countSyllableOccurrences(entry.target.syllables, syllable),
               0,
@@ -301,7 +389,7 @@ export function getDeckTargetCompetition(deck: Deck): DeckTargetCompetition[] {
 
       return {
         instanceKey,
-        targetId: target.id,
+        targetId: target.targetId,
         targetName: displayName,
         sharedSyllables,
         competingTargets,
@@ -318,7 +406,10 @@ export function getDeckTargetCompetition(deck: Deck): DeckTargetCompetition[] {
     });
 }
 
-export function getDeckRelativeChecks(deck: Deck, catalog: Deck[]): DeckRelativeCheck[] {
+export function getDeckRelativeChecks(
+  deck: DeckContentSource,
+  catalog: DeckContentSource[],
+): DeckRelativeCheck[] {
   if (catalog.length <= 1) return [];
 
   const metrics = getDeckContentMetrics(deck);
@@ -341,25 +432,25 @@ export function getDeckRelativeChecks(deck: Deck, catalog: Deck[]): DeckRelative
 
   if (
     metrics.averageDamage >= averageDamageAcrossCatalog + 0.4 &&
-    highestDamageDeck.deck.id === deck.id
+    getDeckId(highestDamageDeck.deck) === getDeckId(deck)
   ) {
     checks.push({
       id: "relative-damage",
       severity: "warning",
       title: "Deck com pressao de dano acima do catalogo",
-      detail: `${deck.name} lidera a media de dano (${metrics.averageDamage}) contra ${round(averageDamageAcrossCatalog)} no catalogo atual.`,
+      detail: `${getDeckName(deck)} lidera a media de dano (${metrics.averageDamage}) contra ${round(averageDamageAcrossCatalog)} no catalogo atual.`,
     });
   }
 
   if (
     metrics.averageCopiesPerSyllable <= averageCopiesAcrossCatalog - 0.35 &&
-    lowestRedundancyDeck.deck.id === deck.id
+    getDeckId(lowestRedundancyDeck.deck) === getDeckId(deck)
   ) {
     checks.push({
       id: "relative-redundancy",
       severity: "warning",
       title: "Deck com redundancia abaixo da media do catalogo",
-      detail: `${deck.name} esta em ${metrics.averageCopiesPerSyllable} copias medias por silaba, abaixo da media do catalogo (${round(averageCopiesAcrossCatalog)}).`,
+      detail: `${getDeckName(deck)} esta em ${metrics.averageCopiesPerSyllable} copias medias por silaba, abaixo da media do catalogo (${round(averageCopiesAcrossCatalog)}).`,
     });
   }
 
@@ -368,7 +459,7 @@ export function getDeckRelativeChecks(deck: Deck, catalog: Deck[]): DeckRelative
       id: "relative-target-length",
       severity: "info",
       title: "Deck entre os mais exigentes em comprimento de target",
-      detail: `${deck.name} divide o maior target do catalogo com ${maximumTargetLength} silabas.`,
+      detail: `${getDeckName(deck)} divide o maior target do catalogo com ${maximumTargetLength} silabas.`,
     });
   }
 
@@ -377,14 +468,17 @@ export function getDeckRelativeChecks(deck: Deck, catalog: Deck[]): DeckRelative
       id: "relative-variety",
       severity: "info",
       title: "Deck com cobertura mais diversa que a media",
-      detail: `${deck.name} trabalha com ${metrics.uniqueSyllables} silabas unicas, acima da cobertura media do catalogo.`,
+      detail: `${getDeckName(deck)} trabalha com ${metrics.uniqueSyllables} silabas unicas, acima da cobertura media do catalogo.`,
     });
   }
 
   return checks;
 }
 
-export function compareDeckMetrics(baseDeck: Deck, compareDeck: Deck): DeckMetricComparison[] {
+export function compareDeckMetrics(
+  baseDeck: DeckContentSource,
+  compareDeck: DeckContentSource,
+): DeckMetricComparison[] {
   const baseMetrics = getDeckContentMetrics(baseDeck);
   const compareMetrics = getDeckContentMetrics(compareDeck);
 
@@ -406,11 +500,16 @@ export function compareDeckMetrics(baseDeck: Deck, compareDeck: Deck): DeckMetri
   });
 }
 
-export function inspectDeckContent(deck: Deck, catalog: Deck[] = [deck]): DeckContentInspection {
+export function inspectDeckContent(
+  deck: DeckContentSource,
+  catalog: DeckContentSource[] = [deck],
+  runtimeDecksById: Record<string, Deck> = {},
+): DeckContentInspection {
   const metrics = getDeckContentMetrics(deck);
 
   return {
-    deck,
+    deckModel: isDeckModel(deck) ? deck : null,
+    deck: isDeckModel(deck) ? runtimeDecksById[deck.id] ?? null : deck,
     metrics,
     warnings: getDeckContentWarnings(deck),
     bottlenecks: getDeckSyllableBottlenecks(deck),
@@ -419,8 +518,11 @@ export function inspectDeckContent(deck: Deck, catalog: Deck[] = [deck]): DeckCo
   };
 }
 
-export function inspectDeckCatalog(decks: Deck[]): DeckContentInspection[] {
-  return decks.map((deck) => inspectDeckContent(deck, decks));
+export function inspectDeckCatalog(
+  decks: DeckContentSource[],
+  runtimeDecksById: Record<string, Deck> = {},
+): DeckContentInspection[] {
+  return decks.map((deck) => inspectDeckContent(deck, decks, runtimeDecksById));
 }
 
 export function formatRarityBreakdown(rarityCounts: Record<Rarity, number>) {
