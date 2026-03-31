@@ -35,6 +35,7 @@ import {
   syncDeckPoolWithTargetMinimums,
   cloneRawDeckDefinition,
   createEmptyContentEditorDeckEntry,
+  createContentEditorTargetDraftFromRawTarget,
   createContentEditorDeckDraft,
   createDeckIdCandidate,
   createDuplicatedContentEditorDeckEntry,
@@ -69,6 +70,20 @@ const themeIds = Object.keys(DECK_VISUAL_THEME_CLASSES) as DeckVisualThemeId[];
 
 const createSourceEntriesState = () => rawDeckCatalogEntries.map((entry) => cloneRawDeckCatalogEntry(entry));
 const createSourceTargetsState = () => rawTargetCatalog.map((target) => cloneRawTargetDefinition(target));
+const createCatalogDraftTargetsState = (targets: typeof rawTargetCatalog) =>
+  targets.map((target) => createContentEditorTargetDraftFromRawTarget(target, target.id, 1));
+const createDeckCompositionTargetFromCatalog = (target: ContentEditorTargetDraft, copies = "1"): ContentEditorTargetDraft => ({
+  ...target,
+  copies,
+});
+const syncDeckCompositionTargetsFromCatalog = (
+  deckTargets: ContentEditorTargetDraft[],
+  catalogTargets: ContentEditorTargetDraft[],
+) =>
+  deckTargets.map((target) => {
+    const catalogTarget = catalogTargets.find((entry) => entry.id === target.id);
+    return catalogTarget ? createDeckCompositionTargetFromCatalog(catalogTarget, target.copies) : target;
+  });
 
 const createDraftForDeck = (entries: RawDeckCatalogEntry[], targets: typeof rawTargetCatalog, deckId: string) =>
   createContentEditorDeckDraft(
@@ -91,6 +106,12 @@ const getDerivedCardsGridColumns = (width: number) => {
 
 const getTargetGridColumns = (width: number) => {
   if (width >= 1280) return 3;
+  return 2;
+};
+
+const getCatalogTargetGridColumns = (width: number) => {
+  if (width >= 1280) return 6;
+  if (width >= 768) return 3;
   return 2;
 };
 
@@ -325,17 +346,23 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
 export const ContentEditor: React.FC = () => {
   const initialSourceEntries = useMemo(createSourceEntriesState, []);
   const initialSourceTargets = useMemo(createSourceTargetsState, []);
+  const initialCatalogDraftTargets = useMemo(() => createCatalogDraftTargetsState(initialSourceTargets), [initialSourceTargets]);
   const [sourceEntries, setSourceEntries] = useState(initialSourceEntries);
   const [sourceTargets, setSourceTargets] = useState(initialSourceTargets);
+  const [catalogDraftTargets, setCatalogDraftTargets] = useState(initialCatalogDraftTargets);
   const [persistedDeckIds, setPersistedDeckIds] = useState(() => new Set(initialSourceEntries.map((entry) => entry.id)));
   const [selectedDeckId, setSelectedDeckId] = useState(() => initialSourceEntries[0]?.id ?? "");
   const [draft, setDraft] = useState<ContentEditorDeckDraft>(() =>
     createDraftForDeck(initialSourceEntries, initialSourceTargets, initialSourceEntries[0]?.id ?? ""),
   );
   const [selectedTargetId, setSelectedTargetId] = useState("");
+  const [selectedCatalogTargetId, setSelectedCatalogTargetId] = useState("");
   const [selectedSyllableRowId, setSelectedSyllableRowId] = useState("");
   const [targetGridColumns, setTargetGridColumns] = useState(() =>
     typeof window !== "undefined" ? getTargetGridColumns(window.innerWidth) : 2,
+  );
+  const [catalogTargetGridColumns, setCatalogTargetGridColumns] = useState(() =>
+    typeof window !== "undefined" ? getCatalogTargetGridColumns(window.innerWidth) : 2,
   );
   const [derivedCardsGridColumns, setDerivedCardsGridColumns] = useState(() =>
     typeof window !== "undefined" ? getDerivedCardsGridColumns(window.innerWidth) : 2,
@@ -367,6 +394,7 @@ export const ContentEditor: React.FC = () => {
     () => (persistedDeck ? createContentEditorDeckDraft(persistedDeck, sourceTargets) : draft),
     [draft, persistedDeck, sourceTargets],
   );
+  const baselineCatalogDraftTargets = useMemo(() => createCatalogDraftTargetsState(sourceTargets), [sourceTargets]);
   const draftRawDeck = useMemo(() => hydrateRawDeckDefinitionFromDraft(draft), [draft]);
   const draftDeckIdCandidate = useMemo(() => createDeckIdCandidate(draft.name, draft.id), [draft.id, draft.name]);
   const deckNameConflictEntry = useMemo(
@@ -385,15 +413,20 @@ export const ContentEditor: React.FC = () => {
   );
   const draftSaveEntry = useMemo(() => createRawDeckCatalogEntry(draftSaveDeck), [draftSaveDeck]);
   const nextSourceTargets = useMemo(
-    () => hydrateRawTargetCatalogFromDraftTargets(sourceTargets, draft.targets),
-    [draft.targets, sourceTargets],
+    () => hydrateRawTargetCatalogFromDraftTargets(sourceTargets, catalogDraftTargets),
+    [catalogDraftTargets, sourceTargets],
   );
-  const isDirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(baselineDraft), [baselineDraft, draft]);
+  const isDirty = useMemo(
+    () =>
+      JSON.stringify(draft) !== JSON.stringify(baselineDraft) ||
+      JSON.stringify(catalogDraftTargets) !== JSON.stringify(baselineCatalogDraftTargets),
+    [baselineCatalogDraftTargets, baselineDraft, catalogDraftTargets, draft],
+  );
 
   const localIssues = useMemo(() => getContentEditorLocalIssues(draft), [draft]);
   const preview = useMemo(
-    () => buildContentEditorPreview(sourceEntries, sourceTargets, selectedDeckId, draft),
-    [draft, selectedDeckId, sourceEntries, sourceTargets],
+    () => buildContentEditorPreview(sourceEntries, sourceTargets, selectedDeckId, draft, catalogDraftTargets),
+    [catalogDraftTargets, draft, selectedDeckId, sourceEntries, sourceTargets],
   );
 
   const selectedDeckModel = useMemo(
@@ -417,13 +450,29 @@ export const ContentEditor: React.FC = () => {
     () => draft.targets.find((target) => target.id === selectedTargetId) ?? null,
     [draft.targets, selectedTargetId],
   );
+  const selectedCatalogTargetDraft = useMemo(
+    () => catalogDraftTargets.find((target) => target.id === selectedCatalogTargetId) ?? null,
+    [catalogDraftTargets, selectedCatalogTargetId],
+  );
   const selectedTargetSyllables = useMemo(
     () => (selectedTargetDraft ? parseContentEditorTargetSyllables(selectedTargetDraft.syllablesText) : []),
     [selectedTargetDraft],
   );
+  const selectedCatalogTargetSyllables = useMemo(
+    () => (selectedCatalogTargetDraft ? parseContentEditorTargetSyllables(selectedCatalogTargetDraft.syllablesText) : []),
+    [selectedCatalogTargetDraft],
+  );
   const selectedTargetNameValidation = useMemo(
     () => buildContentEditorTargetNameValidation(selectedTargetDraft?.name ?? "", selectedTargetDraft?.syllablesText ?? ""),
     [selectedTargetDraft],
+  );
+  const selectedCatalogTargetNameValidation = useMemo(
+    () =>
+      buildContentEditorTargetNameValidation(
+        selectedCatalogTargetDraft?.name ?? "",
+        selectedCatalogTargetDraft?.syllablesText ?? "",
+      ),
+    [selectedCatalogTargetDraft],
   );
   const targetNameValidationById = useMemo(
     () =>
@@ -432,6 +481,14 @@ export const ContentEditor: React.FC = () => {
         return acc;
       }, {}),
     [draft.targets],
+  );
+  const catalogTargetNameValidationById = useMemo(
+    () =>
+      catalogDraftTargets.reduce<Record<string, ReturnType<typeof buildContentEditorTargetNameValidation>>>((acc, target) => {
+        acc[target.id] = buildContentEditorTargetNameValidation(target.name, target.syllablesText);
+        return acc;
+      }, {}),
+    [catalogDraftTargets],
   );
   const missingTargetCount = useMemo(
     () => draft.targets.filter((target) => !targetNameValidationById[target.id]?.matchesName).length,
@@ -457,6 +514,34 @@ export const ContentEditor: React.FC = () => {
     () => (preview.ok ? selectedDeckDefinition?.targetIds.length ?? 0 : 0),
     [preview, selectedDeckDefinition],
   );
+  const catalogTargetUsageById = useMemo(() => {
+    const usage = new Map<string, string[]>();
+
+    sourceEntries.forEach((entry) => {
+      const targetIds =
+        entry.id === selectedDeckId
+          ? draft.targets.flatMap((target) =>
+              Array.from({ length: Math.max(0, Number(target.copies) || 0) }, () => target.id),
+            )
+          : entry.deck.targetIds;
+
+      [...new Set(targetIds)].forEach((targetId) => {
+        const nextDeckNames = usage.get(targetId) ?? [];
+        nextDeckNames.push(entry.deck.name);
+        usage.set(targetId, nextDeckNames);
+      });
+    });
+
+    return usage;
+  }, [draft.targets, selectedDeckId, sourceEntries]);
+  const selectedCatalogTargetUsageDeckNames = useMemo(
+    () => (selectedCatalogTargetDraft ? catalogTargetUsageById.get(selectedCatalogTargetDraft.id) ?? [] : []),
+    [catalogTargetUsageById, selectedCatalogTargetDraft],
+  );
+  const selectedCatalogTargetIsInDeck = useMemo(
+    () => (selectedCatalogTargetDraft ? draft.targets.some((target) => target.id === selectedCatalogTargetDraft.id) : false),
+    [draft.targets, selectedCatalogTargetDraft],
+  );
   const persistedSource = useMemo(
     () =>
       selectedDeckEntry && persistedDeck
@@ -480,11 +565,15 @@ export const ContentEditor: React.FC = () => {
   );
   const hasSaveSourceChanges = saveSourceDiff.hasChanges || targetSourceDiff.hasChanges;
   const targetGridItems = useMemo(
-    () => [
-      ...draft.targets.map((target) => ({ kind: "target" as const, id: target.id, target })),
-      { kind: "add" as const, id: "__add-target__" },
-    ],
+    () => draft.targets.map((target) => ({ kind: "target" as const, id: target.id, target })),
     [draft.targets],
+  );
+  const catalogTargetGridItems = useMemo(
+    () => [
+      ...catalogDraftTargets.map((target) => ({ kind: "target" as const, id: target.id, target })),
+      { kind: "add" as const, id: "__add-catalog-target__" },
+    ],
+    [catalogDraftTargets],
   );
   const syllableGridItems = useMemo(
     () => effectivePoolRows.map((row) => ({ kind: "row" as const, id: row.id, row })),
@@ -523,6 +612,16 @@ export const ContentEditor: React.FC = () => {
     const rowStartIndex = Math.floor(selectedIndex / targetGridColumns) * targetGridColumns;
     return Math.min(targetGridItems.length - 1, rowStartIndex + targetGridColumns - 1);
   }, [selectedTargetId, targetGridColumns, targetGridItems]);
+  const expandedCatalogTargetRowEndIndex = useMemo(() => {
+    if (!selectedCatalogTargetId) return -1;
+    const selectedIndex = catalogTargetGridItems.findIndex(
+      (item) => item.kind === "target" && item.id === selectedCatalogTargetId,
+    );
+    if (selectedIndex < 0) return -1;
+
+    const rowStartIndex = Math.floor(selectedIndex / catalogTargetGridColumns) * catalogTargetGridColumns;
+    return Math.min(catalogTargetGridItems.length - 1, rowStartIndex + catalogTargetGridColumns - 1);
+  }, [catalogTargetGridColumns, catalogTargetGridItems, selectedCatalogTargetId]);
   const expandedSyllableRowEndIndex = useMemo(() => {
     if (!selectedSyllableRowId) return -1;
     const selectedIndex = syllableGridItems.findIndex((item) => item.kind === "row" && item.id === selectedSyllableRowId);
@@ -548,6 +647,11 @@ export const ContentEditor: React.FC = () => {
       setSelectedTargetId("");
     }
   }, [draft.targets, selectedTargetId]);
+  useEffect(() => {
+    if (selectedCatalogTargetId && !catalogDraftTargets.some((target) => target.id === selectedCatalogTargetId)) {
+      setSelectedCatalogTargetId("");
+    }
+  }, [catalogDraftTargets, selectedCatalogTargetId]);
 
   useEffect(() => {
     if (selectedSyllableRowId && !effectivePoolRows.some((row) => row.id === selectedSyllableRowId)) {
@@ -564,6 +668,7 @@ export const ContentEditor: React.FC = () => {
     const syncColumns = () => {
       if (typeof window === "undefined") return;
       setTargetGridColumns(getTargetGridColumns(window.innerWidth));
+      setCatalogTargetGridColumns(getCatalogTargetGridColumns(window.innerWidth));
       setDerivedCardsGridColumns(getDerivedCardsGridColumns(window.innerWidth));
     };
 
@@ -590,6 +695,8 @@ export const ContentEditor: React.FC = () => {
       setSelectedDeckId(nextDeckId);
       setDraft(nextDraft);
       setSelectedTargetId("");
+      setSelectedCatalogTargetId("");
+      setCatalogDraftTargets(createCatalogDraftTargetsState(sourceTargets));
       setSelectedSyllableRowId("");
       setSaveStatus(idleSaveStatus);
     });
@@ -601,12 +708,40 @@ export const ContentEditor: React.FC = () => {
     const nextDraft = createContentEditorDeckDraft(baselineDeck, sourceTargets);
     setDraft(nextDraft);
     setSelectedTargetId("");
+    setSelectedCatalogTargetId("");
+    setCatalogDraftTargets(createCatalogDraftTargetsState(sourceTargets));
     setSelectedSyllableRowId("");
     setSaveStatus(idleSaveStatus);
   };
 
   const updateDraft = (updater: (current: ContentEditorDeckDraft) => ContentEditorDeckDraft) => {
     setDraft((current) => updater(current));
+    setSaveStatus(idleSaveStatus);
+  };
+
+  const updateCatalogTarget = (
+    targetId: string,
+    patch: Partial<ContentEditorDeckDraft["targets"][number]>,
+  ) => {
+    setCatalogDraftTargets((currentCatalogTargets) => {
+      const nextCatalogTargets = currentCatalogTargets.map((target) =>
+        target.id === targetId ? { ...target, ...patch } : target,
+      );
+
+      setDraft((currentDraft) => {
+        const nextDeckTargets = syncDeckCompositionTargetsFromCatalog(currentDraft.targets, nextCatalogTargets);
+        return {
+          ...currentDraft,
+          targets: nextDeckTargets,
+          manualPoolAdjustments: normalizeContentEditorPoolAdjustments(
+            currentDraft.manualPoolAdjustments,
+            nextDeckTargets,
+          ),
+        };
+      });
+
+      return nextCatalogTargets;
+    });
     setSaveStatus(idleSaveStatus);
   };
 
@@ -690,6 +825,8 @@ export const ContentEditor: React.FC = () => {
       setSelectedDeckId(nextEntry.id);
       setDraft(createContentEditorDeckDraft(nextEntry.deck, sourceTargets));
       setSelectedTargetId("");
+      setSelectedCatalogTargetId("");
+      setCatalogDraftTargets(createCatalogDraftTargetsState(sourceTargets));
       setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "idle",
@@ -706,7 +843,7 @@ export const ContentEditor: React.FC = () => {
       const nextTargets = current.targets.map((target) => (target.id === targetId ? { ...target, ...patch } : target));
       return {
         ...current,
-        targets: nextTargets,
+      targets: nextTargets,
         manualPoolAdjustments: normalizeContentEditorPoolAdjustments(current.manualPoolAdjustments, nextTargets),
       };
     });
@@ -735,7 +872,7 @@ export const ContentEditor: React.FC = () => {
         body: JSON.stringify({
           entry: nextEntry,
           deck: nextEntry.deck,
-          targetCatalog: sourceTargets,
+          targetCatalog: nextSourceTargets,
         }),
       });
       const payload = (await response.json()) as { ok?: boolean; error?: string; path?: string; indexPath?: string };
@@ -744,10 +881,13 @@ export const ContentEditor: React.FC = () => {
       }
 
       setSourceEntries((current) => upsertRawDeckInCatalog(current, nextEntry));
+      setSourceTargets(nextSourceTargets);
+      setCatalogDraftTargets(createCatalogDraftTargetsState(nextSourceTargets));
       setPersistedDeckIds((current) => new Set([...current, nextEntry.id]));
       setSelectedDeckId(nextEntry.id);
-      setDraft(createContentEditorDeckDraft(nextEntry.deck, sourceTargets));
+      setDraft(createContentEditorDeckDraft(nextEntry.deck, nextSourceTargets));
       setSelectedTargetId("");
+      setSelectedCatalogTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "success",
@@ -786,6 +926,7 @@ export const ContentEditor: React.FC = () => {
       setSelectedDeckId(nextDeckId);
       setDraft(createContentEditorDeckDraft(nextDeck.deck, sourceTargets));
       setSelectedTargetId("");
+      setSelectedCatalogTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "success",
@@ -825,6 +966,7 @@ export const ContentEditor: React.FC = () => {
       setSelectedDeckId(nextDeckId);
       setDraft(createContentEditorDeckDraft(nextDeck.deck, sourceTargets));
       setSelectedTargetId("");
+      setSelectedCatalogTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "success",
@@ -841,24 +983,19 @@ export const ContentEditor: React.FC = () => {
   };
 
   const removeSyllableFromTarget = (targetId: string, index: number) => {
-    const target = draft.targets.find((entry) => entry.id === targetId);
-    if (!target) return;
-    updateTarget(targetId, {
-      syllablesText: removeContentEditorTargetSyllableAt(target.syllablesText, index),
-    });
+    void targetId;
+    void index;
   };
 
-  const addTarget = () => {
+  const addCatalogTarget = () => {
     const targetIds = new Set<string>();
     sourceTargets.forEach((target) => targetIds.add(target.id));
-    draft.targets.forEach((target) => targetIds.add(target.id));
+    catalogDraftTargets.forEach((target) => targetIds.add(target.id));
 
     const nextTarget = createEmptyContentEditorTarget(targetIds);
-    updateDraft((current) => ({
-      ...current,
-      targets: [...current.targets, nextTarget],
-    }));
-    setSelectedTargetId(nextTarget.id);
+    setCatalogDraftTargets((current) => [...current, nextTarget]);
+    setSelectedCatalogTargetId(nextTarget.id);
+    setSaveStatus(idleSaveStatus);
   };
 
   const removeTarget = (targetId: string) => {
@@ -871,6 +1008,40 @@ export const ContentEditor: React.FC = () => {
         manualPoolAdjustments: normalizeContentEditorPoolAdjustments(current.manualPoolAdjustments, nextTargets),
       };
     });
+  };
+
+  const addCatalogTargetToDeck = (targetId: string) => {
+    const catalogTarget = catalogDraftTargets.find((target) => target.id === targetId);
+    if (!catalogTarget) return;
+
+    updateDraft((current) => {
+      if (current.targets.some((target) => target.id === targetId)) {
+        return current;
+      }
+
+      const nextTargets = [...current.targets, createDeckCompositionTargetFromCatalog(catalogTarget)];
+      return {
+        ...current,
+        targets: nextTargets,
+        manualPoolAdjustments: normalizeContentEditorPoolAdjustments(current.manualPoolAdjustments, nextTargets),
+      };
+    });
+    setSelectedTargetId(targetId);
+  };
+
+  const removeCatalogTarget = (targetId: string) => {
+    const usageDeckNames = catalogTargetUsageById.get(targetId) ?? [];
+    if (usageDeckNames.length > 0) {
+      setSaveStatus({
+        tone: "error",
+        message: `Nao da para excluir ${targetId} do catalogo enquanto ele estiver em uso em ${usageDeckNames.join(", ")}.`,
+      });
+      return;
+    }
+
+    setCatalogDraftTargets((current) => current.filter((target) => target.id !== targetId));
+    setSelectedCatalogTargetId("");
+    setSaveStatus(idleSaveStatus);
   };
 
   const moveTarget = (targetId: string, direction: -1 | 1) => {
@@ -978,6 +1149,23 @@ export const ContentEditor: React.FC = () => {
     selectedTargetNameValidation.canValidate,
     selectedTargetNameValidation.matchesName,
   ]);
+  const selectedCatalogTargetSyllablesHasIssue = useMemo(() => {
+    if (!selectedCatalogTargetDraft) return false;
+    const hasSyllablesInput = selectedCatalogTargetDraft.syllablesText.trim().length > 0;
+    if (!hasSyllablesInput) return false;
+    if (selectedCatalogTargetNameValidation.canValidate && !selectedCatalogTargetNameValidation.matchesName) return true;
+
+    return pipelineIssues.some(
+      (issue) =>
+        issue.includes(`Target "${selectedCatalogTargetDraft.id}"`) ||
+        issue.includes(`target "${selectedCatalogTargetDraft.id}"`),
+    );
+  }, [
+    pipelineIssues,
+    selectedCatalogTargetDraft,
+    selectedCatalogTargetNameValidation.canValidate,
+    selectedCatalogTargetNameValidation.matchesName,
+  ]);
   const selectedSyllableCountHasIssue = useMemo(
     () =>
       Boolean(
@@ -1029,6 +1217,7 @@ export const ContentEditor: React.FC = () => {
         return upsertRawDeckInCatalog(baseEntries, nextEntry);
       });
       setSourceTargets(nextSourceTargets);
+      setCatalogDraftTargets(createCatalogDraftTargetsState(nextSourceTargets));
       setPersistedDeckIds((current) => {
         const nextIds = new Set(current);
         if (previousDeckId) nextIds.delete(previousDeckId);
@@ -1038,6 +1227,7 @@ export const ContentEditor: React.FC = () => {
       setSelectedDeckId(nextEntry.id);
       setDraft(createContentEditorDeckDraft(nextEntry.deck, nextSourceTargets));
       setSelectedTargetId("");
+      setSelectedCatalogTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "success",
@@ -1353,26 +1543,20 @@ export const ContentEditor: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                     {targetGridItems.map((item, index) => (
                       <React.Fragment key={item.id}>
-                        {item.kind === "target" ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedTargetId((current) => (current === item.target.id ? "" : item.target.id))
-                            }
-                            className="text-left"
-                          >
-                            <DraftTargetCard
-                              target={item.target}
-                              active={item.target.id === selectedTargetDraft?.id}
-                              copies={getTargetCopiesDisplayValue(item.target.copies)}
-                              nameValidation={targetNameValidationById[item.target.id]}
-                            />
-                          </button>
-                        ) : (
-                          <button type="button" onClick={addTarget} className="text-left">
-                            <AddTargetCard />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedTargetId((current) => (current === item.target.id ? "" : item.target.id))
+                          }
+                          className="text-left"
+                        >
+                          <DraftTargetCard
+                            target={item.target}
+                            active={item.target.id === selectedTargetDraft?.id}
+                            copies={getTargetCopiesDisplayValue(item.target.copies)}
+                            nameValidation={targetNameValidationById[item.target.id]}
+                          />
+                        </button>
 
                         {selectedTargetDraft && index === expandedTargetRowEndIndex ? (
                           <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3">
@@ -1415,8 +1599,8 @@ export const ContentEditor: React.FC = () => {
                                 <Field label="Nome">
                                   <input
                                     value={selectedTargetDraft.name}
-                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { name: event.target.value })}
-                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                    readOnly
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
                                   />
                                 </Field>
 
@@ -1440,16 +1624,16 @@ export const ContentEditor: React.FC = () => {
                                 <Field label="Emoji">
                                   <input
                                     value={selectedTargetDraft.emoji}
-                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { emoji: event.target.value })}
-                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                    readOnly
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
                                   />
                                 </Field>
 
                                 <Field label="Rarity">
                                   <select
                                     value={selectedTargetDraft.rarity}
-                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { rarity: event.target.value })}
-                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                    disabled
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
                                   >
                                     <option value="comum">comum</option>
                                     <option value="raro">raro</option>
@@ -1462,9 +1646,9 @@ export const ContentEditor: React.FC = () => {
                               <Field label="Descricao">
                                 <textarea
                                   value={selectedTargetDraft.description}
-                                  onChange={(event) => updateTarget(selectedTargetDraft.id, { description: event.target.value })}
+                                  readOnly
                                   rows={3}
-                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
                                 />
                               </Field>
 
@@ -1473,22 +1657,13 @@ export const ContentEditor: React.FC = () => {
                                   <Field label="Silabas do target">
                                     <input
                                       value={selectedTargetDraft.syllablesText}
-                                      onChange={(event) =>
-                                        updateTarget(selectedTargetDraft.id, {
-                                          syllablesText: event.target.value.toUpperCase(),
-                                        })
-                                      }
                                       placeholder="Ex.: BA, NA, NA"
-                                      className={cn(
-                                        "w-full rounded-2xl border px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35",
-                                        selectedTargetSyllablesHasIssue
-                                          ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                          : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
-                                      )}
+                                      readOnly
+                                      className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none placeholder:text-amber-900/35"
                                     />
                                   </Field>
                                   <div className="text-xs text-amber-950/60">
-                                    Digite livremente. Se o nome fechar, o pool minimo entra sozinho.
+                                    A definicao do alvo agora e editada no Catalogo de Alvos logo abaixo.
                                   </div>
                                   <div
                                     className={cn(
@@ -1687,6 +1862,213 @@ export const ContentEditor: React.FC = () => {
                     </div>
                   </Panel>
                 </div>
+
+                <Panel
+                  title="Catalogo de Alvos"
+                  icon={<BookOpenText className="h-5 w-5" />}
+                  headerAction={
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                        {catalogDraftTargets.length} alvo(s)
+                      </Badge>
+                    </div>
+                  }
+                >
+                  <div className="mb-4 rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-3 text-sm text-sky-950">
+                    Esta secao aparece dentro do deck atual, mas edita o catalogo global unico compartilhado por todos os decks.
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-3 md:grid-cols-3 xl:grid-cols-6">
+                    {catalogTargetGridItems.map((item, index) => (
+                      <React.Fragment key={item.id}>
+                        {item.kind === "target" ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedCatalogTargetId((current) => (current === item.target.id ? "" : item.target.id))
+                            }
+                            className="text-left"
+                          >
+                            <DraftTargetCard
+                              target={item.target}
+                              active={item.target.id === selectedCatalogTargetDraft?.id}
+                              copies={1}
+                              showCopies={false}
+                              nameValidation={catalogTargetNameValidationById[item.target.id]}
+                            />
+                          </button>
+                        ) : (
+                          <button type="button" onClick={addCatalogTarget} className="text-left">
+                            <AddTargetCard compact />
+                          </button>
+                        )}
+
+                        {selectedCatalogTargetDraft && index === expandedCatalogTargetRowEndIndex ? (
+                          <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] md:col-span-3 xl:col-span-6">
+                            <div className="mb-4 flex flex-wrap items-center gap-3">
+                              <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
+                                id interno: {selectedCatalogTargetDraft.id}
+                              </Badge>
+                              <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                                {selectedCatalogTargetUsageDeckNames.length} deck(s) usando
+                              </Badge>
+                              <div className="ml-auto flex flex-wrap items-center gap-2">
+                                {selectedCatalogTargetIsInDeck ? (
+                                  <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
+                                    ja esta no deck
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    className="h-10 min-w-[7rem] rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-3 text-emerald-950 hover:bg-emerald-200/80"
+                                    onClick={() => addCatalogTargetToDeck(selectedCatalogTargetDraft.id)}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                    No deck
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  className="h-10 min-w-[7rem] rounded-2xl border border-rose-300/25 bg-rose-500/10 px-3 text-rose-900 hover:bg-rose-500/15"
+                                  onClick={() => removeCatalogTarget(selectedCatalogTargetDraft.id)}
+                                  disabled={selectedCatalogTargetUsageDeckNames.length > 0}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Excluir
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-4">
+                              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,7rem)]">
+                                <Field label="Nome">
+                                  <input
+                                    value={selectedCatalogTargetDraft.name}
+                                    onChange={(event) => updateCatalogTarget(selectedCatalogTargetDraft.id, { name: event.target.value })}
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  />
+                                </Field>
+
+                                <Field label="Emoji">
+                                  <input
+                                    value={selectedCatalogTargetDraft.emoji}
+                                    onChange={(event) => updateCatalogTarget(selectedCatalogTargetDraft.id, { emoji: event.target.value })}
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <Field label="Rarity">
+                                  <select
+                                    value={selectedCatalogTargetDraft.rarity}
+                                    onChange={(event) => updateCatalogTarget(selectedCatalogTargetDraft.id, { rarity: event.target.value })}
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  >
+                                    <option value="comum">comum</option>
+                                    <option value="raro">raro</option>
+                                    <option value="epico">epico</option>
+                                    <option value="lendario">lendario</option>
+                                  </select>
+                                </Field>
+
+                                <Field label="Silabas do alvo">
+                                  <input
+                                    value={selectedCatalogTargetDraft.syllablesText}
+                                    onChange={(event) =>
+                                      updateCatalogTarget(selectedCatalogTargetDraft.id, {
+                                        syllablesText: event.target.value.toUpperCase(),
+                                      })
+                                    }
+                                    placeholder="Ex.: BA, NA, NA"
+                                    className={cn(
+                                      "w-full rounded-2xl border px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35",
+                                      selectedCatalogTargetSyllablesHasIssue
+                                        ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                        : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                    )}
+                                  />
+                                </Field>
+                              </div>
+
+                              <Field label="Descricao">
+                                <textarea
+                                  value={selectedCatalogTargetDraft.description}
+                                  onChange={(event) =>
+                                    updateCatalogTarget(selectedCatalogTargetDraft.id, { description: event.target.value })
+                                  }
+                                  rows={3}
+                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                />
+                              </Field>
+
+                              <div
+                                className={cn(
+                                  "rounded-2xl border px-3 py-3 text-sm",
+                                  !selectedCatalogTargetNameValidation.canValidate
+                                    ? "border-amber-900/12 bg-white/65 text-amber-950/75"
+                                    : !selectedCatalogTargetNameValidation.matchesName
+                                      ? "border-rose-300/25 bg-rose-50/80 text-rose-950"
+                                      : "border-emerald-700/15 bg-emerald-100/80 text-emerald-950",
+                                )}
+                              >
+                                {selectedCatalogTargetNameValidation.canValidate ? (
+                                  selectedCatalogTargetNameValidation.matchesName ? (
+                                    <span>
+                                      Nome valido: <span className="font-black">{selectedCatalogTargetNameValidation.normalizedName}</span>
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      {selectedCatalogTargetNameValidation.respectsExplicitSegmentation ? (
+                                        <>
+                                          Nome <span className="font-black">{selectedCatalogTargetNameValidation.normalizedName || "?"}</span> nao bate com{" "}
+                                          <span className="font-black">{selectedCatalogTargetNameValidation.normalizedSyllableWord || "?"}</span>.
+                                        </>
+                                      ) : (
+                                        <>Separe as silabas. Nao use a palavra inteira.</>
+                                      )}
+                                    </span>
+                                  )
+                                ) : (
+                                  <span>Preencha nome e silabas para validar o alvo.</span>
+                                )}
+                              </div>
+
+                              <div className="rounded-2xl border border-amber-900/12 bg-white/65 p-4">
+                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                                  Sequencia atual do target
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {selectedCatalogTargetSyllables.length > 0 ? (
+                                    selectedCatalogTargetSyllables.map((syllable, syllableIndex) => (
+                                      <button
+                                        key={`${selectedCatalogTargetDraft.id}-${syllable}-${syllableIndex}`}
+                                        type="button"
+                                        onClick={() =>
+                                          updateCatalogTarget(selectedCatalogTargetDraft.id, {
+                                            syllablesText: removeContentEditorTargetSyllableAt(
+                                              selectedCatalogTargetDraft.syllablesText,
+                                              syllableIndex,
+                                            ),
+                                          })
+                                        }
+                                        className="rounded-full border border-amber-900/12 bg-amber-50/75 px-3 py-1 text-[11px] font-black tracking-[0.16em] text-amber-950 transition hover:bg-rose-100/85"
+                                      >
+                                        {syllable} · remover
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="text-sm text-amber-950/60">Digite as silabas do alvo.</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </Panel>
 
                 <div className="space-y-6">
                   <Panel title="Preview do Pipeline" icon={<CheckCircle2 className="h-5 w-5" />}>
@@ -2000,15 +2382,16 @@ const DraftTargetCard: React.FC<{
   target: ContentEditorTargetDraft;
   active: boolean;
   copies: number;
+  showCopies?: boolean;
   nameValidation?: ReturnType<typeof buildContentEditorTargetNameValidation>;
-}> = ({ target, active, copies, nameValidation }) => {
+}> = ({ target, active, copies, showCopies = true, nameValidation }) => {
   const normalizedRarity = normalizeRarity(target.rarity);
   const damage = RARITY_DAMAGE[normalizedRarity];
   const syllables = parseContentEditorTargetSyllables(target.syllablesText);
   const hasNameIssue = Boolean(nameValidation?.canValidate && !nameValidation.matchesName);
 
   return (
-    <div className="relative flex w-full items-start justify-center pb-10 text-center">
+    <div className={cn("relative flex w-full items-start justify-center text-center", showCopies ? "pb-10" : "pb-3")}>
       <div
         className={cn(
           "card-base relative flex aspect-[126/176] w-full flex-col overflow-hidden rounded-[1.1rem] border transition-all duration-300",
@@ -2069,15 +2452,19 @@ const DraftTargetCard: React.FC<{
         <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
       </div>
 
-      <span className="absolute bottom-[6px] left-1/2 -translate-x-1/2 rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-0.5 text-xs font-black text-amber-950 shadow-sm">
-        x{copies}
-      </span>
+      {showCopies ? (
+        <span className="absolute bottom-[6px] left-1/2 -translate-x-1/2 rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-0.5 text-xs font-black text-amber-950 shadow-sm">
+          x{copies}
+        </span>
+      ) : null}
     </div>
   );
 };
 
-const AddTargetCard: React.FC = () => (
-  <div className="relative flex w-full items-start justify-center pb-10 text-center">
+const AddTargetCard: React.FC<{
+  compact?: boolean;
+}> = ({ compact = false }) => (
+  <div className={cn("relative flex w-full items-start justify-center text-center", compact ? "pb-3" : "pb-10")}>
     <div className="relative flex aspect-[126/176] w-full flex-col items-center justify-center overflow-hidden rounded-[1.1rem] border border-dashed border-amber-900/18 bg-amber-50/45 p-3 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
       <Plus className="h-10 w-10" />
       <div className="mt-3 px-3 text-center text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">

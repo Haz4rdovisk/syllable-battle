@@ -170,7 +170,7 @@ export function cloneRawDeckCatalogEntry(entry: RawDeckCatalogEntry): RawDeckCat
   };
 }
 
-const createDraftTargetFromRawTarget = (
+export const createContentEditorTargetDraftFromRawTarget = (
   target: RawTargetDefinition | null,
   targetId: string,
   copies: number,
@@ -226,7 +226,7 @@ export function createContentEditorDeckDraft(
   }, new Map());
   const orderedTargetIds = deck.targetIds.filter((targetId, index) => deck.targetIds.indexOf(targetId) === index);
   const targets = orderedTargetIds.map((targetId) =>
-    createDraftTargetFromRawTarget(rawTargetsById[targetId] ?? null, targetId, targetCopies.get(targetId) ?? 1),
+    createContentEditorTargetDraftFromRawTarget(rawTargetsById[targetId] ?? null, targetId, targetCopies.get(targetId) ?? 1),
   );
   const requiredCounts = buildMinimumDeckPoolFromTargets(targets);
 
@@ -403,11 +403,12 @@ export function buildContentEditorPreview(
   rawTargets: RawTargetDefinition[],
   deckId: string,
   draft: ContentEditorDeckDraft,
+  targetCatalogDrafts: ContentEditorTargetDraft[] = draft.targets,
 ): ContentEditorPreviewResult {
   const nextDeck = hydratePreviewRawDeckDefinitionFromDraft(draft);
   const nextTargets = upsertRawTargetsInCatalog(
     rawTargets,
-    draft.targets.map((target) => buildRawTargetDefinitionFromDraft(target)),
+    targetCatalogDrafts.map((target) => buildRawTargetDefinitionFromDraft(target)),
   );
 
   try {
