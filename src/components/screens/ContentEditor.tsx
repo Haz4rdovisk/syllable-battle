@@ -23,23 +23,33 @@ import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
 import {
+  buildMinimumDeckPoolFromTargets,
   buildContentEditorReviewSummary,
+  buildContentEditorDerivedCatalogSyllables,
+  buildContentEditorTargetNameValidation,
+  buildContentEditorTargetResolution,
+  buildContentEditorTargetCoverage,
+  clampContentEditorSyllableCount,
   cloneRawDeckCatalogEntry,
   ContentEditorDeckDraft,
   ContentEditorTargetDraft,
   buildContentEditorSourceDiff,
   buildContentEditorPreview,
+  syncDeckPoolWithTargetMinimums,
   cloneRawDeckDefinition,
   createEmptyContentEditorDeckEntry,
   createContentEditorDeckDraft,
   createEmptyContentEditorTarget,
   createRawDeckCatalogEntry,
   createRawDeckDefinitionSource,
+  formatContentEditorTargetSyllables,
   getContentEditorLocalIssues,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
+  parseContentEditorTargetSyllables,
+  removeContentEditorTargetSyllableAt,
 } from "../../data/content/editor";
-import { CARD_CATALOG, CARD_CATALOG_BY_ID } from "../../data/content";
+import { CARD_CATALOG } from "../../data/content";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
 import { RawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
@@ -111,6 +121,26 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
       scope: "Targets do Deck",
       focus: `Alvo ${localTargetCopiesMatch[1]} · Copia`,
       message: "Use um inteiro positivo maior que zero para definir quantas copias desse alvo entram no deck.",
+      raw: issue,
+    };
+  }
+
+  const localTargetSyllablesMatch = issue.match(/^Target "([^"]+)" precisa ter pelo menos uma silaba informada\.$/);
+  if (localTargetSyllablesMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${localTargetSyllablesMatch[1]} · Silabas`,
+      message: "Digite pelo menos uma silaba para esse alvo poder gerar o pool minimo.",
+      raw: issue,
+    };
+  }
+
+  const localTargetNameMatch = issue.match(/^Target "([^"]+)" precisa formar o nome "([^"]+)" com as silabas informadas\.$/);
+  if (localTargetNameMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${localTargetNameMatch[1]} · Nome x silabas`,
+      message: `As silabas digitadas ainda nao formam corretamente o nome ${localTargetNameMatch[2]}.`,
       raw: issue,
     };
   }
@@ -213,8 +243,8 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   const deckMustDefineSyllablesMatch = issue.match(/^deck "([^"]+)" must define at least one syllable count\.$/i);
   if (deckMustDefineSyllablesMatch) {
     return {
-      scope: "Cards do Deck",
-      message: "O deck precisa definir pelo menos uma silaba no pool bruto.",
+      scope: "Targets do Deck",
+      message: "O deck precisa de pelo menos um alvo valido para gerar o pool minimo de silabas.",
       raw: issue,
     };
   }
@@ -296,6 +326,7 @@ export const ContentEditor: React.FC = () => {
   const [isGeneratedSourceExpanded, setIsGeneratedSourceExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(idleSaveStatus);
+  const [poolConstraintMessage, setPoolConstraintMessage] = useState("");
   const deferredDeckSearch = useDeferredValue(deckSearchValue.trim().toLowerCase());
   const sourceDecksById = useMemo(
     () =>
@@ -337,29 +368,64 @@ export const ContentEditor: React.FC = () => {
     () => selectedDeckModel?.definition ?? null,
     [selectedDeckModel],
   );
-  const draftCardCatalogEntries = useMemo(
-    () =>
-      draft.syllableRows
-        .map((row) => CARD_CATALOG_BY_ID[`syllable.${normalizeEditorSyllable(row.syllable).toLowerCase()}`] ?? null)
-        .filter((entry): entry is (typeof CARD_CATALOG)[number] => !!entry),
-    [draft.syllableRows],
-  );
-  const draftCardIds = useMemo(
-    () => new Set(draftCardCatalogEntries.map((entry) => entry.id)),
-    [draftCardCatalogEntries],
-  );
-  const availableCardCatalogEntries = useMemo(
-    () => CARD_CATALOG.filter((entry) => !draftCardIds.has(entry.id)),
-    [draftCardIds],
+  const effectivePoolRows = useMemo(
+    () => syncDeckPoolWithTargetMinimums(draft.syllableRows, draft.targets),
+    [draft.syllableRows, draft.targets],
   );
   const draftPoolCopies = useMemo(
-    () => draft.syllableRows.reduce((sum, row) => sum + Math.max(0, Number(row.count) || 0), 0),
-    [draft.syllableRows],
+    () => effectivePoolRows.reduce((sum, row) => sum + Math.max(0, Number(row.count) || 0), 0),
+    [effectivePoolRows],
   );
   const pipelineIssues = useMemo(() => ("issues" in preview ? preview.issues : []), [preview]);
   const selectedTargetDraft = useMemo(
     () => draft.targets.find((target) => target.id === selectedTargetId) ?? null,
     [draft.targets, selectedTargetId],
+  );
+  const selectedTargetSyllables = useMemo(
+    () => (selectedTargetDraft ? parseContentEditorTargetSyllables(selectedTargetDraft.syllablesText) : []),
+    [selectedTargetDraft],
+  );
+  const baseCatalogSyllables = useMemo(() => CARD_CATALOG.map((entry) => entry.card.syllable), []);
+  const catalogSyllables = useMemo(
+    () => buildContentEditorDerivedCatalogSyllables(draft.targets, baseCatalogSyllables),
+    [baseCatalogSyllables, draft.targets],
+  );
+  const selectedTargetNameValidation = useMemo(
+    () => buildContentEditorTargetNameValidation(selectedTargetDraft?.name ?? "", selectedTargetDraft?.syllablesText ?? ""),
+    [selectedTargetDraft],
+  );
+  const selectedTargetResolution = useMemo(
+    () => buildContentEditorTargetResolution(selectedTargetDraft?.syllablesText ?? "", effectivePoolRows, catalogSyllables),
+    [catalogSyllables, effectivePoolRows, selectedTargetDraft],
+  );
+  const targetNameValidationById = useMemo(
+    () =>
+      draft.targets.reduce<Record<string, ReturnType<typeof buildContentEditorTargetNameValidation>>>((acc, target) => {
+        acc[target.id] = buildContentEditorTargetNameValidation(target.name, target.syllablesText);
+        return acc;
+      }, {}),
+    [draft.targets],
+  );
+  const targetCoverageById = useMemo(
+    () =>
+      draft.targets.reduce<Record<string, ReturnType<typeof buildContentEditorTargetCoverage>>>((acc, target) => {
+        acc[target.id] = buildContentEditorTargetCoverage(target.syllablesText, effectivePoolRows);
+        return acc;
+      }, {}),
+    [draft.targets, effectivePoolRows],
+  );
+  const missingTargetCount = useMemo(
+    () =>
+      draft.targets.filter((target) => {
+        const validation = targetNameValidationById[target.id];
+        const coverage = targetCoverageById[target.id];
+        return !validation?.matchesName || Boolean(coverage?.hasMissingSyllables);
+      }).length,
+    [draft.targets, targetCoverageById, targetNameValidationById],
+  );
+  const requiredPoolCounts = useMemo(
+    () => buildMinimumDeckPoolFromTargets(draft.targets),
+    [draft.targets],
   );
   const derivedTargetIdsLabel = useMemo(() => {
     if (!preview.ok) return "draft invalido";
@@ -392,43 +458,33 @@ export const ContentEditor: React.FC = () => {
     [draft.targets],
   );
   const syllableGridItems = useMemo(
-    () => [
-      ...draft.syllableRows.map((row) => ({ kind: "row" as const, id: row.id, row })),
-      { kind: "add" as const, id: "__add-syllable__" },
-    ],
-    [draft.syllableRows],
+    () => effectivePoolRows.map((row) => ({ kind: "row" as const, id: row.id, row })),
+    [effectivePoolRows],
   );
   const selectedSyllableRow = useMemo(
-    () => draft.syllableRows.find((row) => row.id === selectedSyllableRowId) ?? null,
-    [draft.syllableRows, selectedSyllableRowId],
+    () => effectivePoolRows.find((row) => row.id === selectedSyllableRowId) ?? null,
+    [effectivePoolRows, selectedSyllableRowId],
   );
   const selectedSyllableNormalized = useMemo(
     () => (selectedSyllableRow ? normalizeEditorSyllable(selectedSyllableRow.syllable) : ""),
     [selectedSyllableRow],
   );
-  const selectedSyllableCardId = useMemo(
-    () => (selectedSyllableNormalized ? `syllable.${selectedSyllableNormalized.toLowerCase()}` : ""),
-    [selectedSyllableNormalized],
-  );
-  const selectedSyllableCardCatalogEntry = useMemo(
-    () =>
-      selectedSyllableCardId
-        ? (preview.ok ? preview.pipeline.cardCatalogById[selectedSyllableCardId] : CARD_CATALOG_BY_ID[selectedSyllableCardId]) ?? null
-        : null,
-    [preview, selectedSyllableCardId],
-  );
   const selectedSyllableUsedByTargets = useMemo(
     () =>
       selectedSyllableNormalized
         ? draft.targets.filter((target) =>
-            target.syllablesText
-              .split(/[\n,]/)
-              .map((entry) => normalizeEditorSyllable(entry))
-              .filter((entry) => entry.length > 0)
-              .includes(selectedSyllableNormalized),
+            parseContentEditorTargetSyllables(target.syllablesText).includes(selectedSyllableNormalized),
           )
         : [],
     [draft.targets, selectedSyllableNormalized],
+  );
+  const selectedSyllableMinimumCount = useMemo(
+    () => (selectedSyllableNormalized ? requiredPoolCounts.get(selectedSyllableNormalized) ?? 0 : 0),
+    [requiredPoolCounts, selectedSyllableNormalized],
+  );
+  const selectedSyllableCardId = useMemo(
+    () => (selectedSyllableNormalized ? `syllable.${selectedSyllableNormalized.toLowerCase()}` : ""),
+    [selectedSyllableNormalized],
   );
   const expandedTargetRowEndIndex = useMemo(() => {
     if (!selectedTargetId) return -1;
@@ -466,10 +522,15 @@ export const ContentEditor: React.FC = () => {
   }, [draft.targets, selectedTargetId]);
 
   useEffect(() => {
-    if (selectedSyllableRowId && !draft.syllableRows.some((row) => row.id === selectedSyllableRowId)) {
+    if (selectedSyllableRowId && !effectivePoolRows.some((row) => row.id === selectedSyllableRowId)) {
       setSelectedSyllableRowId("");
+      setPoolConstraintMessage("");
     }
-  }, [draft.syllableRows, selectedSyllableRowId]);
+  }, [effectivePoolRows, selectedSyllableRowId]);
+
+  useEffect(() => {
+    setPoolConstraintMessage("");
+  }, [selectedSyllableRowId]);
 
   useEffect(() => {
     const syncColumns = () => {
@@ -532,40 +593,48 @@ export const ContentEditor: React.FC = () => {
   };
 
   const updateSyllableRow = (rowId: string, patch: Partial<{ syllable: string; count: string }>) => {
-    updateDraft((current) => ({
-      ...current,
-      syllableRows: current.syllableRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
-    }));
-  };
+    let constraintMessage = "";
 
-  const removeSyllableRow = (rowId: string) => {
-    updateDraft((current) => ({
-      ...current,
-      syllableRows: current.syllableRows.filter((row) => row.id !== rowId),
-    }));
-  };
+    setDraft((current) => {
+      const nextRows = syncDeckPoolWithTargetMinimums(current.syllableRows, current.targets).map((row) => {
+        if (row.id !== rowId) return row;
 
-  const addCatalogCardToDeck = (cardId: string) => {
-    const cardEntry = CARD_CATALOG_BY_ID[cardId];
-    if (!cardEntry) return;
-    const existingRow = draft.syllableRows.find(
-      (row) => normalizeEditorSyllable(row.syllable) === cardEntry.card.syllable,
-    );
-    if (existingRow) {
-      setSelectedSyllableRowId(existingRow.id);
-      return;
-    }
+        const nextRow = { ...row, ...patch, mode: "manual" as const };
+        if (patch.count === undefined) {
+          return nextRow;
+        }
 
-    const nextRow = {
-      id: `syllable-${cardId}`,
-      syllable: cardEntry.card.syllable,
-      count: "1",
-    };
-    updateDraft((current) => ({
-      ...current,
-      syllableRows: [...current.syllableRows, nextRow],
-    }));
-    setSelectedSyllableRowId(nextRow.id);
+        const minimumRequired = requiredPoolCounts.get(normalizeEditorSyllable(nextRow.syllable)) ?? 0;
+        const clampedCount = clampContentEditorSyllableCount(nextRow.count, nextRow.syllable, current.targets);
+
+        if (clampedCount !== nextRow.count && minimumRequired > 0) {
+          const blockingTargets = current.targets
+            .filter(
+              (target) =>
+                targetNameValidationById[target.id]?.matchesName &&
+                parseContentEditorTargetSyllables(target.syllablesText).includes(
+                  normalizeEditorSyllable(nextRow.syllable),
+                ),
+            )
+            .map((target) => target.name);
+
+          constraintMessage = `Nao da para baixar ${normalizeEditorSyllable(nextRow.syllable)} abaixo de ${minimumRequired} porque ${blockingTargets.join(", ")} usam essa silaba.`;
+        }
+
+        return {
+          ...nextRow,
+          count: clampedCount,
+        };
+      });
+
+      return {
+        ...current,
+        syllableRows: nextRows,
+      };
+    });
+
+    setSaveStatus(idleSaveStatus);
+    setPoolConstraintMessage(constraintMessage);
   };
 
   const addDeck = () => {
@@ -597,7 +666,19 @@ export const ContentEditor: React.FC = () => {
     updateDraft((current) => ({
       ...current,
       targets: current.targets.map((target) => (target.id === targetId ? { ...target, ...patch } : target)),
+      syllableRows: syncDeckPoolWithTargetMinimums(
+        current.syllableRows,
+        current.targets.map((target) => (target.id === targetId ? { ...target, ...patch } : target)),
+      ),
     }));
+  };
+
+  const removeSyllableFromTarget = (targetId: string, index: number) => {
+    const target = draft.targets.find((entry) => entry.id === targetId);
+    if (!target) return;
+    updateTarget(targetId, {
+      syllablesText: removeContentEditorTargetSyllableAt(target.syllablesText, index),
+    });
   };
 
   const addTarget = () => {
@@ -626,6 +707,7 @@ export const ContentEditor: React.FC = () => {
       return {
         ...current,
         targets: nextTargets,
+        syllableRows: syncDeckPoolWithTargetMinimums(current.syllableRows, nextTargets),
       };
     });
   };
@@ -714,13 +796,14 @@ export const ContentEditor: React.FC = () => {
     () =>
       Boolean(
         selectedTargetDraft &&
-          pipelineIssues.some(
-            (issue) =>
-              issue.includes(`target "${selectedTargetDraft.id}" needs`) ||
-              issue.includes(`target "${selectedTargetDraft.id}" syllables`),
-          ),
+          (!selectedTargetNameValidation.matchesName ||
+            pipelineIssues.some(
+              (issue) =>
+                issue.includes(`target "${selectedTargetDraft.id}" needs`) ||
+                issue.includes(`target "${selectedTargetDraft.id}" syllables`),
+            )),
       ),
-    [pipelineIssues, selectedTargetDraft],
+    [pipelineIssues, selectedTargetDraft, selectedTargetNameValidation.matchesName],
   );
   const selectedSyllableCountHasIssue = useMemo(
     () =>
@@ -959,7 +1042,7 @@ export const ContentEditor: React.FC = () => {
                 />
                 <MetricCard
                   label="Cards no pool"
-                  value={String(draftCardCatalogEntries.length)}
+                  value={String(effectivePoolRows.length)}
                   icon={<Layers3 className="h-4 w-4" />}
                 />
                 <MetricCard
@@ -1036,6 +1119,12 @@ export const ContentEditor: React.FC = () => {
               <div className="space-y-6">
                 <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
                   <Panel title="Targets do Deck" icon={<BookOpenText className="h-5 w-5" />}>
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-3 py-3 text-sm text-amber-950/75">
+                    <span className="font-black text-amber-950">Targets primeiro.</span>
+                    <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                      {draft.targets.length} alvo(s)
+                    </Badge>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                     {targetGridItems.map((item, index) => (
                       <React.Fragment key={item.id}>
@@ -1051,6 +1140,7 @@ export const ContentEditor: React.FC = () => {
                               target={item.target}
                               active={item.target.id === selectedTargetDraft?.id}
                               copies={getTargetCopiesDisplayValue(item.target.copies)}
+                              nameValidation={targetNameValidationById[item.target.id]}
                             />
                           </button>
                         ) : (
@@ -1060,11 +1150,16 @@ export const ContentEditor: React.FC = () => {
                         )}
 
                         {selectedTargetDraft && index === expandedTargetRowEndIndex ? (
-                          <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-5 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3">
+                          <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3">
                             <div className="mb-4 flex items-center gap-3">
                               <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
                                 id interno: {selectedTargetDraft.id}
                               </Badge>
+                              {selectedTargetNameValidation.canValidate && !selectedTargetNameValidation.matchesName ? (
+                                <Badge className="border border-rose-300/25 bg-rose-100/80 text-rose-950">
+                                  nome nao fecha
+                                </Badge>
+                              ) : null}
                               <div className="ml-auto flex items-center gap-2">
                               <Button
                                 variant="ghost"
@@ -1153,19 +1248,120 @@ export const ContentEditor: React.FC = () => {
                                 />
                               </Field>
 
-                              <Field label="Silabas do target">
-                                <input
-                                  value={selectedTargetDraft.syllablesText}
-                                  onChange={(event) => updateTarget(selectedTargetDraft.id, { syllablesText: event.target.value.toUpperCase() })}
-                                  placeholder="Ex.: BA, NA, NA"
-                                  className={cn(
-                                    "w-full rounded-2xl border px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35",
-                                    selectedTargetSyllablesHasIssue
-                                      ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                      : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
-                                  )}
-                                />
-                              </Field>
+                              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                                <div className="space-y-4">
+                                  <Field label="Silabas do target">
+                                    <input
+                                      value={selectedTargetDraft.syllablesText}
+                                      onChange={(event) =>
+                                        updateTarget(selectedTargetDraft.id, {
+                                          syllablesText: event.target.value.toUpperCase(),
+                                        })
+                                      }
+                                      placeholder="Ex.: BA, NA, NA"
+                                      className={cn(
+                                        "w-full rounded-2xl border px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35",
+                                        selectedTargetSyllablesHasIssue
+                                          ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                          : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                      )}
+                                    />
+                                  </Field>
+                                  <div className="text-xs text-amber-950/60">
+                                    Digite livremente. Se o nome fechar, o pool minimo entra sozinho.
+                                  </div>
+                                  <div
+                                    className={cn(
+                                      "rounded-2xl border px-3 py-3 text-sm",
+                                      selectedTargetNameValidation.canValidate && !selectedTargetNameValidation.matchesName
+                                        ? "border-rose-300/25 bg-rose-50/80 text-rose-950"
+                                        : "border-emerald-700/15 bg-emerald-100/80 text-emerald-950",
+                                    )}
+                                  >
+                                    {selectedTargetNameValidation.canValidate ? (
+                                      selectedTargetNameValidation.matchesName ? (
+                                        <span>
+                                          Nome valido: <span className="font-black">{selectedTargetNameValidation.normalizedName}</span>
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          Nome <span className="font-black">{selectedTargetNameValidation.normalizedName || "?"}</span> nao bate com{" "}
+                                          <span className="font-black">{selectedTargetNameValidation.normalizedSyllableWord || "?"}</span>.
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span>Preencha nome e silabas para validar o alvo.</span>
+                                    )}
+                                  </div>
+
+                                  <div className="rounded-2xl border border-amber-900/12 bg-white/65 p-4">
+                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                                      Sequencia atual do target
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {selectedTargetSyllables.length > 0 ? (
+                                        selectedTargetSyllables.map((syllable, index) => (
+                                          <button
+                                            key={`${selectedTargetDraft.id}-${syllable}-${index}`}
+                                            type="button"
+                                            onClick={() => removeSyllableFromTarget(selectedTargetDraft.id, index)}
+                                            className="rounded-full border border-amber-900/12 bg-amber-50/75 px-3 py-1 text-[11px] font-black tracking-[0.16em] text-amber-950 transition hover:bg-rose-100/85"
+                                          >
+                                            {syllable} · remover
+                                          </button>
+                                        ))
+                                      ) : (
+                                        <div className="text-sm text-amber-950/60">
+                                          Digite as silabas do alvo.
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                  <div className="rounded-2xl border border-amber-900/12 bg-white/65 p-4">
+                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                                      Status das silabas
+                                    </div>
+                                    <div className="mt-3 space-y-2">
+                                      {selectedTargetResolution.entries.length > 0 ? (
+                                        selectedTargetResolution.entries.map((entry) => (
+                                          <div
+                                            key={`resolution-${selectedTargetDraft.id}-${entry.syllable}`}
+                                            className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-900/12 bg-white/80 px-3 py-2 text-sm text-amber-950"
+                                          >
+                                            <span className="font-black tracking-[0.16em]">{entry.syllable}</span>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <span
+                                                className={cn(
+                                                  "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em]",
+                                                  baseCatalogSyllables.includes(entry.syllable)
+                                                    ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
+                                                    : entry.existsInCatalog
+                                                      ? "border-sky-700/12 bg-sky-100/85 text-sky-950"
+                                                      : "border-amber-900/12 bg-white/85 text-amber-950",
+                                                )}
+                                              >
+                                                {baseCatalogSyllables.includes(entry.syllable)
+                                                  ? "catalogo base"
+                                                  : entry.existsInCatalog
+                                                    ? "catalogo derivado"
+                                                    : "aguarda alvo valido"}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="text-sm text-amber-950/60">
+                                          Defina silabas para ver a resolucao.
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ) : null}
@@ -1176,27 +1372,26 @@ export const ContentEditor: React.FC = () => {
                     <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
                       targetIds derivados: {derivedTargetIdsLabel}
                     </Badge>
+                    {missingTargetCount > 0 ? (
+                      <Badge className="border border-amber-900/12 bg-amber-100/85 text-amber-950">
+                        {missingTargetCount} alvo(s) ainda pedem validacao
+                      </Badge>
+                    ) : null}
                   </div>
                   </Panel>
 
-                  <Panel title="Cards do Deck" icon={<Layers3 className="h-5 w-5" />}>
+                  <Panel title="Pool do Deck" icon={<Layers3 className="h-5 w-5" />}>
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
                       {syllableGridItems.map((item, index) => (
                         <React.Fragment key={item.id}>
-                          {item.kind === "row" ? (
-                            <DerivedSyllableCard
-                              syllable={item.row.syllable || "?"}
-                              copies={Math.max(0, Number(item.row.count) || 0)}
-                              selected={item.row.id === selectedSyllableRowId}
-                              onClick={() =>
-                                setSelectedSyllableRowId((current) => (current === item.row.id ? "" : item.row.id))
-                              }
-                            />
-                          ) : (
-                            <div className="rounded-3xl border border-dashed border-amber-900/15 bg-amber-50/40 p-4 text-sm text-amber-950/70">
-                              Adicione cards canonicos do catalogo na lista logo abaixo para montar o pool do deck.
-                            </div>
-                          )}
+                          <DerivedSyllableCard
+                            syllable={item.row.syllable || "?"}
+                            copies={Math.max(0, Number(item.row.count) || 0)}
+                            selected={item.row.id === selectedSyllableRowId}
+                            onClick={() =>
+                              setSelectedSyllableRowId((current) => (current === item.row.id ? "" : item.row.id))
+                            }
+                          />
 
                           {selectedSyllableRow && index === expandedSyllableRowEndIndex ? (
                             <div className="paper-panel col-span-2 rounded-[24px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_16px_30px_rgba(0,0,0,0.12)] sm:col-span-3 xl:col-span-4">
@@ -1204,126 +1399,82 @@ export const ContentEditor: React.FC = () => {
                                 <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
                                   id interno: {selectedSyllableCardId || "syllable.sem-id"}
                                 </Badge>
-                                {selectedSyllableCardCatalogEntry ? (
+                                {selectedSyllableRow?.mode === "auto" ? (
                                   <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
-                                    card canonico no catalogo
+                                    gerada pelos alvos
                                   </Badge>
-                                ) : (
-                                  <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
-                                    aguardando card canonico valido
-                                  </Badge>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  className="ml-auto h-10 min-w-[5.75rem] rounded-2xl border border-rose-300/25 bg-rose-500/10 px-3 text-rose-900 hover:bg-rose-500/15"
-                                  onClick={() => removeSyllableRow(selectedSyllableRow.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Remover
-                                </Button>
+                                ) : null}
                               </div>
 
                                 <div className="grid gap-4">
-                                  {selectedSyllableCardCatalogEntry ? (
-                                    <div className="grid gap-3 sm:grid-cols-3">
-                                      <InfoTile label="Decks usando" value={String(selectedSyllableCardCatalogEntry.deckIds.length)} mini slim />
-                                      <InfoTile label="Targets usando" value={String(selectedSyllableCardCatalogEntry.targetIds.length)} mini slim />
-                                      <InfoTile label="Copias no catalogo" value={String(selectedSyllableCardCatalogEntry.totalCopies)} mini slim />
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                      Targets usando
                                     </div>
-                                  ) : null}
-                                <div className="grid gap-4 md:grid-cols-3">
-                                  <InfoTile
-                                    label="Card canonico"
-                                    value={selectedSyllableCardCatalogEntry?.id ?? "fora do catalogo"}
-                                    slim
-                                    plainValue
-                                  />
-                                  <InfoTile
-                                    label="Silaba"
-                                    value={selectedSyllableCardCatalogEntry?.card.syllable ?? selectedSyllableRow.syllable}
-                                    mini
-                                    slim
-                                  />
-                                  <Field label="Copias">
+                                    <div className="mt-2 flex items-end justify-between gap-3">
+                                      <div className="font-serif text-2xl font-black text-amber-950">
+                                        {selectedSyllableUsedByTargets.length}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                      Copias
+                                    </div>
                                     <input
                                       type="number"
-                                      min={0}
+                                      min={selectedSyllableMinimumCount}
                                       value={selectedSyllableRow.count}
                                       onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
                                       className={cn(
-                                        "w-full rounded-2xl border px-3 py-3 text-sm text-amber-950 outline-none transition",
+                                        "mt-2 w-full rounded-xl border px-3 py-2.5 text-sm font-black text-amber-950 outline-none transition",
                                         selectedSyllableCountHasIssue
                                           ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                          : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                          : "border-amber-900/15 bg-white/80 focus:border-amber-500/30",
                                       )}
                                     />
-                                  </Field>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-[10rem_minmax(0,1fr)]">
-                                  <InfoTile label="Targets usando" value={String(selectedSyllableUsedByTargets.length)} />
-
-                                  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4">
-                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                      Aparece em
-                                    </div>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                      {selectedSyllableUsedByTargets.length > 0 ? (
-                                        selectedSyllableUsedByTargets.map((target) => (
-                                          <span
-                                            key={`${selectedSyllableRow.id}-${target.id}`}
-                                            className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm"
-                                          >
-                                            {target.name}
-                                          </span>
-                                        ))
-                                      ) : (
-                                        <span className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
-                                          Nenhum target usa
-                                        </span>
-                                      )}
-                                    </div>
                                   </div>
                                 </div>
+
+                                <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                      Aparece em
+                                    </div>
+                                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-900/40">
+                                      {selectedSyllableUsedByTargets.length} alvo(s)
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {selectedSyllableUsedByTargets.length > 0 ? (
+                                      selectedSyllableUsedByTargets.map((target) => (
+                                        <span
+                                          key={`${selectedSyllableRow.id}-${target.id}`}
+                                          className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm"
+                                        >
+                                          {target.name}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
+                                        Nenhum target usa
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {poolConstraintMessage && selectedSyllableMinimumCount > 0 ? (
+                                  <div className="rounded-2xl border border-rose-300/25 bg-rose-50/85 px-4 py-3 text-sm text-rose-950">
+                                    {poolConstraintMessage}
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           ) : null}
                         </React.Fragment>
                       ))}
-                    </div>
-                    <div className="mt-6 rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                            Catalogo de cards
-                          </div>
-                          <div className="mt-1 text-sm text-amber-950/70">
-                            Adicione cards canonicos ao pool do deck e ajuste apenas as copias por card.
-                          </div>
-                        </div>
-                        <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
-                          {availableCardCatalogEntries.length} disponivel(is)
-                        </Badge>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {availableCardCatalogEntries.length > 0 ? (
-                          availableCardCatalogEntries.map((entry) => (
-                            <button
-                              key={entry.id}
-                              type="button"
-                              onClick={() => addCatalogCardToDeck(entry.id)}
-                              className="rounded-full border border-amber-900/12 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm transition hover:border-amber-900/20 hover:bg-amber-50"
-                            >
-                              + {entry.card.syllable}
-                            </button>
-                          ))
-                        ) : (
-                          <span className="rounded-full border border-amber-900/12 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
-                            Todos os cards canonicos ja estao no deck
-                          </span>
-                        )}
-                      </div>
                     </div>
                     <div className="mt-auto flex flex-wrap gap-3 pt-4">
                       <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
@@ -1584,13 +1735,12 @@ const DraftTargetCard: React.FC<{
   target: ContentEditorTargetDraft;
   active: boolean;
   copies: number;
-}> = ({ target, active, copies }) => {
+  nameValidation?: ReturnType<typeof buildContentEditorTargetNameValidation>;
+}> = ({ target, active, copies, nameValidation }) => {
   const normalizedRarity = normalizeRarity(target.rarity);
   const damage = RARITY_DAMAGE[normalizedRarity];
-  const syllables = target.syllablesText
-    .split(/[\n,]/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
+  const syllables = parseContentEditorTargetSyllables(target.syllablesText);
+  const hasNameIssue = Boolean(nameValidation?.canValidate && !nameValidation.matchesName);
 
   return (
     <div className="relative flex w-full items-start justify-center pb-10 text-center">
@@ -1626,6 +1776,13 @@ const DraftTargetCard: React.FC<{
           <div className="text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950">
             {target.name || "NOVO TARGET"}
           </div>
+          {hasNameIssue ? (
+            <div className="mt-2 flex justify-center">
+              <span className="rounded-full border border-rose-300/25 bg-rose-100/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-rose-950 shadow-sm">
+                NOME INVALIDO
+              </span>
+            </div>
+          ) : null}
           <div className="mt-2.5 flex flex-wrap justify-center gap-1">
             {syllables.length > 0 ? (
               syllables.map((syllable, index) => (

@@ -18,13 +18,7 @@ import {
   inspectDeckCatalog,
 } from "../../data/contentInsights";
 import {
-  CARD_CATALOG,
-  CONTENT_CATALOG,
   CONTENT_PIPELINE,
-  getCardCatalogEntriesForDeckModel,
-  getCatalogCardById,
-  getMostReusedCards,
-  getSharedTargetsBetweenDeckModels,
 } from "../../data/content";
 import { cn } from "../../lib/utils";
 
@@ -137,52 +131,44 @@ export const ContentInspector: React.FC = () => {
     [selectedInspection],
   );
 
-  const selectedDeckDefinition = useMemo(
-    () => selectedDeckModel?.definition ?? null,
-    [selectedDeckModel],
-  );
+  const selectedDeckDefinition = useMemo(() => selectedDeckModel?.definition ?? null, [selectedDeckModel]);
+  const selectedDeckTargetDefinitions = useMemo(() => selectedDeckModel?.targetDefinitions ?? [], [selectedDeckModel]);
+  const selectedDeckTargetInstances = useMemo(() => selectedDeckModel?.targetInstances ?? [], [selectedDeckModel]);
+  const selectedDeckCards = useMemo(() => selectedDeckModel?.cards ?? [], [selectedDeckModel]);
+  const requiredCardCopiesById = useMemo(() => {
+    const counts = new Map<string, number>();
 
-  const selectedCatalogTargetDefinitions = useMemo(
-    () => selectedDeckModel?.targetDefinitions ?? [],
-    [selectedDeckModel],
-  );
+    selectedDeckTargetInstances.forEach((entry) => {
+      entry.target.cardIds.forEach((cardId) => {
+        counts.set(cardId, (counts.get(cardId) ?? 0) + 1);
+      });
+    });
 
-  const selectedCatalogTargetInstances = useMemo(
-    () => selectedDeckModel?.targetInstances ?? [],
-    [selectedDeckModel],
-  );
-
-  const selectedCatalogCards = useMemo(
-    () => selectedDeckModel?.cards ?? [],
-    [selectedDeckModel],
-  );
-  const selectedDeckCardCatalogEntries = useMemo(
+    return counts;
+  }, [selectedDeckTargetInstances]);
+  const selectedDeckPoolEntries = useMemo(
     () =>
-      selectedDeckModel
-        ? getCardCatalogEntriesForDeckModel(CONTENT_PIPELINE.cardCatalogById, selectedDeckModel)
-        : [],
-    [selectedDeckModel],
+      selectedDeckCards.map((entry) => {
+        const minimumRequired = requiredCardCopiesById.get(entry.cardId) ?? 0;
+        return {
+          ...entry,
+          minimumRequired,
+          extraCopies: Math.max(0, entry.copiesInDeck - minimumRequired),
+        };
+      }),
+    [requiredCardCopiesById, selectedDeckCards],
   );
-  const selectedDeckCardUsageById = useMemo(
-    () =>
-      selectedCatalogCards.reduce<Record<string, (typeof selectedCatalogCards)[number]>>((acc, entry) => {
-        acc[entry.card.id] = entry;
-        return acc;
-      }, {}),
-    [selectedCatalogCards],
+  const selectedDeckMinimumPoolCopies = useMemo(
+    () => selectedDeckPoolEntries.reduce((sum, entry) => sum + entry.minimumRequired, 0),
+    [selectedDeckPoolEntries],
   );
-
-  const selectedSharedTargets = useMemo(
-    () =>
-      selectedDeckModel
-        ? getSharedTargetsBetweenDeckModels(selectedDeckModel, CONTENT_PIPELINE.deckModels)
-        : [],
-    [selectedDeckModel],
+  const selectedDeckExtraPoolCopies = useMemo(
+    () => selectedDeckPoolEntries.reduce((sum, entry) => sum + entry.extraCopies, 0),
+    [selectedDeckPoolEntries],
   );
-
-  const mostReusedCards = useMemo(
-    () => getMostReusedCards(CONTENT_CATALOG, CONTENT_PIPELINE.deckModels, 5),
-    [],
+  const selectedDeckUnusedPoolEntries = useMemo(
+    () => selectedDeckPoolEntries.filter((entry) => entry.minimumRequired === 0),
+    [selectedDeckPoolEntries],
   );
 
   if (!selectedInspection || !selectedInspection.deckModel || !selectedInspection.deck) {
@@ -264,17 +250,14 @@ export const ContentInspector: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-3 text-sm text-emerald-950/90">
-            A ferramenta le o catalogo normalizado e o deck model central, usando a mesma projecao runtime de{" "}
-            <span className="font-black text-emerald-950">{CONTENT_PIPELINE.runtimeDecks.length}</span> decks
-            derivados e continua em modo somente leitura.
+            Leitura deck-first em modo somente leitura: source bruto do deck, deck model derivado e projeção runtime
+            do mesmo deck, sem tratar o catálogo técnico global como verdade principal da autoria.
           </div>
 
           <div className="mt-3 rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-3 text-sm text-sky-950/90">
-            Fonte unica: <span className="font-black text-sky-950">{CARD_CATALOG.length}</span> cartas
-            canonicas, <span className="font-black text-sky-950">{CONTENT_CATALOG.targets.length}</span> targets e{" "}
-            <span className="font-black text-sky-950">{CONTENT_CATALOG.decks.length}</span> deck definitions que
-            alimentam <span className="font-black text-sky-950">{CONTENT_PIPELINE.deckModels.length}</span> deck
-            models centrais.
+            Base atual: <span className="font-black text-sky-950">{CONTENT_PIPELINE.deckModels.length}</span> decks
+            validados no pipeline e <span className="font-black text-sky-950">{CONTENT_PIPELINE.runtimeDecks.length}</span>{" "}
+            projeções runtime compatíveis.
           </div>
 
           <div className="mt-5 space-y-3 rounded-[24px] border border-amber-900/12 bg-[rgba(255,250,242,0.76)] p-4">
@@ -321,7 +304,7 @@ export const ContentInspector: React.FC = () => {
 
             <div className="text-sm text-amber-950/75">
               Exibindo <span className="font-black text-amber-950">{filteredInspections.length}</span> de{" "}
-              <span className="font-black text-amber-950">{inspections.length}</span> decks do catalogo real.
+              <span className="font-black text-amber-950">{inspections.length}</span> decks disponíveis.
             </div>
           </div>
 
@@ -397,9 +380,7 @@ export const ContentInspector: React.FC = () => {
                   {deck.emoji}
                 </div>
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-100/60">
-                    Catalogo real
-                  </div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-100/60">Deck atual</div>
                   <h2 className="mt-2 font-serif text-4xl font-black tracking-tight text-amber-50">
                     {deck.name}
                   </h2>
@@ -597,25 +578,21 @@ export const ContentInspector: React.FC = () => {
                 </div>
               </Panel>
 
-              <Panel title="Leituras do Catalogo Normalizado" icon={<BookOpenText className="h-5 w-5" />}>
+              <Panel title="Estrutura do Deck Atual" icon={<BookOpenText className="h-5 w-5" />}>
                 <div className="space-y-5">
                   <Subsection
-                    title="Deck definition ativo"
-                    subtitle="Leitura do deck model central, montado a partir da camada de catálogo antes da projeção runtime."
+                    title="Deck model ativo"
+                    subtitle="Leitura local do deck atual, derivada do source bruto antes da projeção runtime."
                   >
                     {selectedDeckDefinition ? (
                       <div className="grid grid-cols-2 gap-3">
                         <InfoTile label="Visual theme" value={selectedDeckDefinition.visualTheme} />
-                        <InfoTile label="Cards referenciados" value={String(selectedDeckDefinition.cardIds.length)} />
-                        <InfoTile label="Cards no catalogo" value={String(selectedDeckCardCatalogEntries.length)} />
-                        <InfoTile label="Target definitions" value={String(selectedCatalogTargetDefinitions.length)} />
-                        <InfoTile label="Target instances" value={String(selectedCatalogTargetInstances.length)} />
-                        <InfoTile
-                          label="Copias no card pool"
-                          value={String(
-                            Object.values(selectedDeckDefinition.cardPool).reduce((sum, count) => sum + count, 0),
-                          )}
-                        />
+                        <InfoTile label="Silabas no pool" value={String(selectedDeckCards.length)} />
+                        <InfoTile label="Targets unicos" value={String(selectedDeckTargetDefinitions.length)} />
+                        <InfoTile label="Targets em jogo" value={String(selectedDeckTargetInstances.length)} />
+                        <InfoTile label="Pool minimo" value={String(selectedDeckMinimumPoolCopies)} />
+                        <InfoTile label="Extras manuais" value={String(selectedDeckExtraPoolCopies)} />
+                        <InfoTile label="Silabas sem alvo" value={String(selectedDeckUnusedPoolEntries.length)} />
                       </div>
                     ) : (
                       <EmptyCallout text="Deck definition nao encontrado no catalogo normalizado." />
@@ -623,37 +600,36 @@ export const ContentInspector: React.FC = () => {
                   </Subsection>
 
                   <Subsection
-                    title="Cards do catalogo usados por este deck"
-                    subtitle="Mostra a relacao entre as cartas canonicas, o pool deste deck e o reuso dessas cartas no catalogo."
+                    title="Pool local do deck"
+                    subtitle="Cada sílaba mostra o mínimo exigido pelos alvos deste deck e o que sobrou como ajuste manual."
                   >
-                    {selectedDeckCardCatalogEntries.length === 0 ? (
-                      <EmptyCallout text="Nenhum card canonico encontrado para este deck." />
+                    {selectedDeckPoolEntries.length === 0 ? (
+                      <EmptyCallout text="Nenhuma sílaba encontrada no pool deste deck." />
                     ) : (
                       <div className="space-y-3">
-                        {selectedDeckCardCatalogEntries.slice(0, 6).map((entry) => {
-                          const deckUsage = selectedDeckCardUsageById[entry.id];
-
+                        {selectedDeckPoolEntries.slice(0, 8).map((entry) => {
                           return (
-                          <div key={entry.id} className={inspectorCardClass}>
+                          <div key={entry.cardId} className={inspectorCardClass}>
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
                                 <div className="font-serif text-xl font-black text-amber-950">{entry.card.syllable}</div>
                                 <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                  {entry.id}
+                                  {entry.card.id}
                                 </div>
                               </div>
                               <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
-                                x{deckUsage?.copiesInDeck ?? 0} no deck
+                                x{entry.copiesInDeck} no deck
                               </Badge>
                             </div>
-                            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                              <InfoTile label="Decks usando" value={String(entry.deckIds.length)} mini slim />
-                              <InfoTile label="Targets usando" value={String(entry.targetIds.length)} mini slim />
-                              <InfoTile label="Copias no catalogo" value={String(entry.totalCopies)} mini slim />
+                            <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                              <InfoTile label="Minimo" value={String(entry.minimumRequired)} mini slim />
+                              <InfoTile label="Extras" value={String(entry.extraCopies)} mini slim />
+                              <InfoTile label="Targets usando" value={String(entry.usedByTargets.length)} mini slim />
+                              <InfoTile label="Status" value={entry.minimumRequired > 0 ? "ativo" : "extra"} mini slim />
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              {(deckUsage?.usedByTargets ?? []).map((target) => (
-                                <span key={`${entry.id}-${target.id}`} className={inspectorChipClass}>
+                              {(entry.usedByTargets ?? []).map((target) => (
+                                <span key={`${entry.cardId}-${target.id}`} className={inspectorChipClass}>
                                   {target.name}
                                 </span>
                               ))}
@@ -666,32 +642,27 @@ export const ContentInspector: React.FC = () => {
                   </Subsection>
 
                   <Subsection
-                    title="Targets definidos no catálogo"
-                    subtitle="Resolve o deck via deck model e targetIds da camada nova, sem depender apenas da projeção runtime."
+                    title="Targets do deck model"
+                    subtitle="Os alvos continuam deck-scoped e são a origem do pool mínimo deste deck."
                   >
-                    {selectedCatalogTargetDefinitions.length === 0 ? (
+                    {selectedDeckTargetDefinitions.length === 0 ? (
                       <EmptyCallout text="Nenhum target normalizado encontrado para este deck." />
                     ) : (
                       <div className="space-y-3">
-                            {selectedCatalogTargetDefinitions.slice(0, 4).map((target) => (
+                            {selectedDeckTargetDefinitions.slice(0, 6).map((target) => (
                               <div key={target.id} className={inspectorCardClass}>
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                               <div className="font-serif text-xl font-black text-amber-950">{target.name}</div>
                               <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
-                                {target.cardIds.length} cards
+                                {target.cardIds.length} silabas
                               </Badge>
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              {target.cardIds.map((cardId, index) => {
-                                const card = getCatalogCardById(CONTENT_CATALOG, cardId);
-                                const label = card?.syllable ?? cardId;
-
-                                return (
-                                  <span key={`${target.id}-${cardId}-${index}`} className={inspectorChipClass}>
-                                    {label}
-                                  </span>
-                                );
-                              })}
+                              {target.cardIds.map((cardId, index) => (
+                                <span key={`${target.id}-${cardId}-${index}`} className={inspectorChipClass}>
+                                  {selectedDeckCards.find((entry) => entry.cardId === cardId)?.card.syllable ?? cardId}
+                                </span>
+                              ))}
                             </div>
                           </div>
                         ))}
@@ -776,55 +747,6 @@ export const ContentInspector: React.FC = () => {
                 </div>
               </Panel>
 
-              <Panel title="Relacoes do Catalogo" icon={<Sparkles className="h-5 w-5" />}>
-                <div className="space-y-5">
-                  <Subsection
-                    title="Cards mais reutilizados no catálogo"
-                    subtitle="Leitura transversal do catálogo novo, útil para tooling futuro e autoria mínima."
-                  >
-                    <div className="space-y-3">
-                      {mostReusedCards.map((entry) => (
-                        <div key={entry.card.id} className={inspectorCardClass}>
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="font-serif text-xl font-black text-amber-950">{entry.card.syllable}</div>
-                            <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
-                              {entry.deckCount} deck(s)
-                            </Badge>
-                          </div>
-                          <p className="mt-2 text-sm leading-relaxed text-amber-950/75">
-                            {entry.targetCount} target(s) e {entry.totalCopies} copias totais no catálogo.
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </Subsection>
-
-                  <Subsection
-                    title="Alvos compartilhados entre decks"
-                    subtitle="Hoje ajuda a detectar acoplamentos de autoria e futura reutilização de target definitions."
-                  >
-                    {selectedSharedTargets.length === 0 ? (
-                      <EmptyCallout text="Nenhum target compartilhado por id com outros decks no catálogo atual." />
-                    ) : (
-                      <div className="space-y-3">
-                        {selectedSharedTargets.map((entry) => (
-                          <div key={entry.target.id} className={inspectorCardClass}>
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="font-serif text-xl font-black text-amber-950">{entry.target.name}</div>
-                              <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
-                                {entry.deckIds.length} deck(s)
-                              </Badge>
-                            </div>
-                            <p className="mt-2 text-sm leading-relaxed text-amber-950/75">
-                              Compartilhado por: {entry.deckIds.join(", ")}.
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Subsection>
-                </div>
-              </Panel>
             </div>
           </div>
         </section>

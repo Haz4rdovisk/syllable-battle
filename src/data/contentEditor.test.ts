@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DECK_MODELS_BY_ID, RUNTIME_DECKS_BY_ID } from "./content";
 import {
+  appendContentEditorTargetSyllable,
+  buildContentEditorDerivedCatalogSyllables,
+  buildContentEditorTargetNameValidation,
+  buildContentEditorTargetCoverage,
+  buildContentEditorTargetResolution,
+  clampContentEditorSyllableCount,
   buildContentEditorReviewSummary,
   buildContentEditorSourceDiff,
   buildContentEditorPreview,
@@ -11,7 +17,11 @@ import {
   createRawDeckDefinitionSource,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
+  parseContentEditorTargetSyllables,
+  removeContentEditorTargetSyllableAt,
+  syncDeckPoolWithTargetMinimums,
   upsertRawDeckInCatalog,
+  validateContentDeckSaveEntry,
 } from "./content/editor";
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from "./content/decks";
 
@@ -23,16 +33,11 @@ const createSaveableNewDeckDraft = () => {
   draft.description = "Deck novo montado a partir do catalogo canonico.";
   draft.emoji = "🧪";
   draft.visualTheme = "dune";
-  draft.syllableRows = [
-    { id: "row-va", syllable: "VA", count: "2" },
-    { id: "row-ca", syllable: "CA", count: "1" },
-    { id: "row-pa", syllable: "PA", count: "1" },
-    { id: "row-to", syllable: "TO", count: "1" },
-  ];
+  draft.syllableRows = [{ id: "row-va", syllable: "VA", count: "2", mode: "manual" }];
   draft.targets = [
     {
       id: `${entry.id}-vaca`,
-      name: "VACA DE TESTE",
+      name: "VACA",
       copies: "1",
       description: "",
       emoji: "🐮",
@@ -41,7 +46,7 @@ const createSaveableNewDeckDraft = () => {
     },
     {
       id: `${entry.id}-pato`,
-      name: "PATO DE TESTE",
+      name: "PATO",
       copies: "1",
       description: "",
       emoji: "🦆",
@@ -180,6 +185,290 @@ test("content editor cria deck novo com metadata de catalogo bruto persistivel",
   assert.equal(entry.deck.id, entry.id);
 });
 
+test("content editor monta silabas de target pelo builder sem perder duplicatas", () => {
+  let syllablesText = "";
+  syllablesText = appendContentEditorTargetSyllable(syllablesText, "va");
+  syllablesText = appendContentEditorTargetSyllable(syllablesText, "CA");
+  syllablesText = appendContentEditorTargetSyllable(syllablesText, "ca");
+
+  assert.equal(syllablesText, "VA, CA, CA");
+  assert.deepEqual(parseContentEditorTargetSyllables(syllablesText), ["VA", "CA", "CA"]);
+
+  const removed = removeContentEditorTargetSyllableAt(syllablesText, 1);
+  assert.equal(removed, "VA, CA");
+});
+
+test("content editor mede cobertura do target contra o pool atual do deck", () => {
+  const coverage = buildContentEditorTargetCoverage("VA, CA, CA, ZZ", [
+    { id: "row-va", syllable: "VA", count: "1" },
+    { id: "row-ca", syllable: "CA", count: "1" },
+  ]);
+
+  assert.equal(coverage.hasMissingSyllables, true);
+  assert.deepEqual(coverage.entries, [
+    { syllable: "VA", required: 1, available: 1, missing: 0 },
+    { syllable: "CA", required: 2, available: 1, missing: 1 },
+    { syllable: "ZZ", required: 1, available: 0, missing: 1 },
+  ]);
+});
+
+test("content editor resolve silabas livres do target sem depender do pool atual", () => {
+  const resolution = buildContentEditorTargetResolution(
+    "VA, ZZ, ZZ",
+    [{ id: "row-va", syllable: "VA", count: "1" }],
+    ["VA", "CA", "PA"],
+  );
+
+  assert.deepEqual(
+    resolution.entries.map((entry) => ({
+      syllable: entry.syllable,
+      existsInCatalog: entry.existsInCatalog,
+      missing: entry.missing,
+    })),
+    [
+      { syllable: "VA", existsInCatalog: true, missing: 0 },
+      { syllable: "ZZ", existsInCatalog: false, missing: 2 },
+    ],
+  );
+  assert.equal(resolution.missingCatalogEntries.length, 1);
+  assert.equal(resolution.missingPoolEntries.length, 1);
+  assert.equal(resolution.missingPoolEntries[0]?.syllable, "ZZ");
+});
+
+test("content editor valida nome do alvo concatenando as silabas normalizadas", () => {
+  const validation = buildContentEditorTargetNameValidation("Borboleta", "BOR, BO, LE, TA");
+
+  assert.equal(validation.canValidate, true);
+  assert.equal(validation.matchesName, true);
+  assert.equal(validation.normalizedName, "BORBOLETA");
+  assert.equal(validation.normalizedSyllableWord, "BORBOLETA");
+});
+
+test("content editor detecta quando as silabas nao formam o nome do alvo", () => {
+  const validation = buildContentEditorTargetNameValidation("Banana", "BA, NA");
+
+  assert.equal(validation.canValidate, true);
+  assert.equal(validation.matchesName, false);
+  assert.equal(validation.normalizedName, "BANANA");
+  assert.equal(validation.normalizedSyllableWord, "BANA");
+});
+
+test("content editor popula o pool minimo a partir de targets validos e remove linhas sem alvo", () => {
+  const nextRows = syncDeckPoolWithTargetMinimums(
+    [{ id: "row-manual", syllable: "EX", count: "3" }],
+    [
+      {
+        id: "banana",
+        name: "Banana",
+        copies: "1",
+        description: "",
+        emoji: "🍌",
+        rarity: "comum",
+        syllablesText: "BA, NA, NA",
+      },
+      {
+        id: "borboleta",
+        name: "Borboleta",
+        copies: "1",
+        description: "",
+        emoji: "🦋",
+        rarity: "comum",
+        syllablesText: "BOR, BO, LE, TA",
+      },
+    ],
+  );
+
+  assert.deepEqual(
+    nextRows.map((row) => ({ syllable: row.syllable, count: row.count })),
+    [
+      { syllable: "BA", count: "1" },
+      { syllable: "NA", count: "2" },
+      { syllable: "BOR", count: "1" },
+      { syllable: "BO", count: "1" },
+      { syllable: "LE", count: "1" },
+      { syllable: "TA", count: "1" },
+    ],
+  );
+});
+
+
+test("content editor nao deixa baixar copies abaixo do minimo exigido pelos alvos", () => {
+  const targets = [
+    {
+      id: "banana",
+      name: "Banana",
+      copies: "1",
+      description: "",
+      emoji: "🍌",
+      rarity: "comum",
+      syllablesText: "BA, NA, NA",
+    },
+  ];
+
+  assert.equal(clampContentEditorSyllableCount("1", "NA", targets), "2");
+  assert.equal(clampContentEditorSyllableCount("0", "NA", targets), "2");
+  assert.equal(clampContentEditorSyllableCount("", "NA", targets), "2");
+  assert.equal(clampContentEditorSyllableCount("5", "NA", targets), "5");
+});
+
+test("content editor deriva o catalogo do uso real dos targets validos", () => {
+  const derivedCatalog = buildContentEditorDerivedCatalogSyllables(
+    [
+      {
+        id: "banana",
+        name: "Banana",
+        copies: "1",
+        description: "",
+        emoji: "🍌",
+        rarity: "comum",
+        syllablesText: "BA, NA, NA",
+      },
+      {
+        id: "invalido",
+        name: "Pato",
+        copies: "1",
+        description: "",
+        emoji: "🦆",
+        rarity: "comum",
+        syllablesText: "PA",
+      },
+    ],
+    ["VA", "CA"],
+  );
+
+  assert.deepEqual(derivedCatalog, ["VA", "CA", "BA", "NA"]);
+});
+
+
+test("content editor deriva o pool salvo dos targets validos e remove silabas orfas", () => {
+  const rawDeck = hydrateRawDeckDefinitionFromDraft({
+    id: "deck-teste",
+    name: "Deck Teste",
+    description: "Deck para validar derivacao do pool.",
+    emoji: "ðŸ§ª",
+    visualTheme: "harvest",
+    syllableRows: [
+      { id: "row-ba", syllable: "BA", count: "3", mode: "manual" },
+      { id: "row-na", syllable: "NA", count: "4", mode: "manual" },
+      { id: "row-zz", syllable: "ZZ", count: "7", mode: "manual" },
+    ],
+    targets: [
+      {
+        id: "banana",
+        name: "Banana",
+        copies: "1",
+        description: "",
+        emoji: "ðŸŒ",
+        rarity: "comum",
+        syllablesText: "BA, NA, NA",
+      },
+    ],
+  });
+
+  assert.deepEqual(rawDeck.syllables, {
+    BA: 3,
+    NA: 4,
+  });
+});
+
+test("content editor nao depende de pool previo para aceitar alvo valido com silabas livres", () => {
+  const rawDeck = hydrateRawDeckDefinitionFromDraft({
+    id: "deck-teste",
+    name: "Deck Teste",
+    description: "Deck para validar alvo primeiro.",
+    emoji: "ðŸ§ª",
+    visualTheme: "harvest",
+    syllableRows: [],
+    targets: [
+      {
+        id: "banana",
+        name: "Banana",
+        copies: "1",
+        description: "",
+        emoji: "ðŸŒ",
+        rarity: "comum",
+        syllablesText: "BA, NA, NA",
+      },
+    ],
+  });
+
+  assert.deepEqual(rawDeck.syllables, {
+    BA: 1,
+    NA: 2,
+  });
+});
+
+test("content editor remove silabas orfas do catalogo derivado ao remover o alvo", () => {
+  const withTarget = buildContentEditorDerivedCatalogSyllables([
+    {
+      id: "lagarta",
+      name: "Lagarta",
+      copies: "1",
+      description: "",
+      emoji: "🐛",
+      rarity: "comum",
+      syllablesText: "LA, GAR, TA",
+    },
+  ]);
+  const withoutTarget = buildContentEditorDerivedCatalogSyllables([]);
+
+  assert.deepEqual(withTarget, ["LA", "GAR", "TA"]);
+  assert.deepEqual(withoutTarget, []);
+});
+
+test("content editor valida metadata canonica de save para deck novo", () => {
+  const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
+  const validatedEntry = validateContentDeckSaveEntry(entry);
+
+  assert.equal(validatedEntry.id, entry.id);
+  assert.equal(validatedEntry.exportName, entry.exportName);
+  assert.equal(validatedEntry.filePath, entry.filePath);
+  assert.notEqual(validatedEntry.deck, entry.deck);
+});
+
+test("content editor rejeita deckId inseguro no save dev-only", () => {
+  const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
+
+  assert.throws(
+    () =>
+      validateContentDeckSaveEntry({
+        ...entry,
+        id: "../fora",
+        deck: {
+          ...entry.deck,
+          id: "../fora",
+        },
+      }),
+    /not safe for dev-only save/i,
+  );
+});
+
+test("content editor rejeita exportName divergente no save dev-only", () => {
+  const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
+
+  assert.throws(
+    () =>
+      validateContentDeckSaveEntry({
+        ...entry,
+        exportName: "unsafeDeck",
+      }),
+    /must use exportName/i,
+  );
+});
+
+test("content editor rejeita filePath divergente no save dev-only", () => {
+  const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
+
+  assert.throws(
+    () =>
+      validateContentDeckSaveEntry({
+        ...entry,
+        filePath: "src/data/content/decks/../escape.ts",
+      }),
+    /must use filePath/i,
+  );
+});
+
 test("content editor injeta deck novo no pipeline real antes do save", () => {
   const { entry, draft } = createSaveableNewDeckDraft();
   const previewEntries = upsertRawDeckInCatalog(rawDeckCatalogEntries, entry);
@@ -197,6 +486,72 @@ test("content editor injeta deck novo no pipeline real antes do save", () => {
     PA: 1,
     TO: 1,
   });
+});
+
+test("content editor permite criar editar e remover target deck-scoped no builder", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+  const removedTargetId = draft.targets[0]?.id;
+  assert.ok(removedTargetId);
+
+  draft.targets = draft.targets.slice(1);
+  draft.targets.push({
+    id: "farm-builder-target",
+    name: "VACA BUILDER",
+    copies: "2",
+    description: "Target criado no builder minimo.",
+    emoji: "🐮",
+    rarity: "raro",
+    syllablesText: "VA, CA",
+  });
+
+  const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
+  assert.ok(!rawDeck.targets.some((target) => target.id === removedTargetId));
+  assert.deepEqual(rawDeck.targets.find((target) => target.id === "farm-builder-target"), {
+    id: "farm-builder-target",
+    name: "VACA BUILDER",
+    copies: 2,
+    description: "Target criado no builder minimo.",
+    emoji: "🐮",
+    rarity: "raro",
+    syllables: ["VA", "CA"],
+  });
+
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  assert.equal(preview.ok, true);
+  if (!preview.ok) return;
+
+  assert.ok(preview.selectedDeckModel?.targetDefinitions.some((target) => target.id === "farm-builder-target"));
+  assert.ok(preview.selectedRuntimeDeck?.targets.some((target) => target.id === "farm-builder-target"));
+});
+
+test("content editor aceita silabas novas validas no alvo e mantem pipeline coerente", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+  draft.targets.push({
+    id: "farm-lagarta",
+    name: "Lagarta",
+    copies: "1",
+    description: "",
+    emoji: "🐛",
+    rarity: "comum",
+    syllablesText: "LA, GAR, TA",
+  });
+
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  assert.equal(preview.ok, true);
+  if (!preview.ok) return;
+
+  assert.ok(preview.selectedDeckModel?.definition.cardIds.includes("syllable.gar"));
+  assert.equal(preview.selectedRuntimeDeck?.syllables.LA, 1);
+  assert.equal(preview.selectedRuntimeDeck?.syllables.GAR, 1);
+  assert.equal(preview.selectedRuntimeDeck?.syllables.TA >= 1, true);
 });
 
 test("content editor gera index bruto incluindo deck novo", () => {

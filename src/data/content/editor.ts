@@ -8,6 +8,7 @@ let draftSequence = 0;
 const nextDraftId = (prefix: string) => `${prefix}-${++draftSequence}`;
 
 const isValidIdentifier = (value: string) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
+const DECK_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const serializeValue = (value: unknown, indentLevel = 0): string => {
   const indent = "  ".repeat(indentLevel);
@@ -44,6 +45,7 @@ export interface ContentEditorSyllableRow {
   id: string;
   syllable: string;
   count: string;
+  mode?: "auto" | "manual";
 }
 
 export interface ContentEditorTargetDraft {
@@ -54,6 +56,37 @@ export interface ContentEditorTargetDraft {
   emoji: string;
   rarity: string;
   syllablesText: string;
+}
+
+export interface ContentEditorTargetCoverageEntry {
+  syllable: string;
+  required: number;
+  available: number;
+  missing: number;
+}
+
+export interface ContentEditorTargetCoverage {
+  syllables: string[];
+  entries: ContentEditorTargetCoverageEntry[];
+  hasMissingSyllables: boolean;
+}
+
+export interface ContentEditorTargetResolutionEntry extends ContentEditorTargetCoverageEntry {
+  existsInCatalog: boolean;
+}
+
+export interface ContentEditorTargetResolution {
+  entries: ContentEditorTargetResolutionEntry[];
+  missingCatalogEntries: ContentEditorTargetResolutionEntry[];
+  missingPoolEntries: ContentEditorTargetResolutionEntry[];
+}
+
+export interface ContentEditorTargetNameValidation {
+  normalizedName: string;
+  normalizedSyllableWord: string;
+  syllables: string[];
+  canValidate: boolean;
+  matchesName: boolean;
 }
 
 export interface ContentEditorDeckDraft {
@@ -147,26 +180,32 @@ export function cloneRawDeckCatalogEntry(entry: RawDeckCatalogEntry): RawDeckCat
 }
 
 export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEditorDeckDraft {
+  const targets = deck.targets.map((target) => ({
+    id: target.id,
+    name: target.name,
+    copies: String(target.copies ?? 1),
+    description: target.description ?? "",
+    emoji: target.emoji,
+    rarity: target.rarity,
+    syllablesText: target.syllables.join(", "),
+  }));
+
   return {
     id: deck.id,
     name: deck.name,
     description: deck.description,
     emoji: deck.emoji,
     visualTheme: deck.visualTheme,
-    syllableRows: Object.entries(deck.syllables).map(([syllable, count]) => ({
-      id: nextDraftId("syllable"),
-      syllable,
-      count: String(count),
-    })),
-    targets: deck.targets.map((target) => ({
-      id: target.id,
-      name: target.name,
-      copies: String(target.copies ?? 1),
-      description: target.description ?? "",
-      emoji: target.emoji,
-      rarity: target.rarity,
-      syllablesText: target.syllables.join(", "),
-    })),
+    syllableRows: syncDeckPoolWithTargetMinimums(
+      Object.entries(deck.syllables).map(([syllable, count]) => ({
+        id: nextDraftId("syllable"),
+        syllable,
+        count: String(count),
+        mode: "manual",
+      })),
+      targets,
+    ),
+    targets,
   };
 }
 
@@ -218,6 +257,34 @@ export function createEmptyContentEditorDeckEntry(existingDeckIds: Iterable<stri
   return createRawDeckCatalogEntry(createEmptyRawDeckDefinition(existingDeckIds));
 }
 
+export function validateContentDeckSaveEntry(entry: RawDeckCatalogEntry): RawDeckCatalogEntry {
+  const deckId = entry.id.trim();
+  if (!DECK_ID_PATTERN.test(deckId)) {
+    throw new Error(`Deck id "${entry.id}" is not safe for dev-only save.`);
+  }
+
+  const expectedExportName = createDeckExportName(deckId);
+  if (entry.exportName !== expectedExportName) {
+    throw new Error(`Deck "${deckId}" must use exportName "${expectedExportName}".`);
+  }
+
+  const expectedFilePath = createDeckFilePath(deckId);
+  if (entry.filePath !== expectedFilePath) {
+    throw new Error(`Deck "${deckId}" must use filePath "${expectedFilePath}".`);
+  }
+
+  if (entry.deck.id !== deckId) {
+    throw new Error(`Deck "${deckId}" must match the raw deck id for dev-only save.`);
+  }
+
+  return {
+    id: deckId,
+    exportName: expectedExportName,
+    filePath: expectedFilePath,
+    deck: cloneRawDeckDefinition(entry.deck),
+  };
+}
+
 function buildRawDeckDefinitionFromDraft(
   draft: ContentEditorDeckDraft,
   options: {
@@ -225,7 +292,7 @@ function buildRawDeckDefinitionFromDraft(
   },
 ): RawDeckDefinition {
   const { preserveDraftCopies } = options;
-  const syllables = draft.syllableRows.reduce<Record<string, number>>((acc, row) => {
+  const syllables = syncDeckPoolWithTargetMinimums(draft.syllableRows, draft.targets).reduce<Record<string, number>>((acc, row) => {
     acc[row.syllable] = Number(row.count);
     return acc;
   }, {});
@@ -251,10 +318,7 @@ function buildRawDeckDefinitionFromDraft(
       ...(description ? { description } : {}),
       emoji: target.emoji,
       rarity: target.rarity,
-      syllables: target.syllablesText
-        .split(/[\n,]/)
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0),
+      syllables: parseContentEditorTargetSyllables(target.syllablesText),
     };
   });
 
@@ -359,12 +423,228 @@ export function createEmptyContentEditorTarget(existingIds: Iterable<string>): C
   };
 }
 
-export function createEmptyContentEditorSyllableRow(): ContentEditorSyllableRow {
+export function parseContentEditorTargetSyllables(value: string) {
+  return value
+    .split(/[\n,]/)
+    .map((entry) => entry.trim().toUpperCase())
+    .filter((entry) => entry.length > 0);
+}
+
+export function normalizeContentEditorTargetName(value: string) {
+  return value
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s-]+/g, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+export function formatContentEditorTargetSyllables(syllables: string[]) {
+  return syllables.join(", ");
+}
+
+export function appendContentEditorTargetSyllable(value: string, syllable: string) {
+  return formatContentEditorTargetSyllables([
+    ...parseContentEditorTargetSyllables(value),
+    syllable.trim().toUpperCase(),
+  ]);
+}
+
+export function removeContentEditorTargetSyllableAt(value: string, index: number) {
+  const nextSyllables = parseContentEditorTargetSyllables(value);
+  if (index < 0 || index >= nextSyllables.length) return formatContentEditorTargetSyllables(nextSyllables);
+  nextSyllables.splice(index, 1);
+  return formatContentEditorTargetSyllables(nextSyllables);
+}
+
+export function buildContentEditorTargetCoverage(
+  syllablesText: string,
+  rows: ContentEditorSyllableRow[],
+): ContentEditorTargetCoverage {
+  const syllables = parseContentEditorTargetSyllables(syllablesText);
+  const availableCounts = buildSyllableCountMap(rows);
+  const requiredCounts = new Map<string, number>();
+
+  syllables.forEach((syllable) => {
+    requiredCounts.set(syllable, (requiredCounts.get(syllable) ?? 0) + 1);
+  });
+
+  const entries = [...requiredCounts.entries()].map(([syllable, required]) => {
+    const available = Math.max(0, Number(availableCounts.get(syllable) ?? 0));
+    return {
+      syllable,
+      required,
+      available,
+      missing: Math.max(0, required - available),
+    };
+  });
+
   return {
-    id: nextDraftId("syllable"),
-    syllable: "",
-    count: "1",
+    syllables,
+    entries,
+    hasMissingSyllables: entries.some((entry) => entry.missing > 0),
   };
+}
+
+export function buildContentEditorTargetNameValidation(
+  name: string,
+  syllablesText: string,
+): ContentEditorTargetNameValidation {
+  const syllables = parseContentEditorTargetSyllables(syllablesText);
+  const normalizedName = normalizeContentEditorTargetName(name);
+  const normalizedSyllableWord = syllables.join("");
+  const canValidate = normalizedName.length > 0 && syllables.length > 0;
+
+  return {
+    normalizedName,
+    normalizedSyllableWord,
+    syllables,
+    canValidate,
+    matchesName: canValidate && normalizedName === normalizedSyllableWord,
+  };
+}
+
+export function buildContentEditorTargetResolution(
+  syllablesText: string,
+  rows: ContentEditorSyllableRow[],
+  catalogSyllables: Iterable<string>,
+): ContentEditorTargetResolution {
+  const knownSyllables = new Set(
+    [...catalogSyllables]
+      .map((syllable) => String(syllable ?? "").trim().toUpperCase())
+      .filter((syllable) => syllable.length > 0),
+  );
+  const coverage = buildContentEditorTargetCoverage(syllablesText, rows);
+  const entries = coverage.entries.map((entry) => ({
+    ...entry,
+    existsInCatalog: knownSyllables.has(entry.syllable),
+  }));
+
+  return {
+    entries,
+    missingCatalogEntries: entries.filter((entry) => !entry.existsInCatalog),
+    missingPoolEntries: entries.filter((entry) => entry.missing > 0),
+  };
+}
+
+export function buildContentEditorDerivedCatalogSyllables(
+  targets: ContentEditorTargetDraft[],
+  baseCatalogSyllables: Iterable<string> = [],
+) {
+  const derivedSyllables = new Set(
+    [...baseCatalogSyllables]
+      .map((syllable) => String(syllable ?? "").trim().toUpperCase())
+      .filter((syllable) => syllable.length > 0),
+  );
+
+  targets.forEach((target) => {
+    const validation = buildContentEditorTargetNameValidation(target.name, target.syllablesText);
+    if (!validation.matchesName) return;
+
+    validation.syllables.forEach((syllable) => {
+      derivedSyllables.add(syllable);
+    });
+  });
+
+  return [...derivedSyllables];
+}
+
+export function buildMinimumDeckPoolFromTargets(targets: ContentEditorTargetDraft[]) {
+  const requiredCounts = new Map<string, number>();
+
+  targets.forEach((target) => {
+    const validation = buildContentEditorTargetNameValidation(target.name, target.syllablesText);
+    if (!validation.matchesName) return;
+
+    validation.syllables.forEach((syllable) => {
+      requiredCounts.set(syllable, (requiredCounts.get(syllable) ?? 0) + 1);
+    });
+  });
+
+  return requiredCounts;
+}
+
+export function getContentEditorRequiredSyllableCount(
+  targets: ContentEditorTargetDraft[],
+  syllable: string,
+) {
+  const normalized = String(syllable ?? "").trim().toUpperCase();
+  if (!normalized) return 0;
+  return buildMinimumDeckPoolFromTargets(targets).get(normalized) ?? 0;
+}
+
+export function clampContentEditorSyllableCount(
+  nextCount: string,
+  syllable: string,
+  targets: ContentEditorTargetDraft[],
+) {
+  const requiredCount = getContentEditorRequiredSyllableCount(targets, syllable);
+  const parsed = Number(nextCount);
+
+  if (!nextCount.trim() || !Number.isFinite(parsed)) {
+    return String(requiredCount);
+  }
+
+  return String(Math.max(requiredCount, parsed));
+}
+
+export function syncDeckPoolWithTargetMinimums(
+  rows: ContentEditorSyllableRow[],
+  targets: ContentEditorTargetDraft[],
+) {
+  const requiredCounts = buildMinimumDeckPoolFromTargets(targets);
+  if (requiredCounts.size === 0) return [];
+
+  const nextRows: ContentEditorSyllableRow[] = [];
+  const rowsBySyllable = new Map<string, ContentEditorSyllableRow>();
+
+  rows.forEach((row) => {
+    const normalized = row.syllable.trim().toUpperCase();
+    if (!normalized) return;
+    if (!requiredCounts.has(normalized)) return;
+
+    const existingRow = rowsBySyllable.get(normalized);
+    if (!existingRow) {
+      const normalizedCount = Number(row.count);
+      rowsBySyllable.set(normalized, {
+        ...row,
+        syllable: normalized,
+        count: Number.isFinite(normalizedCount) ? row.count : "0",
+      });
+      nextRows.push(rowsBySyllable.get(normalized)!);
+      return;
+    }
+
+    const existingCount = Number(existingRow.count);
+    const nextCount = Number(row.count);
+    if (Number.isFinite(nextCount) && (!Number.isFinite(existingCount) || nextCount > existingCount)) {
+      existingRow.count = row.count;
+    }
+    if (row.mode === "manual") {
+      existingRow.mode = "manual";
+    }
+  });
+
+  requiredCounts.forEach((requiredCount, syllable) => {
+    const existingRow = rowsBySyllable.get(syllable);
+    if (!existingRow) {
+      nextRows.push({
+        id: nextDraftId("syllable"),
+        syllable,
+        count: String(requiredCount),
+        mode: "auto",
+      });
+      return;
+    }
+
+    const currentCount = Number(existingRow.count);
+    const effectiveCount = Number.isFinite(currentCount) ? Math.max(currentCount, requiredCount) : requiredCount;
+    existingRow.count = String(effectiveCount);
+    existingRow.mode = effectiveCount > requiredCount ? "manual" : "auto";
+  });
+
+  return nextRows;
 }
 
 export function getContentEditorLocalIssues(draft: ContentEditorDeckDraft) {
@@ -385,6 +665,14 @@ export function getContentEditorLocalIssues(draft: ContentEditorDeckDraft) {
     const copies = Number(target.copies);
     if (!Number.isInteger(copies) || copies <= 0) {
       issues.push(`Target "${target.id}" precisa ter copias com inteiro positivo.`);
+    }
+
+    const validation = buildContentEditorTargetNameValidation(target.name, target.syllablesText);
+    if (validation.syllables.length === 0) {
+      issues.push(`Target "${target.id}" precisa ter pelo menos uma silaba informada.`);
+    }
+    if (validation.canValidate && !validation.matchesName) {
+      issues.push(`Target "${target.id}" precisa formar o nome "${target.name}" com as silabas informadas.`);
     }
   });
 

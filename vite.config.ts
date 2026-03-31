@@ -9,11 +9,31 @@ import {
   createRawDeckCatalogIndexSource,
   createRawDeckDefinitionSource,
   upsertRawDeckInCatalog,
+  validateContentDeckSaveEntry,
 } from './src/data/content/editor';
 import { buildContentPipeline } from './src/data/content';
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from './src/data/content/decks';
 import type { RawDeckDefinition } from './src/data/content/types';
 import type { RawDeckCatalogEntry } from './src/data/content/decks';
+
+const isPathInsideDirectory = (directoryPath: string, candidatePath: string) => {
+  const relativePath = path.relative(directoryPath, candidatePath);
+  return relativePath.length > 0 && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+};
+
+const writeTextFileSafely = async (targetPath: string, contents: string) => {
+  const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
+  await fs.writeFile(tempPath, contents, 'utf8');
+  return {
+    tempPath,
+    commit: async () => {
+      await fs.rename(tempPath, targetPath);
+    },
+    cleanup: async () => {
+      await fs.rm(tempPath, { force: true });
+    },
+  };
+};
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
@@ -100,34 +120,65 @@ export default defineConfig(({ mode }) => {
                 throw new Error('Missing deck entry metadata or deck payload.');
               }
 
-              if (payload.deck.id !== deckId) {
-                throw new Error('The payload deck id must match the requested deckId.');
-              }
-
-              const existingEntry = getRawDeckCatalogEntry(deckId);
-              if (
-                existingEntry &&
-                (existingEntry.exportName !== payload.entry.exportName ||
-                  existingEntry.filePath !== payload.entry.filePath)
-              ) {
-                throw new Error(`Deck "${deckId}" already exists with different source metadata.`);
-              }
-
-              const nextEntry: RawDeckCatalogEntry = {
+              const nextEntry = validateContentDeckSaveEntry({
                 id: deckId,
                 exportName: payload.entry.exportName,
                 filePath: payload.entry.filePath,
                 deck: payload.deck,
-              };
+              });
+
+              const existingEntry = getRawDeckCatalogEntry(deckId);
+              if (
+                existingEntry &&
+                (existingEntry.exportName !== nextEntry.exportName ||
+                  existingEntry.filePath !== nextEntry.filePath)
+              ) {
+                throw new Error(`Deck "${deckId}" already exists with different source metadata.`);
+              }
+
               const nextEntries = upsertRawDeckInCatalog(rawDeckCatalogEntries, nextEntry);
               buildContentPipeline(nextEntries.map((entry) => entry.deck));
 
               const source = createRawDeckDefinitionSource(nextEntry.exportName, payload.deck);
+              const decksDirectoryPath = path.resolve(__dirname, 'src/data/content/decks');
               const absolutePath = path.resolve(__dirname, nextEntry.filePath);
+              if (!isPathInsideDirectory(decksDirectoryPath, absolutePath)) {
+                throw new Error(`Deck "${deckId}" resolved outside the allowed decks directory.`);
+              }
               const indexSource = createRawDeckCatalogIndexSource(nextEntries);
-              const indexPath = path.resolve(__dirname, 'src/data/content/decks/index.ts');
-              await fs.writeFile(absolutePath, source, 'utf8');
-              await fs.writeFile(indexPath, indexSource, 'utf8');
+              const indexPath = path.resolve(decksDirectoryPath, 'index.ts');
+              if (!isPathInsideDirectory(decksDirectoryPath, indexPath)) {
+                throw new Error('The raw deck index resolved outside the allowed decks directory.');
+              }
+
+              const previousDeckSource = await fs.readFile(absolutePath, 'utf8').catch(() => null);
+              const previousIndexSource = await fs.readFile(indexPath, 'utf8');
+              const nextDeckWrite = await writeTextFileSafely(absolutePath, source);
+              const nextIndexWrite = await writeTextFileSafely(indexPath, indexSource);
+              let deckCommitted = false;
+              let indexCommitted = false;
+
+              try {
+                await nextDeckWrite.commit();
+                deckCommitted = true;
+                await nextIndexWrite.commit();
+                indexCommitted = true;
+              } catch (error) {
+                if (deckCommitted) {
+                  if (previousDeckSource === null) {
+                    await fs.rm(absolutePath, { force: true });
+                  } else {
+                    await fs.writeFile(absolutePath, previousDeckSource, 'utf8');
+                  }
+                }
+                if (indexCommitted) {
+                  await fs.writeFile(indexPath, previousIndexSource, 'utf8');
+                }
+                throw error;
+              } finally {
+                await nextDeckWrite.cleanup();
+                await nextIndexWrite.cleanup();
+              }
 
               const currentIndex = rawDeckCatalogEntries.findIndex((entry) => entry.id === deckId);
               if (currentIndex >= 0) {
