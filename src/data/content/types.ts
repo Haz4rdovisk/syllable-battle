@@ -23,6 +23,7 @@ export interface DeckDefinition {
   description: string;
   emoji: string;
   visualTheme: DeckVisualThemeId;
+  cardIds: string[];
   cardPool: Record<string, number>;
   targetIds: string[];
 }
@@ -44,6 +45,15 @@ export interface DeckModelCardEntry {
   card: CardDefinition;
   copiesInDeck: number;
   usedByTargets: TargetDefinition[];
+}
+
+export interface CardCatalogEntry {
+  id: string;
+  card: CardDefinition;
+  deckIds: string[];
+  targetIds: string[];
+  copiesByDeckId: Record<string, number>;
+  totalCopies: number;
 }
 
 export interface DeckModelTargetInstance {

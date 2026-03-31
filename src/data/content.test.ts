@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  APP_RESOLVED_DECKS,
+  APP_RESOLVED_DECKS_BY_ID,
+  getFirstResolvedDeck,
+  getFallbackResolvedEnemyDeck,
+  resolveAppBattleDeckSelection,
+  resolveAppDeckPair,
+  resolveAppDeck,
+} from "../app/appDeckResolver";
 import { CONFIG } from "../logic/gameLogic";
 import {
+  CARD_CATALOG,
+  CARD_CATALOG_BY_ID,
   CONTENT_CATALOG,
   CONTENT_PIPELINE,
   DeckContentError,
@@ -10,6 +21,7 @@ import {
   DECK_MODELS_BY_ID,
   RUNTIME_DECKS_BY_ID,
   adaptDeckModelsToRuntimeDecks,
+  buildCardCatalog,
   buildDeckModels,
   loadContentCatalog,
   loadDeckCatalog,
@@ -20,8 +32,10 @@ test("CONTENT_CATALOG expõe o catálogo normalizado como fonte de verdade", () 
   assert.ok(CONTENT_CATALOG.cards.length > 0);
   assert.ok(CONTENT_CATALOG.targets.length >= DECKS.length * CONFIG.targetsInPlay);
   assert.equal(CONTENT_PIPELINE.catalog, CONTENT_CATALOG);
+  assert.equal(CONTENT_PIPELINE.cardCatalog, CARD_CATALOG);
   assert.equal(CONTENT_PIPELINE.deckModels, DECK_MODELS);
   assert.equal(CONTENT_PIPELINE.runtimeDecks, DECKS);
+  assert.equal(CONTENT_PIPELINE.cardCatalogById, CARD_CATALOG_BY_ID);
   assert.equal(CONTENT_PIPELINE.deckModelsById, DECK_MODELS_BY_ID);
   assert.equal(CONTENT_PIPELINE.runtimeDecksById, RUNTIME_DECKS_BY_ID);
 
@@ -40,6 +54,10 @@ test("CONTENT_CATALOG expõe o catálogo normalizado como fonte de verdade", () 
 
   CONTENT_CATALOG.decks.forEach((deck) => {
     assert.equal(CONTENT_CATALOG.decksById[deck.id], deck);
+    deck.cardIds.forEach((cardId) => {
+      assert.ok(CONTENT_CATALOG.cardsById[cardId]);
+      assert.ok(cardId in deck.cardPool);
+    });
     deck.targetIds.forEach((targetId) => {
       assert.ok(CONTENT_CATALOG.targetsById[targetId]);
     });
@@ -61,6 +79,10 @@ test("deck models explicitam a fronteira catalogo -> deck model -> runtime legad
     assert.equal(DECK_MODELS_BY_ID[deckModel.id], CONTENT_PIPELINE.deckModelsById[deckModel.id]);
     assert.equal(RUNTIME_DECKS_BY_ID[deckModel.id], DECKS.find((deck) => deck.id === deckModel.id));
     assert.deepEqual(
+      [...deckModel.cards.map((entry) => entry.cardId)].sort(),
+      [...deckModel.definition.cardIds].sort(),
+    );
+    assert.deepEqual(
       deckModel.targetInstances.map((entry) => entry.targetId),
       deckModel.definition.targetIds,
     );
@@ -69,6 +91,24 @@ test("deck models explicitam a fronteira catalogo -> deck model -> runtime legad
       assert.equal(entry.card, CONTENT_CATALOG.cardsById[entry.cardId]);
       assert.equal(deckModel.definition.cardPool[entry.cardId], entry.copiesInDeck);
     });
+  });
+});
+
+test("card catalog explicita cartas canonicas como entidade central do pipeline", () => {
+  const rebuiltCardCatalog = buildCardCatalog(CONTENT_CATALOG);
+
+  assert.deepEqual(rebuiltCardCatalog, CARD_CATALOG);
+  assert.equal(CARD_CATALOG.length, CONTENT_CATALOG.cards.length);
+
+  CARD_CATALOG.forEach((entry) => {
+    assert.equal(CARD_CATALOG_BY_ID[entry.id], entry);
+    assert.equal(entry.card, CONTENT_CATALOG.cardsById[entry.id]);
+    assert.ok(entry.deckIds.length >= 1);
+    assert.ok(entry.targetIds.length >= 1);
+    assert.equal(
+      entry.totalCopies,
+      entry.deckIds.reduce((sum, deckId) => sum + (entry.copiesByDeckId[deckId] ?? 0), 0),
+    );
   });
 });
 
@@ -130,6 +170,7 @@ test("loadContentCatalog normaliza decks em deck definitions e cards canônicos 
     ["BA", "NA"],
   );
   assert.deepEqual(catalog.decks[0]?.targetIds, ["banana", "baba"]);
+  assert.deepEqual(catalog.decks[0]?.cardIds, ["syllable.ba", "syllable.na"]);
   assert.deepEqual(catalog.targetsById.banana?.cardIds, ["syllable.ba", "syllable.na", "syllable.na"]);
   assert.equal(catalog.decks[0]?.cardPool["syllable.ba"], 3);
 });
@@ -237,5 +278,46 @@ test("loadDeckCatalog rejeita deck com poucos targets para o board atual", () =>
     (error: unknown) =>
       error instanceof DeckContentError &&
       error.issues.some((issue) => issue.includes(`at least ${CONFIG.targetsInPlay} targets`)),
+  );
+});
+
+test("app deck resolver explicita a ultima ponte entre deck model e runtime legado", () => {
+  assert.equal(APP_RESOLVED_DECKS.length, DECK_MODELS.length);
+
+  APP_RESOLVED_DECKS.forEach((entry) => {
+    assert.equal(APP_RESOLVED_DECKS_BY_ID[entry.deckId], entry);
+    assert.equal(resolveAppDeck(entry.deckId), entry);
+    assert.equal(entry.deckModel, DECK_MODELS_BY_ID[entry.deckId]);
+    assert.equal(entry.runtimeDeck, RUNTIME_DECKS_BY_ID[entry.deckId]);
+    assert.equal(entry.definition, entry.deckModel.definition);
+    assert.equal(entry.name, entry.deckModel.definition.name);
+    assert.equal(entry.description, entry.deckModel.definition.description);
+    assert.equal(entry.emoji, entry.deckModel.definition.emoji);
+    assert.equal(entry.visualTheme, entry.deckModel.definition.visualTheme);
+    assert.equal(entry.runtimeColorClass, entry.runtimeDeck.color);
+    assert.equal(entry.targetCardCount, entry.deckModel.targetInstances.length);
+    assert.equal(
+      entry.syllableReserveCount,
+      entry.deckModel.cards.reduce((total, cardEntry) => total + cardEntry.copiesInDeck, 0),
+    );
+    assert.deepEqual(entry.previewTargets, entry.deckModel.targetInstances.slice(0, 4));
+  });
+
+  const firstResolvedDeck = getFirstResolvedDeck();
+  assert.equal(firstResolvedDeck?.deckId, APP_RESOLVED_DECKS[0]?.deckId);
+  assert.deepEqual(
+    resolveAppDeckPair(APP_RESOLVED_DECKS[0]?.deckId, APP_RESOLVED_DECKS[1]?.deckId),
+    APP_RESOLVED_DECKS.length >= 2
+      ? {
+          localDeck: APP_RESOLVED_DECKS[0],
+          remoteDeck: APP_RESOLVED_DECKS[1],
+        }
+      : null,
+  );
+  assert.equal(getFallbackResolvedEnemyDeck("multiplayer")?.deckId, getFirstResolvedDeck()?.deckId);
+  assert.equal(
+    resolveAppBattleDeckSelection("multiplayer", APP_RESOLVED_DECKS[0]?.deckId, APP_RESOLVED_DECKS[1]?.deckId)
+      .playerDeck?.deckId,
+    APP_RESOLVED_DECKS[0]?.deckId,
   );
 });

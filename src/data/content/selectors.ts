@@ -1,4 +1,5 @@
 import {
+  CardCatalogEntry,
   CardDefinition,
   DeckDefinition,
   DeckModel,
@@ -43,6 +44,13 @@ export function getCatalogCardById(catalog: NormalizedContentCatalog, cardId: st
   return catalog.cardsById[cardId] ?? null;
 }
 
+export function getCardCatalogEntryById(
+  cardCatalogById: Record<string, CardCatalogEntry>,
+  cardId: string,
+) {
+  return cardCatalogById[cardId] ?? null;
+}
+
 export function getDeckModelById(
   deckModelsById: Record<string, DeckModel>,
   deckId: string,
@@ -71,6 +79,15 @@ export function getCardsForDeckModel(deckModel: DeckModel): CatalogCardUsage[] {
     copiesInDeck: entry.copiesInDeck,
     usedByTargets: entry.usedByTargets,
   }));
+}
+
+export function getCardCatalogEntriesForDeckModel(
+  cardCatalogById: Record<string, CardCatalogEntry>,
+  deckModel: DeckModel,
+): CardCatalogEntry[] {
+  return deckModel.definition.cardIds
+    .map((cardId) => getCardCatalogEntryById(cardCatalogById, cardId))
+    .filter((entry): entry is CardCatalogEntry => !!entry);
 }
 
 export function getTargetsForDeck(catalog: NormalizedContentCatalog, deckId: string): TargetDefinition[] {

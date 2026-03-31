@@ -72,6 +72,7 @@ const createDeckModel = (
     description,
     emoji,
     visualTheme,
+    cardIds: cards.map((entry) => entry.card.id),
     cardPool: Object.fromEntries(cards.map((entry) => [entry.card.id, entry.copiesInDeck])),
     targetIds: targetDefinitions.map((target) => target.id),
   };

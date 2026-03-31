@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CARD_CATALOG_BY_ID,
   CONTENT_CATALOG,
   CONTENT_PIPELINE,
   DECK_MODELS,
   DECK_MODELS_BY_ID,
   getCardsForDeck,
+  getCardCatalogEntriesForDeckModel,
+  getCardCatalogEntryById,
   getCardsForDeckModel,
   getCatalogCardById,
   getCatalogDeckById,
@@ -28,11 +31,13 @@ test("selectors basicos resolvem deck, target, card e deck model por id", () => 
   const farmDeckModel = getDeckModelById(DECK_MODELS_BY_ID, "farm");
   const vacaTarget = getCatalogTargetById(CONTENT_CATALOG, "vaca");
   const vaCard = getCatalogCardById(CONTENT_CATALOG, "syllable.va");
+  const vaCardCatalogEntry = getCardCatalogEntryById(CARD_CATALOG_BY_ID, "syllable.va");
 
   assert.equal(farmDeck?.id, "farm");
   assert.equal(farmDeckModel?.id, "farm");
   assert.equal(vacaTarget?.id, "vaca");
   assert.equal(vaCard?.syllable, "VA");
+  assert.equal(vaCardCatalogEntry?.card.id, "syllable.va");
 });
 
 test("selectors deck model-first expoem definitions, instancias e cards do deck", () => {
@@ -40,10 +45,15 @@ test("selectors deck model-first expoem definitions, instancias e cards do deck"
   const farmTargets = getTargetsForDeckModel(farmDeckModel);
   const farmTargetInstances = getTargetInstancesForDeckModel(farmDeckModel);
   const farmCards = getCardsForDeckModel(farmDeckModel);
+  const farmCardCatalogEntries = getCardCatalogEntriesForDeckModel(CARD_CATALOG_BY_ID, farmDeckModel);
   const vaEntry = farmCards.find((entry) => entry.card.id === "syllable.va");
 
   assert.equal(farmTargets.length, 6);
   assert.equal(farmTargetInstances.length, 6);
+  assert.deepEqual(
+    farmCardCatalogEntries.map((entry) => entry.id),
+    farmDeckModel.definition.cardIds,
+  );
   assert.ok(vaEntry);
   assert.equal(vaEntry?.copiesInDeck, 4);
   assert.ok(vaEntry?.usedByTargets.some((target) => target.id === "vaca"));

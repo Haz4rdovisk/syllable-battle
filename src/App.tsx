@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { GameMode, Deck, BattleSide, BattleSubmittedAction, GameState, PlayerProfile, normalizePlayerName } from "./types/game";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GameMode, BattleSide, BattleSubmittedAction, GameState, PlayerProfile, normalizePlayerName } from "./types/game";
 import { Menu } from "./components/screens/Menu";
 import { DeckSelection } from "./components/screens/DeckSelection";
 import { Lobby } from "./components/screens/Lobby";
@@ -9,7 +9,6 @@ import { ContentEditor } from "./components/screens/ContentEditor";
 import { ProfileSetup } from "./components/screens/ProfileSetup";
 import { BattleLayoutEditor } from "./components/screens/BattleLayoutEditor";
 import { BattleLayoutPreview } from "./components/screens/BattleLayoutPreview";
-import { DECKS } from "./data/decks";
 import { BattleRoomSession, BattleRoomState, createBattleRoomService } from "./lib/battleRoomSession";
 import { SseBattleRoomConnector } from "./lib/battleRoomSseConnector";
 import { AnimatePresence, motion } from "motion/react";
@@ -20,6 +19,10 @@ import {
   resolveDevSceneMode,
 } from "./app/appBootstrap";
 import { RoomProfilesCache, useAppRoomLifecycle } from "./app/useAppRoomLifecycle";
+import {
+  resolveAppDeck,
+  resolveAppBattleDeckSelection,
+} from "./app/appDeckResolver";
 
 type Screen = "menu" | "deck-selection" | "lobby" | "battle";
 type SoloDeckStep = "player" | "enemy";
@@ -40,8 +43,8 @@ export default function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [screen, setScreen] = useState<Screen>("menu");
   const [mode, setMode] = useState<GameMode>("bot");
-  const [playerDeck, setPlayerDeck] = useState<Deck | null>(null);
-  const [enemyBattleDeck, setEnemyBattleDeck] = useState<Deck | null>(null);
+  const [playerDeckId, setPlayerDeckId] = useState<string | null>(null);
+  const [enemyBattleDeckId, setEnemyBattleDeckId] = useState<string | null>(null);
   const [soloDeckStep, setSoloDeckStep] = useState<SoloDeckStep>("player");
   const [isPreparingBattle, setIsPreparingBattle] = useState(false);
   const [roomId, setRoomId] = useState<string | undefined>();
@@ -66,8 +69,8 @@ export default function App() {
 
   const handleSelectMode = (selectedMode: GameMode) => {
     setMode(selectedMode);
-    setPlayerDeck(null);
-    setEnemyBattleDeck(null);
+    setPlayerDeckId(null);
+    setEnemyBattleDeckId(null);
     setSoloDeckStep("player");
     if (selectedMode === "multiplayer") {
       setScreen("lobby");
@@ -83,8 +86,8 @@ export default function App() {
   }, []);
 
   const resetBattleFlowState = useCallback(() => {
-    setPlayerDeck(null);
-    setEnemyBattleDeck(null);
+    setPlayerDeckId(null);
+    setEnemyBattleDeckId(null);
     setPendingBattleActions([]);
     setSharedInitialGame(null);
     setSharedBattleSnapshot(null);
@@ -108,29 +111,32 @@ export default function App() {
     [playerProfile, resetBattleFlowState],
   );
 
-  const handleSelectDeck = (deck: Deck) => {
+  const handleSelectDeck = (deckId: string) => {
+    const selectedDeck = resolveAppDeck(deckId);
+    if (!selectedDeck) return;
+
     if (mode === "multiplayer" && activeRoomSession) {
-      setPlayerDeck(deck);
-      activeRoomSession.selectDeck(deck.id);
+      setPlayerDeckId(selectedDeck.deckId);
+      activeRoomSession.selectDeck(selectedDeck.deckId);
       return;
     }
 
     if (mode === "bot" && soloDeckStep === "player") {
-      setPlayerDeck(deck);
-      setEnemyBattleDeck(null);
+      setPlayerDeckId(selectedDeck.deckId);
+      setEnemyBattleDeckId(null);
       setSoloDeckStep("enemy");
       return;
     }
 
     if (mode === "bot" && soloDeckStep === "enemy") {
-      setEnemyBattleDeck(deck);
+      setEnemyBattleDeckId(selectedDeck.deckId);
       setPendingBattleActions([]);
       setScreen("battle");
       return;
     }
 
-    setPlayerDeck(deck);
-    setEnemyBattleDeck(null);
+    setPlayerDeckId(selectedDeck.deckId);
+    setEnemyBattleDeckId(null);
     setPendingBattleActions([]);
     setScreen("battle");
   };
@@ -198,8 +204,8 @@ export default function App() {
     lastKnownRoomProfilesRef,
     clearBattleTransitionTimer,
     setActiveRoomState,
-    setPlayerDeck,
-    setEnemyBattleDeck,
+    setPlayerDeckId,
+    setEnemyBattleDeckId,
     setPendingBattleActions,
     setSharedInitialGame,
     setSharedBattleSnapshot,
@@ -232,9 +238,14 @@ export default function App() {
     mode === "bot" ? `bot-${soloDeckStep}` : mode === "multiplayer" ? "multiplayer-deck-selection" : "solo-deck-selection";
   const deckSelectionIdleStatusTitle =
     mode === "bot" && soloDeckStep === "enemy" ? "DEFINA O DECK DO ADVERSARIO" : "ESCOLHA SEU DECK";
+  const battleDeckSelection = useMemo(
+    () => resolveAppBattleDeckSelection(mode, playerDeckId, enemyBattleDeckId),
+    [enemyBattleDeckId, mode, playerDeckId],
+  );
+
   const handleDeckSelectionBack = () => {
     if (mode === "bot" && soloDeckStep === "enemy") {
-      setEnemyBattleDeck(null);
+      setEnemyBattleDeckId(null);
       setSoloDeckStep("player");
       return;
     }
@@ -309,7 +320,11 @@ export default function App() {
               <DeckSelection 
                 onSelectDeck={handleSelectDeck} 
                 onBack={handleDeckSelectionBack}
-                selectedDeckId={mode === "bot" && soloDeckStep === "enemy" ? enemyBattleDeck?.id : playerDeck?.id}
+                selectedDeckId={
+                  mode === "bot" && soloDeckStep === "enemy"
+                    ? battleDeckSelection.enemyDeck?.deckId
+                    : battleDeckSelection.playerDeck?.deckId
+                }
                 isPreparingBattle={isPreparingBattle}
                 title={deckSelectionTitle}
                 idleStatusTitle={deckSelectionIdleStatusTitle}
@@ -347,7 +362,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {screen === "battle" && playerDeck && (
+          {screen === "battle" && battleDeckSelection.playerDeck?.runtimeDeck && (
             <motion.div
               key="battle"
               className="h-full w-full"
@@ -358,11 +373,13 @@ export default function App() {
             >
               <Battle 
                 mode={mode}
-                playerDeck={playerDeck}
+                playerDeck={battleDeckSelection.playerDeck.runtimeDeck}
                 enemyDeck={
-                  mode === "multiplayer"
-                    ? (enemyBattleDeck ?? DECKS[0])
-                    : (enemyBattleDeck ?? DECKS[Math.floor(Math.random() * DECKS.length)])
+                  (
+                    battleDeckSelection.enemyDeck ??
+                    battleDeckSelection.fallbackEnemyDeck ??
+                    battleDeckSelection.playerDeck
+                  ).runtimeDeck
                 }
                 roomTransportKind={battleRoomServiceRef.current.kind}
                 initialGameState={sharedInitialGame ?? undefined}

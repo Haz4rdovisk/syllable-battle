@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/button";
 import { Deck, normalizeRarity } from "../../types/game";
 import { CONTENT_PIPELINE } from "../../data/content";
+import { APP_RESOLVED_DECKS } from "../../app/appDeckResolver";
 import { AnimatePresence, motion, Variants } from "motion/react";
 import { ChevronLeft, Info, BookOpen, X, Swords } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
 
 interface DeckSelectionProps {
-  onSelectDeck: (deck: Deck) => void;
+  onSelectDeck: (deckId: string) => void;
   onBack: () => void;
   selectedDeckId?: string;
   remoteSelectedDeckId?: string;
@@ -16,11 +17,6 @@ interface DeckSelectionProps {
   title?: string;
   idleStatusTitle?: string;
   phaseKey?: string;
-}
-
-interface DeckSelectionEntry {
-  deckModel: (typeof CONTENT_PIPELINE.deckModels)[number];
-  runtimeDeck: Deck;
 }
 
 export const DeckSelection: React.FC<DeckSelectionProps> = ({
@@ -37,19 +33,12 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
   const [cardsInteractive, setCardsInteractive] = useState(false);
 
   const deckEntries = useMemo(
-    () =>
-      CONTENT_PIPELINE.deckModels
-        .map((deckModel) => {
-          const runtimeDeck = CONTENT_PIPELINE.runtimeDecksById[deckModel.id] ?? null;
-          if (!runtimeDeck) return null;
-          return { deckModel, runtimeDeck };
-        })
-        .filter((entry): entry is DeckSelectionEntry => !!entry),
+    () => APP_RESOLVED_DECKS,
     [],
   );
 
   const openedDeck = useMemo(
-    () => deckEntries.find((entry) => entry.deckModel.id === openedDeckId) ?? null,
+    () => deckEntries.find((entry) => entry.deckId === openedDeckId) ?? null,
     [deckEntries, openedDeckId],
   );
 
@@ -197,19 +186,19 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
           exit={{ opacity: 0, y: -14, transition: { duration: 0.28, ease: "easeInOut" } }}
           className="grid shrink-0 grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-2.5"
         >
-          {deckEntries.map(({ deckModel, runtimeDeck }) => (
+          {deckEntries.map((deckEntry) => (
             <motion.div
-              key={deckModel.id}
+              key={deckEntry.deckId}
               variants={deckCardVariants}
               className="relative mx-auto w-full max-w-[340px] lg:max-w-[324px]"
             >
               <motion.div
                 whileHover={
-                  !cardsInteractive || selectedDeckId === deckModel.id || isPreparingBattle ? undefined : { y: -12 }
+                  !cardsInteractive || selectedDeckId === deckEntry.deckId || isPreparingBattle ? undefined : { y: -12 }
                 }
                 whileTap={!cardsInteractive || isPreparingBattle ? undefined : { scale: 0.98 }}
                 animate={
-                  selectedDeckId === deckModel.id
+                  selectedDeckId === deckEntry.deckId
                     ? {
                         y: [0, -6, 0],
                         boxShadow: [
@@ -221,37 +210,37 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                     : {}
                 }
                 transition={
-                  selectedDeckId === deckModel.id
+                  selectedDeckId === deckEntry.deckId
                     ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
                     : undefined
                 }
                 className={cn(
                   "group relative cursor-pointer overflow-hidden rounded-[40px] border-4 border-[#d4af37] bg-[#3e2723] p-1 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.6)]",
                   "before:absolute before:inset-0 before:bg-[url('https://www.transparenttextures.com/patterns/leather.png')] before:opacity-40",
-                  selectedDeckId === deckModel.id && "ring-4 ring-emerald-300/70 shadow-[0_0_0_2px_rgba(110,231,183,0.3)]",
+                  selectedDeckId === deckEntry.deckId && "ring-4 ring-emerald-300/70 shadow-[0_0_0_2px_rgba(110,231,183,0.3)]",
                   (!cardsInteractive || isPreparingBattle) && "pointer-events-none",
                   isPreparingBattle && "opacity-90",
                 )}
                 onClick={() => {
                   if (!cardsInteractive || isPreparingBattle) return;
-                  onSelectDeck(runtimeDeck);
+                  onSelectDeck(deckEntry.deckId);
                 }}
               >
                 <div
                   className={cn(
                     "relative z-10 flex h-[292px] flex-col rounded-[36px] border-2 border-[#d4af37]/40 bg-gradient-to-br p-5 sm:h-[340px] sm:p-6",
-                    runtimeDeck.color,
+                    deckEntry.runtimeColorClass,
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-5xl drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] sm:text-[3.35rem]">
-                      {deckModel.definition.emoji}
+                      {deckEntry.emoji}
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <div className="rounded-full border border-amber-400/20 bg-black/30 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-amber-200">
-                        {deckModel.targetInstances.length} CARTAS
+                        {deckEntry.targetCardCount} CARTAS
                       </div>
-                      {selectedDeckId === deckModel.id && (
+                      {selectedDeckId === deckEntry.deckId && (
                         <div className="rounded-full border border-emerald-300/30 bg-emerald-950/70 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
                           DECK SELECIONADO
                         </div>
@@ -261,16 +250,16 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
 
                   <div className="mt-6 space-y-2.5">
                     <h3 className="text-[2rem] font-serif font-black text-amber-100 transition-colors group-hover:text-amber-400 sm:text-[2.15rem]">
-                      {deckModel.definition.name}
+                      {deckEntry.name}
                     </h3>
                     <p className="text-[13px] font-serif italic leading-relaxed text-amber-100/60 sm:text-sm">
-                      "{deckModel.definition.description}"
+                      "{deckEntry.description}"
                     </p>
                   </div>
 
                   <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-5">
                     <div className="flex -space-x-3">
-                      {deckModel.targetInstances.slice(0, 4).map((entry) => (
+                      {deckEntry.previewTargets.map((entry) => (
                         <div
                           key={entry.instanceKey}
                           className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#d4af37] bg-[#3e2723] text-xl shadow-lg"
@@ -284,10 +273,10 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                       onClick={(event) => {
                         event.stopPropagation();
                         if (!cardsInteractive) return;
-                        setOpenedDeckId(deckModel.id);
+                        setOpenedDeckId(deckEntry.deckId);
                       }}
                       className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber-300/30 bg-amber-50/10 px-4 py-2 text-sm font-black text-amber-300 shadow-[0_10px_20px_rgba(0,0,0,0.22)] transition-all hover:-translate-y-0.5 hover:border-amber-200/45 hover:bg-amber-50/16 hover:text-amber-100 active:translate-y-0"
-                      aria-label={`Abrir grimorio do deck ${deckModel.definition.name}`}
+                      aria-label={`Abrir grimorio do deck ${deckEntry.name}`}
                     >
                       <BookOpen className="h-4 w-4" />
                       ABRIR
@@ -334,7 +323,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                 className={cn(
                   "relative overflow-hidden px-8 py-7 text-amber-50",
                   "bg-gradient-to-br",
-                  openedDeck.runtimeDeck.color,
+                  openedDeck.runtimeColorClass,
                 )}
               >
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.18),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(0,0,0,0.18),transparent_42%)]" />
@@ -371,7 +360,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                       <h4 className="mt-2 text-2xl font-serif font-black text-amber-950">Bestiario do Duelo</h4>
                     </div>
                     <div className="rounded-full border border-amber-900/15 bg-amber-900/5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-amber-900/60">
-                      {openedDeck.deckModel.targetInstances.length} cartas de alvo
+                      {openedDeck.targetCardCount} cartas de alvo
                     </div>
                   </div>
 
@@ -429,7 +418,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                       <h4 className="mt-2 text-2xl font-serif font-black text-amber-950">Reserva de Cartas</h4>
                     </div>
                     <div className="rounded-full border border-amber-900/15 bg-amber-900/5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-amber-900/60">
-                      {openedDeckSyllables.reduce((total, [, count]) => total + count, 0)} silabas
+                      {openedDeck.syllableReserveCount} silabas
                     </div>
                   </div>
 

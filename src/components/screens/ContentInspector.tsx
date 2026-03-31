@@ -18,8 +18,10 @@ import {
   inspectDeckCatalog,
 } from "../../data/contentInsights";
 import {
+  CARD_CATALOG,
   CONTENT_CATALOG,
   CONTENT_PIPELINE,
+  getCardCatalogEntriesForDeckModel,
   getCatalogCardById,
   getMostReusedCards,
   getSharedTargetsBetweenDeckModels,
@@ -154,6 +156,21 @@ export const ContentInspector: React.FC = () => {
     () => selectedDeckModel?.cards ?? [],
     [selectedDeckModel],
   );
+  const selectedDeckCardCatalogEntries = useMemo(
+    () =>
+      selectedDeckModel
+        ? getCardCatalogEntriesForDeckModel(CONTENT_PIPELINE.cardCatalogById, selectedDeckModel)
+        : [],
+    [selectedDeckModel],
+  );
+  const selectedDeckCardUsageById = useMemo(
+    () =>
+      selectedCatalogCards.reduce<Record<string, (typeof selectedCatalogCards)[number]>>((acc, entry) => {
+        acc[entry.card.id] = entry;
+        return acc;
+      }, {}),
+    [selectedCatalogCards],
+  );
 
   const selectedSharedTargets = useMemo(
     () =>
@@ -253,7 +270,7 @@ export const ContentInspector: React.FC = () => {
           </div>
 
           <div className="mt-3 rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-3 text-sm text-sky-950/90">
-            Fonte unica: <span className="font-black text-sky-950">{CONTENT_CATALOG.cards.length}</span> cartas
+            Fonte unica: <span className="font-black text-sky-950">{CARD_CATALOG.length}</span> cartas
             canonicas, <span className="font-black text-sky-950">{CONTENT_CATALOG.targets.length}</span> targets e{" "}
             <span className="font-black text-sky-950">{CONTENT_CATALOG.decks.length}</span> deck definitions que
             alimentam <span className="font-black text-sky-950">{CONTENT_PIPELINE.deckModels.length}</span> deck
@@ -589,7 +606,8 @@ export const ContentInspector: React.FC = () => {
                     {selectedDeckDefinition ? (
                       <div className="grid grid-cols-2 gap-3">
                         <InfoTile label="Visual theme" value={selectedDeckDefinition.visualTheme} />
-                        <InfoTile label="Cards canonicos" value={String(selectedCatalogCards.length)} />
+                        <InfoTile label="Cards referenciados" value={String(selectedDeckDefinition.cardIds.length)} />
+                        <InfoTile label="Cards no catalogo" value={String(selectedDeckCardCatalogEntries.length)} />
                         <InfoTile label="Target definitions" value={String(selectedCatalogTargetDefinitions.length)} />
                         <InfoTile label="Target instances" value={String(selectedCatalogTargetInstances.length)} />
                         <InfoTile
@@ -605,35 +623,44 @@ export const ContentInspector: React.FC = () => {
                   </Subsection>
 
                   <Subsection
-                    title="Cards usados por este deck"
-                    subtitle="Mostra a relacao entre pool de cartas canonicas e os targets que consomem cada card."
+                    title="Cards do catalogo usados por este deck"
+                    subtitle="Mostra a relacao entre as cartas canonicas, o pool deste deck e o reuso dessas cartas no catalogo."
                   >
-                    {selectedCatalogCards.length === 0 ? (
+                    {selectedDeckCardCatalogEntries.length === 0 ? (
                       <EmptyCallout text="Nenhum card canonico encontrado para este deck." />
                     ) : (
                       <div className="space-y-3">
-                        {selectedCatalogCards.slice(0, 6).map((entry) => (
-                          <div key={entry.card.id} className={inspectorCardClass}>
+                        {selectedDeckCardCatalogEntries.slice(0, 6).map((entry) => {
+                          const deckUsage = selectedDeckCardUsageById[entry.id];
+
+                          return (
+                          <div key={entry.id} className={inspectorCardClass}>
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
                                 <div className="font-serif text-xl font-black text-amber-950">{entry.card.syllable}</div>
                                 <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                  {entry.card.id}
+                                  {entry.id}
                                 </div>
                               </div>
                               <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
-                                x{entry.copiesInDeck} no deck
+                                x{deckUsage?.copiesInDeck ?? 0} no deck
                               </Badge>
                             </div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                              <InfoTile label="Decks usando" value={String(entry.deckIds.length)} mini slim />
+                              <InfoTile label="Targets usando" value={String(entry.targetIds.length)} mini slim />
+                              <InfoTile label="Copias no catalogo" value={String(entry.totalCopies)} mini slim />
+                            </div>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              {entry.usedByTargets.map((target) => (
-                                <span key={`${entry.card.id}-${target.id}`} className={inspectorChipClass}>
+                              {(deckUsage?.usedByTargets ?? []).map((target) => (
+                                <span key={`${entry.id}-${target.id}`} className={inspectorChipClass}>
                                   {target.name}
                                 </span>
                               ))}
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     )}
                   </Subsection>
@@ -837,10 +864,20 @@ const MetricCard: React.FC<{
 const InfoTile: React.FC<{
   label: string;
   value: string;
-}> = ({ label, value }) => (
-  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4">
-    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">{label}</div>
-    <div className="mt-2 font-serif text-2xl font-black text-amber-950">{value}</div>
+  mini?: boolean;
+  slim?: boolean;
+}> = ({ label, value, mini = false, slim = false }) => (
+  <div
+    className={cn(
+      "rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4",
+      mini && "px-3 py-3",
+      slim && "px-3.5 py-3",
+    )}
+  >
+    <div className={cn("text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45", slim && "text-[10px] tracking-[0.18em]")}>{label}</div>
+    <div className={cn("mt-2 font-serif font-black text-amber-950", mini ? "text-xl" : "text-2xl", slim && "text-lg")}>
+      {value}
+    </div>
   </div>
 );
 

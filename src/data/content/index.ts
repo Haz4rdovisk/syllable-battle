@@ -3,6 +3,7 @@ import { Deck, Rarity, Target, normalizeRarity } from "../../types/game";
 import { rawDeckCatalog } from "./decks";
 import { DECK_VISUAL_THEME_CLASSES } from "./themes";
 import {
+  CardCatalogEntry,
   CardDefinition,
   ContentCatalog,
   DeckDefinition,
@@ -69,6 +70,8 @@ const createIndex = <T extends { id: string }>(entries: T[]) =>
 
 export interface ContentPipeline {
   catalog: NormalizedContentCatalog;
+  cardCatalog: CardCatalogEntry[];
+  cardCatalogById: Record<string, CardCatalogEntry>;
   deckModels: DeckModel[];
   deckModelsById: Record<string, DeckModel>;
   runtimeDecks: Deck[];
@@ -287,6 +290,7 @@ function validateDeckDefinition(
       description,
       emoji,
       visualTheme: rawDeck.visualTheme,
+      cardIds: Object.keys(cardPool),
       cardPool,
       targetIds: normalizedTargets.flatMap(({ target, copies }) => Array.from({ length: copies }, () => target.id)),
     },
@@ -326,7 +330,9 @@ export function loadContentCatalog(rawDecks: RawDeckDefinition[]): NormalizedCon
     targetIds.add(target.id);
   });
 
-  const cards = [...cardsRegistry.values()];
+  const cards = [...cardsRegistry.values()].sort((left, right) =>
+    left.syllable.localeCompare(right.syllable),
+  );
   const catalog: ContentCatalog = {
     cards,
     targets,
@@ -341,6 +347,12 @@ export function loadContentCatalog(rawDecks: RawDeckDefinition[]): NormalizedCon
   };
 
   normalizedCatalog.decks.forEach((deck) => {
+    deck.cardIds.forEach((cardId) => {
+      if (!normalizedCatalog.cardsById[cardId]) {
+        issues.push(`Deck "${deck.id}" references unknown card "${cardId}".`);
+      }
+    });
+
     deck.targetIds.forEach((targetId) => {
       if (!normalizedCatalog.targetsById[targetId]) {
         issues.push(`Deck "${deck.id}" references unknown target "${targetId}".`);
@@ -402,9 +414,10 @@ function buildDeckModelCardEntries(
   targetDefinitions: TargetDefinition[],
   catalog: NormalizedContentCatalog,
 ): DeckModelCardEntry[] {
-  return Object.entries(deck.cardPool)
-    .map(([cardId, copiesInDeck]) => {
+  return deck.cardIds
+    .map((cardId) => {
       const card = catalog.cardsById[cardId];
+      const copiesInDeck = deck.cardPool[cardId] ?? 0;
       if (!card) return null;
 
       return {
@@ -422,6 +435,30 @@ function buildDeckModelCardEntries(
       }
       return left.card.syllable.localeCompare(right.card.syllable);
     });
+}
+
+function buildCardCatalogEntry(
+  card: CardDefinition,
+  catalog: NormalizedContentCatalog,
+): CardCatalogEntry {
+  const decksUsingCard = catalog.decks.filter((deck) => deck.cardIds.includes(card.id));
+  const targetsUsingCard = catalog.targets.filter((target) => target.cardIds.includes(card.id));
+
+  return {
+    id: card.id,
+    card,
+    deckIds: decksUsingCard.map((deck) => deck.id),
+    targetIds: targetsUsingCard.map((target) => target.id),
+    copiesByDeckId: decksUsingCard.reduce<Record<string, number>>((acc, deck) => {
+      acc[deck.id] = deck.cardPool[card.id] ?? 0;
+      return acc;
+    }, {}),
+    totalCopies: decksUsingCard.reduce((sum, deck) => sum + (deck.cardPool[card.id] ?? 0), 0),
+  };
+}
+
+export function buildCardCatalog(catalog: NormalizedContentCatalog): CardCatalogEntry[] {
+  return catalog.cards.map((card) => buildCardCatalogEntry(card, catalog));
 }
 
 export function createDeckModel(
@@ -501,10 +538,13 @@ export function adaptCatalogToRuntimeDecks(catalog: NormalizedContentCatalog): D
 
 export function buildContentPipeline(rawDecks: RawDeckDefinition[]): ContentPipeline {
   const catalog = loadContentCatalog(rawDecks);
+  const cardCatalog = buildCardCatalog(catalog);
   const deckModels = buildDeckModels(catalog);
   const runtimeDecks = adaptDeckModelsToRuntimeDecks(deckModels, catalog);
   return {
     catalog,
+    cardCatalog,
+    cardCatalogById: createIndex(cardCatalog),
     deckModels,
     deckModelsById: createIndex(deckModels),
     runtimeDecks,
@@ -521,6 +561,8 @@ export * from "./selectors";
 
 export const CONTENT_PIPELINE = buildContentPipeline(rawDeckCatalog);
 export const CONTENT_CATALOG = CONTENT_PIPELINE.catalog;
+export const CARD_CATALOG = CONTENT_PIPELINE.cardCatalog;
+export const CARD_CATALOG_BY_ID = CONTENT_PIPELINE.cardCatalogById;
 // Central read layer for app/tooling outside the battle runtime.
 export const DECK_MODELS = CONTENT_PIPELINE.deckModels;
 export const DECK_MODELS_BY_ID = CONTENT_PIPELINE.deckModelsById;

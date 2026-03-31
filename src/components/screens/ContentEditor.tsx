@@ -37,6 +37,7 @@ import {
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
 } from "../../data/content/editor";
+import { getCardCatalogEntriesForDeckModel } from "../../data/content";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
@@ -334,9 +335,12 @@ export const ContentEditor: React.FC = () => {
     () => selectedDeckModel?.definition ?? null,
     [selectedDeckModel],
   );
-  const selectedCatalogCards = useMemo(
-    () => selectedDeckModel?.cards ?? [],
-    [selectedDeckModel],
+  const selectedDeckCardCatalogEntries = useMemo(
+    () =>
+      preview.ok && selectedDeckModel
+        ? getCardCatalogEntriesForDeckModel(preview.pipeline.cardCatalogById, selectedDeckModel)
+        : [],
+    [preview, selectedDeckModel],
   );
   const pipelineIssues = useMemo(() => ("issues" in preview ? preview.issues : []), [preview]);
   const selectedTargetDraft = useMemo(
@@ -391,6 +395,13 @@ export const ContentEditor: React.FC = () => {
   const selectedSyllableCardId = useMemo(
     () => (selectedSyllableNormalized ? `syllable.${selectedSyllableNormalized.toLowerCase()}` : ""),
     [selectedSyllableNormalized],
+  );
+  const selectedSyllableCardCatalogEntry = useMemo(
+    () =>
+      preview.ok && selectedSyllableCardId
+        ? preview.pipeline.cardCatalogById[selectedSyllableCardId] ?? null
+        : null,
+    [preview, selectedSyllableCardId],
   );
   const selectedSyllableUsedByTargets = useMemo(
     () =>
@@ -880,7 +891,7 @@ export const ContentEditor: React.FC = () => {
                 </div>
                 <div>
                   <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-100/60">
-                    Deck-scoped
+                    Deck sobre catalogo de cards
                   </div>
                   <h2 className="mt-2 font-serif text-4xl font-black tracking-tight text-amber-50">{draft.name}</h2>
                   <p className="mt-3 max-w-3xl font-serif text-sm italic leading-relaxed text-amber-50/80">
@@ -906,8 +917,8 @@ export const ContentEditor: React.FC = () => {
                   icon={<Shield className="h-4 w-4" />}
                 />
                 <MetricCard
-                  label="Cards derivados"
-                  value={String(selectedCatalogCards.length)}
+                  label="Cards no catalogo"
+                  value={String(selectedDeckCardCatalogEntries.length)}
                   icon={<BarChart3 className="h-4 w-4" />}
                 />
               </div>
@@ -1142,6 +1153,15 @@ export const ContentEditor: React.FC = () => {
                                 <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
                                   id interno: {selectedSyllableCardId || "syllable.sem-id"}
                                 </Badge>
+                                {selectedSyllableCardCatalogEntry ? (
+                                  <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
+                                    card canonico no catalogo
+                                  </Badge>
+                                ) : (
+                                  <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                                    aguardando card canonico valido
+                                  </Badge>
+                                )}
                                 <Button
                                   variant="ghost"
                                   className="ml-auto h-10 min-w-[5.75rem] rounded-2xl border border-rose-300/25 bg-rose-500/10 px-3 text-rose-900 hover:bg-rose-500/15"
@@ -1153,6 +1173,13 @@ export const ContentEditor: React.FC = () => {
                               </div>
 
                               <div className="grid gap-4">
+                                {selectedSyllableCardCatalogEntry ? (
+                                  <div className="grid gap-3 sm:grid-cols-3">
+                                    <InfoTile label="Decks usando" value={String(selectedSyllableCardCatalogEntry.deckIds.length)} mini slim />
+                                    <InfoTile label="Targets usando" value={String(selectedSyllableCardCatalogEntry.targetIds.length)} mini slim />
+                                    <InfoTile label="Copias no catalogo" value={String(selectedSyllableCardCatalogEntry.totalCopies)} mini slim />
+                                  </div>
+                                ) : null}
                                 <div className="grid gap-4 md:grid-cols-2">
                                   <Field label="Silaba">
                                     <input
@@ -1244,6 +1271,7 @@ export const ContentEditor: React.FC = () => {
                             slim
                             plainValue
                           />
+                          <InfoTile label="CardIds derivados" value={selectedDeckDefinition.cardIds.join(", ")} compact slim plainValue />
                           <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact slim plainValue />
                         </div>
 
@@ -1258,7 +1286,7 @@ export const ContentEditor: React.FC = () => {
                   </Panel>
                   <Panel title="Validacao e Save" icon={<Save className="h-5 w-5" />}>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <InfoTile label="Modo" value="deck-scoped" slim plainValue />
+                      <InfoTile label="Modo" value="deck-scoped sobre card catalog" slim plainValue />
                       <InfoTile label="Source bruto" value={selectedDeckEntry.filePath} slim plainValue />
                       <InfoTile
                         label="Pipeline"

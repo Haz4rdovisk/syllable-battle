@@ -1,12 +1,11 @@
 import { useEffect } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { CONTENT_PIPELINE } from "../data/content";
+import { resolveAppDeckPair } from "./appDeckResolver";
 import { makeInitialGame } from "../logic/gameLogic";
 import type { BattleRoomSession, BattleRoomState } from "../lib/battleRoomSession";
 import type {
   BattleSide,
   BattleSubmittedAction,
-  Deck,
   GameMode,
   GameState,
 } from "../types/game";
@@ -29,8 +28,8 @@ interface UseAppRoomLifecycleOptions {
   lastKnownRoomProfilesRef: MutableRefObject<RoomProfilesCache>;
   clearBattleTransitionTimer: () => void;
   setActiveRoomState: Dispatch<SetStateAction<BattleRoomState | null>>;
-  setPlayerDeck: Dispatch<SetStateAction<Deck | null>>;
-  setEnemyBattleDeck: Dispatch<SetStateAction<Deck | null>>;
+  setPlayerDeckId: Dispatch<SetStateAction<string | null>>;
+  setEnemyBattleDeckId: Dispatch<SetStateAction<string | null>>;
   setPendingBattleActions: Dispatch<SetStateAction<BattleSubmittedAction[]>>;
   setSharedInitialGame: Dispatch<SetStateAction<GameState | null>>;
   setSharedBattleSnapshot: Dispatch<SetStateAction<GameState | null>>;
@@ -46,16 +45,6 @@ function compareBattleActions(a: BattleSubmittedAction, b: BattleSubmittedAction
   return a.id.localeCompare(b.id);
 }
 
-function resolveDeckModel(deckId: string | undefined | null) {
-  if (!deckId) return null;
-  return CONTENT_PIPELINE.deckModelsById[deckId] ?? null;
-}
-
-function resolveRuntimeDeck(deckId: string | undefined | null) {
-  if (!deckId) return null;
-  return CONTENT_PIPELINE.runtimeDecksById[deckId] ?? null;
-}
-
 export function useAppRoomLifecycle({
   activeRoomSession,
   activeRoomState,
@@ -67,8 +56,8 @@ export function useAppRoomLifecycle({
   lastKnownRoomProfilesRef,
   clearBattleTransitionTimer,
   setActiveRoomState,
-  setPlayerDeck,
-  setEnemyBattleDeck,
+  setPlayerDeckId,
+  setEnemyBattleDeckId,
   setPendingBattleActions,
   setSharedInitialGame,
   setSharedBattleSnapshot,
@@ -135,8 +124,8 @@ export function useAppRoomLifecycle({
       clearBattleTransitionTimer();
       setIsPreparingBattle(false);
       battleTransitionSetupVersionRef.current = null;
-      setPlayerDeck(null);
-      setEnemyBattleDeck(null);
+      setPlayerDeckId(null);
+      setEnemyBattleDeckId(null);
       setPendingBattleActions([]);
       setSharedInitialGame(null);
       setSharedBattleSnapshot(null);
@@ -148,19 +137,21 @@ export function useAppRoomLifecycle({
       clearBattleTransitionTimer();
       setIsPreparingBattle(false);
       battleTransitionSetupVersionRef.current = null;
-      setPlayerDeck(resolveRuntimeDeck(localDeckId));
-      setEnemyBattleDeck(resolveRuntimeDeck(remoteDeckId));
+      setPlayerDeckId(localDeckId ?? null);
+      setEnemyBattleDeckId(remoteDeckId ?? null);
       setPendingBattleActions([]);
 
       if (bothDecksSelected && !activeRoomState.initialGame && roomLocalSide === "player") {
-        const nextPlayerDeckModel = resolveDeckModel(localDeckId);
-        const nextEnemyDeckModel = resolveDeckModel(remoteDeckId);
-        const nextPlayerDeck = resolveRuntimeDeck(localDeckId);
-        const nextEnemyDeck = resolveRuntimeDeck(remoteDeckId);
+        const battleDeckPair = resolveAppDeckPair(localDeckId, remoteDeckId);
 
-        if (nextPlayerDeckModel && nextEnemyDeckModel && nextPlayerDeck && nextEnemyDeck) {
+        if (battleDeckPair) {
           activeRoomSession.publishBattleSetup(
-            makeInitialGame("multiplayer", nextPlayerDeck, nextEnemyDeck, roomId),
+            makeInitialGame(
+              "multiplayer",
+              battleDeckPair.localDeck.runtimeDeck,
+              battleDeckPair.remoteDeck.runtimeDeck,
+              roomId,
+            ),
           );
         }
       }
@@ -171,23 +162,25 @@ export function useAppRoomLifecycle({
 
     if (!localDeckId || !remoteDeckId) return;
 
-    const nextPlayerDeckModel = resolveDeckModel(localDeckId);
-    const nextEnemyDeckModel = resolveDeckModel(remoteDeckId);
-    const nextPlayerDeck = resolveRuntimeDeck(localDeckId);
-    const nextEnemyDeck = resolveRuntimeDeck(remoteDeckId);
-    if (!nextPlayerDeckModel || !nextEnemyDeckModel || !nextPlayerDeck || !nextEnemyDeck) return;
+    const battleDeckPair = resolveAppDeckPair(localDeckId, remoteDeckId);
+    if (!battleDeckPair) return;
 
     if (!activeRoomState.initialGame && roomLocalSide === "player") {
       activeRoomSession.publishBattleSetup(
-        makeInitialGame("multiplayer", nextPlayerDeck, nextEnemyDeck, roomId),
+        makeInitialGame(
+          "multiplayer",
+          battleDeckPair.localDeck.runtimeDeck,
+          battleDeckPair.remoteDeck.runtimeDeck,
+          roomId,
+        ),
       );
       return;
     }
 
     if (!activeRoomState.initialGame) return;
 
-    setPlayerDeck(nextPlayerDeck);
-    setEnemyBattleDeck(nextEnemyDeck);
+    setPlayerDeckId(localDeckId);
+    setEnemyBattleDeckId(remoteDeckId);
     const setupVersion = activeRoomState.initialGame.setupVersion;
     if (battleTransitionSetupVersionRef.current === setupVersion) return;
 
@@ -216,10 +209,10 @@ export function useAppRoomLifecycle({
     mode,
     roomId,
     roomLocalSide,
-    setEnemyBattleDeck,
+    setEnemyBattleDeckId,
     setIsPreparingBattle,
     setPendingBattleActions,
-    setPlayerDeck,
+    setPlayerDeckId,
     setScreen,
     setSharedBattleSnapshot,
     setSharedInitialGame,
