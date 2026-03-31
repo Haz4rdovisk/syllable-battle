@@ -24,23 +24,25 @@ import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
 import {
   buildContentEditorReviewSummary,
+  cloneRawDeckCatalogEntry,
   ContentEditorDeckDraft,
   ContentEditorTargetDraft,
   buildContentEditorSourceDiff,
   buildContentEditorPreview,
   cloneRawDeckDefinition,
+  createEmptyContentEditorDeckEntry,
   createContentEditorDeckDraft,
-  createEmptyContentEditorSyllableRow,
   createEmptyContentEditorTarget,
+  createRawDeckCatalogEntry,
   createRawDeckDefinitionSource,
   getContentEditorLocalIssues,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
 } from "../../data/content/editor";
-import { getCardCatalogEntriesForDeckModel } from "../../data/content";
+import { CARD_CATALOG, CARD_CATALOG_BY_ID } from "../../data/content";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
-import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
+import { RawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
 import { RARITY_DAMAGE, normalizeRarity } from "../../types/game";
 
 type SaveStatus = {
@@ -50,14 +52,12 @@ type SaveStatus = {
 
 const themeIds = Object.keys(DECK_VISUAL_THEME_CLASSES) as DeckVisualThemeId[];
 
-const createSourceDeckState = () =>
-  rawDeckCatalogEntries.reduce<Record<string, ReturnType<typeof cloneRawDeckDefinition>>>((acc, entry) => {
-    acc[entry.id] = cloneRawDeckDefinition(entry.deck);
-    return acc;
-  }, {});
+const createSourceEntriesState = () => rawDeckCatalogEntries.map((entry) => cloneRawDeckCatalogEntry(entry));
 
-const createDraftForDeck = (sourceDecksById: Record<string, ReturnType<typeof cloneRawDeckDefinition>>, deckId: string) =>
-  createContentEditorDeckDraft(sourceDecksById[deckId] ?? cloneRawDeckDefinition(rawDeckCatalogEntries[0].deck));
+const createDraftForDeck = (entries: RawDeckCatalogEntry[], deckId: string) =>
+  createContentEditorDeckDraft(
+    entries.find((entry) => entry.id === deckId)?.deck ?? cloneRawDeckDefinition(entries[0]?.deck ?? rawDeckCatalogEntries[0].deck),
+  );
 
 const idleSaveStatus: SaveStatus = {
   tone: "idle",
@@ -118,7 +118,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   const localDuplicateSyllableMatch = issue.match(/^Deck "([^"]+)" repete a silaba "([^"]+)" nas linhas (\d+) do editor\.$/);
   if (localDuplicateSyllableMatch) {
     return {
-      scope: "Silabas do Deck",
+      scope: "Cards do Deck",
       focus: `Silaba ${localDuplicateSyllableMatch[2]} · Linha ${localDuplicateSyllableMatch[3]}`,
       message: "A mesma silaba apareceu mais de uma vez no deck. Cada linha deve representar uma silaba unica.",
       raw: issue,
@@ -194,7 +194,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   const deckSyllableCountMatch = issue.match(/^deck "([^"]+)" syllable "([^"]+)" must have a positive integer count\.$/i);
   if (deckSyllableCountMatch) {
     return {
-      scope: "Silabas do Deck",
+      scope: "Cards do Deck",
       focus: `Silaba ${deckSyllableCountMatch[2]} · Copias`,
       message: "Cada linha de silaba precisa ter um numero inteiro positivo de copias.",
       raw: issue,
@@ -213,7 +213,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   const deckMustDefineSyllablesMatch = issue.match(/^deck "([^"]+)" must define at least one syllable count\.$/i);
   if (deckMustDefineSyllablesMatch) {
     return {
-      scope: "Silabas do Deck",
+      scope: "Cards do Deck",
       message: "O deck precisa definir pelo menos uma silaba no pool bruto.",
       raw: issue,
     };
@@ -276,11 +276,11 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
 };
 
 export const ContentEditor: React.FC = () => {
-  const initialSourceDecks = useMemo(createSourceDeckState, []);
-  const [sourceDecksById, setSourceDecksById] = useState(initialSourceDecks);
-  const [selectedDeckId, setSelectedDeckId] = useState(() => rawDeckCatalogEntries[0]?.id ?? "");
+  const initialSourceEntries = useMemo(createSourceEntriesState, []);
+  const [sourceEntries, setSourceEntries] = useState(initialSourceEntries);
+  const [selectedDeckId, setSelectedDeckId] = useState(() => initialSourceEntries[0]?.id ?? "");
   const [draft, setDraft] = useState<ContentEditorDeckDraft>(() =>
-    createDraftForDeck(initialSourceDecks, rawDeckCatalogEntries[0]?.id ?? ""),
+    createDraftForDeck(initialSourceEntries, initialSourceEntries[0]?.id ?? ""),
   );
   const [selectedTargetId, setSelectedTargetId] = useState("");
   const [selectedSyllableRowId, setSelectedSyllableRowId] = useState("");
@@ -297,18 +297,20 @@ export const ContentEditor: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(idleSaveStatus);
   const deferredDeckSearch = useDeferredValue(deckSearchValue.trim().toLowerCase());
-
-  const sourceEntries = useMemo(
+  const sourceDecksById = useMemo(
     () =>
-      rawDeckCatalogEntries.map((entry) => ({
-        ...entry,
-        deck: sourceDecksById[entry.id] ?? cloneRawDeckDefinition(entry.deck),
-      })),
-    [sourceDecksById],
+      sourceEntries.reduce<Record<string, ReturnType<typeof cloneRawDeckDefinition>>>((acc, entry) => {
+        acc[entry.id] = cloneRawDeckDefinition(entry.deck);
+        return acc;
+      }, {}),
+    [sourceEntries],
   );
 
-  const selectedDeckEntry = useMemo(() => getRawDeckCatalogEntry(selectedDeckId), [selectedDeckId]);
-  const persistedDeck = sourceDecksById[selectedDeckId] ?? null;
+  const selectedDeckEntry = useMemo(
+    () => sourceEntries.find((entry) => entry.id === selectedDeckId) ?? null,
+    [selectedDeckId, sourceEntries],
+  );
+  const persistedDeck = selectedDeckEntry?.deck ?? null;
   const baselineDraft = useMemo(
     () => (persistedDeck ? createContentEditorDeckDraft(persistedDeck) : draft),
     [draft, persistedDeck],
@@ -335,12 +337,24 @@ export const ContentEditor: React.FC = () => {
     () => selectedDeckModel?.definition ?? null,
     [selectedDeckModel],
   );
-  const selectedDeckCardCatalogEntries = useMemo(
+  const draftCardCatalogEntries = useMemo(
     () =>
-      preview.ok && selectedDeckModel
-        ? getCardCatalogEntriesForDeckModel(preview.pipeline.cardCatalogById, selectedDeckModel)
-        : [],
-    [preview, selectedDeckModel],
+      draft.syllableRows
+        .map((row) => CARD_CATALOG_BY_ID[`syllable.${normalizeEditorSyllable(row.syllable).toLowerCase()}`] ?? null)
+        .filter((entry): entry is (typeof CARD_CATALOG)[number] => !!entry),
+    [draft.syllableRows],
+  );
+  const draftCardIds = useMemo(
+    () => new Set(draftCardCatalogEntries.map((entry) => entry.id)),
+    [draftCardCatalogEntries],
+  );
+  const availableCardCatalogEntries = useMemo(
+    () => CARD_CATALOG.filter((entry) => !draftCardIds.has(entry.id)),
+    [draftCardIds],
+  );
+  const draftPoolCopies = useMemo(
+    () => draft.syllableRows.reduce((sum, row) => sum + Math.max(0, Number(row.count) || 0), 0),
+    [draft.syllableRows],
   );
   const pipelineIssues = useMemo(() => ("issues" in preview ? preview.issues : []), [preview]);
   const selectedTargetDraft = useMemo(
@@ -398,8 +412,8 @@ export const ContentEditor: React.FC = () => {
   );
   const selectedSyllableCardCatalogEntry = useMemo(
     () =>
-      preview.ok && selectedSyllableCardId
-        ? preview.pipeline.cardCatalogById[selectedSyllableCardId] ?? null
+      selectedSyllableCardId
+        ? (preview.ok ? preview.pipeline.cardCatalogById[selectedSyllableCardId] : CARD_CATALOG_BY_ID[selectedSyllableCardId]) ?? null
         : null,
     [preview, selectedSyllableCardId],
   );
@@ -479,7 +493,7 @@ export const ContentEditor: React.FC = () => {
       if (!shouldContinue) return;
     }
 
-    const nextDeck = sourceDecksById[nextDeckId];
+    const nextDeck = sourceEntries.find((entry) => entry.id === nextDeckId)?.deck;
     if (!nextDeck) return;
 
     startTransition(() => {
@@ -531,13 +545,49 @@ export const ContentEditor: React.FC = () => {
     }));
   };
 
-  const addSyllableRow = () => {
-    const nextRow = createEmptyContentEditorSyllableRow();
+  const addCatalogCardToDeck = (cardId: string) => {
+    const cardEntry = CARD_CATALOG_BY_ID[cardId];
+    if (!cardEntry) return;
+    const existingRow = draft.syllableRows.find(
+      (row) => normalizeEditorSyllable(row.syllable) === cardEntry.card.syllable,
+    );
+    if (existingRow) {
+      setSelectedSyllableRowId(existingRow.id);
+      return;
+    }
+
+    const nextRow = {
+      id: `syllable-${cardId}`,
+      syllable: cardEntry.card.syllable,
+      count: "1",
+    };
     updateDraft((current) => ({
       ...current,
       syllableRows: [...current.syllableRows, nextRow],
     }));
     setSelectedSyllableRowId(nextRow.id);
+  };
+
+  const addDeck = () => {
+    const nextEntry = createEmptyContentEditorDeckEntry(sourceEntries.map((entry) => entry.id));
+    if (isDirty && typeof window !== "undefined") {
+      const shouldContinue = window.confirm(
+        `Descartar alteracoes locais de "${draft.name || selectedDeckId}" e abrir um novo deck?`,
+      );
+      if (!shouldContinue) return;
+    }
+
+    startTransition(() => {
+      setSourceEntries((current) => [...current, cloneRawDeckCatalogEntry(nextEntry)]);
+      setSelectedDeckId(nextEntry.id);
+      setDraft(createContentEditorDeckDraft(nextEntry.deck));
+      setSelectedTargetId("");
+      setSelectedSyllableRowId("");
+      setSaveStatus({
+        tone: "idle",
+        message: `Novo deck preparado em memoria. O save dev-only vai criar ${nextEntry.filePath} e atualizar o catalogo local.`,
+      });
+    });
   };
 
   const updateTarget = (
@@ -672,17 +722,6 @@ export const ContentEditor: React.FC = () => {
       ),
     [pipelineIssues, selectedTargetDraft],
   );
-  const selectedSyllableFieldHasIssue = useMemo(
-    () =>
-      Boolean(
-        selectedSyllableRow &&
-          normalizeEditorSyllable(selectedSyllableRow.syllable) &&
-          localIssues.some((issue) =>
-            issue.includes(`repete a silaba "${normalizeEditorSyllable(selectedSyllableRow.syllable)}"`),
-          ),
-      ),
-    [localIssues, selectedSyllableRow],
-  );
   const selectedSyllableCountHasIssue = useMemo(
     () =>
       Boolean(
@@ -700,6 +739,7 @@ export const ContentEditor: React.FC = () => {
     if (!canSave || !selectedDeckEntry) return;
 
     const nextDeck = draftRawDeck;
+    const nextEntry = createRawDeckCatalogEntry(nextDeck);
     setIsSaving(true);
     setSaveStatus({
       tone: "idle",
@@ -713,22 +753,24 @@ export const ContentEditor: React.FC = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          deckId: selectedDeckId,
+          entry: nextEntry,
           deck: nextDeck,
         }),
       });
-      const payload = (await response.json()) as { ok?: boolean; error?: string; path?: string };
+      const payload = (await response.json()) as { ok?: boolean; error?: string; path?: string; indexPath?: string };
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error ?? "Falha ao salvar o deck bruto.");
       }
 
-      setSourceDecksById((current) => ({
-        ...current,
-        [selectedDeckId]: cloneRawDeckDefinition(nextDeck),
-      }));
+      setSourceEntries((current) => {
+        const nextEntries = current.some((entry) => entry.id === nextEntry.id)
+          ? current.map((entry) => (entry.id === nextEntry.id ? cloneRawDeckCatalogEntry(nextEntry) : cloneRawDeckCatalogEntry(entry)))
+          : [...current.map((entry) => cloneRawDeckCatalogEntry(entry)), cloneRawDeckCatalogEntry(nextEntry)];
+        return nextEntries;
+      });
       setSaveStatus({
         tone: "success",
-        message: `Source bruto regravado com sucesso em ${payload.path ?? selectedDeckEntry.filePath}.`,
+        message: `Source bruto salvo em ${payload.path ?? nextEntry.filePath} e catalogo bruto atualizado em ${payload.indexPath ?? "src/data/content/decks/index.ts"}.`,
       });
     } catch (error) {
       setSaveStatus({
@@ -782,12 +824,21 @@ export const ContentEditor: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-sky-700/12 bg-sky-100/80 px-4 py-3 text-sm text-sky-950/85 shadow-sm">
-            Edita um deck por vez no shape bruto atual. O deck model central recompila cards, targets e targetIds antes da projecao legado usada pela battle.
+            Edita um deck por vez no shape bruto atual. O builder minimo monta o pool via cards canonicos e recompila o deck model antes da projecao legado usada pela battle.
           </div>
 
           <div className="mt-3 rounded-2xl border border-emerald-700/12 bg-emerald-100/80 px-4 py-3 text-sm text-emerald-950/85 shadow-sm">
-            Save dev-only regrava <span className="font-black text-emerald-950">{selectedDeckEntry.filePath}</span>.
+            Save dev-only grava <span className="font-black text-emerald-950">{selectedDeckEntry.filePath}</span> e reescreve o indice bruto de decks.
           </div>
+
+          <Button
+            variant="ghost"
+            className="mt-4 w-full justify-center border border-amber-900/15 bg-amber-50/55 text-amber-950 hover:bg-amber-100/75"
+            onClick={addDeck}
+          >
+            <Plus className="h-4 w-4" />
+            Adicionar deck
+          </Button>
 
           <label className="mt-5 block">
             <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/50">
@@ -907,8 +958,8 @@ export const ContentEditor: React.FC = () => {
                   icon={<BookOpenText className="h-4 w-4" />}
                 />
                 <MetricCard
-                  label="Linhas de silaba"
-                  value={String(draft.syllableRows.length)}
+                  label="Cards no pool"
+                  value={String(draftCardCatalogEntries.length)}
                   icon={<Layers3 className="h-4 w-4" />}
                 />
                 <MetricCard
@@ -917,8 +968,8 @@ export const ContentEditor: React.FC = () => {
                   icon={<Shield className="h-4 w-4" />}
                 />
                 <MetricCard
-                  label="Cards no catalogo"
-                  value={String(selectedDeckCardCatalogEntries.length)}
+                  label="Copias no pool"
+                  value={String(draftPoolCopies)}
                   icon={<BarChart3 className="h-4 w-4" />}
                 />
               </div>
@@ -1128,7 +1179,7 @@ export const ContentEditor: React.FC = () => {
                   </div>
                   </Panel>
 
-                  <Panel title="Silabas do Deck" icon={<Layers3 className="h-5 w-5" />}>
+                  <Panel title="Cards do Deck" icon={<Layers3 className="h-5 w-5" />}>
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
                       {syllableGridItems.map((item, index) => (
                         <React.Fragment key={item.id}>
@@ -1142,9 +1193,9 @@ export const ContentEditor: React.FC = () => {
                               }
                             />
                           ) : (
-                            <button type="button" onClick={addSyllableRow} className="text-left">
-                              <AddSyllableCard />
-                            </button>
+                            <div className="rounded-3xl border border-dashed border-amber-900/15 bg-amber-50/40 p-4 text-sm text-amber-950/70">
+                              Adicione cards canonicos do catalogo na lista logo abaixo para montar o pool do deck.
+                            </div>
                           )}
 
                           {selectedSyllableRow && index === expandedSyllableRowEndIndex ? (
@@ -1172,33 +1223,27 @@ export const ContentEditor: React.FC = () => {
                                 </Button>
                               </div>
 
-                              <div className="grid gap-4">
-                                {selectedSyllableCardCatalogEntry ? (
-                                  <div className="grid gap-3 sm:grid-cols-3">
-                                    <InfoTile label="Decks usando" value={String(selectedSyllableCardCatalogEntry.deckIds.length)} mini slim />
-                                    <InfoTile label="Targets usando" value={String(selectedSyllableCardCatalogEntry.targetIds.length)} mini slim />
-                                    <InfoTile label="Copias no catalogo" value={String(selectedSyllableCardCatalogEntry.totalCopies)} mini slim />
-                                  </div>
-                                ) : null}
-                                <div className="grid gap-4 md:grid-cols-2">
-                                  <Field label="Silaba">
-                                    <input
-                                      value={selectedSyllableRow.syllable}
-                                      onChange={(event) =>
-                                        updateSyllableRow(selectedSyllableRow.id, {
-                                          syllable: event.target.value.toUpperCase(),
-                                        })
-                                      }
-                                      placeholder="Silaba"
-                                      className={cn(
-                                        "w-full rounded-2xl border px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35",
-                                        selectedSyllableFieldHasIssue
-                                          ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                          : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
-                                      )}
-                                    />
-                                  </Field>
-
+                                <div className="grid gap-4">
+                                  {selectedSyllableCardCatalogEntry ? (
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                      <InfoTile label="Decks usando" value={String(selectedSyllableCardCatalogEntry.deckIds.length)} mini slim />
+                                      <InfoTile label="Targets usando" value={String(selectedSyllableCardCatalogEntry.targetIds.length)} mini slim />
+                                      <InfoTile label="Copias no catalogo" value={String(selectedSyllableCardCatalogEntry.totalCopies)} mini slim />
+                                    </div>
+                                  ) : null}
+                                <div className="grid gap-4 md:grid-cols-3">
+                                  <InfoTile
+                                    label="Card canonico"
+                                    value={selectedSyllableCardCatalogEntry?.id ?? "fora do catalogo"}
+                                    slim
+                                    plainValue
+                                  />
+                                  <InfoTile
+                                    label="Silaba"
+                                    value={selectedSyllableCardCatalogEntry?.card.syllable ?? selectedSyllableRow.syllable}
+                                    mini
+                                    slim
+                                  />
                                   <Field label="Copias">
                                     <input
                                       type="number"
@@ -1246,9 +1291,43 @@ export const ContentEditor: React.FC = () => {
                         </React.Fragment>
                       ))}
                     </div>
+                    <div className="mt-6 rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                            Catalogo de cards
+                          </div>
+                          <div className="mt-1 text-sm text-amber-950/70">
+                            Adicione cards canonicos ao pool do deck e ajuste apenas as copias por card.
+                          </div>
+                        </div>
+                        <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                          {availableCardCatalogEntries.length} disponivel(is)
+                        </Badge>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {availableCardCatalogEntries.length > 0 ? (
+                          availableCardCatalogEntries.map((entry) => (
+                            <button
+                              key={entry.id}
+                              type="button"
+                              onClick={() => addCatalogCardToDeck(entry.id)}
+                              className="rounded-full border border-amber-900/12 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm transition hover:border-amber-900/20 hover:bg-amber-50"
+                            >
+                              + {entry.card.syllable}
+                            </button>
+                          ))
+                        ) : (
+                          <span className="rounded-full border border-amber-900/12 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
+                            Todos os cards canonicos ja estao no deck
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     <div className="mt-auto flex flex-wrap gap-3 pt-4">
                       <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
-                        {preview.ok ? "cards derivados: validos" : "cards derivados: preview indisponivel"}
+                        {preview.ok ? "pool por cards: validado no pipeline" : "pool por cards: aguardando preview valido"}
                       </Badge>
                     </div>
                   </Panel>
@@ -1584,20 +1663,6 @@ const AddTargetCard: React.FC = () => (
       </div>
 
       <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
-    </div>
-  </div>
-);
-
-const AddSyllableCard: React.FC = () => (
-  <div className="relative flex min-h-[168px] w-full items-start justify-center pb-3 text-center">
-    <div className="origin-top scale-[0.84]">
-      <div className="relative flex h-[150px] w-[116px] flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-amber-900/18 bg-amber-50/45 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
-        <Plus className="h-10 w-10" />
-        <div className="mt-3 px-3 text-center text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">
-          Adicionar silaba
-        </div>
-        <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
-      </div>
     </div>
   </div>
 );

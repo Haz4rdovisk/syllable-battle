@@ -5,10 +5,15 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import packageJson from './package.json';
 import { createBattleLayoutPresetSource } from './src/components/screens/BattleLayoutConfig';
-import { createRawDeckDefinitionSource } from './src/data/content/editor';
+import {
+  createRawDeckCatalogIndexSource,
+  createRawDeckDefinitionSource,
+  upsertRawDeckInCatalog,
+} from './src/data/content/editor';
 import { buildContentPipeline } from './src/data/content';
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from './src/data/content/decks';
 import type { RawDeckDefinition } from './src/data/content/types';
+import type { RawDeckCatalogEntry } from './src/data/content/decks';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
@@ -87,32 +92,49 @@ export default defineConfig(({ mode }) => {
               }
 
               const payload = JSON.parse(body || '{}') as {
-                deckId?: string;
+                entry?: RawDeckCatalogEntry;
                 deck?: RawDeckDefinition;
               };
-              const deckId = payload.deckId?.trim();
-              if (!deckId || !payload.deck) {
-                throw new Error('Missing deckId or deck payload.');
+              const deckId = payload.entry?.id?.trim();
+              if (!deckId || !payload.deck || !payload.entry) {
+                throw new Error('Missing deck entry metadata or deck payload.');
               }
 
               if (payload.deck.id !== deckId) {
                 throw new Error('The payload deck id must match the requested deckId.');
               }
 
-              const entry = getRawDeckCatalogEntry(deckId);
-              if (!entry) {
-                throw new Error(`Unknown deck "${deckId}".`);
+              const existingEntry = getRawDeckCatalogEntry(deckId);
+              if (
+                existingEntry &&
+                (existingEntry.exportName !== payload.entry.exportName ||
+                  existingEntry.filePath !== payload.entry.filePath)
+              ) {
+                throw new Error(`Deck "${deckId}" already exists with different source metadata.`);
               }
 
-              const rawDecks = rawDeckCatalogEntries.map((currentEntry) =>
-                currentEntry.id === deckId ? payload.deck! : currentEntry.deck,
-              );
-              buildContentPipeline(rawDecks);
+              const nextEntry: RawDeckCatalogEntry = {
+                id: deckId,
+                exportName: payload.entry.exportName,
+                filePath: payload.entry.filePath,
+                deck: payload.deck,
+              };
+              const nextEntries = upsertRawDeckInCatalog(rawDeckCatalogEntries, nextEntry);
+              buildContentPipeline(nextEntries.map((entry) => entry.deck));
 
-              const source = createRawDeckDefinitionSource(entry.exportName, payload.deck);
-              const absolutePath = path.resolve(__dirname, entry.filePath);
+              const source = createRawDeckDefinitionSource(nextEntry.exportName, payload.deck);
+              const absolutePath = path.resolve(__dirname, nextEntry.filePath);
+              const indexSource = createRawDeckCatalogIndexSource(nextEntries);
+              const indexPath = path.resolve(__dirname, 'src/data/content/decks/index.ts');
               await fs.writeFile(absolutePath, source, 'utf8');
-              entry.deck = payload.deck;
+              await fs.writeFile(indexPath, indexSource, 'utf8');
+
+              const currentIndex = rawDeckCatalogEntries.findIndex((entry) => entry.id === deckId);
+              if (currentIndex >= 0) {
+                rawDeckCatalogEntries[currentIndex] = nextEntry;
+              } else {
+                rawDeckCatalogEntries.push(nextEntry);
+              }
 
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
@@ -120,6 +142,7 @@ export default defineConfig(({ mode }) => {
                 JSON.stringify({
                   ok: true,
                   path: absolutePath,
+                  indexPath,
                 }),
               );
             } catch (error) {

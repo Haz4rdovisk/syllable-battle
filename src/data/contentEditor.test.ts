@@ -5,12 +5,53 @@ import {
   buildContentEditorReviewSummary,
   buildContentEditorSourceDiff,
   buildContentEditorPreview,
+  createEmptyContentEditorDeckEntry,
   createContentEditorDeckDraft,
+  createRawDeckCatalogIndexSource,
   createRawDeckDefinitionSource,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
+  upsertRawDeckInCatalog,
 } from "./content/editor";
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from "./content/decks";
+
+const createSaveableNewDeckDraft = () => {
+  const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
+  const draft = createContentEditorDeckDraft(entry.deck);
+
+  draft.name = "Deck Builder Alpha";
+  draft.description = "Deck novo montado a partir do catalogo canonico.";
+  draft.emoji = "🧪";
+  draft.visualTheme = "dune";
+  draft.syllableRows = [
+    { id: "row-va", syllable: "VA", count: "2" },
+    { id: "row-ca", syllable: "CA", count: "1" },
+    { id: "row-pa", syllable: "PA", count: "1" },
+    { id: "row-to", syllable: "TO", count: "1" },
+  ];
+  draft.targets = [
+    {
+      id: `${entry.id}-vaca`,
+      name: "VACA DE TESTE",
+      copies: "1",
+      description: "",
+      emoji: "🐮",
+      rarity: "comum",
+      syllablesText: "VA, CA",
+    },
+    {
+      id: `${entry.id}-pato`,
+      name: "PATO DE TESTE",
+      copies: "1",
+      description: "",
+      emoji: "🦆",
+      rarity: "comum",
+      syllablesText: "PA, TO",
+    },
+  ];
+
+  return { entry, draft };
+};
 
 test("content editor roundtrip preserva o deck bruto e o deck final do runtime", () => {
   const entry = getRawDeckCatalogEntry("farm");
@@ -128,6 +169,43 @@ test("content editor gera source bruto para o deck correto", () => {
   assert.ok(source.includes('export const oceanDeck: RawDeckDefinition = {'));
   assert.ok(source.includes('id: "ocean"'));
   assert.ok(source.includes('visualTheme: "abyss"'));
+});
+
+test("content editor cria deck novo com metadata de catalogo bruto persistivel", () => {
+  const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
+
+  assert.match(entry.id, /^novo-deck/);
+  assert.equal(entry.filePath, `src/data/content/decks/${entry.id}.ts`);
+  assert.ok(entry.exportName.endsWith("Deck"));
+  assert.equal(entry.deck.id, entry.id);
+});
+
+test("content editor injeta deck novo no pipeline real antes do save", () => {
+  const { entry, draft } = createSaveableNewDeckDraft();
+  const previewEntries = upsertRawDeckInCatalog(rawDeckCatalogEntries, entry);
+  const preview = buildContentEditorPreview(previewEntries, entry.id, draft);
+
+  assert.equal(preview.ok, true);
+  if (!preview.ok) return;
+
+  assert.equal(preview.selectedDeckModel?.id, entry.id);
+  assert.equal(preview.selectedDeckModel?.definition.cardIds.join(","), "syllable.va,syllable.ca,syllable.pa,syllable.to");
+  assert.equal(preview.selectedRuntimeDeck?.id, entry.id);
+  assert.deepEqual(preview.selectedRuntimeDeck?.syllables, {
+    VA: 2,
+    CA: 1,
+    PA: 1,
+    TO: 1,
+  });
+});
+
+test("content editor gera index bruto incluindo deck novo", () => {
+  const { entry } = createSaveableNewDeckDraft();
+  const indexSource = createRawDeckCatalogIndexSource(upsertRawDeckInCatalog(rawDeckCatalogEntries, entry));
+
+  assert.ok(indexSource.includes(`import { ${entry.exportName} } from "./${entry.id}";`));
+  assert.ok(indexSource.includes(`id: "${entry.id}"`));
+  assert.ok(indexSource.includes(`filePath: "src/data/content/decks/${entry.id}.ts"`));
 });
 
 test("content editor gera diff legivel do source bruto antes do save", () => {

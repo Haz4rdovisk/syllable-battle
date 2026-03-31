@@ -104,11 +104,45 @@ export interface ContentEditorReviewSummary {
   categories: ContentEditorReviewCategory[];
 }
 
+const normalizeDeckSlug = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const toExportIdentifier = (deckId: string) => {
+  const parts = deckId
+    .split(/[^a-zA-Z0-9]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const normalized =
+    parts
+      .map((part, index) => {
+        const lower = part.toLowerCase();
+        return index === 0 ? lower : `${lower[0]?.toUpperCase() ?? ""}${lower.slice(1)}`;
+      })
+      .join("") || "newDeck";
+
+  const prefixed = /^[A-Za-z_$]/.test(normalized) ? normalized : `deck${normalized}`;
+  return `${prefixed}Deck`;
+};
+
 export function cloneRawDeckDefinition(deck: RawDeckDefinition): RawDeckDefinition {
   return {
     ...deck,
     syllables: { ...deck.syllables },
     targets: deck.targets.map((target) => ({ ...target, syllables: [...target.syllables] })),
+  };
+}
+
+export function cloneRawDeckCatalogEntry(entry: RawDeckCatalogEntry): RawDeckCatalogEntry {
+  return {
+    ...entry,
+    deck: cloneRawDeckDefinition(entry.deck),
   };
 }
 
@@ -134,6 +168,54 @@ export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEd
       syllablesText: target.syllables.join(", "),
     })),
   };
+}
+
+export function createUniqueDeckId(existingIds: Iterable<string>, preferredName = "novo-deck") {
+  const normalizedBase = normalizeDeckSlug(preferredName) || "novo-deck";
+  const ids = new Set(existingIds);
+
+  if (!ids.has(normalizedBase)) return normalizedBase;
+
+  let suffix = 2;
+  while (ids.has(`${normalizedBase}-${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${normalizedBase}-${suffix}`;
+}
+
+export function createDeckExportName(deckId: string) {
+  return toExportIdentifier(deckId);
+}
+
+export function createDeckFilePath(deckId: string) {
+  return `src/data/content/decks/${deckId}.ts`;
+}
+
+export function createRawDeckCatalogEntry(deck: RawDeckDefinition): RawDeckCatalogEntry {
+  return {
+    id: deck.id,
+    exportName: createDeckExportName(deck.id),
+    filePath: createDeckFilePath(deck.id),
+    deck: cloneRawDeckDefinition(deck),
+  };
+}
+
+export function createEmptyRawDeckDefinition(existingDeckIds: Iterable<string>): RawDeckDefinition {
+  const deckId = createUniqueDeckId(existingDeckIds);
+  return {
+    id: deckId,
+    name: "Novo Deck",
+    description: "Deck novo em construcao.",
+    emoji: "🃏",
+    visualTheme: "harvest",
+    syllables: {},
+    targets: [],
+  };
+}
+
+export function createEmptyContentEditorDeckEntry(existingDeckIds: Iterable<string>): RawDeckCatalogEntry {
+  return createRawDeckCatalogEntry(createEmptyRawDeckDefinition(existingDeckIds));
 }
 
 function buildRawDeckDefinitionFromDraft(
@@ -195,12 +277,24 @@ export function hydratePreviewRawDeckDefinitionFromDraft(draft: ContentEditorDec
   return buildRawDeckDefinitionFromDraft(draft, { preserveDraftCopies: true });
 }
 
+export function upsertRawDeckInCatalog(
+  entries: RawDeckCatalogEntry[],
+  nextEntry: RawDeckCatalogEntry,
+) {
+  const hasEntry = entries.some((entry) => entry.id === nextEntry.id);
+  const clonedEntries = entries.map((entry) =>
+    entry.id === nextEntry.id ? cloneRawDeckCatalogEntry(nextEntry) : cloneRawDeckCatalogEntry(entry),
+  );
+
+  return hasEntry ? clonedEntries : [...clonedEntries, cloneRawDeckCatalogEntry(nextEntry)];
+}
+
 export function replaceRawDeckInCatalog(
   entries: RawDeckCatalogEntry[],
   deckId: string,
   deck: RawDeckDefinition,
 ) {
-  return entries.map((entry) => (entry.id === deckId ? deck : cloneRawDeckDefinition(entry.deck)));
+  return upsertRawDeckInCatalog(entries, createRawDeckCatalogEntry({ ...deck, id: deckId })).map((entry) => entry.deck);
 }
 
 export function buildContentEditorPreview(
@@ -211,7 +305,9 @@ export function buildContentEditorPreview(
   const nextDeck = hydratePreviewRawDeckDefinitionFromDraft(draft);
 
   try {
-    const pipeline = buildContentPipeline(replaceRawDeckInCatalog(entries, deckId, nextDeck));
+    const pipeline = buildContentPipeline(
+      upsertRawDeckInCatalog(entries, createRawDeckCatalogEntry({ ...nextDeck, id: deckId })).map((entry) => entry.deck),
+    );
     return {
       ok: true,
       pipeline,
@@ -299,6 +395,44 @@ export function createRawDeckDefinitionSource(exportName: string, deck: RawDeckD
   return `import { RawDeckDefinition } from "../types";\n\nexport const ${exportName}: RawDeckDefinition = ${serializeValue(
     deck,
   )};\n`;
+}
+
+export function createRawDeckCatalogIndexSource(entries: RawDeckCatalogEntry[]) {
+  const normalizedEntries = entries.map((entry) => cloneRawDeckCatalogEntry(entry));
+  const imports = normalizedEntries
+    .map((entry) => `import { ${entry.exportName} } from "./${entry.id}";`)
+    .join("\n");
+  const entrySource = normalizedEntries
+    .map(
+      (entry) => `  {
+    id: ${JSON.stringify(entry.id)},
+    exportName: ${JSON.stringify(entry.exportName)},
+    filePath: ${JSON.stringify(entry.filePath)},
+    deck: ${entry.exportName},
+  },`,
+    )
+    .join("\n");
+
+  return `${imports}
+import { RawDeckDefinition } from "../types";
+
+export interface RawDeckCatalogEntry {
+  id: string;
+  exportName: string;
+  filePath: string;
+  deck: RawDeckDefinition;
+}
+
+export const rawDeckCatalogEntries: RawDeckCatalogEntry[] = [
+${entrySource}
+];
+
+export function getRawDeckCatalogEntry(deckId: string) {
+  return rawDeckCatalogEntries.find((entry) => entry.id === deckId) ?? null;
+}
+
+export const rawDeckCatalog = rawDeckCatalogEntries.map((entry) => entry.deck);
+`;
 }
 
 export function buildContentEditorSourceDiff(
@@ -465,7 +599,7 @@ export function buildContentEditorReviewSummary(
     },
     {
       id: "syllables",
-      label: "Silabas",
+      label: "Cards do pool",
       tone: addedSyllables + removedSyllables + changedSyllableCounts > 0 ? "warning" : "default",
       headline:
         addedSyllables + removedSyllables + changedSyllableCounts > 0
@@ -477,7 +611,7 @@ export function buildContentEditorReviewSummary(
           removedSyllables > 0 ? `${removedSyllables} removida(s)` : "",
           changedSyllableCounts > 0 ? `${changedSyllableCounts} contagem(ns)` : "",
         ].filter(Boolean),
-        "pool bruto de silabas intacto",
+        "pool bruto derivado dos cards intacto",
       ),
       changed: addedSyllables + removedSyllables + changedSyllableCounts > 0,
     },
