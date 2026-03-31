@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { DECKS } from "../../data/decks";
 import {
   compareDeckMetrics,
   formatRarityBreakdown,
@@ -21,13 +20,9 @@ import {
 import {
   CONTENT_CATALOG,
   CONTENT_PIPELINE,
-  getCardsForDeck,
   getCatalogCardById,
-  getCatalogDeckById,
   getMostReusedCards,
   getSharedTargetsBetweenDecks,
-  getTargetInstancesForDeck,
-  getTargetsForDeck,
 } from "../../data/content";
 import { cn } from "../../lib/utils";
 
@@ -124,24 +119,29 @@ export const ContentInspector: React.FC = () => {
     return compareDeckMetrics(selectedInspection.deck, compareInspection.deck);
   }, [compareInspection, selectedInspection]);
 
-  const selectedDeckDefinition = useMemo(
-    () => (selectedInspection ? getCatalogDeckById(CONTENT_CATALOG, selectedInspection.deck.id) : null),
+  const selectedDeckModel = useMemo(
+    () => (selectedInspection ? CONTENT_PIPELINE.deckModelsById[selectedInspection.deck.id] ?? null : null),
     [selectedInspection],
+  );
+
+  const selectedDeckDefinition = useMemo(
+    () => selectedDeckModel?.definition ?? null,
+    [selectedDeckModel],
   );
 
   const selectedCatalogTargetDefinitions = useMemo(
-    () => (selectedInspection ? getTargetsForDeck(CONTENT_CATALOG, selectedInspection.deck.id) : []),
-    [selectedInspection],
+    () => selectedDeckModel?.targetDefinitions ?? [],
+    [selectedDeckModel],
   );
 
   const selectedCatalogTargetInstances = useMemo(
-    () => (selectedInspection ? getTargetInstancesForDeck(CONTENT_CATALOG, selectedInspection.deck.id) : []),
-    [selectedInspection],
+    () => selectedDeckModel?.targetInstances ?? [],
+    [selectedDeckModel],
   );
 
   const selectedCatalogCards = useMemo(
-    () => (selectedInspection ? getCardsForDeck(CONTENT_CATALOG, selectedInspection.deck.id) : []),
-    [selectedInspection],
+    () => selectedDeckModel?.cards ?? [],
+    [selectedDeckModel],
   );
 
   const selectedSharedTargets = useMemo(
@@ -230,15 +230,17 @@ export const ContentInspector: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-3 text-sm text-emerald-950/90">
-            A ferramenta le o catalogo normalizado do pipeline novo, usa a mesma projecao runtime de{" "}
-            <span className="font-black text-emerald-950">{DECKS.length}</span> decks e continua em modo somente
-            leitura.
+            A ferramenta le o catalogo normalizado e o deck model central, usando a mesma projecao runtime de{" "}
+            <span className="font-black text-emerald-950">{CONTENT_PIPELINE.runtimeDecks.length}</span> decks
+            derivados e continua em modo somente leitura.
           </div>
 
           <div className="mt-3 rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-3 text-sm text-sky-950/90">
             Fonte unica: <span className="font-black text-sky-950">{CONTENT_CATALOG.cards.length}</span> cartas
             canonicas, <span className="font-black text-sky-950">{CONTENT_CATALOG.targets.length}</span> targets e{" "}
-            <span className="font-black text-sky-950">{CONTENT_CATALOG.decks.length}</span> deck definitions.
+            <span className="font-black text-sky-950">{CONTENT_CATALOG.decks.length}</span> deck definitions que
+            alimentam <span className="font-black text-sky-950">{CONTENT_PIPELINE.deckModels.length}</span> deck
+            models centrais.
           </div>
 
           <div className="mt-5 space-y-3 rounded-[24px] border border-amber-900/12 bg-[rgba(255,250,242,0.76)] p-4">
@@ -556,7 +558,7 @@ export const ContentInspector: React.FC = () => {
                 <div className="space-y-5">
                   <Subsection
                     title="Deck definition ativo"
-                    subtitle="Leitura direta da camada de catálogo, antes da projeção para o runtime."
+                    subtitle="Leitura do deck model central, montado a partir da camada de catálogo antes da projeção runtime."
                   >
                     {selectedDeckDefinition ? (
                       <div className="grid grid-cols-2 gap-3">
@@ -612,7 +614,7 @@ export const ContentInspector: React.FC = () => {
 
                   <Subsection
                     title="Targets definidos no catálogo"
-                    subtitle="Resolve o deck via targetIds da camada nova, sem depender apenas da projeção runtime."
+                    subtitle="Resolve o deck via deck model e targetIds da camada nova, sem depender apenas da projeção runtime."
                   >
                     {selectedCatalogTargetDefinitions.length === 0 ? (
                       <EmptyCallout text="Nenhum target normalizado encontrado para este deck." />

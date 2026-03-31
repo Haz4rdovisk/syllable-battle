@@ -39,6 +39,32 @@ export interface NormalizedContentCatalog extends ContentCatalog {
   decksById: Record<string, DeckDefinition>;
 }
 
+export interface DeckModelCardEntry {
+  cardId: string;
+  card: CardDefinition;
+  copiesInDeck: number;
+  usedByTargets: TargetDefinition[];
+}
+
+export interface DeckModelTargetInstance {
+  instanceKey: string;
+  instanceIndex: number;
+  targetId: string;
+  target: TargetDefinition;
+}
+
+/**
+ * Derived read model used outside the battle runtime.
+ * The canonical truth still lives in the normalized catalog definitions.
+ */
+export interface DeckModel {
+  id: string;
+  definition: DeckDefinition;
+  cards: DeckModelCardEntry[];
+  targetDefinitions: TargetDefinition[];
+  targetInstances: DeckModelTargetInstance[];
+}
+
 export interface RawTargetDefinition {
   id: string;
   name: string;

@@ -6,6 +6,11 @@ import {
   CONTENT_PIPELINE,
   DeckContentError,
   DECKS,
+  DECK_MODELS,
+  DECK_MODELS_BY_ID,
+  RUNTIME_DECKS_BY_ID,
+  adaptDeckModelsToRuntimeDecks,
+  buildDeckModels,
   loadContentCatalog,
   loadDeckCatalog,
 } from "./content";
@@ -15,7 +20,10 @@ test("CONTENT_CATALOG expõe o catálogo normalizado como fonte de verdade", () 
   assert.ok(CONTENT_CATALOG.cards.length > 0);
   assert.ok(CONTENT_CATALOG.targets.length >= DECKS.length * CONFIG.targetsInPlay);
   assert.equal(CONTENT_PIPELINE.catalog, CONTENT_CATALOG);
+  assert.equal(CONTENT_PIPELINE.deckModels, DECK_MODELS);
   assert.equal(CONTENT_PIPELINE.runtimeDecks, DECKS);
+  assert.equal(CONTENT_PIPELINE.deckModelsById, DECK_MODELS_BY_ID);
+  assert.equal(CONTENT_PIPELINE.runtimeDecksById, RUNTIME_DECKS_BY_ID);
 
   CONTENT_CATALOG.cards.forEach((card) => {
     assert.ok(card.id.startsWith("syllable."));
@@ -37,6 +45,29 @@ test("CONTENT_CATALOG expõe o catálogo normalizado como fonte de verdade", () 
     });
     Object.keys(deck.cardPool).forEach((cardId) => {
       assert.ok(CONTENT_CATALOG.cardsById[cardId]);
+    });
+  });
+});
+
+test("deck models explicitam a fronteira catalogo -> deck model -> runtime legado", () => {
+  const deckModels = buildDeckModels(CONTENT_CATALOG);
+  const runtimeDecks = adaptDeckModelsToRuntimeDecks(deckModels, CONTENT_CATALOG);
+
+  assert.deepEqual(runtimeDecks, DECKS);
+  assert.equal(deckModels.length, CONTENT_CATALOG.decks.length);
+
+  deckModels.forEach((deckModel) => {
+    assert.equal(deckModel.definition, CONTENT_CATALOG.decksById[deckModel.id]);
+    assert.equal(DECK_MODELS_BY_ID[deckModel.id], CONTENT_PIPELINE.deckModelsById[deckModel.id]);
+    assert.equal(RUNTIME_DECKS_BY_ID[deckModel.id], DECKS.find((deck) => deck.id === deckModel.id));
+    assert.deepEqual(
+      deckModel.targetInstances.map((entry) => entry.targetId),
+      deckModel.definition.targetIds,
+    );
+
+    deckModel.cards.forEach((entry) => {
+      assert.equal(entry.card, CONTENT_CATALOG.cardsById[entry.cardId]);
+      assert.equal(deckModel.definition.cardPool[entry.cardId], entry.copiesInDeck);
     });
   });
 });

@@ -6,6 +6,9 @@ import {
   CardDefinition,
   ContentCatalog,
   DeckDefinition,
+  DeckModel,
+  DeckModelCardEntry,
+  DeckModelTargetInstance,
   NormalizedContentCatalog,
   RawDeckDefinition,
   RawTargetDefinition,
@@ -66,7 +69,10 @@ const createIndex = <T extends { id: string }>(entries: T[]) =>
 
 export interface ContentPipeline {
   catalog: NormalizedContentCatalog;
+  deckModels: DeckModel[];
+  deckModelsById: Record<string, DeckModel>;
   runtimeDecks: Deck[];
+  runtimeDecksById: Record<string, Deck>;
 }
 
 export class DeckContentError extends Error {
@@ -363,6 +369,80 @@ export function loadContentCatalog(rawDecks: RawDeckDefinition[]): NormalizedCon
   return normalizedCatalog;
 }
 
+function buildDeckModelTargetDefinitions(
+  deck: DeckDefinition,
+  catalog: NormalizedContentCatalog,
+): TargetDefinition[] {
+  return [...new Set(deck.targetIds)]
+    .map((targetId) => catalog.targetsById[targetId] ?? null)
+    .filter((target): target is TargetDefinition => !!target);
+}
+
+function buildDeckModelTargetInstances(
+  deck: DeckDefinition,
+  catalog: NormalizedContentCatalog,
+): DeckModelTargetInstance[] {
+  return deck.targetIds
+    .map((targetId, instanceIndex) => {
+      const target = catalog.targetsById[targetId];
+      if (!target) return null;
+
+      return {
+        instanceKey: `${target.id}-${instanceIndex}`,
+        instanceIndex,
+        targetId,
+        target,
+      };
+    })
+    .filter((entry): entry is DeckModelTargetInstance => !!entry);
+}
+
+function buildDeckModelCardEntries(
+  deck: DeckDefinition,
+  targetDefinitions: TargetDefinition[],
+  catalog: NormalizedContentCatalog,
+): DeckModelCardEntry[] {
+  return Object.entries(deck.cardPool)
+    .map(([cardId, copiesInDeck]) => {
+      const card = catalog.cardsById[cardId];
+      if (!card) return null;
+
+      return {
+        cardId,
+        card,
+        copiesInDeck,
+        usedByTargets: targetDefinitions.filter((target) => target.cardIds.includes(cardId)),
+      };
+    })
+    .filter((entry): entry is DeckModelCardEntry => !!entry)
+    .sort((left, right) => {
+      if (right.copiesInDeck !== left.copiesInDeck) return right.copiesInDeck - left.copiesInDeck;
+      if (right.usedByTargets.length !== left.usedByTargets.length) {
+        return right.usedByTargets.length - left.usedByTargets.length;
+      }
+      return left.card.syllable.localeCompare(right.card.syllable);
+    });
+}
+
+export function createDeckModel(
+  deck: DeckDefinition,
+  catalog: NormalizedContentCatalog,
+): DeckModel {
+  const targetDefinitions = buildDeckModelTargetDefinitions(deck, catalog);
+
+  return {
+    id: deck.id,
+    definition: deck,
+    cards: buildDeckModelCardEntries(deck, targetDefinitions, catalog),
+    targetDefinitions,
+    targetInstances: buildDeckModelTargetInstances(deck, catalog),
+  };
+}
+
+export function buildDeckModels(catalog: NormalizedContentCatalog): DeckModel[] {
+  return catalog.decks.map((deck) => createDeckModel(deck, catalog));
+}
+
 export function adaptTargetDefinitionToRuntimeTarget(
   target: TargetDefinition,
   catalog: NormalizedContentCatalog,
@@ -377,40 +457,58 @@ export function adaptTargetDefinitionToRuntimeTarget(
   };
 }
 
-export function adaptDeckDefinitionToRuntimeDeck(
-  deck: DeckDefinition,
+export function adaptDeckModelToRuntimeDeck(
+  deckModel: DeckModel,
   catalog: NormalizedContentCatalog,
 ): Deck {
-  const color = DECK_VISUAL_THEME_CLASSES[deck.visualTheme] ?? DECK_VISUAL_THEME_CLASSES.harvest;
-  const syllables = Object.entries(deck.cardPool).reduce<Record<string, number>>((acc, [cardId, count]) => {
-    const syllable = catalog.cardsById[cardId]?.syllable;
+  const { definition } = deckModel;
+  const color = DECK_VISUAL_THEME_CLASSES[definition.visualTheme] ?? DECK_VISUAL_THEME_CLASSES.harvest;
+  const syllables = deckModel.cards.reduce<Record<string, number>>((acc, entry) => {
+    const syllable = catalog.cardsById[entry.cardId]?.syllable;
     if (!syllable) return acc;
-    acc[syllable] = (acc[syllable] ?? 0) + count;
+    acc[syllable] = (acc[syllable] ?? 0) + entry.copiesInDeck;
     return acc;
   }, {});
 
   return {
-    id: deck.id,
-    name: deck.name,
-    description: deck.description,
-    emoji: deck.emoji,
+    id: definition.id,
+    name: definition.name,
+    description: definition.description,
+    emoji: definition.emoji,
     color,
     syllables,
-    targets: deck.targetIds.map((targetId) =>
-      adaptTargetDefinitionToRuntimeTarget(catalog.targetsById[targetId], catalog),
-    ),
+    targets: deckModel.targetInstances.map((entry) => adaptTargetDefinitionToRuntimeTarget(entry.target, catalog)),
   };
 }
 
+export function adaptDeckDefinitionToRuntimeDeck(
+  deck: DeckDefinition,
+  catalog: NormalizedContentCatalog,
+): Deck {
+  return adaptDeckModelToRuntimeDeck(createDeckModel(deck, catalog), catalog);
+}
+
+export function adaptDeckModelsToRuntimeDecks(
+  deckModels: DeckModel[],
+  catalog: NormalizedContentCatalog,
+): Deck[] {
+  return deckModels.map((deckModel) => adaptDeckModelToRuntimeDeck(deckModel, catalog));
+}
+
 export function adaptCatalogToRuntimeDecks(catalog: NormalizedContentCatalog): Deck[] {
-  return catalog.decks.map((deck) => adaptDeckDefinitionToRuntimeDeck(deck, catalog));
+  return adaptDeckModelsToRuntimeDecks(buildDeckModels(catalog), catalog);
 }
 
 export function buildContentPipeline(rawDecks: RawDeckDefinition[]): ContentPipeline {
   const catalog = loadContentCatalog(rawDecks);
+  const deckModels = buildDeckModels(catalog);
+  const runtimeDecks = adaptDeckModelsToRuntimeDecks(deckModels, catalog);
   return {
     catalog,
-    runtimeDecks: adaptCatalogToRuntimeDecks(catalog),
+    deckModels,
+    deckModelsById: createIndex(deckModels),
+    runtimeDecks,
+    runtimeDecksById: createIndex(runtimeDecks),
   };
 }
 
@@ -423,4 +521,9 @@ export * from "./selectors";
 
 export const CONTENT_PIPELINE = buildContentPipeline(rawDeckCatalog);
 export const CONTENT_CATALOG = CONTENT_PIPELINE.catalog;
+// Central read layer for app/tooling outside the battle runtime.
+export const DECK_MODELS = CONTENT_PIPELINE.deckModels;
+export const DECK_MODELS_BY_ID = CONTENT_PIPELINE.deckModelsById;
+// Legacy runtime projection kept for the current battle implementation.
 export const DECKS = CONTENT_PIPELINE.runtimeDecks;
+export const RUNTIME_DECKS_BY_ID = CONTENT_PIPELINE.runtimeDecksById;

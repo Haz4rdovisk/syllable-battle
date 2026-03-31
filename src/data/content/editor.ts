@@ -1,7 +1,7 @@
 import { Deck } from "../../types/game";
 import { ContentPipeline, DeckContentError, buildContentPipeline } from "./index";
 import { RawDeckCatalogEntry } from "./decks";
-import { DeckVisualThemeId, RawDeckDefinition, RawTargetDefinition } from "./types";
+import { DeckModel, DeckVisualThemeId, RawDeckDefinition, RawTargetDefinition } from "./types";
 
 let draftSequence = 0;
 
@@ -70,6 +70,7 @@ export type ContentEditorPreviewResult =
   | {
       ok: true;
       pipeline: ContentPipeline;
+      selectedDeckModel: DeckModel | null;
       selectedRuntimeDeck: Deck | null;
     }
   | {
@@ -214,7 +215,8 @@ export function buildContentEditorPreview(
     return {
       ok: true,
       pipeline,
-      selectedRuntimeDeck: pipeline.runtimeDecks.find((deck) => deck.id === deckId) ?? null,
+      selectedDeckModel: pipeline.deckModelsById[deckId] ?? null,
+      selectedRuntimeDeck: pipeline.runtimeDecksById[deckId] ?? null,
     };
   } catch (error) {
     if (error instanceof DeckContentError) {

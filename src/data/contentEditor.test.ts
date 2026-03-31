@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DECKS } from "./content";
+import { DECK_MODELS_BY_ID, RUNTIME_DECKS_BY_ID } from "./content";
 import {
   buildContentEditorReviewSummary,
   buildContentEditorSourceDiff,
@@ -26,10 +26,8 @@ test("content editor roundtrip preserva o deck bruto e o deck final do runtime",
   assert.equal(preview.ok, true);
   if (!preview.ok) return;
 
-  assert.deepEqual(
-    preview.selectedRuntimeDeck,
-    DECKS.find((deck) => deck.id === entry.id) ?? null,
-  );
+  assert.deepEqual(preview.selectedDeckModel, DECK_MODELS_BY_ID[entry.id]);
+  assert.deepEqual(preview.selectedRuntimeDeck, RUNTIME_DECKS_BY_ID[entry.id] ?? null);
 });
 
 test("content editor reutiliza a validacao real do pipeline", () => {

@@ -22,7 +22,6 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
-import { getCardsForDeck, getCatalogDeckById } from "../../data/content";
 import {
   buildContentEditorReviewSummary,
   ContentEditorDeckDraft,
@@ -327,13 +326,17 @@ export const ContentEditor: React.FC = () => {
   const localIssues = useMemo(() => getContentEditorLocalIssues(draft), [draft]);
   const preview = useMemo(() => buildContentEditorPreview(sourceEntries, selectedDeckId, draft), [draft, selectedDeckId, sourceEntries]);
 
+  const selectedDeckModel = useMemo(
+    () => (preview.ok ? preview.selectedDeckModel : null),
+    [preview],
+  );
   const selectedDeckDefinition = useMemo(
-    () => (preview.ok ? getCatalogDeckById(preview.pipeline.catalog, selectedDeckId) : null),
-    [preview, selectedDeckId],
+    () => selectedDeckModel?.definition ?? null,
+    [selectedDeckModel],
   );
   const selectedCatalogCards = useMemo(
-    () => (preview.ok ? getCardsForDeck(preview.pipeline.catalog, selectedDeckId) : []),
-    [preview, selectedDeckId],
+    () => selectedDeckModel?.cards ?? [],
+    [selectedDeckModel],
   );
   const pipelineIssues = useMemo(() => ("issues" in preview ? preview.issues : []), [preview]);
   const selectedTargetDraft = useMemo(
@@ -768,7 +771,7 @@ export const ContentEditor: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-sky-700/12 bg-sky-100/80 px-4 py-3 text-sm text-sky-950/85 shadow-sm">
-            Edita um deck por vez no shape bruto atual. Cards e targetIds seguem derivados pelo pipeline real.
+            Edita um deck por vez no shape bruto atual. O deck model central recompila cards, targets e targetIds antes da projecao legado usada pela battle.
           </div>
 
           <div className="mt-3 rounded-2xl border border-emerald-700/12 bg-emerald-100/80 px-4 py-3 text-sm text-emerald-950/85 shadow-sm">
@@ -1246,7 +1249,7 @@ export const ContentEditor: React.FC = () => {
 
                         <div className="rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-4 text-sm text-sky-950">
                           O runtime continua consumindo o mesmo shape final de <span className="font-black">Deck</span>,
-                          vindo do adapter atual do catalogo.
+                          agora derivado explicitamente do <span className="font-black">deck model</span> central via adapter legado.
                         </div>
                       </div>
                     ) : (
