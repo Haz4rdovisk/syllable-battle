@@ -1,4 +1,4 @@
-import React, { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -375,6 +375,8 @@ export const ContentEditor: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(idleSaveStatus);
   const [poolConstraintMessage, setPoolConstraintMessage] = useState("");
+  const contentTopRef = useRef<HTMLDivElement | null>(null);
+  const previousSelectedDeckIdRef = useRef(selectedDeckId);
   const deferredDeckSearch = useDeferredValue(deckSearchValue.trim().toLowerCase());
   const sourceDecksById = useMemo(
     () =>
@@ -678,6 +680,55 @@ export const ContentEditor: React.FC = () => {
     window.addEventListener("resize", syncColumns);
     return () => window.removeEventListener("resize", syncColumns);
   }, []);
+
+  useEffect(() => {
+    const previousDeckId = previousSelectedDeckIdRef.current;
+    previousSelectedDeckIdRef.current = selectedDeckId;
+
+    if (!previousDeckId || previousDeckId === selectedDeckId || typeof window === "undefined") return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      contentTopRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedDeckId]);
+
+  useEffect(() => {
+    if (!selectedTargetId || typeof window === "undefined") return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>('[data-editor-niche="target"]')
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [expandedTargetRowEndIndex, selectedTargetId]);
+
+  useEffect(() => {
+    if (!selectedSyllableRowId || typeof window === "undefined") return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>('[data-editor-niche="syllable"]')
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [expandedSyllableRowEndIndex, selectedSyllableRowId]);
+
+  useEffect(() => {
+    if (!selectedCatalogTargetId || typeof window === "undefined") return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>('[data-editor-niche="catalog-target"]')
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [expandedCatalogTargetRowEndIndex, selectedCatalogTargetId]);
 
   const openDeck = (nextDeckId: string) => {
     if (nextDeckId === selectedDeckId) return;
@@ -1298,7 +1349,7 @@ export const ContentEditor: React.FC = () => {
             />
           </label>
 
-          <div className="mt-5 space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-1 lg:py-2 no-scrollbar">
+          <div className="mt-5 space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-6 lg:py-6 no-scrollbar">
             {filteredDeckEntries.map((entry) => {
               const isActive = entry.id === selectedDeckId;
               const isEdited = isActive && isDirty;
@@ -1310,7 +1361,7 @@ export const ContentEditor: React.FC = () => {
                   type="button"
                   onClick={() => openDeck(entry.id)}
                   className={cn(
-                    "w-full overflow-hidden rounded-[28px] border text-left transition-all duration-300 hover:-translate-y-1",
+                    "w-full overflow-hidden rounded-[28px] border text-left shadow-[0_14px_26px_rgba(0,0,0,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.16)]",
                     isActive
                       ? "border-amber-300/60 bg-[#fffaf0]/96 ring-2 ring-amber-300/35"
                       : "border-amber-900/12 bg-[#fffaf0]/88 hover:border-amber-900/18 hover:bg-[#fffdf7]",
@@ -1368,6 +1419,7 @@ export const ContentEditor: React.FC = () => {
         </aside>
 
         <section className="relative flex min-w-0 flex-1 flex-col gap-6">
+          <div ref={contentTopRef} />
           <div
             className={cn(
               "rounded-[32px] border border-amber-200/10 bg-gradient-to-br p-6 shadow-[0_10px_22px_rgba(0,0,0,0.16)]",
@@ -1513,21 +1565,25 @@ export const ContentEditor: React.FC = () => {
               ) : null}
 
               <div className="space-y-6">
-                <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
-                  <Panel
-                    title="Targets do Deck"
-                    icon={<BookOpenText className="h-5 w-5" />}
-                    headerAction={
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                          {draft.targets.length} alvo(s)
-                        </Badge>
-                        <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                          {totalTargetCopies} cartas
-                        </Badge>
-                      </div>
-                    }
-                  >
+                <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
+                  <div className="xl:h-[min(83.5vh,64.8rem)] xl:min-h-0">
+                    <Panel
+                      title="Targets do Deck"
+                      icon={<BookOpenText className="h-5 w-5" />}
+                      className="h-full min-h-0"
+                      headerAction={
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                            {draft.targets.length} alvo(s)
+                          </Badge>
+                          <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                            {totalTargetCopies} cartas
+                          </Badge>
+                        </div>
+                      }
+                    >
+                  <div className="flex min-h-0 flex-1 flex-col">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 no-scrollbar">
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                     {targetGridItems.map((item, index) => (
                       <React.Fragment key={item.id}>
@@ -1547,7 +1603,10 @@ export const ContentEditor: React.FC = () => {
                         </button>
 
                         {selectedTargetDraft && index === expandedTargetRowEndIndex ? (
-                          <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3">
+                          <div
+                            data-editor-niche="target"
+                            className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3"
+                          >
                             <div className="mb-4 flex items-center gap-3">
                               <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
                                 id interno: {selectedTargetDraft.id}
@@ -1717,13 +1776,14 @@ export const ContentEditor: React.FC = () => {
                       </React.Fragment>
                     ))}
                   </div>
+                  </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
                       targetIds derivados: {derivedTargetIdsLabel}
                     </Badge>
                     <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
                       <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                        total de silabas: {targetMinimumCardCount}
+                        silabas: {targetMinimumCardCount}
                       </Badge>
                       {missingTargetCount > 0 ? (
                         <Badge className="border border-amber-900/12 bg-amber-100/85 text-amber-950">
@@ -1732,167 +1792,181 @@ export const ContentEditor: React.FC = () => {
                       ) : null}
                     </div>
                   </div>
+                  </div>
                   </Panel>
+                  </div>
 
+                  <div className="xl:h-[min(83.5vh,64.8rem)] xl:min-h-0">
+                    <Panel
+                      title="Silabas do Deck"
+                      icon={<Layers3 className="h-5 w-5" />}
+                      className="h-full min-h-0"
+                      headerAction={
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                            {effectivePoolRows.length} silaba(s)
+                          </Badge>
+                          <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                            {draftPoolCopies} cartas
+                          </Badge>
+                        </div>
+                      }
+                    >
+                      <div className="flex min-h-0 flex-1 flex-col">
+                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 no-scrollbar">
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                          {syllableGridItems.map((item, index) => (
+                            <React.Fragment key={item.id}>
+                              <DerivedSyllableCard
+                                syllable={item.row.syllable || "?"}
+                                copies={Math.max(0, Number(item.row.count) || 0)}
+                                selected={item.row.id === selectedSyllableRowId}
+                                onClick={() =>
+                                  setSelectedSyllableRowId((current) => (current === item.row.id ? "" : item.row.id))
+                                }
+                              />
+
+                              {selectedSyllableRow && index === expandedSyllableRowEndIndex ? (
+                                <div
+                                  data-editor-niche="syllable"
+                                  className="paper-panel col-span-2 rounded-[24px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_16px_30px_rgba(0,0,0,0.12)] sm:col-span-3 xl:col-span-4"
+                                >
+                                  <div className="mb-4 flex flex-wrap items-center gap-3">
+                                    <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
+                                      id interno: {selectedSyllableCardId || "syllable.sem-id"}
+                                    </Badge>
+                                    {selectedSyllableRow?.mode === "auto" ? (
+                                      <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
+                                        gerada pelos alvos
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+
+                                    <div className="grid gap-4">
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                          Targets usando
+                                        </div>
+                                        <div className="mt-2 flex items-end justify-between gap-3">
+                                          <div className="font-serif text-2xl font-black text-amber-950">
+                                            {selectedSyllableUsedByTargets.length}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                          Copias
+                                        </div>
+                                        <input
+                                          type="number"
+                                          min={selectedSyllableMinimumCount}
+                                          value={selectedSyllableRow.count}
+                                          onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
+                                          className={cn(
+                                            "mt-2 w-full rounded-xl border px-3 py-2.5 text-sm font-black text-amber-950 outline-none transition",
+                                            selectedSyllableCountHasIssue
+                                              ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                              : "border-amber-900/15 bg-white/80 focus:border-amber-500/30",
+                                          )}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                          Aparece em
+                                        </div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-900/40">
+                                          {selectedSyllableUsedByTargets.length} alvo(s)
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        {selectedSyllableUsedByTargets.length > 0 ? (
+                                          selectedSyllableUsedByTargets.map((target) => (
+                                            <span
+                                              key={`${selectedSyllableRow.id}-${target.id}`}
+                                              className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm"
+                                            >
+                                              {target.name}
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
+                                            Nenhum target usa
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {poolConstraintMessage && selectedSyllableMinimumCount > 0 ? (
+                                      <div className="rounded-2xl border border-rose-300/25 bg-rose-50/85 px-4 py-3 text-sm text-rose-950">
+                                        {poolConstraintMessage}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="mt-auto flex flex-wrap gap-3 pt-4">
+                        <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
+                          {preview.ok ? "pool por cards: validado no pipeline" : "pool por cards: aguardando preview valido"}
+                        </Badge>
+                      </div>
+                      </div>
+                    </Panel>
+                  </div>
+                </div>
+
+                <div className="xl:h-[min(86.7vh,67rem)] xl:min-h-0">
                   <Panel
-                    title="Silabas do Deck"
-                    icon={<Layers3 className="h-5 w-5" />}
+                    title="Catalogo de Alvos"
+                    icon={<BookOpenText className="h-5 w-5" />}
+                    className="h-full min-h-0"
                     headerAction={
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                          {effectivePoolRows.length} silaba(s)
-                        </Badge>
-                        <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                          {draftPoolCopies} cartas
+                          {catalogDraftTargets.length} alvo(s)
                         </Badge>
                       </div>
                     }
                   >
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                      {syllableGridItems.map((item, index) => (
-                        <React.Fragment key={item.id}>
-                          <DerivedSyllableCard
-                            syllable={item.row.syllable || "?"}
-                            copies={Math.max(0, Number(item.row.count) || 0)}
-                            selected={item.row.id === selectedSyllableRowId}
-                            onClick={() =>
-                              setSelectedSyllableRowId((current) => (current === item.row.id ? "" : item.row.id))
-                            }
-                          />
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 no-scrollbar">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-3 md:grid-cols-3 xl:grid-cols-6">
+                        {catalogTargetGridItems.map((item, index) => (
+                          <React.Fragment key={item.id}>
+                            {item.kind === "target" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedCatalogTargetId((current) => (current === item.target.id ? "" : item.target.id))
+                                }
+                                className="text-left"
+                              >
+                                <DraftTargetCard
+                                  target={item.target}
+                                  active={item.target.id === selectedCatalogTargetDraft?.id}
+                                  copies={1}
+                                  showCopies={false}
+                                  nameValidation={catalogTargetNameValidationById[item.target.id]}
+                                />
+                              </button>
+                            ) : (
+                              <button type="button" onClick={addCatalogTarget} className="text-left">
+                                <AddTargetCard compact />
+                              </button>
+                            )}
 
-                          {selectedSyllableRow && index === expandedSyllableRowEndIndex ? (
-                            <div className="paper-panel col-span-2 rounded-[24px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_16px_30px_rgba(0,0,0,0.12)] sm:col-span-3 xl:col-span-4">
-                              <div className="mb-4 flex flex-wrap items-center gap-3">
-                                <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
-                                  id interno: {selectedSyllableCardId || "syllable.sem-id"}
-                                </Badge>
-                                {selectedSyllableRow?.mode === "auto" ? (
-                                  <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
-                                    gerada pelos alvos
-                                  </Badge>
-                                ) : null}
-                              </div>
-
-                                <div className="grid gap-4">
-                                <div className="grid gap-3 md:grid-cols-2">
-                                  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-                                      Targets usando
-                                    </div>
-                                    <div className="mt-2 flex items-end justify-between gap-3">
-                                      <div className="font-serif text-2xl font-black text-amber-950">
-                                        {selectedSyllableUsedByTargets.length}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-                                      Copias
-                                    </div>
-                                    <input
-                                      type="number"
-                                      min={selectedSyllableMinimumCount}
-                                      value={selectedSyllableRow.count}
-                                      onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
-                                      className={cn(
-                                        "mt-2 w-full rounded-xl border px-3 py-2.5 text-sm font-black text-amber-950 outline-none transition",
-                                        selectedSyllableCountHasIssue
-                                          ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                          : "border-amber-900/15 bg-white/80 focus:border-amber-500/30",
-                                      )}
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-                                      Aparece em
-                                    </div>
-                                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-900/40">
-                                      {selectedSyllableUsedByTargets.length} alvo(s)
-                                    </div>
-                                  </div>
-                                  <div className="mt-3 flex flex-wrap gap-2">
-                                    {selectedSyllableUsedByTargets.length > 0 ? (
-                                      selectedSyllableUsedByTargets.map((target) => (
-                                        <span
-                                          key={`${selectedSyllableRow.id}-${target.id}`}
-                                          className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm"
-                                        >
-                                          {target.name}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
-                                        Nenhum target usa
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {poolConstraintMessage && selectedSyllableMinimumCount > 0 ? (
-                                  <div className="rounded-2xl border border-rose-300/25 bg-rose-50/85 px-4 py-3 text-sm text-rose-950">
-                                    {poolConstraintMessage}
-                                  </div>
-                                ) : null}
-                              </div>
-                            </div>
-                          ) : null}
-                        </React.Fragment>
-                      ))}
-                    </div>
-                    <div className="mt-auto flex flex-wrap gap-3 pt-4">
-                      <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
-                        {preview.ok ? "pool por cards: validado no pipeline" : "pool por cards: aguardando preview valido"}
-                      </Badge>
-                    </div>
-                  </Panel>
-                </div>
-
-                <Panel
-                  title="Catalogo de Alvos"
-                  icon={<BookOpenText className="h-5 w-5" />}
-                  headerAction={
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                        {catalogDraftTargets.length} alvo(s)
-                      </Badge>
-                    </div>
-                  }
-                >
-                  <div className="mb-4 rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-3 text-sm text-sky-950">
-                    Esta secao aparece dentro do deck atual, mas edita o catalogo global unico compartilhado por todos os decks.
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-3 md:grid-cols-3 xl:grid-cols-6">
-                    {catalogTargetGridItems.map((item, index) => (
-                      <React.Fragment key={item.id}>
-                        {item.kind === "target" ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedCatalogTargetId((current) => (current === item.target.id ? "" : item.target.id))
-                            }
-                            className="text-left"
-                          >
-                            <DraftTargetCard
-                              target={item.target}
-                              active={item.target.id === selectedCatalogTargetDraft?.id}
-                              copies={1}
-                              showCopies={false}
-                              nameValidation={catalogTargetNameValidationById[item.target.id]}
-                            />
-                          </button>
-                        ) : (
-                          <button type="button" onClick={addCatalogTarget} className="text-left">
-                            <AddTargetCard compact />
-                          </button>
-                        )}
-
-                        {selectedCatalogTargetDraft && index === expandedCatalogTargetRowEndIndex ? (
-                          <div className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] md:col-span-3 xl:col-span-6">
+                            {selectedCatalogTargetDraft && index === expandedCatalogTargetRowEndIndex ? (
+                              <div
+                                data-editor-niche="catalog-target"
+                                className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] md:col-span-3 xl:col-span-6"
+                              >
                             <div className="mb-4 flex flex-wrap items-center gap-3">
                               <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
                                 id interno: {selectedCatalogTargetDraft.id}
@@ -2051,12 +2125,14 @@ export const ContentEditor: React.FC = () => {
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        ) : null}
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </Panel>
+                              </div>
+                            ) : null}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  </Panel>
+                </div>
 
                 <div className="space-y-6">
                   <Panel title="Preview do Pipeline" icon={<CheckCircle2 className="h-5 w-5" />}>
@@ -2467,7 +2543,7 @@ const AddTargetCard: React.FC<{
 );
 
 const AddDeckCard: React.FC = () => (
-  <div className="relative flex min-h-[132px] w-full items-center justify-center overflow-hidden rounded-[28px] border border-dashed border-amber-900/18 bg-amber-50/45 p-4 text-amber-950 transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70">
+  <div className="relative flex min-h-[132px] w-full items-center justify-center overflow-hidden rounded-[28px] border border-dashed border-amber-900/18 bg-amber-50/45 p-4 text-amber-950 shadow-[0_14px_26px_rgba(0,0,0,0.1)] transition-all duration-300 hover:-translate-y-1 hover:bg-amber-100/70 hover:shadow-[0_20px_34px_rgba(0,0,0,0.14)]">
     <div className="flex items-center gap-3 text-center">
       <Plus className="h-7 w-7" />
       <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">

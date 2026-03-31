@@ -523,7 +523,7 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
         battleCardSizePresetClass[sizePreset],
         selected
           ? staticDisplay
-            ? "border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_18px_30px_rgba(120,53,15,0.18)]"
+            ? "border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_12px_22px_rgba(120,53,15,0.14)]"
             : "z-40 -translate-y-4 border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_24px_44px_rgba(120,53,15,0.26)]"
           : playable
             ? "border-emerald-700 bg-emerald-100 text-emerald-900 shadow-[0_0_20px_rgba(52,211,153,0.2)] ring-2 ring-emerald-300/30"
