@@ -398,9 +398,17 @@ export const ContentEditor: React.FC = () => {
     () => draft.targets.filter((target) => !targetNameValidationById[target.id]?.matchesName).length,
     [draft.targets, targetNameValidationById],
   );
+  const totalTargetCopies = useMemo(
+    () => draft.targets.reduce((sum, target) => sum + getTargetCopiesDisplayValue(target.copies), 0),
+    [draft.targets],
+  );
   const requiredPoolCounts = useMemo(
     () => buildMinimumDeckPoolFromTargets(draft.targets),
     [draft.targets],
+  );
+  const targetMinimumCardCount = useMemo(
+    () => [...requiredPoolCounts.values()].reduce((sum, count) => sum + count, 0),
+    [requiredPoolCounts],
   );
   const derivedTargetIdsLabel = useMemo(() => {
     if (!preview.ok) return "draft invalido";
@@ -1097,13 +1105,20 @@ export const ContentEditor: React.FC = () => {
 
               <div className="space-y-6">
                 <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
-                  <Panel title="Targets do Deck" icon={<BookOpenText className="h-5 w-5" />}>
-                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-3 py-3 text-sm text-amber-950/75">
-                    <span className="font-black text-amber-950">Targets primeiro.</span>
-                    <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                      {draft.targets.length} alvo(s)
-                    </Badge>
-                  </div>
+                  <Panel
+                    title="Targets do Deck"
+                    icon={<BookOpenText className="h-5 w-5" />}
+                    headerAction={
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                          {draft.targets.length} alvo(s)
+                        </Badge>
+                        <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                          {totalTargetCopies} cartas
+                        </Badge>
+                      </div>
+                    }
+                  >
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                     {targetGridItems.map((item, index) => (
                       <React.Fragment key={item.id}>
@@ -1305,19 +1320,37 @@ export const ContentEditor: React.FC = () => {
                       </React.Fragment>
                     ))}
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
                     <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
                       targetIds derivados: {derivedTargetIdsLabel}
                     </Badge>
-                    {missingTargetCount > 0 ? (
-                      <Badge className="border border-amber-900/12 bg-amber-100/85 text-amber-950">
-                        {missingTargetCount} alvo(s) ainda pedem validacao
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+                      <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                        total de silabas: {targetMinimumCardCount}
                       </Badge>
-                    ) : null}
+                      {missingTargetCount > 0 ? (
+                        <Badge className="border border-amber-900/12 bg-amber-100/85 text-amber-950">
+                          {missingTargetCount} alvo(s) ainda pedem validacao
+                        </Badge>
+                      ) : null}
+                    </div>
                   </div>
                   </Panel>
 
-                  <Panel title="Pool do Deck" icon={<Layers3 className="h-5 w-5" />}>
+                  <Panel
+                    title="Silabas do Deck"
+                    icon={<Layers3 className="h-5 w-5" />}
+                    headerAction={
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                          {effectivePoolRows.length} silaba(s)
+                        </Badge>
+                        <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
+                          {draftPoolCopies} cartas
+                        </Badge>
+                      </div>
+                    }
+                  >
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
                       {syllableGridItems.map((item, index) => (
                         <React.Fragment key={item.id}>
