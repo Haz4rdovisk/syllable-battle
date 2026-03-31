@@ -59,7 +59,7 @@ const createSaveableNewDeckDraft = () => {
 };
 
 test("content editor roundtrip preserva o deck bruto e o deck final do runtime", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -77,7 +77,7 @@ test("content editor roundtrip preserva o deck bruto e o deck final do runtime",
 });
 
 test("content editor draft guarda apenas ajustes manuais do pool e deriva o resto dos alvos", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -90,7 +90,7 @@ test("content editor draft guarda apenas ajustes manuais do pool e deriva o rest
 });
 
 test("content editor reutiliza a validacao real do pipeline", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -110,7 +110,7 @@ test("content editor reutiliza a validacao real do pipeline", () => {
 });
 
 test("content editor nao mascara copies invalido como 1 no preview do pipeline", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -134,7 +134,7 @@ test("content editor nao mascara copies invalido como 1 no preview do pipeline",
 });
 
 test("content editor persiste copies de alvo e replica target no deck final", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -159,7 +159,7 @@ test("content editor persiste copies de alvo e replica target no deck final", ()
 });
 
 test("content editor omite copies no source bruto quando o valor volta para 1", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -177,15 +177,15 @@ test("content editor omite copies no source bruto quando o valor volta para 1", 
 });
 
 test("content editor gera source bruto para o deck correto", () => {
-  const entry = getRawDeckCatalogEntry("ocean");
+  const entry = getRawDeckCatalogEntry("oceano");
 
   assert.ok(entry);
-  assert.equal(entry.filePath, "src/data/content/decks/ocean.ts");
+  assert.equal(entry.filePath, "src/data/content/decks/oceano.ts");
 
   const source = createRawDeckDefinitionSource(entry.exportName, entry.deck);
 
-  assert.ok(source.includes('export const oceanDeck: RawDeckDefinition = {'));
-  assert.ok(source.includes('id: "ocean"'));
+  assert.ok(source.includes('export const oceanoDeck: RawDeckDefinition = {'));
+  assert.ok(source.includes('id: "oceano"'));
   assert.ok(source.includes('visualTheme: "abyss"'));
 });
 
@@ -211,13 +211,20 @@ test("content editor monta silabas de target pelo builder sem perder duplicatas"
   assert.equal(removed, "VA, CA");
 });
 
+test("content editor parseia silabas separadas por virgula ou quebra de linha", () => {
+  assert.deepEqual(parseContentEditorTargetSyllables("CA,VA,LO"), ["CA", "VA", "LO"]);
+  assert.deepEqual(parseContentEditorTargetSyllables("CA, VA, LO"), ["CA", "VA", "LO"]);
+  assert.deepEqual(parseContentEditorTargetSyllables("CA\nVA\nLO"), ["CA", "VA", "LO"]);
+});
+
 test("content editor valida nome do alvo concatenando as silabas normalizadas", () => {
-  const validation = buildContentEditorTargetNameValidation("Borboleta", "BOR, BO, LE, TA");
+  const validation = buildContentEditorTargetNameValidation("CAVALO", "CA,VA,LO");
 
   assert.equal(validation.canValidate, true);
   assert.equal(validation.matchesName, true);
-  assert.equal(validation.normalizedName, "BORBOLETA");
-  assert.equal(validation.normalizedSyllableWord, "BORBOLETA");
+  assert.equal(validation.normalizedName, "CAVALO");
+  assert.equal(validation.normalizedSyllableWord, "CAVALO");
+  assert.equal(validation.respectsExplicitSegmentation, true);
 });
 
 test("content editor detecta quando as silabas nao formam o nome do alvo", () => {
@@ -227,6 +234,16 @@ test("content editor detecta quando as silabas nao formam o nome do alvo", () =>
   assert.equal(validation.matchesName, false);
   assert.equal(validation.normalizedName, "BANANA");
   assert.equal(validation.normalizedSyllableWord, "BANA");
+});
+
+test("content editor rejeita nome inteiro como token unico de silaba", () => {
+  const validation = buildContentEditorTargetNameValidation("CAVALO", "CAVALO");
+
+  assert.equal(validation.canValidate, true);
+  assert.equal(validation.normalizedName, "CAVALO");
+  assert.equal(validation.normalizedSyllableWord, "CAVALO");
+  assert.equal(validation.respectsExplicitSegmentation, false);
+  assert.equal(validation.matchesName, false);
 });
 
 test("content editor popula o pool minimo a partir de targets validos e remove linhas sem alvo", () => {
@@ -421,7 +438,7 @@ test("content editor injeta deck novo no pipeline real antes do save", () => {
 });
 
 test("content editor permite criar editar e remover target deck-scoped no builder", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -431,7 +448,7 @@ test("content editor permite criar editar e remover target deck-scoped no builde
 
   draft.targets = draft.targets.slice(1);
   draft.targets.push({
-    id: "farm-builder-target",
+    id: "fazenda-builder-target",
     name: "VACA BUILDER",
     copies: "2",
     description: "Target criado no builder minimo.",
@@ -442,8 +459,8 @@ test("content editor permite criar editar e remover target deck-scoped no builde
 
   const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
   assert.ok(!rawDeck.targets.some((target) => target.id === removedTargetId));
-  assert.deepEqual(rawDeck.targets.find((target) => target.id === "farm-builder-target"), {
-    id: "farm-builder-target",
+  assert.deepEqual(rawDeck.targets.find((target) => target.id === "fazenda-builder-target"), {
+    id: "fazenda-builder-target",
     name: "VACA BUILDER",
     copies: 2,
     description: "Target criado no builder minimo.",
@@ -456,18 +473,18 @@ test("content editor permite criar editar e remover target deck-scoped no builde
   assert.equal(preview.ok, true);
   if (!preview.ok) return;
 
-  assert.ok(preview.selectedDeckModel?.targetDefinitions.some((target) => target.id === "farm-builder-target"));
-  assert.ok(preview.selectedRuntimeDeck?.targets.some((target) => target.id === "farm-builder-target"));
+  assert.ok(preview.selectedDeckModel?.targetDefinitions.some((target) => target.id === "fazenda-builder-target"));
+  assert.ok(preview.selectedRuntimeDeck?.targets.some((target) => target.id === "fazenda-builder-target"));
 });
 
 test("content editor aceita silabas novas validas no alvo e mantem pipeline coerente", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
   const draft = createContentEditorDeckDraft(entry.deck);
   draft.targets.push({
-    id: "farm-lagarta",
+    id: "fazenda-lagarta",
     name: "Lagarta",
     copies: "1",
     description: "",
@@ -496,7 +513,7 @@ test("content editor gera index bruto incluindo deck novo", () => {
 });
 
 test("content editor duplica deck com deckId e targetIds novos", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -521,19 +538,19 @@ test("content editor duplica deck com deckId e targetIds novos", () => {
 test("content editor deriva deckId canonico do nome do deck para checagem e save", () => {
   assert.equal(createDeckIdCandidate("Fazenda Turbo"), "fazenda-turbo");
   assert.equal(createDeckIdCandidate("  Ação Épica  "), "acao-epica");
-  assert.equal(createDeckIdCandidate("", "farm"), "farm");
+  assert.equal(createDeckIdCandidate("", "fazenda"), "fazenda");
 });
 
 test("content editor remove deck do catalogo bruto sem deixar entrada fantasma no indice", () => {
-  const nextEntries = removeRawDeckFromCatalog(rawDeckCatalogEntries, "farm");
+  const nextEntries = removeRawDeckFromCatalog(rawDeckCatalogEntries, "fazenda");
   const indexSource = createRawDeckCatalogIndexSource(nextEntries);
 
-  assert.ok(!nextEntries.some((entry) => entry.id === "farm"));
-  assert.ok(!indexSource.includes('id: "farm"'));
+  assert.ok(!nextEntries.some((entry) => entry.id === "fazenda"));
+  assert.ok(!indexSource.includes('id: "fazenda"'));
 });
 
 test("content editor gera diff legivel do source bruto antes do save", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -553,7 +570,7 @@ test("content editor gera diff legivel do source bruto antes do save", () => {
 });
 
 test("content editor resume mudancas por categoria antes do save", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
@@ -585,7 +602,7 @@ test("content editor resume mudancas por categoria antes do save", () => {
 });
 
 test("content editor resume bloqueio de pipeline e source no review gate", () => {
-  const entry = getRawDeckCatalogEntry("farm");
+  const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 

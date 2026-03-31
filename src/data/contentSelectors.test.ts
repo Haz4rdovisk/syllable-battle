@@ -27,21 +27,21 @@ import {
 } from "./content";
 
 test("selectors basicos resolvem deck, target, card e deck model por id", () => {
-  const farmDeck = getCatalogDeckById(CONTENT_CATALOG, "farm");
-  const farmDeckModel = getDeckModelById(DECK_MODELS_BY_ID, "farm");
+  const farmDeck = getCatalogDeckById(CONTENT_CATALOG, "fazenda");
+  const farmDeckModel = getDeckModelById(DECK_MODELS_BY_ID, "fazenda");
   const vacaTarget = getCatalogTargetById(CONTENT_CATALOG, "vaca");
   const vaCard = getCatalogCardById(CONTENT_CATALOG, "syllable.va");
   const vaCardCatalogEntry = getCardCatalogEntryById(CARD_CATALOG_BY_ID, "syllable.va");
 
-  assert.equal(farmDeck?.id, "farm");
-  assert.equal(farmDeckModel?.id, "farm");
+  assert.equal(farmDeck?.id, "fazenda");
+  assert.equal(farmDeckModel?.id, "fazenda");
   assert.equal(vacaTarget?.id, "vaca");
   assert.equal(vaCard?.syllable, "VA");
   assert.equal(vaCardCatalogEntry?.card.id, "syllable.va");
 });
 
 test("selectors deck model-first expoem definitions, instancias e cards do deck", () => {
-  const farmDeckModel = DECK_MODELS_BY_ID.farm;
+  const farmDeckModel = DECK_MODELS_BY_ID.fazenda;
   const farmTargets = getTargetsForDeckModel(farmDeckModel);
   const farmTargetInstances = getTargetInstancesForDeckModel(farmDeckModel);
   const farmCards = getCardsForDeckModel(farmDeckModel);
@@ -61,21 +61,21 @@ test("selectors deck model-first expoem definitions, instancias e cards do deck"
 });
 
 test("wrappers por deckId continuam compativeis com o catalogo normalizado", () => {
-  const farmTargets = getTargetsForDeck(CONTENT_CATALOG, "farm");
-  const farmTargetInstances = getTargetInstancesForDeck(CONTENT_CATALOG, "farm");
-  const farmCards = getCardsForDeck(CONTENT_CATALOG, "farm");
+  const farmTargets = getTargetsForDeck(CONTENT_CATALOG, "fazenda");
+  const farmTargetInstances = getTargetInstancesForDeck(CONTENT_CATALOG, "fazenda");
+  const farmCards = getCardsForDeck(CONTENT_CATALOG, "fazenda");
 
   assert.deepEqual(
     farmTargets.map((target) => target.id),
-    getTargetsForDeckModel(DECK_MODELS_BY_ID.farm).map((target) => target.id),
+    getTargetsForDeckModel(DECK_MODELS_BY_ID.fazenda).map((target) => target.id),
   );
   assert.deepEqual(
     farmTargetInstances.map((entry) => entry.instanceKey),
-    getTargetInstancesForDeckModel(DECK_MODELS_BY_ID.farm).map((entry) => entry.instanceKey),
+    getTargetInstancesForDeckModel(DECK_MODELS_BY_ID.fazenda).map((entry) => entry.instanceKey),
   );
   assert.deepEqual(
     farmCards.map((entry) => [entry.card.id, entry.copiesInDeck]),
-    getCardsForDeckModel(DECK_MODELS_BY_ID.farm).map((entry) => [entry.card.id, entry.copiesInDeck]),
+    getCardsForDeckModel(DECK_MODELS_BY_ID.fazenda).map((entry) => [entry.card.id, entry.copiesInDeck]),
   );
 });
 
@@ -83,19 +83,19 @@ test("selectors separam definitions unicas de instancias duplicadas por copies",
   const catalog = {
     ...CONTENT_CATALOG,
     decks: CONTENT_CATALOG.decks.map((deck) =>
-      deck.id === "farm" ? { ...deck, targetIds: ["vaca", "vaca", "porco"] } : deck,
+      deck.id === "fazenda" ? { ...deck, targetIds: ["vaca", "vaca", "porco"] } : deck,
     ),
     decksById: {
       ...CONTENT_CATALOG.decksById,
-      farm: {
-        ...CONTENT_CATALOG.decksById.farm,
+      fazenda: {
+        ...CONTENT_CATALOG.decksById.fazenda,
         targetIds: ["vaca", "vaca", "porco"],
       },
     },
   };
 
-  const farmTargetDefinitions = getTargetsForDeck(catalog, "farm");
-  const farmTargetInstances = getTargetInstancesForDeck(catalog, "farm");
+  const farmTargetDefinitions = getTargetsForDeck(catalog, "fazenda");
+  const farmTargetInstances = getTargetInstancesForDeck(catalog, "fazenda");
 
   assert.deepEqual(
     farmTargetDefinitions.map((target) => target.id),
@@ -120,11 +120,11 @@ test("selectors relacionam cards com targets, deck models e deck definitions", (
   assert.ok(targetsUsingRao.some((target) => target.id === "camarao"));
   assert.deepEqual(
     deckModelsUsingRao.map((deck) => deck.id).sort(),
-    ["ocean"],
+    ["oceano"],
   );
   assert.deepEqual(
     decksUsingRao.map((deck) => deck.id).sort(),
-    ["ocean"],
+    ["oceano"],
   );
 });
 
@@ -138,10 +138,10 @@ test("getMostReusedCards destaca cartas canonicas mais reaproveitadas no catalog
 
 test("shared targets via deck model continuam vazios no catalogo atual", () => {
   const sharedFarmTargetsFromDeckModels = getSharedTargetsBetweenDeckModels(
-    DECK_MODELS_BY_ID.farm,
+    DECK_MODELS_BY_ID.fazenda,
     CONTENT_PIPELINE.deckModels,
   );
-  const sharedFarmTargets = getSharedTargetsBetweenDecks(CONTENT_CATALOG, "farm");
+  const sharedFarmTargets = getSharedTargetsBetweenDecks(CONTENT_CATALOG, "fazenda");
 
   assert.deepEqual(sharedFarmTargetsFromDeckModels, []);
   assert.deepEqual(sharedFarmTargets, []);

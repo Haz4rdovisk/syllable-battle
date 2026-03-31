@@ -146,6 +146,16 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
     };
   }
 
+  const localTargetSegmentationMatch = issue.match(/^Target "([^"]+)" precisa separar as silabas corretamente\.$/);
+  if (localTargetSegmentationMatch) {
+    return {
+      scope: "Targets do Deck",
+      focus: `Alvo ${localTargetSegmentationMatch[1]} · Nome x silabas`,
+      message: "Separe as silabas. Nao use a palavra inteira.",
+      raw: issue,
+    };
+  }
+
   const localDuplicateSyllableMatch = issue.match(/^Deck "([^"]+)" repete a silaba "([^"]+)" nas linhas (\d+) do editor\.$/);
   if (localDuplicateSyllableMatch) {
     return {
@@ -958,19 +968,23 @@ export const ContentEditor: React.FC = () => {
       ),
     [localIssues, pipelineIssues, selectedTargetDraft],
   );
-  const selectedTargetSyllablesHasIssue = useMemo(
-    () =>
-      Boolean(
-        selectedTargetDraft &&
-          (!selectedTargetNameValidation.matchesName ||
-            pipelineIssues.some(
-              (issue) =>
-                issue.includes(`target "${selectedTargetDraft.id}" needs`) ||
-                issue.includes(`target "${selectedTargetDraft.id}" syllables`),
-            )),
-      ),
-    [pipelineIssues, selectedTargetDraft, selectedTargetNameValidation.matchesName],
-  );
+  const selectedTargetSyllablesHasIssue = useMemo(() => {
+    if (!selectedTargetDraft) return false;
+    const hasSyllablesInput = selectedTargetDraft.syllablesText.trim().length > 0;
+    if (!hasSyllablesInput) return false;
+    if (selectedTargetNameValidation.canValidate && !selectedTargetNameValidation.matchesName) return true;
+
+    return pipelineIssues.some(
+      (issue) =>
+        issue.includes(`target "${selectedTargetDraft.id}" needs`) ||
+        issue.includes(`target "${selectedTargetDraft.id}" syllables`),
+    );
+  }, [
+    pipelineIssues,
+    selectedTargetDraft,
+    selectedTargetNameValidation.canValidate,
+    selectedTargetNameValidation.matchesName,
+  ]);
   const selectedSyllableCountHasIssue = useMemo(
     () =>
       Boolean(
@@ -1203,9 +1217,7 @@ export const ContentEditor: React.FC = () => {
                   </button>
                 </div>
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-100/60">
-                    Deck sobre catalogo de cards
-                  </div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-100/60">Deck</div>
                   <h2 className="mt-2 font-serif text-4xl font-black tracking-tight text-amber-50">{draft.name}</h2>
                   <p className="mt-3 max-w-3xl font-serif text-sm italic leading-relaxed text-amber-50/80">
                     {draft.description || "Sem descricao ainda."}
@@ -1373,11 +1385,6 @@ export const ContentEditor: React.FC = () => {
                               <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
                                 id interno: {selectedTargetDraft.id}
                               </Badge>
-                              {selectedTargetNameValidation.canValidate && !selectedTargetNameValidation.matchesName ? (
-                                <Badge className="border border-rose-300/25 bg-rose-100/80 text-rose-950">
-                                  nome nao fecha
-                                </Badge>
-                              ) : null}
                               <div className="ml-auto flex items-center gap-2">
                               <Button
                                 variant="ghost"
@@ -1491,8 +1498,10 @@ export const ContentEditor: React.FC = () => {
                                   <div
                                     className={cn(
                                       "rounded-2xl border px-3 py-3 text-sm",
-                                      selectedTargetNameValidation.canValidate && !selectedTargetNameValidation.matchesName
-                                        ? "border-rose-300/25 bg-rose-50/80 text-rose-950"
+                                      !selectedTargetNameValidation.canValidate
+                                        ? "border-amber-900/12 bg-white/65 text-amber-950/75"
+                                        : !selectedTargetNameValidation.matchesName
+                                          ? "border-rose-300/25 bg-rose-50/80 text-rose-950"
                                         : "border-emerald-700/15 bg-emerald-100/80 text-emerald-950",
                                     )}
                                   >
@@ -1503,8 +1512,14 @@ export const ContentEditor: React.FC = () => {
                                         </span>
                                       ) : (
                                         <span>
-                                          Nome <span className="font-black">{selectedTargetNameValidation.normalizedName || "?"}</span> nao bate com{" "}
-                                          <span className="font-black">{selectedTargetNameValidation.normalizedSyllableWord || "?"}</span>.
+                                          {selectedTargetNameValidation.respectsExplicitSegmentation ? (
+                                            <>
+                                              Nome <span className="font-black">{selectedTargetNameValidation.normalizedName || "?"}</span> nao bate com{" "}
+                                              <span className="font-black">{selectedTargetNameValidation.normalizedSyllableWord || "?"}</span>.
+                                            </>
+                                          ) : (
+                                            <>Separe as silabas. Nao use a palavra inteira.</>
+                                          )}
                                         </span>
                                       )
                                     ) : (

@@ -280,7 +280,7 @@ test("compareDeckMetrics expande comparacao entre deck models para a UI dev-only
 });
 
 test("insights mantem compatibilidade com Deck legado quando preciso", () => {
-  const deckModel = DECK_MODELS_BY_ID.farm;
+  const deckModel = DECK_MODELS_BY_ID.fazenda;
   const runtimeDeck = adaptDeckModelToRuntimeDeck(deckModel, CONTENT_CATALOG);
 
   assert.deepEqual(getDeckContentMetrics(runtimeDeck), getDeckContentMetrics(deckModel));

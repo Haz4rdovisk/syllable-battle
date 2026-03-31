@@ -59,6 +59,7 @@ export interface ContentEditorTargetNameValidation {
   normalizedSyllableWord: string;
   syllables: string[];
   canValidate: boolean;
+  respectsExplicitSegmentation: boolean;
   matchesName: boolean;
 }
 
@@ -452,9 +453,18 @@ export function createDuplicatedContentEditorDeckEntry(
 }
 
 export function parseContentEditorTargetSyllables(value: string) {
+  const normalizeSyllableToken = (entry: string) =>
+    entry
+      .trim()
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\s-]+/g, "")
+      .replace(/[^A-Z0-9]/g, "");
+
   return value
     .split(/[\n,]/)
-    .map((entry) => entry.trim().toUpperCase())
+    .map((entry) => normalizeSyllableToken(entry))
     .filter((entry) => entry.length > 0);
 }
 
@@ -494,13 +504,16 @@ export function buildContentEditorTargetNameValidation(
   const normalizedName = normalizeContentEditorTargetName(name);
   const normalizedSyllableWord = syllables.join("");
   const canValidate = normalizedName.length > 0 && syllables.length > 0;
+  const respectsExplicitSegmentation =
+    syllables.length !== 1 || normalizedSyllableWord.length <= 3 || /[,\n]/.test(syllablesText);
 
   return {
     normalizedName,
     normalizedSyllableWord,
     syllables,
     canValidate,
-    matchesName: canValidate && normalizedName === normalizedSyllableWord,
+    respectsExplicitSegmentation,
+    matchesName: canValidate && respectsExplicitSegmentation && normalizedName === normalizedSyllableWord,
   };
 }
 
@@ -614,7 +627,11 @@ export function getContentEditorLocalIssues(draft: ContentEditorDeckDraft) {
       issues.push(`Target "${target.id}" precisa ter pelo menos uma silaba informada.`);
     }
     if (validation.canValidate && !validation.matchesName) {
-      issues.push(`Target "${target.id}" precisa formar o nome "${target.name}" com as silabas informadas.`);
+      if (!validation.respectsExplicitSegmentation) {
+        issues.push(`Target "${target.id}" precisa separar as silabas corretamente.`);
+      } else {
+        issues.push(`Target "${target.id}" precisa formar o nome "${target.name}" com as silabas informadas.`);
+      }
     }
   });
 
