@@ -41,19 +41,23 @@ import {
   createEmptyContentEditorTarget,
   createRawDeckCatalogEntry,
   createRawDeckDefinitionSource,
+  createRawTargetCatalogSource,
   formatContentEditorTargetSyllables,
   getContentEditorLocalIssues,
-  hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
+  hydrateRawTargetCatalogFromDraftTargets,
   normalizeContentEditorPoolAdjustments,
   parseContentEditorTargetSyllables,
+  RAW_TARGET_CATALOG_FILE_PATH,
   removeRawDeckFromCatalog,
   removeContentEditorTargetSyllableAt,
   upsertRawDeckInCatalog,
+  cloneRawTargetDefinition,
 } from "../../data/content/editor";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
 import { RawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
+import { rawTargetCatalog } from "../../data/content/targets";
 import { RARITY_DAMAGE, normalizeRarity } from "../../types/game";
 
 type SaveStatus = {
@@ -64,10 +68,12 @@ type SaveStatus = {
 const themeIds = Object.keys(DECK_VISUAL_THEME_CLASSES) as DeckVisualThemeId[];
 
 const createSourceEntriesState = () => rawDeckCatalogEntries.map((entry) => cloneRawDeckCatalogEntry(entry));
+const createSourceTargetsState = () => rawTargetCatalog.map((target) => cloneRawTargetDefinition(target));
 
-const createDraftForDeck = (entries: RawDeckCatalogEntry[], deckId: string) =>
+const createDraftForDeck = (entries: RawDeckCatalogEntry[], targets: typeof rawTargetCatalog, deckId: string) =>
   createContentEditorDeckDraft(
     entries.find((entry) => entry.id === deckId)?.deck ?? cloneRawDeckDefinition(entries[0]?.deck ?? rawDeckCatalogEntries[0].deck),
+    targets,
   );
 
 const idleSaveStatus: SaveStatus = {
@@ -318,11 +324,13 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
 
 export const ContentEditor: React.FC = () => {
   const initialSourceEntries = useMemo(createSourceEntriesState, []);
+  const initialSourceTargets = useMemo(createSourceTargetsState, []);
   const [sourceEntries, setSourceEntries] = useState(initialSourceEntries);
+  const [sourceTargets, setSourceTargets] = useState(initialSourceTargets);
   const [persistedDeckIds, setPersistedDeckIds] = useState(() => new Set(initialSourceEntries.map((entry) => entry.id)));
   const [selectedDeckId, setSelectedDeckId] = useState(() => initialSourceEntries[0]?.id ?? "");
   const [draft, setDraft] = useState<ContentEditorDeckDraft>(() =>
-    createDraftForDeck(initialSourceEntries, initialSourceEntries[0]?.id ?? ""),
+    createDraftForDeck(initialSourceEntries, initialSourceTargets, initialSourceEntries[0]?.id ?? ""),
   );
   const [selectedTargetId, setSelectedTargetId] = useState("");
   const [selectedSyllableRowId, setSelectedSyllableRowId] = useState("");
@@ -356,8 +364,8 @@ export const ContentEditor: React.FC = () => {
   const selectedDeckIsPersisted = useMemo(() => persistedDeckIds.has(selectedDeckId), [persistedDeckIds, selectedDeckId]);
   const persistedDeck = selectedDeckEntry?.deck ?? null;
   const baselineDraft = useMemo(
-    () => (persistedDeck ? createContentEditorDeckDraft(persistedDeck) : draft),
-    [draft, persistedDeck],
+    () => (persistedDeck ? createContentEditorDeckDraft(persistedDeck, sourceTargets) : draft),
+    [draft, persistedDeck, sourceTargets],
   );
   const draftRawDeck = useMemo(() => hydrateRawDeckDefinitionFromDraft(draft), [draft]);
   const draftDeckIdCandidate = useMemo(() => createDeckIdCandidate(draft.name, draft.id), [draft.id, draft.name]);
@@ -376,18 +384,17 @@ export const ContentEditor: React.FC = () => {
     [draftDeckIdCandidate, draftRawDeck],
   );
   const draftSaveEntry = useMemo(() => createRawDeckCatalogEntry(draftSaveDeck), [draftSaveDeck]);
-  const draftPreviewRawDeck = useMemo(() => hydratePreviewRawDeckDefinitionFromDraft(draft), [draft]);
-  const persistedPreviewDeck = useMemo(
-    () => (persistedDeck ? hydratePreviewRawDeckDefinitionFromDraft(createContentEditorDeckDraft(persistedDeck)) : null),
-    [persistedDeck],
+  const nextSourceTargets = useMemo(
+    () => hydrateRawTargetCatalogFromDraftTargets(sourceTargets, draft.targets),
+    [draft.targets, sourceTargets],
   );
-  const isDirty = useMemo(
-    () => JSON.stringify(draftPreviewRawDeck) !== JSON.stringify(persistedPreviewDeck),
-    [draftPreviewRawDeck, persistedPreviewDeck],
-  );
+  const isDirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(baselineDraft), [baselineDraft, draft]);
 
   const localIssues = useMemo(() => getContentEditorLocalIssues(draft), [draft]);
-  const preview = useMemo(() => buildContentEditorPreview(sourceEntries, selectedDeckId, draft), [draft, selectedDeckId, sourceEntries]);
+  const preview = useMemo(
+    () => buildContentEditorPreview(sourceEntries, sourceTargets, selectedDeckId, draft),
+    [draft, selectedDeckId, sourceEntries, sourceTargets],
+  );
 
   const selectedDeckModel = useMemo(
     () => (preview.ok ? preview.selectedDeckModel : null),
@@ -465,6 +472,13 @@ export const ContentEditor: React.FC = () => {
     () => buildContentEditorSourceDiff(persistedSource, nextSaveSource),
     [nextSaveSource, persistedSource],
   );
+  const persistedTargetSource = useMemo(() => createRawTargetCatalogSource(sourceTargets), [sourceTargets]);
+  const nextTargetSource = useMemo(() => createRawTargetCatalogSource(nextSourceTargets), [nextSourceTargets]);
+  const targetSourceDiff = useMemo(
+    () => buildContentEditorSourceDiff(persistedTargetSource, nextTargetSource),
+    [nextTargetSource, persistedTargetSource],
+  );
+  const hasSaveSourceChanges = saveSourceDiff.hasChanges || targetSourceDiff.hasChanges;
   const targetGridItems = useMemo(
     () => [
       ...draft.targets.map((target) => ({ kind: "target" as const, id: target.id, target })),
@@ -529,18 +543,6 @@ export const ContentEditor: React.FC = () => {
       }),
     [deferredDeckSearch, sourceEntries],
   );
-  const allKnownTargetIds = useMemo(() => {
-    const ids = new Set<string>();
-
-    sourceEntries.forEach((entry) => {
-      entry.deck.targets.forEach((target) => {
-        ids.add(target.id);
-      });
-    });
-
-    return ids;
-  }, [sourceEntries]);
-
   useEffect(() => {
     if (selectedTargetId && !draft.targets.some((target) => target.id === selectedTargetId)) {
       setSelectedTargetId("");
@@ -584,7 +586,7 @@ export const ContentEditor: React.FC = () => {
     if (!nextDeck) return;
 
     startTransition(() => {
-      const nextDraft = createContentEditorDeckDraft(nextDeck);
+      const nextDraft = createContentEditorDeckDraft(nextDeck, sourceTargets);
       setSelectedDeckId(nextDeckId);
       setDraft(nextDraft);
       setSelectedTargetId("");
@@ -596,7 +598,7 @@ export const ContentEditor: React.FC = () => {
   const resetDraft = () => {
     const baselineDeck = sourceDecksById[selectedDeckId];
     if (!baselineDeck) return;
-    const nextDraft = createContentEditorDeckDraft(baselineDeck);
+    const nextDraft = createContentEditorDeckDraft(baselineDeck, sourceTargets);
     setDraft(nextDraft);
     setSelectedTargetId("");
     setSelectedSyllableRowId("");
@@ -686,7 +688,7 @@ export const ContentEditor: React.FC = () => {
     startTransition(() => {
       setSourceEntries((current) => [...current, cloneRawDeckCatalogEntry(nextEntry)]);
       setSelectedDeckId(nextEntry.id);
-      setDraft(createContentEditorDeckDraft(nextEntry.deck));
+      setDraft(createContentEditorDeckDraft(nextEntry.deck, sourceTargets));
       setSelectedTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
@@ -716,7 +718,6 @@ export const ContentEditor: React.FC = () => {
     const nextEntry = createDuplicatedContentEditorDeckEntry(
       draft,
       sourceEntries.map((entry) => entry.id),
-      allKnownTargetIds,
     );
 
     setIsSaving(true);
@@ -734,6 +735,7 @@ export const ContentEditor: React.FC = () => {
         body: JSON.stringify({
           entry: nextEntry,
           deck: nextEntry.deck,
+          targetCatalog: sourceTargets,
         }),
       });
       const payload = (await response.json()) as { ok?: boolean; error?: string; path?: string; indexPath?: string };
@@ -744,12 +746,12 @@ export const ContentEditor: React.FC = () => {
       setSourceEntries((current) => upsertRawDeckInCatalog(current, nextEntry));
       setPersistedDeckIds((current) => new Set([...current, nextEntry.id]));
       setSelectedDeckId(nextEntry.id);
-      setDraft(createContentEditorDeckDraft(nextEntry.deck));
+      setDraft(createContentEditorDeckDraft(nextEntry.deck, sourceTargets));
       setSelectedTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "success",
-        message: `Deck duplicado em ${payload.path ?? nextEntry.filePath} e catalogo bruto atualizado em ${payload.indexPath ?? "src/data/content/decks/index.ts"}.`,
+        message: `Deck duplicado em ${payload.path ?? nextEntry.filePath}, indice reescrito e catalogo global mantido em ${RAW_TARGET_CATALOG_FILE_PATH}.`,
       });
     } catch (error) {
       setSaveStatus({
@@ -782,7 +784,7 @@ export const ContentEditor: React.FC = () => {
     if (!selectedDeckIsPersisted) {
       setSourceEntries(nextEntries);
       setSelectedDeckId(nextDeckId);
-      setDraft(createContentEditorDeckDraft(nextDeck.deck));
+      setDraft(createContentEditorDeckDraft(nextDeck.deck, sourceTargets));
       setSelectedTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
@@ -821,7 +823,7 @@ export const ContentEditor: React.FC = () => {
         return nextIds;
       });
       setSelectedDeckId(nextDeckId);
-      setDraft(createContentEditorDeckDraft(nextDeck.deck));
+      setDraft(createContentEditorDeckDraft(nextDeck.deck, sourceTargets));
       setSelectedTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
@@ -848,13 +850,7 @@ export const ContentEditor: React.FC = () => {
 
   const addTarget = () => {
     const targetIds = new Set<string>();
-    sourceEntries.forEach((entry) => {
-      entry.deck.targets.forEach((target) => {
-        if (entry.id !== selectedDeckId) {
-          targetIds.add(target.id);
-        }
-      });
-    });
+    sourceTargets.forEach((target) => targetIds.add(target.id));
     draft.targets.forEach((target) => targetIds.add(target.id));
 
     const nextTarget = createEmptyContentEditorTarget(targetIds);
@@ -895,14 +891,11 @@ export const ContentEditor: React.FC = () => {
 
   const duplicateTargetId = useMemo(() => {
     if (!selectedTargetDraft) return false;
-    const allOtherTargetIds = new Set<string>();
-    sourceEntries.forEach((entry) => {
-      entry.deck.targets.forEach((target) => {
-        if (entry.id !== selectedDeckId) allOtherTargetIds.add(target.id);
-      });
-    });
-    return allOtherTargetIds.has(selectedTargetDraft.id);
-  }, [selectedDeckId, selectedTargetDraft, sourceEntries]);
+    const selectedDeckTargetIds = new Set((selectedDeckEntry?.deck.targetIds ?? []).filter(Boolean));
+    return sourceTargets.some(
+      (target) => target.id === selectedTargetDraft.id && !selectedDeckTargetIds.has(selectedTargetDraft.id),
+    );
+  }, [selectedDeckEntry?.deck.targetIds, selectedTargetDraft, sourceTargets]);
   const savePreviewBlockers = useMemo(() => {
     const blockers: string[] = [];
     if (localIssues.length > 0) blockers.push("Corrija os erros locais do draft para liberar o save.");
@@ -919,7 +912,7 @@ export const ContentEditor: React.FC = () => {
       buildContentEditorReviewSummary(baselineDraft, draft, {
         pipelineOk: preview.ok,
         sourceReady: canPreviewSaveArtifacts,
-        hasSourceChanges: saveSourceDiff.hasChanges,
+        hasSourceChanges: hasSaveSourceChanges,
         localIssueCount: localIssues.length,
         pipelineIssueCount: preview.ok ? 0 : pipelineIssues.length,
         blockerCount: savePreviewBlockers.length,
@@ -932,7 +925,7 @@ export const ContentEditor: React.FC = () => {
       pipelineIssues.length,
       preview.ok,
       savePreviewBlockers.length,
-      saveSourceDiff.hasChanges,
+      hasSaveSourceChanges,
     ],
   );
   const localizedLocalIssues = useMemo(() => localIssues.map(describeEditorIssue), [localIssues]);
@@ -1023,6 +1016,7 @@ export const ContentEditor: React.FC = () => {
           ...(previousDeckId ? { previousDeckId } : {}),
           entry: nextEntry,
           deck: nextDeck,
+          targetCatalog: nextSourceTargets,
         }),
       });
       const payload = (await response.json()) as { ok?: boolean; error?: string; path?: string; indexPath?: string };
@@ -1034,6 +1028,7 @@ export const ContentEditor: React.FC = () => {
         const baseEntries = previousDeckId ? removeRawDeckFromCatalog(current, previousDeckId) : current;
         return upsertRawDeckInCatalog(baseEntries, nextEntry);
       });
+      setSourceTargets(nextSourceTargets);
       setPersistedDeckIds((current) => {
         const nextIds = new Set(current);
         if (previousDeckId) nextIds.delete(previousDeckId);
@@ -1041,12 +1036,12 @@ export const ContentEditor: React.FC = () => {
         return nextIds;
       });
       setSelectedDeckId(nextEntry.id);
-      setDraft(createContentEditorDeckDraft(nextEntry.deck));
+      setDraft(createContentEditorDeckDraft(nextEntry.deck, nextSourceTargets));
       setSelectedTargetId("");
       setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "success",
-        message: `Source bruto salvo em ${payload.path ?? nextEntry.filePath} e catalogo bruto atualizado em ${payload.indexPath ?? "src/data/content/decks/index.ts"}.`,
+        message: `Deck salvo em ${payload.path ?? nextEntry.filePath}, indice reescrito e catalogo global salvo em ${RAW_TARGET_CATALOG_FILE_PATH}.`,
       });
     } catch (error) {
       setSaveStatus({
@@ -1100,11 +1095,11 @@ export const ContentEditor: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-sky-700/12 bg-sky-100/80 px-4 py-3 text-sm text-sky-950/85 shadow-sm">
-            Edita um deck por vez no shape bruto atual. O builder minimo monta o pool via cards canonicos e recompila o deck model antes da projecao legado usada pela battle.
+            Edita um deck por vez, mas os alvos agora salvam no catalogo global bruto compartilhado. O pool segue derivado e o deck recompila no pipeline real antes da projecao legado usada pela battle.
           </div>
 
           <div className="mt-3 rounded-2xl border border-emerald-700/12 bg-emerald-100/80 px-4 py-3 text-sm text-emerald-950/85 shadow-sm">
-            Save dev-only grava <span className="font-black text-emerald-950">{draftSaveEntry.filePath}</span> e reescreve o indice bruto de decks.
+            Save dev-only grava <span className="font-black text-emerald-950">{draftSaveEntry.filePath}</span>, reescreve o indice bruto de decks e atualiza <span className="font-black text-emerald-950">{RAW_TARGET_CATALOG_FILE_PATH}</span>.
           </div>
 
           <Button
@@ -1181,7 +1176,7 @@ export const ContentEditor: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3 bg-[rgba(255,248,235,0.94)] px-4 py-3 text-sm">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-900/45">Targets</div>
-                      <div className="mt-1 font-serif text-xl font-black text-amber-950">{entry.deck.targets.length}</div>
+                      <div className="mt-1 font-serif text-xl font-black text-amber-950">{new Set(entry.deck.targetIds).size}</div>
                     </div>
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-900/45">Silabas</div>
@@ -1725,8 +1720,13 @@ export const ContentEditor: React.FC = () => {
                   </Panel>
                   <Panel title="Validacao e Save" icon={<Save className="h-5 w-5" />}>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <InfoTile label="Modo" value="deck-scoped sobre card catalog" slim plainValue />
-                      <InfoTile label="Source bruto" value={draftSaveEntry.filePath} slim plainValue />
+                      <InfoTile label="Modo" value="deck por targetIds + catalogo global" slim plainValue />
+                      <InfoTile
+                        label="Source bruto"
+                        value={`${draftSaveEntry.filePath} + ${RAW_TARGET_CATALOG_FILE_PATH}`}
+                        slim
+                        plainValue
+                      />
                       <InfoTile
                         label="Pipeline"
                         value={preview.ok ? "valido" : "com erro"}
@@ -1823,8 +1823,8 @@ export const ContentEditor: React.FC = () => {
                           <div className="flex items-center gap-3">
                             {canPreviewSaveArtifacts ? (
                               <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
-                                {saveSourceDiff.hasChanges
-                                  ? `+${saveSourceDiff.addedCount} / -${saveSourceDiff.removedCount}`
+                                {hasSaveSourceChanges
+                                  ? `+${saveSourceDiff.addedCount + targetSourceDiff.addedCount} / -${saveSourceDiff.removedCount + targetSourceDiff.removedCount}`
                                   : "sem mudancas"}
                               </Badge>
                             ) : null}
@@ -1836,28 +1836,67 @@ export const ContentEditor: React.FC = () => {
 
                         {isSaveDiffExpanded ? (
                           canPreviewSaveArtifacts ? (
-                            saveSourceDiff.hasChanges ? (
-                              <pre className="mt-4 max-h-64 overflow-auto rounded-2xl border border-amber-900/10 bg-[#2b2119] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
-                                {saveSourceDiff.lines.map((line, index) => (
-                                  <div
-                                    key={`${line.type}-${index}-${line.value}`}
-                                    className={cn(
-                                      "whitespace-pre-wrap rounded px-2",
-                                      line.type === "added" && "bg-emerald-500/20 text-emerald-100",
-                                      line.type === "removed" && "bg-rose-500/20 text-rose-100",
-                                      line.type === "context" && "text-amber-50/85",
-                                    )}
-                                  >
-                                    <span className="mr-2 inline-block w-4 text-center">
-                                      {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
-                                    </span>
-                                    {line.value}
+                            hasSaveSourceChanges ? (
+                              <div className="mt-4 space-y-4">
+                                <div>
+                                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">
+                                    Deck bruto
                                   </div>
-                                ))}
-                              </pre>
+                                  {saveSourceDiff.hasChanges ? (
+                                    <pre className="max-h-48 overflow-auto rounded-2xl border border-amber-900/10 bg-[#2b2119] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
+                                      {saveSourceDiff.lines.map((line, index) => (
+                                        <div
+                                          key={`deck-${line.type}-${index}-${line.value}`}
+                                          className={cn(
+                                            "whitespace-pre-wrap rounded px-2",
+                                            line.type === "added" && "bg-emerald-500/20 text-emerald-100",
+                                            line.type === "removed" && "bg-rose-500/20 text-rose-100",
+                                            line.type === "context" && "text-amber-50/85",
+                                          )}
+                                        >
+                                          <span className="mr-2 inline-block w-4 text-center">
+                                            {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                                          </span>
+                                          {line.value}
+                                        </div>
+                                      ))}
+                                    </pre>
+                                  ) : (
+                                    <EmptyCallout text="Sem mudancas no arquivo bruto do deck." />
+                                  )}
+                                </div>
+
+                                <div>
+                                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">
+                                    Catalogo global de alvos
+                                  </div>
+                                  {targetSourceDiff.hasChanges ? (
+                                    <pre className="max-h-48 overflow-auto rounded-2xl border border-amber-900/10 bg-[#2b2119] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
+                                      {targetSourceDiff.lines.map((line, index) => (
+                                        <div
+                                          key={`target-${line.type}-${index}-${line.value}`}
+                                          className={cn(
+                                            "whitespace-pre-wrap rounded px-2",
+                                            line.type === "added" && "bg-emerald-500/20 text-emerald-100",
+                                            line.type === "removed" && "bg-rose-500/20 text-rose-100",
+                                            line.type === "context" && "text-amber-50/85",
+                                          )}
+                                        >
+                                          <span className="mr-2 inline-block w-4 text-center">
+                                            {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                                          </span>
+                                          {line.value}
+                                        </div>
+                                      ))}
+                                    </pre>
+                                  ) : (
+                                    <EmptyCallout text="Sem mudancas no catalogo global de alvos." />
+                                  )}
+                                </div>
+                              </div>
                             ) : (
                               <div className="mt-4">
-                                <EmptyCallout text="Nao ha mudancas no source bruto em relacao ao que ja esta salvo." />
+                                <EmptyCallout text="Nao ha mudancas no source bruto nem no catalogo global de alvos." />
                               </div>
                             )
                           ) : (
@@ -1899,12 +1938,28 @@ export const ContentEditor: React.FC = () => {
 
                         {isGeneratedSourceExpanded ? (
                           canPreviewSaveArtifacts ? (
-                            <pre className="mt-4 max-h-80 overflow-auto rounded-2xl border border-amber-900/10 bg-[#201710] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
-                              {nextSaveSource}
-                            </pre>
+                            <div className="mt-4 space-y-4">
+                              <div>
+                                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                  {draftSaveEntry.filePath}
+                                </div>
+                                <pre className="max-h-56 overflow-auto rounded-2xl border border-amber-900/10 bg-[#201710] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
+                                  {nextSaveSource}
+                                </pre>
+                              </div>
+
+                              <div>
+                                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                  {RAW_TARGET_CATALOG_FILE_PATH}
+                                </div>
+                                <pre className="max-h-56 overflow-auto rounded-2xl border border-amber-900/10 bg-[#201710] p-4 font-mono text-[11px] leading-6 text-amber-50 shadow-inner">
+                                  {nextTargetSource}
+                                </pre>
+                              </div>
+                            </div>
                           ) : (
                             <div className="mt-4">
-                              <EmptyCallout text="O source gerado para save aparece aqui assim que o draft voltar a ficar valido para gravacao." />
+                              <EmptyCallout text="Os arquivos gerados para save aparecem aqui assim que o draft voltar a ficar valido para gravacao." />
                             </div>
                           )
                         ) : null}

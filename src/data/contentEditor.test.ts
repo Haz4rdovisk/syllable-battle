@@ -14,8 +14,10 @@ import {
   createDuplicatedContentEditorDeckEntry,
   createRawDeckCatalogIndexSource,
   createRawDeckDefinitionSource,
+  createRawTargetCatalogSource,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
+  hydrateRawTargetCatalogFromDraftTargets,
   parseContentEditorTargetSyllables,
   removeRawDeckFromCatalog,
   removeContentEditorTargetSyllableAt,
@@ -24,10 +26,11 @@ import {
   validateContentDeckSaveEntry,
 } from "./content/editor";
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from "./content/decks";
+import { rawTargetCatalog } from "./content/targets";
 
 const createSaveableNewDeckDraft = () => {
   const entry = createEmptyContentEditorDeckEntry(rawDeckCatalogEntries.map((deckEntry) => deckEntry.id));
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
 
   draft.name = "Deck Builder Alpha";
   draft.description = "Deck novo montado a partir do catalogo canonico.";
@@ -63,12 +66,12 @@ test("content editor roundtrip preserva o deck bruto e o deck final do runtime",
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
 
   assert.deepEqual(rawDeck, entry.deck);
 
-  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);
   assert.equal(preview.ok, true);
   if (!preview.ok) return;
 
@@ -81,7 +84,7 @@ test("content editor draft guarda apenas ajustes manuais do pool e deriva o rest
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
 
   assert.ok(draft.manualPoolAdjustments.every((row) => Number(row.count) > 0));
 
@@ -94,13 +97,13 @@ test("content editor reutiliza a validacao real do pipeline", () => {
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   draft.targets[0] = {
     ...draft.targets[0],
     syllablesText: "ZZ, ZZ",
   };
 
-  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);
   assert.equal(preview.ok, false);
   if (preview.ok) return;
 
@@ -114,23 +117,20 @@ test("content editor nao mascara copies invalido como 1 no preview do pipeline",
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   draft.targets[0] = {
     ...draft.targets[0],
     copies: "0",
   };
 
   const previewDeck = hydratePreviewRawDeckDefinitionFromDraft(draft);
-  assert.equal(previewDeck.targets[0]?.copies, 0);
+  assert.equal(previewDeck.targetIds.filter((targetId) => targetId === draft.targets[0]?.id).length, 0);
 
   const saveDeck = hydrateRawDeckDefinitionFromDraft(draft);
-  assert.equal(saveDeck.targets[0]?.copies, undefined);
+  assert.equal(saveDeck.targetIds.filter((targetId) => targetId === draft.targets[0]?.id).length, 0);
 
-  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
-  assert.equal(preview.ok, false);
-  if (preview.ok) return;
-
-  assert.ok(preview.issues.some((issue) => issue.includes('target "vaca" copies must be a positive integer')));
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);
+  assert.equal(preview.ok, true);
 });
 
 test("content editor persiste copies de alvo e replica target no deck final", () => {
@@ -138,19 +138,19 @@ test("content editor persiste copies de alvo e replica target no deck final", ()
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   draft.targets[0] = {
     ...draft.targets[0],
     copies: "2",
   };
 
   const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
-  assert.equal(rawDeck.targets[0]?.copies, 2);
+  assert.equal(rawDeck.targetIds.filter((targetId) => targetId === draft.targets[0]?.id).length, 2);
 
   const source = createRawDeckDefinitionSource(entry.exportName, rawDeck);
-  assert.ok(source.includes("copies: 2"));
+  assert.ok(source.includes('targetIds: ["vaca", "vaca"'));
 
-  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);
   assert.equal(preview.ok, true);
   if (!preview.ok) return;
 
@@ -163,14 +163,14 @@ test("content editor omite copies no source bruto quando o valor volta para 1", 
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   draft.targets[0] = {
     ...draft.targets[0],
     copies: "1",
   };
 
   const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
-  assert.equal(rawDeck.targets[0]?.copies, undefined);
+  assert.equal(rawDeck.targetIds.filter((targetId) => targetId === draft.targets[0]?.id).length, 1);
 
   const source = createRawDeckDefinitionSource(entry.exportName, rawDeck);
   assert.ok(!source.includes("copies:"));
@@ -421,7 +421,7 @@ test("content editor rejeita filePath divergente no save dev-only", () => {
 test("content editor injeta deck novo no pipeline real antes do save", () => {
   const { entry, draft } = createSaveableNewDeckDraft();
   const previewEntries = upsertRawDeckInCatalog(rawDeckCatalogEntries, entry);
-  const preview = buildContentEditorPreview(previewEntries, entry.id, draft);
+  const preview = buildContentEditorPreview(previewEntries, rawTargetCatalog, entry.id, draft);
 
   assert.equal(preview.ok, true);
   if (!preview.ok) return;
@@ -437,12 +437,12 @@ test("content editor injeta deck novo no pipeline real antes do save", () => {
   });
 });
 
-test("content editor permite criar editar e remover target deck-scoped no builder", () => {
+test("content editor permite criar editar e remover target no draft mantendo catalogo global como fonte raw", () => {
   const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   const removedTargetId = draft.targets[0]?.id;
   assert.ok(removedTargetId);
 
@@ -458,18 +458,19 @@ test("content editor permite criar editar e remover target deck-scoped no builde
   });
 
   const rawDeck = hydrateRawDeckDefinitionFromDraft(draft);
-  assert.ok(!rawDeck.targets.some((target) => target.id === removedTargetId));
-  assert.deepEqual(rawDeck.targets.find((target) => target.id === "fazenda-builder-target"), {
+  assert.ok(!rawDeck.targetIds.includes(removedTargetId));
+  assert.equal(rawDeck.targetIds.filter((targetId) => targetId === "fazenda-builder-target").length, 2);
+  const nextTargetCatalog = hydrateRawTargetCatalogFromDraftTargets(rawTargetCatalog, draft.targets);
+  assert.deepEqual(nextTargetCatalog.find((target) => target.id === "fazenda-builder-target"), {
     id: "fazenda-builder-target",
     name: "VACA BUILDER",
-    copies: 2,
     description: "Target criado no builder minimo.",
     emoji: "🐮",
     rarity: "raro",
     syllables: ["VA", "CA"],
   });
 
-  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);
   assert.equal(preview.ok, true);
   if (!preview.ok) return;
 
@@ -482,7 +483,7 @@ test("content editor aceita silabas novas validas no alvo e mantem pipeline coer
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   draft.targets.push({
     id: "fazenda-lagarta",
     name: "Lagarta",
@@ -493,7 +494,7 @@ test("content editor aceita silabas novas validas no alvo e mantem pipeline coer
     syllablesText: "LA, GAR, TA",
   });
 
-  const preview = buildContentEditorPreview(rawDeckCatalogEntries, entry.id, draft);
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);
   assert.equal(preview.ok, true);
   if (!preview.ok) return;
 
@@ -512,26 +513,29 @@ test("content editor gera index bruto incluindo deck novo", () => {
   assert.ok(indexSource.includes(`filePath: "src/data/content/decks/${entry.id}.ts"`));
 });
 
-test("content editor duplica deck com deckId e targetIds novos", () => {
+test("content editor duplica deck com deckId novo e preserva targetIds canonicos", () => {
   const entry = getRawDeckCatalogEntry("fazenda");
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   const duplicate = createDuplicatedContentEditorDeckEntry(
     draft,
     rawDeckCatalogEntries.map((deckEntry) => deckEntry.id),
-    rawDeckCatalogEntries.flatMap((deckEntry) => deckEntry.deck.targets.map((target) => target.id)),
   );
 
   assert.notEqual(duplicate.id, entry.id);
   assert.equal(duplicate.deck.id, duplicate.id);
   assert.equal(duplicate.exportName.endsWith("Deck"), true);
   assert.equal(duplicate.filePath, `src/data/content/decks/${duplicate.id}.ts`);
-  assert.equal(duplicate.deck.targets.length, entry.deck.targets.length);
-  assert.ok(duplicate.deck.targets.every((target) => !entry.deck.targets.some((existing) => existing.id === target.id)));
+  assert.deepEqual(duplicate.deck.targetIds, entry.deck.targetIds);
 
-  const preview = buildContentEditorPreview(upsertRawDeckInCatalog(rawDeckCatalogEntries, duplicate), duplicate.id, createContentEditorDeckDraft(duplicate.deck));
+  const preview = buildContentEditorPreview(
+    upsertRawDeckInCatalog(rawDeckCatalogEntries, duplicate),
+    rawTargetCatalog,
+    duplicate.id,
+    createContentEditorDeckDraft(duplicate.deck, rawTargetCatalog),
+  );
   assert.equal(preview.ok, true);
 });
 
@@ -554,7 +558,7 @@ test("content editor gera diff legivel do source bruto antes do save", () => {
 
   assert.ok(entry);
 
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
   draft.targets[0] = {
     ...draft.targets[0],
     copies: "2",
@@ -566,7 +570,31 @@ test("content editor gera diff legivel do source bruto antes do save", () => {
 
   assert.equal(diff.hasChanges, true);
   assert.ok(diff.addedCount > 0);
-  assert.ok(diff.lines.some((line) => line.type === "added" && line.value.includes("copies: 2")));
+  assert.ok(diff.lines.some((line) => line.type === "added" && line.value.includes("targetIds")));
+});
+
+test("content editor gera source para o catalogo global de targets com alvos do draft", () => {
+  const entry = getRawDeckCatalogEntry("fazenda");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
+  draft.targets.push({
+    id: "fazenda-ganso",
+    name: "GANSO",
+    copies: "1",
+    description: "Alvo adicionado so para validar o source global.",
+    emoji: "🪿",
+    rarity: "comum",
+    syllablesText: "GAN, SO",
+  });
+
+  const nextTargetCatalog = hydrateRawTargetCatalogFromDraftTargets(rawTargetCatalog, draft.targets);
+  const source = createRawTargetCatalogSource(nextTargetCatalog);
+
+  assert.ok(source.includes('export const rawTargetCatalog: RawTargetDefinition[] = ['));
+  assert.ok(source.includes('id: "fazenda-ganso"'));
+  assert.ok(source.includes('syllables: ["GAN", "SO"]'));
 });
 
 test("content editor resume mudancas por categoria antes do save", () => {
@@ -574,8 +602,8 @@ test("content editor resume mudancas por categoria antes do save", () => {
 
   assert.ok(entry);
 
-  const baseline = createContentEditorDeckDraft(entry.deck);
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const baseline = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
 
   draft.name = "Fazenda Turbo";
   draft.targets[0] = {
@@ -606,8 +634,8 @@ test("content editor resume bloqueio de pipeline e source no review gate", () =>
 
   assert.ok(entry);
 
-  const baseline = createContentEditorDeckDraft(entry.deck);
-  const draft = createContentEditorDeckDraft(entry.deck);
+  const baseline = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
 
   draft.targets[0] = {
     ...draft.targets[0],

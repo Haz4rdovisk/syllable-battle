@@ -22,48 +22,5 @@ export const florestaDeck: RawDeckDefinition = {
     CA: 3,
     RE: 3
   },
-  targets: [
-    {
-      id: "lobo",
-      name: "LOBO",
-      emoji: "🐺",
-      rarity: "comum",
-      syllables: ["LO", "BO"]
-    },
-    {
-      id: "raposa",
-      name: "RAPOSA",
-      emoji: "🦊",
-      rarity: "raro",
-      syllables: ["RA", "PO", "SA"]
-    },
-    {
-      id: "esquilo",
-      name: "ESQUILO",
-      emoji: "🐿️",
-      rarity: "raro",
-      syllables: ["ES", "QUI", "LO"]
-    },
-    {
-      id: "urso",
-      name: "URSO",
-      emoji: "🐻",
-      rarity: "raro",
-      syllables: ["UR", "SO"]
-    },
-    {
-      id: "coruja",
-      name: "CORUJA",
-      emoji: "🦉",
-      rarity: "raro",
-      syllables: ["CO", "RU", "JA"]
-    },
-    {
-      id: "jacare",
-      name: "JACARE",
-      emoji: "🐊",
-      rarity: "raro",
-      syllables: ["JA", "CA", "RE"]
-    }
-  ]
+  targetIds: ["lobo", "raposa", "esquilo", "urso", "coruja", "jacare"]
 };

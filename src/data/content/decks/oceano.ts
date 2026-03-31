@@ -21,48 +21,5 @@ export const oceanoDeck: RawDeckDefinition = {
     CA: 3,
     MA: 3
   },
-  targets: [
-    {
-      id: "baleia",
-      name: "BALEIA",
-      emoji: "🐋",
-      rarity: "raro",
-      syllables: ["BA", "LEI", "A"]
-    },
-    {
-      id: "peixe",
-      name: "PEIXE",
-      emoji: "🐟",
-      rarity: "comum",
-      syllables: ["PEI", "XE"]
-    },
-    {
-      id: "tubarao",
-      name: "TUBARAO",
-      emoji: "🦈",
-      rarity: "épico",
-      syllables: ["TU", "BA", "RAO"]
-    },
-    {
-      id: "polvo",
-      name: "POLVO",
-      emoji: "🐙",
-      rarity: "raro",
-      syllables: ["PO", "LVO"]
-    },
-    {
-      id: "siri",
-      name: "SIRI",
-      emoji: "🦀",
-      rarity: "comum",
-      syllables: ["SI", "RI"]
-    },
-    {
-      id: "camarao",
-      name: "CAMARAO",
-      emoji: "🦐",
-      rarity: "raro",
-      syllables: ["CA", "MA", "RAO"]
-    }
-  ]
+  targetIds: ["baleia", "peixe", "tubarao", "polvo", "siri", "camarao"]
 };

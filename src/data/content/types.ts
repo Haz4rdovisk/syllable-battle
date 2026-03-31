@@ -82,7 +82,6 @@ export interface RawTargetDefinition {
   syllables: string[];
   rarity: string;
   description?: string;
-  copies?: number;
 }
 
 export interface RawDeckDefinition {
@@ -92,5 +91,5 @@ export interface RawDeckDefinition {
   emoji: string;
   visualTheme: DeckVisualThemeId;
   syllables: Record<string, number>;
-  targets: RawTargetDefinition[];
+  targetIds: string[];
 }

@@ -25,10 +25,11 @@ import {
   buildDeckModels,
   loadContentCatalog,
   loadDeckCatalog,
+  rawTargetCatalog,
 } from "./content";
-import { RawDeckDefinition } from "./content/types";
+import { RawDeckDefinition, RawTargetDefinition } from "./content/types";
 
-test("CONTENT_CATALOG expõe o catálogo normalizado como fonte de verdade", () => {
+test("CONTENT_CATALOG expÃµe o catÃ¡logo normalizado como fonte de verdade", () => {
   assert.ok(CONTENT_CATALOG.cards.length > 0);
   assert.ok(CONTENT_CATALOG.targets.length >= DECKS.length * CONFIG.targetsInPlay);
   assert.equal(CONTENT_PIPELINE.catalog, CONTENT_CATALOG);
@@ -112,7 +113,7 @@ test("card catalog explicita cartas canonicas como entidade central do pipeline"
   });
 });
 
-test("DECKS expõe um catálogo válido e utilizável pelo runtime atual", () => {
+test("DECKS expÃµe um catÃ¡logo vÃ¡lido e utilizÃ¡vel pelo runtime atual", () => {
   assert.ok(DECKS.length >= 4);
 
   const deckIds = new Set<string>();
@@ -134,36 +135,41 @@ test("DECKS expõe um catálogo válido e utilizável pelo runtime atual", () =>
   });
 });
 
-test("loadContentCatalog normaliza decks em deck definitions e cards canônicos por sílaba", () => {
-  const catalog = loadContentCatalog([
+test("loadContentCatalog normaliza decks em deck definitions e cards canÃ´nicos por sÃ­laba", () => {
+  const rawTargets: RawTargetDefinition[] = [
     {
-      id: "mini",
-      name: "Mini",
-      description: "Deck mínimo válido.",
-      emoji: "🧪",
-      visualTheme: "harvest",
-      syllables: {
-        BA: 3,
-        NA: 2,
-      },
-      targets: [
-        {
-          id: "banana",
-          name: "BANANA",
-          emoji: "🍌",
-          syllables: ["BA", "NA", "NA"],
-          rarity: "raro",
-        },
-        {
-          id: "baba",
-          name: "BABA",
-          emoji: "🫧",
-          syllables: ["BA", "BA"],
-          rarity: "comum",
-        },
-      ],
+      id: "banana",
+      name: "BANANA",
+      emoji: "ðŸŒ",
+      syllables: ["BA", "NA", "NA"],
+      rarity: "raro",
     },
-  ]);
+    {
+      id: "baba",
+      name: "BABA",
+      emoji: "ðŸ«§",
+      syllables: ["BA", "BA"],
+      rarity: "comum",
+    },
+  ];
+
+  const catalog = loadContentCatalog(
+    [
+      {
+        id: "mini",
+        name: "Mini",
+        description: "Deck mÃ­nimo vÃ¡lido.",
+        emoji: "ðŸ§ª",
+        visualTheme: "harvest",
+        syllables: {
+          BA: 3,
+          NA: 2,
+        },
+        targetIds: ["banana", "baba"],
+      },
+    ],
+    rawTargets,
+  );
 
   assert.deepEqual(
     catalog.cards.map((card) => card.syllable).sort(),
@@ -176,11 +182,27 @@ test("loadContentCatalog normaliza decks em deck definitions e cards canônicos 
 });
 
 test("loadContentCatalog e loadDeckCatalog preservam copies persistido no deck bruto", () => {
+  const rawTargets: RawTargetDefinition[] = [
+    {
+      id: "banana",
+      name: "BANANA",
+      emoji: "ðŸŒ",
+      syllables: ["BA", "NA", "NA"],
+      rarity: "raro",
+    },
+    {
+      id: "bola",
+      name: "BOLA",
+      emoji: "âš½",
+      syllables: ["BO", "LA"],
+      rarity: "comum",
+    },
+  ];
   const deckWithCopies: RawDeckDefinition = {
     id: "mini-copies",
     name: "Mini Copies",
     description: "Deck bruto persistido com copies.",
-    emoji: "🧪",
+    emoji: "ðŸ§ª",
     visualTheme: "harvest",
     syllables: {
       BA: 3,
@@ -188,62 +210,47 @@ test("loadContentCatalog e loadDeckCatalog preservam copies persistido no deck b
       BO: 2,
       LA: 1,
     },
-    targets: [
-      {
-        id: "banana",
-        name: "BANANA",
-        emoji: "🍌",
-        syllables: ["BA", "NA", "NA"],
-        rarity: "raro",
-        copies: 2,
-      },
-      {
-        id: "bola",
-        name: "BOLA",
-        emoji: "⚽",
-        syllables: ["BO", "LA"],
-        rarity: "comum",
-      },
-    ],
+    targetIds: ["banana", "banana", "bola"],
   };
 
-  const catalog = loadContentCatalog([deckWithCopies]);
-  const runtimeDecks = loadDeckCatalog([deckWithCopies]);
+  const catalog = loadContentCatalog([deckWithCopies], rawTargets);
+  const runtimeDecks = loadDeckCatalog([deckWithCopies], rawTargets);
 
   assert.deepEqual(catalog.decks[0]?.targetIds, ["banana", "banana", "bola"]);
   assert.equal(runtimeDecks[0]?.targets.filter((target) => target.id === "banana").length, 2);
 });
 
-test("loadDeckCatalog rejeita targets impossíveis de completar com as sílabas do deck", () => {
+test("loadDeckCatalog rejeita targets impossÃ­veis de completar com as sÃ­labas do deck", () => {
+  const rawTargets: RawTargetDefinition[] = [
+    {
+      id: "banana",
+      name: "BANANA",
+      emoji: "ðŸŒ",
+      syllables: ["BA", "NA", "NA"],
+      rarity: "raro",
+    },
+    {
+      id: "bala",
+      name: "BALA",
+      emoji: "ðŸ¬",
+      syllables: ["BA", "LA"],
+      rarity: "comum",
+    },
+  ];
   const invalidDeck: RawDeckDefinition = {
     id: "broken",
     name: "Quebrado",
-    description: "Deck inválido para teste.",
-    emoji: "🧪",
+    description: "Deck invÃ¡lido para teste.",
+    emoji: "ðŸ§ª",
     visualTheme: "harvest",
     syllables: {
       BA: 2,
     },
-    targets: [
-      {
-        id: "banana",
-        name: "BANANA",
-        emoji: "🍌",
-        syllables: ["BA", "NA", "NA"],
-        rarity: "raro",
-      },
-      {
-        id: "bala",
-        name: "BALA",
-        emoji: "🍬",
-        syllables: ["BA", "LA"],
-        rarity: "comum",
-      },
-    ],
+    targetIds: ["banana", "bala"],
   };
 
   assert.throws(
-    () => loadDeckCatalog([invalidDeck]),
+    () => loadDeckCatalog([invalidDeck], rawTargets),
     (error: unknown) =>
       error instanceof DeckContentError &&
       error.issues.some((issue) => issue.includes('target "banana" needs 2x "NA"')),
@@ -251,30 +258,31 @@ test("loadDeckCatalog rejeita targets impossíveis de completar com as sílabas 
 });
 
 test("loadDeckCatalog rejeita deck com poucos targets para o board atual", () => {
+  const rawTargets: RawTargetDefinition[] = [
+    {
+      id: "tiny-target",
+      name: "TINY",
+      emoji: "ðŸ”¹",
+      syllables: ["TI", "NY"],
+      rarity: "comum",
+    },
+  ];
   const invalidDeck: RawDeckDefinition = {
     id: "tiny",
-    name: "Minúsculo",
-    description: "Deck inválido para teste.",
-    emoji: "🧩",
+    name: "MinÃºsculo",
+    description: "Deck invÃ¡lido para teste.",
+    emoji: "ðŸ§©",
     visualTheme: "abyss",
     syllables: {
       TI: 3,
       NY: 3,
       TO: 3,
     },
-    targets: [
-      {
-        id: "tiny-target",
-        name: "TINY",
-        emoji: "🔹",
-        syllables: ["TI", "NY"],
-        rarity: "comum",
-      },
-    ],
+    targetIds: ["tiny-target"],
   };
 
   assert.throws(
-    () => loadDeckCatalog([invalidDeck]),
+    () => loadDeckCatalog([invalidDeck], rawTargets),
     (error: unknown) =>
       error instanceof DeckContentError &&
       error.issues.some((issue) => issue.includes(`at least ${CONFIG.targetsInPlay} targets`)),

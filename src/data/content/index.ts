@@ -1,6 +1,7 @@
 import { CONFIG } from "../../logic/gameLogic";
 import { Deck, Rarity, Target, normalizeRarity } from "../../types/game";
 import { rawDeckCatalog } from "./decks";
+import { rawTargetCatalog } from "./targets";
 import { DECK_VISUAL_THEME_CLASSES } from "./themes";
 import {
   CardCatalogEntry,
@@ -11,8 +12,8 @@ import {
   DeckModelCardEntry,
   DeckModelTargetInstance,
   NormalizedContentCatalog,
-  RawDeckDefinition,
   RawTargetDefinition,
+  RawDeckDefinition,
   TargetDefinition,
 } from "./types";
 
@@ -130,37 +131,36 @@ function getOrCreateCard(cardsById: Map<string, CardDefinition>, syllable: strin
   return cardDefinition;
 }
 
-function validateTarget(
+function validateTargetDefinition(
   rawTarget: RawTargetDefinition,
-  deckLabel: string,
   issues: string[],
   cardsById: Map<string, CardDefinition>,
 ): TargetDefinition {
   const targetId = normalizeContentId(rawTarget.id);
   if (!targetId) {
-    issues.push(`${deckLabel} target id is required.`);
+    issues.push(`Target id is required.`);
   }
 
   const rarity = readRarity(String(rawTarget.rarity ?? ""));
   if (!rarity) {
     issues.push(
-      `${deckLabel} target "${targetId || rawTarget.name || "unknown"}" has invalid rarity "${rawTarget.rarity}".`,
+      `Target "${targetId || rawTarget.name || "unknown"}" has invalid rarity "${rawTarget.rarity}".`,
     );
   }
 
   const name = validateRequiredText(
     String(rawTarget.name ?? ""),
-    `${deckLabel} target "${targetId || "unknown"}" name`,
+    `Target "${targetId || "unknown"}" name`,
     issues,
   );
   const emoji = validateRequiredText(
     String(rawTarget.emoji ?? ""),
-    `${deckLabel} target "${targetId || name || "unknown"}" emoji`,
+    `Target "${targetId || name || "unknown"}" emoji`,
     issues,
   );
   const syllables = validateSyllableList(
     rawTarget.syllables,
-    `${deckLabel} target "${targetId || name || "unknown"}" syllables`,
+    `Target "${targetId || name || "unknown"}" syllables`,
     issues,
   );
 
@@ -174,28 +174,12 @@ function validateTarget(
   };
 }
 
-function readTargetCopies(
-  rawTarget: RawTargetDefinition,
-  deckLabel: string,
-  targetLabel: string,
-  issues: string[],
-) {
-  if (rawTarget.copies === undefined) return 1;
-
-  const copies = Number(rawTarget.copies);
-  if (!Number.isInteger(copies) || copies <= 0) {
-    issues.push(`${deckLabel} target "${targetLabel}" copies must be a positive integer.`);
-    return 1;
-  }
-
-  return copies;
-}
-
 function validateDeckDefinition(
   rawDeck: RawDeckDefinition,
   issues: string[],
   cardsById: Map<string, CardDefinition>,
-): { deck: DeckDefinition; targets: TargetDefinition[] } {
+  targetsById: Record<string, TargetDefinition>,
+): DeckDefinition {
   const deckId = normalizeContentId(rawDeck.id);
   const deckLabel = deckId ? `deck "${deckId}"` : "deck";
   const name = validateRequiredText(String(rawDeck.name ?? ""), `${deckLabel} name`, issues);
@@ -234,26 +218,21 @@ function validateDeckDefinition(
     {},
   );
 
-  const normalizedTargets = Array.isArray(rawDeck.targets)
-    ? rawDeck.targets.map((target) => {
-        const normalizedTarget = validateTarget(target, deckLabel, issues, cardsById);
-        return {
-          target: normalizedTarget,
-          copies: readTargetCopies(
-            target,
-            deckLabel,
-            normalizedTarget.id || normalizedTarget.name || "unknown",
-            issues,
-          ),
-        };
+  const normalizedTargetIds = Array.isArray(rawDeck.targetIds)
+    ? rawDeck.targetIds.map((targetId, index) => {
+        const normalizedTargetId = normalizeContentId(String(targetId ?? ""));
+        if (!normalizedTargetId) {
+          issues.push(`${deckLabel} targetIds[${index}] must reference a non-empty target id.`);
+        }
+        return normalizedTargetId;
       })
     : [];
 
-  if (!Array.isArray(rawDeck.targets) || rawDeck.targets.length === 0) {
+  if (!Array.isArray(rawDeck.targetIds) || rawDeck.targetIds.length === 0) {
     issues.push(`${deckLabel} must define at least one target.`);
   }
 
-  const totalTargetCopies = normalizedTargets.reduce((sum, entry) => sum + entry.copies, 0);
+  const totalTargetCopies = normalizedTargetIds.length;
   if (totalTargetCopies < CONFIG.targetsInPlay) {
     issues.push(`${deckLabel} must define at least ${CONFIG.targetsInPlay} targets to fill the board.`);
   }
@@ -263,13 +242,13 @@ function validateDeckDefinition(
     issues.push(`${deckLabel} must have at least ${CONFIG.handSize} syllables to draw the opening hand.`);
   }
 
-  const targetIds = new Set<string>();
-  normalizedTargets.forEach(({ target }) => {
-    if (!target.id) return;
-    if (targetIds.has(target.id)) {
-      issues.push(`${deckLabel} has duplicate target id "${target.id}".`);
+  [...new Set(normalizedTargetIds)].forEach((targetId) => {
+    if (!targetId) return;
+    const target = targetsById[targetId];
+    if (!target) {
+      issues.push(`${deckLabel} references unknown target "${targetId}".`);
+      return;
     }
-    targetIds.add(target.id);
 
     const targetCounts = countOccurrences(target.cardIds);
     targetCounts.forEach((requiredCount, cardId) => {
@@ -284,33 +263,49 @@ function validateDeckDefinition(
   });
 
   return {
-    deck: {
-      id: deckId,
-      name,
-      description,
-      emoji,
-      visualTheme: rawDeck.visualTheme,
-      cardIds: Object.keys(cardPool),
-      cardPool,
-      targetIds: normalizedTargets.flatMap(({ target, copies }) => Array.from({ length: copies }, () => target.id)),
-    },
-    targets: normalizedTargets.map(({ target }) => target),
+    id: deckId,
+    name,
+    description,
+    emoji,
+    visualTheme: rawDeck.visualTheme,
+    cardIds: Object.keys(cardPool),
+    cardPool,
+    targetIds: normalizedTargetIds,
   };
 }
 
-export function loadContentCatalog(rawDecks: RawDeckDefinition[]): NormalizedContentCatalog {
-  const issues: string[] = [];
-  const cardsRegistry = new Map<string, CardDefinition>();
-  const decks: DeckDefinition[] = [];
-  const targets: TargetDefinition[] = [];
-  const deckIds = new Set<string>();
+function validateTargetCatalog(
+  rawTargets: RawTargetDefinition[],
+  issues: string[],
+  cardsById: Map<string, CardDefinition>,
+) {
   const targetIds = new Set<string>();
 
-  rawDecks.forEach((rawDeck) => {
-    const normalized = validateDeckDefinition(rawDeck, issues, cardsRegistry);
-    decks.push(normalized.deck);
-    targets.push(...normalized.targets);
+  return rawTargets.map((rawTarget) => {
+    const normalizedTarget = validateTargetDefinition(rawTarget, issues, cardsById);
+    if (normalizedTarget.id) {
+      if (targetIds.has(normalizedTarget.id)) {
+        issues.push(`Duplicate target id "${normalizedTarget.id}".`);
+      } else {
+        targetIds.add(normalizedTarget.id);
+      }
+    }
+    return normalizedTarget;
   });
+}
+
+export function loadContentCatalog(
+  rawDecks: RawDeckDefinition[],
+  rawTargets: RawTargetDefinition[],
+): NormalizedContentCatalog {
+  const issues: string[] = [];
+  const cardsRegistry = new Map<string, CardDefinition>();
+  const targets = validateTargetCatalog(rawTargets, issues, cardsRegistry);
+  const targetsById = createIndex(targets);
+  const decks = rawDecks.map((rawDeck) =>
+    validateDeckDefinition(rawDeck, issues, cardsRegistry, targetsById),
+  );
+  const deckIds = new Set<string>();
 
   decks.forEach((deck) => {
     if (!deck.id) return;
@@ -319,15 +314,6 @@ export function loadContentCatalog(rawDecks: RawDeckDefinition[]): NormalizedCon
       return;
     }
     deckIds.add(deck.id);
-  });
-
-  targets.forEach((target) => {
-    if (!target.id) return;
-    if (targetIds.has(target.id)) {
-      issues.push(`Duplicate target id "${target.id}".`);
-      return;
-    }
-    targetIds.add(target.id);
   });
 
   const cards = [...cardsRegistry.values()].sort((left, right) =>
@@ -536,8 +522,11 @@ export function adaptCatalogToRuntimeDecks(catalog: NormalizedContentCatalog): D
   return adaptDeckModelsToRuntimeDecks(buildDeckModels(catalog), catalog);
 }
 
-export function buildContentPipeline(rawDecks: RawDeckDefinition[]): ContentPipeline {
-  const catalog = loadContentCatalog(rawDecks);
+export function buildContentPipeline(
+  rawDecks: RawDeckDefinition[],
+  rawTargets: RawTargetDefinition[],
+): ContentPipeline {
+  const catalog = loadContentCatalog(rawDecks, rawTargets);
   const cardCatalog = buildCardCatalog(catalog);
   const deckModels = buildDeckModels(catalog);
   const runtimeDecks = adaptDeckModelsToRuntimeDecks(deckModels, catalog);
@@ -552,14 +541,15 @@ export function buildContentPipeline(rawDecks: RawDeckDefinition[]): ContentPipe
   };
 }
 
-export function loadDeckCatalog(rawDecks: RawDeckDefinition[]): Deck[] {
-  return buildContentPipeline(rawDecks).runtimeDecks;
+export function loadDeckCatalog(rawDecks: RawDeckDefinition[], rawTargets: RawTargetDefinition[]): Deck[] {
+  return buildContentPipeline(rawDecks, rawTargets).runtimeDecks;
 }
 
 export { rawDeckCatalog };
+export { rawTargetCatalog };
 export * from "./selectors";
 
-export const CONTENT_PIPELINE = buildContentPipeline(rawDeckCatalog);
+export const CONTENT_PIPELINE = buildContentPipeline(rawDeckCatalog, rawTargetCatalog);
 export const CONTENT_CATALOG = CONTENT_PIPELINE.catalog;
 export const CARD_CATALOG = CONTENT_PIPELINE.cardCatalog;
 export const CARD_CATALOG_BY_ID = CONTENT_PIPELINE.cardCatalogById;

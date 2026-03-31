@@ -8,13 +8,16 @@ import { createBattleLayoutPresetSource } from './src/components/screens/BattleL
 import {
   createRawDeckCatalogIndexSource,
   createRawDeckDefinitionSource,
+  createRawTargetCatalogSource,
   removeRawDeckFromCatalog,
+  RAW_TARGET_CATALOG_FILE_PATH,
   upsertRawDeckInCatalog,
   validateContentDeckSaveEntry,
 } from './src/data/content/editor';
 import { buildContentPipeline } from './src/data/content';
 import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from './src/data/content/decks';
-import type { RawDeckDefinition } from './src/data/content/types';
+import { rawTargetCatalog } from './src/data/content/targets';
+import type { RawDeckDefinition, RawTargetDefinition } from './src/data/content/types';
 import type { RawDeckCatalogEntry } from './src/data/content/decks';
 
 const isPathInsideDirectory = (directoryPath: string, candidatePath: string) => {
@@ -118,6 +121,7 @@ export default defineConfig(({ mode }) => {
                 deckId?: string;
                 entry?: RawDeckCatalogEntry;
                 deck?: RawDeckDefinition;
+                targetCatalog?: RawTargetDefinition[];
               };
               const action = payload.action ?? 'save';
 
@@ -137,7 +141,7 @@ export default defineConfig(({ mode }) => {
                 }
 
                 const nextEntries = removeRawDeckFromCatalog(rawDeckCatalogEntries, deckId);
-                buildContentPipeline(nextEntries.map((entry) => entry.deck));
+                buildContentPipeline(nextEntries.map((entry) => entry.deck), rawTargetCatalog);
 
                 const decksDirectoryPath = path.resolve(__dirname, 'src/data/content/decks');
                 const absolutePath = path.resolve(__dirname, existingEntry.filePath);
@@ -187,7 +191,7 @@ export default defineConfig(({ mode }) => {
               }
 
               const deckId = payload.entry?.id?.trim();
-              if (!deckId || !payload.deck || !payload.entry) {
+              if (!deckId || !payload.deck || !payload.entry || !Array.isArray(payload.targetCatalog)) {
                 throw new Error('Missing deck entry metadata or deck payload.');
               }
               const previousDeckId = payload.previousDeckId?.trim();
@@ -219,7 +223,11 @@ export default defineConfig(({ mode }) => {
               const previousEntry =
                 previousDeckId && previousDeckId !== deckId ? getRawDeckCatalogEntry(previousDeckId) : null;
               const nextEntries = upsertRawDeckInCatalog(baseEntries, nextEntry);
-              buildContentPipeline(nextEntries.map((entry) => entry.deck));
+              const nextTargetCatalog = payload.targetCatalog.map((target) => ({
+                ...target,
+                syllables: [...target.syllables],
+              }));
+              buildContentPipeline(nextEntries.map((entry) => entry.deck), nextTargetCatalog);
 
               const source = createRawDeckDefinitionSource(nextEntry.exportName, payload.deck);
               const decksDirectoryPath = path.resolve(__dirname, 'src/data/content/decks');
@@ -232,6 +240,8 @@ export default defineConfig(({ mode }) => {
               if (!isPathInsideDirectory(decksDirectoryPath, indexPath)) {
                 throw new Error('The raw deck index resolved outside the allowed decks directory.');
               }
+              const targetCatalogPath = path.resolve(__dirname, RAW_TARGET_CATALOG_FILE_PATH);
+              const targetCatalogSource = createRawTargetCatalogSource(nextTargetCatalog);
               const previousPath =
                 previousEntry && previousEntry.filePath !== nextEntry.filePath
                   ? path.resolve(__dirname, previousEntry.filePath)
@@ -246,10 +256,13 @@ export default defineConfig(({ mode }) => {
                   ? await fs.readFile(previousPath, 'utf8').catch(() => null)
                   : null;
               const previousIndexSource = await fs.readFile(indexPath, 'utf8');
+              const previousTargetCatalogSource = await fs.readFile(targetCatalogPath, 'utf8');
               const nextDeckWrite = await writeTextFileSafely(absolutePath, source);
               const nextIndexWrite = await writeTextFileSafely(indexPath, indexSource);
+              const nextTargetCatalogWrite = await writeTextFileSafely(targetCatalogPath, targetCatalogSource);
               let deckCommitted = false;
               let indexCommitted = false;
+              let targetCatalogCommitted = false;
               let previousDeckRemoved = false;
 
               try {
@@ -259,6 +272,8 @@ export default defineConfig(({ mode }) => {
                   await fs.rm(previousPath, { force: true });
                   previousDeckRemoved = true;
                 }
+                await nextTargetCatalogWrite.commit();
+                targetCatalogCommitted = true;
                 await nextIndexWrite.commit();
                 indexCommitted = true;
               } catch (error) {
@@ -272,6 +287,9 @@ export default defineConfig(({ mode }) => {
                 if (previousDeckRemoved && previousPath && previousDeckSourceAtOldPath !== null) {
                   await fs.writeFile(previousPath, previousDeckSourceAtOldPath, 'utf8');
                 }
+                if (targetCatalogCommitted) {
+                  await fs.writeFile(targetCatalogPath, previousTargetCatalogSource, 'utf8');
+                }
                 if (indexCommitted) {
                   await fs.writeFile(indexPath, previousIndexSource, 'utf8');
                 }
@@ -279,9 +297,11 @@ export default defineConfig(({ mode }) => {
               } finally {
                 await nextDeckWrite.cleanup();
                 await nextIndexWrite.cleanup();
+                await nextTargetCatalogWrite.cleanup();
               }
 
               rawDeckCatalogEntries.splice(0, rawDeckCatalogEntries.length, ...nextEntries);
+              rawTargetCatalog.splice(0, rawTargetCatalog.length, ...nextTargetCatalog);
 
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');

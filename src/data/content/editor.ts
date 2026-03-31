@@ -5,6 +5,7 @@ import { DeckModel, DeckVisualThemeId, RawDeckDefinition, RawTargetDefinition } 
 
 const isValidIdentifier = (value: string) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
 const DECK_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const RAW_TARGET_CATALOG_FILE_PATH = "src/data/content/targets.ts";
 
 const serializeValue = (value: unknown, indentLevel = 0): string => {
   const indent = "  ".repeat(indentLevel);
@@ -151,7 +152,14 @@ export function cloneRawDeckDefinition(deck: RawDeckDefinition): RawDeckDefiniti
   return {
     ...deck,
     syllables: { ...deck.syllables },
-    targets: deck.targets.map((target) => ({ ...target, syllables: [...target.syllables] })),
+    targetIds: [...deck.targetIds],
+  };
+}
+
+export function cloneRawTargetDefinition(target: RawTargetDefinition): RawTargetDefinition {
+  return {
+    ...target,
+    syllables: [...target.syllables],
   };
 }
 
@@ -162,16 +170,64 @@ export function cloneRawDeckCatalogEntry(entry: RawDeckCatalogEntry): RawDeckCat
   };
 }
 
-export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEditorDeckDraft {
-  const targets = deck.targets.map((target) => ({
+const createDraftTargetFromRawTarget = (
+  target: RawTargetDefinition | null,
+  targetId: string,
+  copies: number,
+): ContentEditorTargetDraft => ({
+  id: targetId,
+  name: target?.name ?? targetId.toUpperCase(),
+  copies: String(Math.max(1, copies)),
+  description: target?.description ?? "",
+  emoji: target?.emoji ?? "?",
+  rarity: target?.rarity ?? "comum",
+  syllablesText: target ? target.syllables.join(", ") : "",
+});
+
+const expandDraftTargetIds = (targets: ContentEditorTargetDraft[]) =>
+  targets.flatMap((target) =>
+    Array.from({ length: Math.max(0, Number(target.copies) || 0) }, () => target.id),
+  );
+
+const buildRawTargetDefinitionFromDraft = (target: ContentEditorTargetDraft): RawTargetDefinition => {
+  const description = target.description.trim();
+
+  return {
     id: target.id,
     name: target.name,
-    copies: String(target.copies ?? 1),
-    description: target.description ?? "",
+    ...(description ? { description } : {}),
     emoji: target.emoji,
     rarity: target.rarity,
-    syllablesText: target.syllables.join(", "),
-  }));
+    syllables: parseContentEditorTargetSyllables(target.syllablesText),
+  };
+};
+
+export function hydrateRawTargetCatalogFromDraftTargets(
+  currentTargets: RawTargetDefinition[],
+  draftTargets: ContentEditorTargetDraft[],
+) {
+  return upsertRawTargetsInCatalog(
+    currentTargets,
+    draftTargets.map((target) => buildRawTargetDefinitionFromDraft(target)),
+  );
+}
+
+export function createContentEditorDeckDraft(
+  deck: RawDeckDefinition,
+  rawTargets: RawTargetDefinition[],
+): ContentEditorDeckDraft {
+  const rawTargetsById = rawTargets.reduce<Record<string, RawTargetDefinition>>((acc, target) => {
+    acc[target.id] = target;
+    return acc;
+  }, {});
+  const targetCopies = deck.targetIds.reduce<Map<string, number>>((acc, targetId) => {
+    acc.set(targetId, (acc.get(targetId) ?? 0) + 1);
+    return acc;
+  }, new Map());
+  const orderedTargetIds = deck.targetIds.filter((targetId, index) => deck.targetIds.indexOf(targetId) === index);
+  const targets = orderedTargetIds.map((targetId) =>
+    createDraftTargetFromRawTarget(rawTargetsById[targetId] ?? null, targetId, targetCopies.get(targetId) ?? 1),
+  );
   const requiredCounts = buildMinimumDeckPoolFromTargets(targets);
 
   return {
@@ -233,7 +289,7 @@ export function createEmptyRawDeckDefinition(existingDeckIds: Iterable<string>):
     emoji: "🃏",
     visualTheme: "harvest",
     syllables: {},
-    targets: [],
+    targetIds: [],
   };
 }
 
@@ -284,30 +340,15 @@ function buildRawDeckDefinitionFromDraft(
     {},
   );
 
-  const targets: RawTargetDefinition[] = draft.targets.map((target) => {
-    const description = target.description.trim();
-    const copies = Number(target.copies);
-    const copiesText = target.copies.trim();
-    const copiesValue =
-      preserveDraftCopies && copiesText.length === 0
-        ? 0
-        : Number.isFinite(copies)
-          ? copies
-          : Number.NaN;
-    const shouldPersistCopies = preserveDraftCopies
-      ? target.copies.length > 0 || copiesValue !== 1
-      : Number.isInteger(copies) && copies > 1;
-
-    return {
-      id: target.id,
-      name: target.name,
-      ...(shouldPersistCopies ? { copies: copiesValue } : {}),
-      ...(description ? { description } : {}),
-      emoji: target.emoji,
-      rarity: target.rarity,
-      syllables: parseContentEditorTargetSyllables(target.syllablesText),
-    };
-  });
+  const targetIds = preserveDraftCopies
+    ? draft.targets.flatMap((target) => {
+        const copiesText = target.copies.trim();
+        const copies = Number(target.copies);
+        const copiesValue =
+          copiesText.length === 0 ? 0 : Number.isFinite(copies) ? Math.max(0, Math.trunc(copies)) : 0;
+        return Array.from({ length: copiesValue }, () => target.id);
+      })
+    : expandDraftTargetIds(draft.targets);
 
   return {
     id: draft.id,
@@ -316,7 +357,7 @@ function buildRawDeckDefinitionFromDraft(
     emoji: draft.emoji,
     visualTheme: draft.visualTheme,
     syllables,
-    targets,
+    targetIds,
   };
 }
 
@@ -359,14 +400,20 @@ export function replaceRawDeckInCatalog(
 
 export function buildContentEditorPreview(
   entries: RawDeckCatalogEntry[],
+  rawTargets: RawTargetDefinition[],
   deckId: string,
   draft: ContentEditorDeckDraft,
 ): ContentEditorPreviewResult {
   const nextDeck = hydratePreviewRawDeckDefinitionFromDraft(draft);
+  const nextTargets = upsertRawTargetsInCatalog(
+    rawTargets,
+    draft.targets.map((target) => buildRawTargetDefinitionFromDraft(target)),
+  );
 
   try {
     const pipeline = buildContentPipeline(
       upsertRawDeckInCatalog(entries, createRawDeckCatalogEntry({ ...nextDeck, id: deckId })).map((entry) => entry.deck),
+      nextTargets,
     );
     return {
       ok: true,
@@ -422,25 +469,14 @@ export function createEmptyContentEditorTarget(existingIds: Iterable<string>): C
 export function createDuplicatedContentEditorDeckEntry(
   draft: ContentEditorDeckDraft,
   existingDeckIds: Iterable<string>,
-  existingTargetIds: Iterable<string>,
   preferredName = `${draft.name || draft.id} copia`,
 ): RawDeckCatalogEntry {
   const nextDeckId = createUniqueDeckId(existingDeckIds, preferredName);
-  const nextTargetIds = new Set(existingTargetIds);
-  const duplicatedTargets = draft.targets.map((target) => {
-    const nextTargetId = createUniqueTargetId(nextTargetIds, `${target.name || target.id} copia`);
-    nextTargetIds.add(nextTargetId);
-    return {
-      ...target,
-      id: nextTargetId,
-    };
-  });
 
   const duplicatedDeck = hydrateRawDeckDefinitionFromDraft({
     ...draft,
     id: nextDeckId,
     name: preferredName,
-    targets: duplicatedTargets,
     manualPoolAdjustments: draft.manualPoolAdjustments.map((adjustment) => ({
       ...adjustment,
     })),
@@ -642,6 +678,33 @@ export function createRawDeckDefinitionSource(exportName: string, deck: RawDeckD
   return `import { RawDeckDefinition } from "../types";\n\nexport const ${exportName}: RawDeckDefinition = ${serializeValue(
     deck,
   )};\n`;
+}
+
+export function createRawTargetCatalogSource(targets: RawTargetDefinition[]) {
+  const normalizedTargets = targets.map((target) => cloneRawTargetDefinition(target));
+  return `import { RawTargetDefinition } from "./types";\n\nexport const rawTargetCatalog: RawTargetDefinition[] = ${serializeValue(
+    normalizedTargets,
+  )};\n\nexport function getRawTargetCatalogEntry(targetId: string) {\n  return rawTargetCatalog.find((target) => target.id === targetId) ?? null;\n}\n`;
+}
+
+export function upsertRawTargetsInCatalog(
+  currentTargets: RawTargetDefinition[],
+  nextTargets: RawTargetDefinition[],
+) {
+  const nextTargetsById = nextTargets.reduce<Map<string, RawTargetDefinition>>((acc, target) => {
+    acc.set(target.id, cloneRawTargetDefinition(target));
+    return acc;
+  }, new Map());
+  const mergedTargets = currentTargets.map((target) => nextTargetsById.get(target.id) ?? cloneRawTargetDefinition(target));
+  const existingIds = new Set(currentTargets.map((target) => target.id));
+
+  nextTargets.forEach((target) => {
+    if (!existingIds.has(target.id)) {
+      mergedTargets.push(cloneRawTargetDefinition(target));
+    }
+  });
+
+  return mergedTargets;
 }
 
 export function createRawDeckCatalogIndexSource(entries: RawDeckCatalogEntry[]) {

@@ -21,48 +21,5 @@ export const fazendaDeck: RawDeckDefinition = {
     LHA: 3,
     LO: 3
   },
-  targets: [
-    {
-      id: "vaca",
-      name: "VACA",
-      emoji: "🐮",
-      rarity: "comum",
-      syllables: ["VA", "CA"]
-    },
-    {
-      id: "porco",
-      name: "PORCO",
-      emoji: "🐷",
-      rarity: "comum",
-      syllables: ["POR", "CO"]
-    },
-    {
-      id: "galinha",
-      name: "GALINHA",
-      emoji: "🐔",
-      rarity: "raro",
-      syllables: ["GA", "LI", "NHA"]
-    },
-    {
-      id: "pato",
-      name: "PATO",
-      emoji: "🦆",
-      rarity: "comum",
-      syllables: ["PA", "TO"]
-    },
-    {
-      id: "ovelha",
-      name: "OVELHA",
-      emoji: "🐑",
-      rarity: "raro",
-      syllables: ["O", "VE", "LHA"]
-    },
-    {
-      id: "cavalo",
-      name: "CAVALO",
-      emoji: "🐴",
-      rarity: "raro",
-      syllables: ["CA", "VA", "LO"]
-    }
-  ]
+  targetIds: ["vaca", "porco", "galinha", "pato", "ovelha", "cavalo"]
 };
