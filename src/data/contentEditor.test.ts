@@ -10,11 +10,14 @@ import {
   buildContentEditorPreview,
   createEmptyContentEditorDeckEntry,
   createContentEditorDeckDraft,
+  createDeckIdCandidate,
+  createDuplicatedContentEditorDeckEntry,
   createRawDeckCatalogIndexSource,
   createRawDeckDefinitionSource,
   hydratePreviewRawDeckDefinitionFromDraft,
   hydrateRawDeckDefinitionFromDraft,
   parseContentEditorTargetSyllables,
+  removeRawDeckFromCatalog,
   removeContentEditorTargetSyllableAt,
   syncDeckPoolWithTargetMinimums,
   upsertRawDeckInCatalog,
@@ -490,6 +493,43 @@ test("content editor gera index bruto incluindo deck novo", () => {
   assert.ok(indexSource.includes(`import { ${entry.exportName} } from "./${entry.id}";`));
   assert.ok(indexSource.includes(`id: "${entry.id}"`));
   assert.ok(indexSource.includes(`filePath: "src/data/content/decks/${entry.id}.ts"`));
+});
+
+test("content editor duplica deck com deckId e targetIds novos", () => {
+  const entry = getRawDeckCatalogEntry("farm");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck);
+  const duplicate = createDuplicatedContentEditorDeckEntry(
+    draft,
+    rawDeckCatalogEntries.map((deckEntry) => deckEntry.id),
+    rawDeckCatalogEntries.flatMap((deckEntry) => deckEntry.deck.targets.map((target) => target.id)),
+  );
+
+  assert.notEqual(duplicate.id, entry.id);
+  assert.equal(duplicate.deck.id, duplicate.id);
+  assert.equal(duplicate.exportName.endsWith("Deck"), true);
+  assert.equal(duplicate.filePath, `src/data/content/decks/${duplicate.id}.ts`);
+  assert.equal(duplicate.deck.targets.length, entry.deck.targets.length);
+  assert.ok(duplicate.deck.targets.every((target) => !entry.deck.targets.some((existing) => existing.id === target.id)));
+
+  const preview = buildContentEditorPreview(upsertRawDeckInCatalog(rawDeckCatalogEntries, duplicate), duplicate.id, createContentEditorDeckDraft(duplicate.deck));
+  assert.equal(preview.ok, true);
+});
+
+test("content editor deriva deckId canonico do nome do deck para checagem e save", () => {
+  assert.equal(createDeckIdCandidate("Fazenda Turbo"), "fazenda-turbo");
+  assert.equal(createDeckIdCandidate("  Ação Épica  "), "acao-epica");
+  assert.equal(createDeckIdCandidate("", "farm"), "farm");
+});
+
+test("content editor remove deck do catalogo bruto sem deixar entrada fantasma no indice", () => {
+  const nextEntries = removeRawDeckFromCatalog(rawDeckCatalogEntries, "farm");
+  const indexSource = createRawDeckCatalogIndexSource(nextEntries);
+
+  assert.ok(!nextEntries.some((entry) => entry.id === "farm"));
+  assert.ok(!indexSource.includes('id: "farm"'));
 });
 
 test("content editor gera diff legivel do source bruto antes do save", () => {

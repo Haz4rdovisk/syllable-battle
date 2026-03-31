@@ -36,6 +36,8 @@ import {
   cloneRawDeckDefinition,
   createEmptyContentEditorDeckEntry,
   createContentEditorDeckDraft,
+  createDeckIdCandidate,
+  createDuplicatedContentEditorDeckEntry,
   createEmptyContentEditorTarget,
   createRawDeckCatalogEntry,
   createRawDeckDefinitionSource,
@@ -45,7 +47,9 @@ import {
   hydrateRawDeckDefinitionFromDraft,
   normalizeContentEditorPoolAdjustments,
   parseContentEditorTargetSyllables,
+  removeRawDeckFromCatalog,
   removeContentEditorTargetSyllableAt,
+  upsertRawDeckInCatalog,
 } from "../../data/content/editor";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
@@ -305,6 +309,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
 export const ContentEditor: React.FC = () => {
   const initialSourceEntries = useMemo(createSourceEntriesState, []);
   const [sourceEntries, setSourceEntries] = useState(initialSourceEntries);
+  const [persistedDeckIds, setPersistedDeckIds] = useState(() => new Set(initialSourceEntries.map((entry) => entry.id)));
   const [selectedDeckId, setSelectedDeckId] = useState(() => initialSourceEntries[0]?.id ?? "");
   const [draft, setDraft] = useState<ContentEditorDeckDraft>(() =>
     createDraftForDeck(initialSourceEntries, initialSourceEntries[0]?.id ?? ""),
@@ -338,12 +343,29 @@ export const ContentEditor: React.FC = () => {
     () => sourceEntries.find((entry) => entry.id === selectedDeckId) ?? null,
     [selectedDeckId, sourceEntries],
   );
+  const selectedDeckIsPersisted = useMemo(() => persistedDeckIds.has(selectedDeckId), [persistedDeckIds, selectedDeckId]);
   const persistedDeck = selectedDeckEntry?.deck ?? null;
   const baselineDraft = useMemo(
     () => (persistedDeck ? createContentEditorDeckDraft(persistedDeck) : draft),
     [draft, persistedDeck],
   );
   const draftRawDeck = useMemo(() => hydrateRawDeckDefinitionFromDraft(draft), [draft]);
+  const draftDeckIdCandidate = useMemo(() => createDeckIdCandidate(draft.name, draft.id), [draft.id, draft.name]);
+  const deckNameConflictEntry = useMemo(
+    () =>
+      draft.name.trim().length === 0
+        ? null
+        : sourceEntries.find((entry) => entry.id === draftDeckIdCandidate && entry.id !== selectedDeckId) ?? null,
+    [draft.name, draftDeckIdCandidate, selectedDeckId, sourceEntries],
+  );
+  const draftSaveDeck = useMemo(
+    () => ({
+      ...draftRawDeck,
+      id: draftDeckIdCandidate,
+    }),
+    [draftDeckIdCandidate, draftRawDeck],
+  );
+  const draftSaveEntry = useMemo(() => createRawDeckCatalogEntry(draftSaveDeck), [draftSaveDeck]);
   const draftPreviewRawDeck = useMemo(() => hydratePreviewRawDeckDefinitionFromDraft(draft), [draft]);
   const persistedPreviewDeck = useMemo(
     () => (persistedDeck ? hydratePreviewRawDeckDefinitionFromDraft(createContentEditorDeckDraft(persistedDeck)) : null),
@@ -426,8 +448,8 @@ export const ContentEditor: React.FC = () => {
     [persistedDeck, selectedDeckEntry],
   );
   const nextSaveSource = useMemo(
-    () => (selectedDeckEntry ? createRawDeckDefinitionSource(selectedDeckEntry.exportName, draftRawDeck) : ""),
-    [draftRawDeck, selectedDeckEntry],
+    () => (selectedDeckEntry ? createRawDeckDefinitionSource(draftSaveEntry.exportName, draftSaveDeck) : ""),
+    [draftSaveDeck, draftSaveEntry, selectedDeckEntry],
   );
   const saveSourceDiff = useMemo(
     () => buildContentEditorSourceDiff(persistedSource, nextSaveSource),
@@ -497,6 +519,17 @@ export const ContentEditor: React.FC = () => {
       }),
     [deferredDeckSearch, sourceEntries],
   );
+  const allKnownTargetIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    sourceEntries.forEach((entry) => {
+      entry.deck.targets.forEach((target) => {
+        ids.add(target.id);
+      });
+    });
+
+    return ids;
+  }, [sourceEntries]);
 
   useEffect(() => {
     if (selectedTargetId && !draft.targets.some((target) => target.id === selectedTargetId)) {
@@ -563,6 +596,13 @@ export const ContentEditor: React.FC = () => {
   const updateDraft = (updater: (current: ContentEditorDeckDraft) => ContentEditorDeckDraft) => {
     setDraft((current) => updater(current));
     setSaveStatus(idleSaveStatus);
+  };
+
+  const getFallbackDeckId = (entries: RawDeckCatalogEntry[], removedDeckId: string) => {
+    if (entries.length === 0) return "";
+    const removedIndex = sourceEntries.findIndex((entry) => entry.id === removedDeckId);
+    if (removedIndex < 0) return entries[0]?.id ?? "";
+    return entries[Math.min(removedIndex, entries.length - 1)]?.id ?? entries[0]?.id ?? "";
   };
 
   const updateDeckField = <K extends keyof Pick<ContentEditorDeckDraft, "name" | "description" | "emoji" | "visualTheme">>(
@@ -660,6 +700,134 @@ export const ContentEditor: React.FC = () => {
     });
   };
 
+  const handleDuplicateDeck = async () => {
+    if (!selectedDeckEntry || !canSave) return;
+
+    const nextEntry = createDuplicatedContentEditorDeckEntry(
+      draft,
+      sourceEntries.map((entry) => entry.id),
+      allKnownTargetIds,
+    );
+
+    setIsSaving(true);
+    setSaveStatus({
+      tone: "idle",
+      message: `Duplicando ${selectedDeckEntry.id} em ${nextEntry.filePath}...`,
+    });
+
+    try {
+      const response = await fetch("/__content-editor/deck", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entry: nextEntry,
+          deck: nextEntry.deck,
+        }),
+      });
+      const payload = (await response.json()) as { ok?: boolean; error?: string; path?: string; indexPath?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Falha ao duplicar o deck.");
+      }
+
+      setSourceEntries((current) => upsertRawDeckInCatalog(current, nextEntry));
+      setPersistedDeckIds((current) => new Set([...current, nextEntry.id]));
+      setSelectedDeckId(nextEntry.id);
+      setDraft(createContentEditorDeckDraft(nextEntry.deck));
+      setSelectedTargetId("");
+      setSelectedSyllableRowId("");
+      setSaveStatus({
+        tone: "success",
+        message: `Deck duplicado em ${payload.path ?? nextEntry.filePath} e catalogo bruto atualizado em ${payload.indexPath ?? "src/data/content/decks/index.ts"}.`,
+      });
+    } catch (error) {
+      setSaveStatus({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Falha ao duplicar o deck.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteDeck = async () => {
+    if (!selectedDeckEntry || sourceEntries.length <= 1 || typeof window === "undefined") return;
+
+    const confirmed = window.confirm(`Excluir o deck "${selectedDeckEntry.deck.name}" (${selectedDeckEntry.id})?`);
+    if (!confirmed) return;
+
+    const nextEntries = removeRawDeckFromCatalog(sourceEntries, selectedDeckId);
+    const nextDeckId = getFallbackDeckId(nextEntries, selectedDeckId);
+    const nextDeck = nextEntries.find((entry) => entry.id === nextDeckId);
+
+    if (!nextDeck) {
+      setSaveStatus({
+        tone: "error",
+        message: "Nao foi possivel escolher um deck restante apos a exclusao.",
+      });
+      return;
+    }
+
+    if (!selectedDeckIsPersisted) {
+      setSourceEntries(nextEntries);
+      setSelectedDeckId(nextDeckId);
+      setDraft(createContentEditorDeckDraft(nextDeck.deck));
+      setSelectedTargetId("");
+      setSelectedSyllableRowId("");
+      setSaveStatus({
+        tone: "success",
+        message: `Deck local ${selectedDeckEntry.id} removido da sessao atual do builder.`,
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveStatus({
+      tone: "idle",
+      message: `Excluindo ${selectedDeckEntry.filePath}...`,
+    });
+
+    try {
+      const response = await fetch("/__content-editor/deck", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "delete",
+          deckId: selectedDeckId,
+        }),
+      });
+      const payload = (await response.json()) as { ok?: boolean; error?: string; indexPath?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Falha ao excluir o deck.");
+      }
+
+      setSourceEntries(nextEntries);
+      setPersistedDeckIds((current) => {
+        const nextIds = new Set(current);
+        nextIds.delete(selectedDeckId);
+        return nextIds;
+      });
+      setSelectedDeckId(nextDeckId);
+      setDraft(createContentEditorDeckDraft(nextDeck.deck));
+      setSelectedTargetId("");
+      setSelectedSyllableRowId("");
+      setSaveStatus({
+        tone: "success",
+        message: `Deck ${selectedDeckEntry.id} removido do source bruto e do indice ${payload.indexPath ?? "src/data/content/decks/index.ts"}.`,
+      });
+    } catch (error) {
+      setSaveStatus({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Falha ao excluir o deck.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const removeSyllableFromTarget = (targetId: string, index: number) => {
     const target = draft.targets.find((entry) => entry.id === targetId);
     if (!target) return;
@@ -730,8 +898,11 @@ export const ContentEditor: React.FC = () => {
     if (localIssues.length > 0) blockers.push("Corrija os erros locais do draft para liberar o save.");
     if (!preview.ok) blockers.push("O pipeline real ainda esta com erro para este deck.");
     if (duplicateTargetId) blockers.push("Existe um conflito de id interno com outro target do catalogo.");
+    if (deckNameConflictEntry) {
+      blockers.push(`O nome atual gera o deckId "${draftDeckIdCandidate}", que ja esta em uso por outro deck.`);
+    }
     return blockers;
-  }, [duplicateTargetId, localIssues.length, preview.ok]);
+  }, [deckNameConflictEntry, draftDeckIdCandidate, duplicateTargetId, localIssues.length, preview.ok]);
   const canPreviewSaveArtifacts = savePreviewBlockers.length === 0;
   const reviewSummary = useMemo(
     () =>
@@ -767,6 +938,14 @@ export const ContentEditor: React.FC = () => {
       message: "Esse id interno conflita com um target de outro deck do catalogo.",
     };
   }, [duplicateTargetId, selectedTargetDraft]);
+  const deckNameConflictIssue = useMemo<LocalizedIssue | null>(() => {
+    if (!deckNameConflictEntry) return null;
+    return {
+      scope: "Deck Ativo",
+      focus: "Nome",
+      message: `Esse nome gera o deckId tecnico "${draftDeckIdCandidate}", que ja pertence ao deck ${deckNameConflictEntry.deck.name}.`,
+    };
+  }, [deckNameConflictEntry, draftDeckIdCandidate]);
   const selectedTargetCopiesHasIssue = useMemo(
     () =>
       Boolean(
@@ -803,17 +982,21 @@ export const ContentEditor: React.FC = () => {
     [pipelineIssues, selectedSyllableNormalized],
   );
 
-  const canSave = import.meta.env.DEV && preview.ok && localIssues.length === 0 && !duplicateTargetId && !isSaving;
+  const canSave =
+    import.meta.env.DEV && preview.ok && localIssues.length === 0 && !duplicateTargetId && !deckNameConflictEntry && !isSaving;
 
   const handleSave = async () => {
     if (!canSave || !selectedDeckEntry) return;
 
-    const nextDeck = draftRawDeck;
-    const nextEntry = createRawDeckCatalogEntry(nextDeck);
+    const nextDeck = draftSaveDeck;
+    const nextEntry = draftSaveEntry;
+    const previousDeckId = nextEntry.id !== selectedDeckId ? selectedDeckId : undefined;
     setIsSaving(true);
     setSaveStatus({
       tone: "idle",
-      message: `Salvando ${selectedDeckEntry.filePath}...`,
+      message: previousDeckId
+        ? `Salvando ${selectedDeckEntry.filePath} como ${nextEntry.filePath}...`
+        : `Salvando ${selectedDeckEntry.filePath}...`,
     });
 
     try {
@@ -823,6 +1006,7 @@ export const ContentEditor: React.FC = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          ...(previousDeckId ? { previousDeckId } : {}),
           entry: nextEntry,
           deck: nextDeck,
         }),
@@ -833,11 +1017,19 @@ export const ContentEditor: React.FC = () => {
       }
 
       setSourceEntries((current) => {
-        const nextEntries = current.some((entry) => entry.id === nextEntry.id)
-          ? current.map((entry) => (entry.id === nextEntry.id ? cloneRawDeckCatalogEntry(nextEntry) : cloneRawDeckCatalogEntry(entry)))
-          : [...current.map((entry) => cloneRawDeckCatalogEntry(entry)), cloneRawDeckCatalogEntry(nextEntry)];
-        return nextEntries;
+        const baseEntries = previousDeckId ? removeRawDeckFromCatalog(current, previousDeckId) : current;
+        return upsertRawDeckInCatalog(baseEntries, nextEntry);
       });
+      setPersistedDeckIds((current) => {
+        const nextIds = new Set(current);
+        if (previousDeckId) nextIds.delete(previousDeckId);
+        nextIds.add(nextEntry.id);
+        return nextIds;
+      });
+      setSelectedDeckId(nextEntry.id);
+      setDraft(createContentEditorDeckDraft(nextEntry.deck));
+      setSelectedTargetId("");
+      setSelectedSyllableRowId("");
       setSaveStatus({
         tone: "success",
         message: `Source bruto salvo em ${payload.path ?? nextEntry.filePath} e catalogo bruto atualizado em ${payload.indexPath ?? "src/data/content/decks/index.ts"}.`,
@@ -898,7 +1090,7 @@ export const ContentEditor: React.FC = () => {
           </div>
 
           <div className="mt-3 rounded-2xl border border-emerald-700/12 bg-emerald-100/80 px-4 py-3 text-sm text-emerald-950/85 shadow-sm">
-            Save dev-only grava <span className="font-black text-emerald-950">{selectedDeckEntry.filePath}</span> e reescreve o indice bruto de decks.
+            Save dev-only grava <span className="font-black text-emerald-950">{draftSaveEntry.filePath}</span> e reescreve o indice bruto de decks.
           </div>
 
           <Button
@@ -1053,9 +1245,9 @@ export const ContentEditor: React.FC = () => {
                   icon={<FilePenLine className="h-5 w-5" />}
                 >
                   <div className="grid gap-4 xl:grid-cols-[11rem_13rem_minmax(0,1fr)_7rem] xl:items-end">
-                    <Field label="Deck id (fixo)">
+                    <Field label="Deck id tecnico">
                       <input
-                        value={draft.id}
+                        value={draftSaveEntry.id}
                         readOnly
                         className="w-full rounded-2xl border border-amber-900/15 bg-amber-100/55 px-4 py-3 text-sm text-amber-950/70 outline-none"
                       />
@@ -1079,8 +1271,19 @@ export const ContentEditor: React.FC = () => {
                       <input
                         value={draft.name}
                         onChange={(event) => updateDeckField("name", event.target.value)}
-                        className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                        className={cn(
+                          "w-full rounded-2xl border bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition",
+                          deckNameConflictEntry
+                            ? "border-rose-400/55 focus:border-rose-500/60"
+                            : "border-amber-900/15 focus:border-amber-500/30",
+                        )}
                       />
+                      {deckNameConflictEntry ? (
+                        <div className="mt-2 text-[11px] font-bold text-rose-900">
+                          Esse nome gera o id tecnico <span className="font-black">{draftDeckIdCandidate}</span>, que ja existe no deck{" "}
+                          <span className="font-black">{deckNameConflictEntry.deck.name}</span>.
+                        </div>
+                      ) : null}
                     </Field>
 
                     <Field label="Emoji">
@@ -1099,6 +1302,27 @@ export const ContentEditor: React.FC = () => {
                         className="w-full resize-none rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
                       />
                     </Field>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Button
+                      variant="ghost"
+                      className="border border-amber-900/15 bg-amber-50/55 text-amber-950 hover:bg-amber-100/75"
+                      onClick={handleDuplicateDeck}
+                      disabled={!canSave}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Duplicar deck
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="border border-rose-300/25 bg-rose-500/10 text-rose-900 hover:bg-rose-500/15"
+                      onClick={handleDeleteDeck}
+                      disabled={sourceEntries.length <= 1 || isSaving}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir deck
+                    </Button>
                   </div>
                 </Panel>
               ) : null}
@@ -1487,7 +1711,7 @@ export const ContentEditor: React.FC = () => {
                   <Panel title="Validacao e Save" icon={<Save className="h-5 w-5" />}>
                     <div className="grid gap-4 md:grid-cols-2">
                       <InfoTile label="Modo" value="deck-scoped sobre card catalog" slim plainValue />
-                      <InfoTile label="Source bruto" value={selectedDeckEntry.filePath} slim plainValue />
+                      <InfoTile label="Source bruto" value={draftSaveEntry.filePath} slim plainValue />
                       <InfoTile
                         label="Pipeline"
                         value={preview.ok ? "valido" : "com erro"}
@@ -1534,6 +1758,7 @@ export const ContentEditor: React.FC = () => {
                             </div>
                           )}
 
+                      {deckNameConflictIssue ? <IssueRow issue={deckNameConflictIssue} tone="warning" /> : null}
                       {duplicateTargetIssue ? <IssueRow issue={duplicateTargetIssue} tone="warning" /> : null}
                     </div>
 

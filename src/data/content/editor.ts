@@ -119,6 +119,10 @@ const normalizeDeckSlug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+export function createDeckIdCandidate(preferredName: string, fallback = "novo-deck") {
+  return normalizeDeckSlug(preferredName) || normalizeDeckSlug(fallback) || "novo-deck";
+}
+
 const normalizeEditorSyllable = (value: string) => value.trim().toUpperCase();
 
 const createContentEditorPoolAdjustmentId = (syllable: string) =>
@@ -189,7 +193,7 @@ export function createContentEditorDeckDraft(deck: RawDeckDefinition): ContentEd
 }
 
 export function createUniqueDeckId(existingIds: Iterable<string>, preferredName = "novo-deck") {
-  const normalizedBase = normalizeDeckSlug(preferredName) || "novo-deck";
+  const normalizedBase = createDeckIdCandidate(preferredName);
   const ids = new Set(existingIds);
 
   if (!ids.has(normalizedBase)) return normalizedBase;
@@ -335,6 +339,15 @@ export function upsertRawDeckInCatalog(
   return hasEntry ? clonedEntries : [...clonedEntries, cloneRawDeckCatalogEntry(nextEntry)];
 }
 
+export function removeRawDeckFromCatalog(
+  entries: RawDeckCatalogEntry[],
+  deckId: string,
+) {
+  return entries
+    .filter((entry) => entry.id !== deckId)
+    .map((entry) => cloneRawDeckCatalogEntry(entry));
+}
+
 export function replaceRawDeckInCatalog(
   entries: RawDeckCatalogEntry[],
   deckId: string,
@@ -403,6 +416,39 @@ export function createEmptyContentEditorTarget(existingIds: Iterable<string>): C
     rarity: "comum",
     syllablesText: "",
   };
+}
+
+export function createDuplicatedContentEditorDeckEntry(
+  draft: ContentEditorDeckDraft,
+  existingDeckIds: Iterable<string>,
+  existingTargetIds: Iterable<string>,
+  preferredName = `${draft.name || draft.id} copia`,
+): RawDeckCatalogEntry {
+  const nextDeckId = createUniqueDeckId(existingDeckIds, preferredName);
+  const nextTargetIds = new Set(existingTargetIds);
+  const duplicatedTargets = draft.targets.map((target) => {
+    const nextTargetId = createUniqueTargetId(nextTargetIds, `${target.name || target.id} copia`);
+    nextTargetIds.add(nextTargetId);
+    return {
+      ...target,
+      id: nextTargetId,
+    };
+  });
+
+  const duplicatedDeck = hydrateRawDeckDefinitionFromDraft({
+    ...draft,
+    id: nextDeckId,
+    name: preferredName,
+    targets: duplicatedTargets,
+    manualPoolAdjustments: draft.manualPoolAdjustments.map((adjustment) => ({
+      ...adjustment,
+    })),
+  });
+
+  return createRawDeckCatalogEntry({
+    ...duplicatedDeck,
+    id: nextDeckId,
+  });
 }
 
 export function parseContentEditorTargetSyllables(value: string) {

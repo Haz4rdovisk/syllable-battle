@@ -8,6 +8,7 @@ import { createBattleLayoutPresetSource } from './src/components/screens/BattleL
 import {
   createRawDeckCatalogIndexSource,
   createRawDeckDefinitionSource,
+  removeRawDeckFromCatalog,
   upsertRawDeckInCatalog,
   validateContentDeckSaveEntry,
 } from './src/data/content/editor';
@@ -112,13 +113,84 @@ export default defineConfig(({ mode }) => {
               }
 
               const payload = JSON.parse(body || '{}') as {
+                action?: 'save' | 'delete';
+                previousDeckId?: string;
+                deckId?: string;
                 entry?: RawDeckCatalogEntry;
                 deck?: RawDeckDefinition;
               };
+              const action = payload.action ?? 'save';
+
+              if (action === 'delete') {
+                const deckId = payload.deckId?.trim();
+                if (!deckId) {
+                  throw new Error('Missing deck id for dev-only delete.');
+                }
+
+                if (rawDeckCatalogEntries.length <= 1) {
+                  throw new Error('Cannot delete the last remaining deck.');
+                }
+
+                const existingEntry = getRawDeckCatalogEntry(deckId);
+                if (!existingEntry) {
+                  throw new Error(`Deck "${deckId}" does not exist in the persisted raw catalog.`);
+                }
+
+                const nextEntries = removeRawDeckFromCatalog(rawDeckCatalogEntries, deckId);
+                buildContentPipeline(nextEntries.map((entry) => entry.deck));
+
+                const decksDirectoryPath = path.resolve(__dirname, 'src/data/content/decks');
+                const absolutePath = path.resolve(__dirname, existingEntry.filePath);
+                if (!isPathInsideDirectory(decksDirectoryPath, absolutePath)) {
+                  throw new Error(`Deck "${deckId}" resolved outside the allowed decks directory.`);
+                }
+                const indexSource = createRawDeckCatalogIndexSource(nextEntries);
+                const indexPath = path.resolve(decksDirectoryPath, 'index.ts');
+                if (!isPathInsideDirectory(decksDirectoryPath, indexPath)) {
+                  throw new Error('The raw deck index resolved outside the allowed decks directory.');
+                }
+
+                const previousDeckSource = await fs.readFile(absolutePath, 'utf8');
+                const previousIndexSource = await fs.readFile(indexPath, 'utf8');
+                const nextIndexWrite = await writeTextFileSafely(indexPath, indexSource);
+                let deckDeleted = false;
+                let indexCommitted = false;
+
+                try {
+                  await fs.rm(absolutePath, { force: true });
+                  deckDeleted = true;
+                  await nextIndexWrite.commit();
+                  indexCommitted = true;
+                } catch (error) {
+                  if (deckDeleted) {
+                    await fs.writeFile(absolutePath, previousDeckSource, 'utf8');
+                  }
+                  if (indexCommitted) {
+                    await fs.writeFile(indexPath, previousIndexSource, 'utf8');
+                  }
+                  throw error;
+                } finally {
+                  await nextIndexWrite.cleanup();
+                }
+
+                rawDeckCatalogEntries.splice(0, rawDeckCatalogEntries.length, ...nextEntries);
+
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(
+                  JSON.stringify({
+                    ok: true,
+                    indexPath,
+                  }),
+                );
+                return;
+              }
+
               const deckId = payload.entry?.id?.trim();
               if (!deckId || !payload.deck || !payload.entry) {
                 throw new Error('Missing deck entry metadata or deck payload.');
               }
+              const previousDeckId = payload.previousDeckId?.trim();
 
               const nextEntry = validateContentDeckSaveEntry({
                 id: deckId,
@@ -136,7 +208,17 @@ export default defineConfig(({ mode }) => {
                 throw new Error(`Deck "${deckId}" already exists with different source metadata.`);
               }
 
-              const nextEntries = upsertRawDeckInCatalog(rawDeckCatalogEntries, nextEntry);
+              if (previousDeckId && previousDeckId !== deckId && getRawDeckCatalogEntry(deckId)) {
+                throw new Error(`Deck "${deckId}" already exists in the persisted raw catalog.`);
+              }
+
+              const baseEntries =
+                previousDeckId && previousDeckId !== deckId
+                  ? removeRawDeckFromCatalog(rawDeckCatalogEntries, previousDeckId)
+                  : rawDeckCatalogEntries;
+              const previousEntry =
+                previousDeckId && previousDeckId !== deckId ? getRawDeckCatalogEntry(previousDeckId) : null;
+              const nextEntries = upsertRawDeckInCatalog(baseEntries, nextEntry);
               buildContentPipeline(nextEntries.map((entry) => entry.deck));
 
               const source = createRawDeckDefinitionSource(nextEntry.exportName, payload.deck);
@@ -150,17 +232,33 @@ export default defineConfig(({ mode }) => {
               if (!isPathInsideDirectory(decksDirectoryPath, indexPath)) {
                 throw new Error('The raw deck index resolved outside the allowed decks directory.');
               }
+              const previousPath =
+                previousEntry && previousEntry.filePath !== nextEntry.filePath
+                  ? path.resolve(__dirname, previousEntry.filePath)
+                  : null;
+              if (previousPath && !isPathInsideDirectory(decksDirectoryPath, previousPath)) {
+                throw new Error(`Deck "${previousDeckId}" resolved outside the allowed decks directory.`);
+              }
 
               const previousDeckSource = await fs.readFile(absolutePath, 'utf8').catch(() => null);
+              const previousDeckSourceAtOldPath =
+                previousPath && previousPath !== absolutePath
+                  ? await fs.readFile(previousPath, 'utf8').catch(() => null)
+                  : null;
               const previousIndexSource = await fs.readFile(indexPath, 'utf8');
               const nextDeckWrite = await writeTextFileSafely(absolutePath, source);
               const nextIndexWrite = await writeTextFileSafely(indexPath, indexSource);
               let deckCommitted = false;
               let indexCommitted = false;
+              let previousDeckRemoved = false;
 
               try {
                 await nextDeckWrite.commit();
                 deckCommitted = true;
+                if (previousPath && previousPath !== absolutePath && previousDeckSourceAtOldPath !== null) {
+                  await fs.rm(previousPath, { force: true });
+                  previousDeckRemoved = true;
+                }
                 await nextIndexWrite.commit();
                 indexCommitted = true;
               } catch (error) {
@@ -171,6 +269,9 @@ export default defineConfig(({ mode }) => {
                     await fs.writeFile(absolutePath, previousDeckSource, 'utf8');
                   }
                 }
+                if (previousDeckRemoved && previousPath && previousDeckSourceAtOldPath !== null) {
+                  await fs.writeFile(previousPath, previousDeckSourceAtOldPath, 'utf8');
+                }
                 if (indexCommitted) {
                   await fs.writeFile(indexPath, previousIndexSource, 'utf8');
                 }
@@ -180,12 +281,7 @@ export default defineConfig(({ mode }) => {
                 await nextIndexWrite.cleanup();
               }
 
-              const currentIndex = rawDeckCatalogEntries.findIndex((entry) => entry.id === deckId);
-              if (currentIndex >= 0) {
-                rawDeckCatalogEntries[currentIndex] = nextEntry;
-              } else {
-                rawDeckCatalogEntries.push(nextEntry);
-              }
+              rawDeckCatalogEntries.splice(0, rawDeckCatalogEntries.length, ...nextEntries);
 
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
