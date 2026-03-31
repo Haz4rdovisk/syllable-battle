@@ -1,7 +1,7 @@
-import { desertDeck } from "./desert";
-import { farmDeck } from "./farm";
-import { forestDeck } from "./forest";
-import { oceanDeck } from "./ocean";
+import { fazendaDeck } from "./fazenda";
+import { oceanoDeck } from "./oceano";
+import { florestaDeck } from "./floresta";
+import { desertoDeck } from "./deserto";
 import { RawDeckDefinition } from "../types";
 
 export interface RawDeckCatalogEntry {
@@ -13,28 +13,28 @@ export interface RawDeckCatalogEntry {
 
 export const rawDeckCatalogEntries: RawDeckCatalogEntry[] = [
   {
-    id: "farm",
-    exportName: "farmDeck",
-    filePath: "src/data/content/decks/farm.ts",
-    deck: farmDeck,
+    id: "fazenda",
+    exportName: "fazendaDeck",
+    filePath: "src/data/content/decks/fazenda.ts",
+    deck: fazendaDeck,
   },
   {
-    id: "ocean",
-    exportName: "oceanDeck",
-    filePath: "src/data/content/decks/ocean.ts",
-    deck: oceanDeck,
+    id: "oceano",
+    exportName: "oceanoDeck",
+    filePath: "src/data/content/decks/oceano.ts",
+    deck: oceanoDeck,
   },
   {
-    id: "forest",
-    exportName: "forestDeck",
-    filePath: "src/data/content/decks/forest.ts",
-    deck: forestDeck,
+    id: "floresta",
+    exportName: "florestaDeck",
+    filePath: "src/data/content/decks/floresta.ts",
+    deck: florestaDeck,
   },
   {
-    id: "desert",
-    exportName: "desertDeck",
-    filePath: "src/data/content/decks/desert.ts",
-    deck: desertDeck,
+    id: "deserto",
+    exportName: "desertoDeck",
+    filePath: "src/data/content/decks/deserto.ts",
+    deck: desertoDeck,
   },
 ];
 

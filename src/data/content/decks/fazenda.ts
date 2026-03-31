@@ -1,7 +1,7 @@
 import { RawDeckDefinition } from "../types";
 
-export const farmDeck: RawDeckDefinition = {
-  id: "farm",
+export const fazendaDeck: RawDeckDefinition = {
+  id: "fazenda",
   name: "Fazenda",
   description: "Animais comuns. Ideal para começar.",
   emoji: "🚜",
