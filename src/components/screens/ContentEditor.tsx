@@ -1918,78 +1918,86 @@ export const ContentEditor: React.FC = () => {
                     >
                   <div className="flex min-h-0 flex-1 flex-col">
                   <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 no-scrollbar">
-                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-                    {targetGridItems.map((item, index) => (
-                      <React.Fragment key={item.id}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedTargetId((current) => (current === item.target.id ? "" : item.target.id))
-                          }
-                          className="text-left"
-                        >
-                          <DraftTargetCard
-                            target={item.target}
-                            active={item.target.id === selectedTargetDraft?.id}
-                            copies={getTargetCopiesDisplayValue(item.target.copies)}
-                            nameValidation={targetNameValidationById[item.target.id]}
-                          />
-                        </button>
-
-                        {selectedTargetDraft && index === expandedTargetRowEndIndex ? (
-                          <div
-                            data-editor-niche="target"
-                            className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3"
+                  {targetGridItems.length === 0 ? (
+                    <EditorEmptyDeckState
+                      icon={<BookOpenText className="h-8 w-8" />}
+                      title="Adicione cards"
+                      description="Inclua pelo menos um alvo no deck para montar a grade e destravar o pool derivado."
+                    />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+                      {targetGridItems.map((item, index) => (
+                        <React.Fragment key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedTargetId((current) => (current === item.target.id ? "" : item.target.id))
+                            }
+                            className="text-left"
                           >
-                            <div className="grid gap-4 lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-end">
-                              <Field label="Copias">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={selectedTargetDraft.copies}
-                                  onChange={(event) => updateTarget(selectedTargetDraft.id, { copies: event.target.value })}
-                                  className={cn(
-                                    "w-full rounded-2xl border px-3 py-2.5 text-center text-base font-black text-amber-950 outline-none transition",
-                                    selectedTargetCopiesHasIssue
-                                      ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                      : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
-                                  )}
-                                />
-                              </Field>
-                              <div className="grid gap-2 sm:grid-cols-3">
-                                <Button
-                                  variant="ghost"
-                                  className="h-11 w-full rounded-2xl border border-amber-900/15 bg-amber-50/50 px-4 text-amber-950 hover:bg-amber-100/70"
-                                  onClick={() => moveTarget(selectedTargetDraft.id, -1)}
-                                  disabled={draft.targets[0]?.id === selectedTargetDraft.id}
-                                >
-                                  <ArrowUp className="h-4 w-4" />
-                                  Subir
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  className="h-11 w-full rounded-2xl border border-amber-900/15 bg-amber-50/50 px-4 text-amber-950 hover:bg-amber-100/70"
-                                  onClick={() => moveTarget(selectedTargetDraft.id, 1)}
-                                  disabled={draft.targets[draft.targets.length - 1]?.id === selectedTargetDraft.id}
-                                >
-                                  <ArrowDown className="h-4 w-4" />
-                                  Descer
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  className="h-11 w-full rounded-2xl border border-rose-300/25 bg-rose-500/10 px-4 text-rose-900 hover:bg-rose-500/15"
-                                  onClick={() => removeTarget(selectedTargetDraft.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Remover
-                                </Button>
+                            <DraftTargetCard
+                              target={item.target}
+                              active={item.target.id === selectedTargetDraft?.id}
+                              copies={getTargetCopiesDisplayValue(item.target.copies)}
+                              nameValidation={targetNameValidationById[item.target.id]}
+                            />
+                          </button>
+
+                          {selectedTargetDraft && index === expandedTargetRowEndIndex ? (
+                            <div
+                              data-editor-niche="target"
+                              className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3"
+                            >
+                              <div className="grid gap-4 lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-end">
+                                <Field label="Copias">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={selectedTargetDraft.copies}
+                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { copies: event.target.value })}
+                                    className={cn(
+                                      "w-full rounded-2xl border px-3 py-2.5 text-center text-base font-black text-amber-950 outline-none transition",
+                                      selectedTargetCopiesHasIssue
+                                        ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                        : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                    )}
+                                  />
+                                </Field>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                  <Button
+                                    variant="ghost"
+                                    className="h-11 w-full rounded-2xl border border-amber-900/15 bg-amber-50/50 px-4 text-amber-950 hover:bg-amber-100/70"
+                                    onClick={() => moveTarget(selectedTargetDraft.id, -1)}
+                                    disabled={draft.targets[0]?.id === selectedTargetDraft.id}
+                                  >
+                                    <ArrowUp className="h-4 w-4" />
+                                    Subir
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    className="h-11 w-full rounded-2xl border border-amber-900/15 bg-amber-50/50 px-4 text-amber-950 hover:bg-amber-100/70"
+                                    onClick={() => moveTarget(selectedTargetDraft.id, 1)}
+                                    disabled={draft.targets[draft.targets.length - 1]?.id === selectedTargetDraft.id}
+                                  >
+                                    <ArrowDown className="h-4 w-4" />
+                                    Descer
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    className="h-11 w-full rounded-2xl border border-rose-300/25 bg-rose-500/10 px-4 text-rose-900 hover:bg-rose-500/15"
+                                    onClick={() => removeTarget(selectedTargetDraft.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Remover
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ) : null}
-                      </React.Fragment>
-                    ))}
-                  </div>
+                          ) : null}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
@@ -2028,72 +2036,80 @@ export const ContentEditor: React.FC = () => {
                     >
                       <div className="flex min-h-0 flex-1 flex-col">
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 no-scrollbar">
-                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                          {syllableGridItems.map((item, index) => (
-                            <React.Fragment key={item.id}>
-                              <DerivedSyllableCard
-                                syllable={item.row.syllable || "?"}
-                                copies={Math.max(0, Number(item.row.count) || 0)}
-                                selected={item.row.id === selectedSyllableRowId}
-                                onClick={() =>
-                                  setSelectedSyllableRowId((current) => (current === item.row.id ? "" : item.row.id))
-                                }
-                              />
+                          {syllableGridItems.length === 0 ? (
+                            <EditorEmptyDeckState
+                              icon={<Layers3 className="h-8 w-8" />}
+                              title="Adicione cards"
+                              description="As silabas do deck aparecem automaticamente assim que o primeiro alvo valido entrar na composicao."
+                            />
+                          ) : (
+                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                            {syllableGridItems.map((item, index) => (
+                              <React.Fragment key={item.id}>
+                                <DerivedSyllableCard
+                                  syllable={item.row.syllable || "?"}
+                                  copies={Math.max(0, Number(item.row.count) || 0)}
+                                  selected={item.row.id === selectedSyllableRowId}
+                                  onClick={() =>
+                                    setSelectedSyllableRowId((current) => (current === item.row.id ? "" : item.row.id))
+                                  }
+                                />
 
-                              {selectedSyllableRow && index === expandedSyllableRowEndIndex ? (
-                                <div
-                                  data-editor-niche="syllable"
-                                  className="paper-panel col-span-2 rounded-[24px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_16px_30px_rgba(0,0,0,0.12)] sm:col-span-3 xl:col-span-4"
-                                >
-                                  <div className="grid gap-4 lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-end">
-                                    <Field label="Copias">
-                                      <input
-                                        type="number"
-                                        min={selectedSyllableMinimumCount}
-                                        value={selectedSyllableRow.count}
-                                        onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
-                                        className={cn(
-                                          "w-full rounded-2xl border px-3 py-2.5 text-center text-base font-black text-amber-950 outline-none transition",
-                                          selectedSyllableCountHasIssue
-                                            ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                            : "border-amber-900/15 bg-white/80 focus:border-amber-500/30",
-                                        )}
-                                      />
-                                    </Field>
+                                {selectedSyllableRow && index === expandedSyllableRowEndIndex ? (
+                                  <div
+                                    data-editor-niche="syllable"
+                                    className="paper-panel col-span-2 rounded-[24px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_16px_30px_rgba(0,0,0,0.12)] sm:col-span-3 xl:col-span-4"
+                                  >
+                                    <div className="grid gap-4 lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-end">
+                                      <Field label="Copias">
+                                        <input
+                                          type="number"
+                                          min={selectedSyllableMinimumCount}
+                                          value={selectedSyllableRow.count}
+                                          onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
+                                          className={cn(
+                                            "w-full rounded-2xl border px-3 py-2.5 text-center text-base font-black text-amber-950 outline-none transition",
+                                            selectedSyllableCountHasIssue
+                                              ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                              : "border-amber-900/15 bg-white/80 focus:border-amber-500/30",
+                                          )}
+                                        />
+                                      </Field>
 
-                                    <div className="rounded-2xl border border-amber-900/12 bg-amber-50/50 px-4 py-4 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
-                                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-                                        Aparece em {selectedSyllableUsedByTargets.length} alvo(s)
-                                      </div>
-                                      <div className="mt-3 flex flex-wrap gap-2">
-                                        {selectedSyllableUsedByTargets.length > 0 ? (
-                                          selectedSyllableUsedByTargets.map((target) => (
-                                            <span
-                                              key={`${selectedSyllableRow.id}-${target.id}`}
-                                              className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm"
-                                            >
-                                              {target.name}
+                                      <div className="rounded-2xl border border-amber-900/12 bg-amber-50/50 px-4 py-4 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                          Aparece em {selectedSyllableUsedByTargets.length} alvo(s)
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          {selectedSyllableUsedByTargets.length > 0 ? (
+                                            selectedSyllableUsedByTargets.map((target) => (
+                                              <span
+                                                key={`${selectedSyllableRow.id}-${target.id}`}
+                                                className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm"
+                                              >
+                                                {target.name}
+                                              </span>
+                                            ))
+                                          ) : (
+                                            <span className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
+                                              Nenhum target usa
                                             </span>
-                                          ))
-                                        ) : (
-                                          <span className="rounded-full border border-amber-900/12 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/45 shadow-sm">
-                                            Nenhum target usa
-                                          </span>
-                                        )}
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
 
-                                  {poolConstraintMessage && selectedSyllableMinimumCount > 0 ? (
-                                    <div className="mt-4 rounded-2xl border border-rose-300/25 bg-rose-50/85 px-4 py-3 text-sm text-rose-950">
-                                      {poolConstraintMessage}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </React.Fragment>
-                          ))}
-                        </div>
+                                    {poolConstraintMessage && selectedSyllableMinimumCount > 0 ? (
+                                      <div className="mt-4 rounded-2xl border border-rose-300/25 bg-rose-50/85 px-4 py-3 text-sm text-rose-950">
+                                        {poolConstraintMessage}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                          )}
                       </div>
                       <div className="mt-auto flex flex-wrap gap-3 pt-4">
                         <Badge className="border border-sky-700/12 bg-sky-100/85 text-sky-950">
@@ -3134,6 +3150,22 @@ const EmptyCallout: React.FC<{
 }> = ({ text }) => (
   <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.92)] px-4 py-4 text-sm font-medium text-amber-950/88">
     {text}
+  </div>
+);
+
+const EditorEmptyDeckState: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}> = ({ icon, title, description }) => (
+  <div className="flex min-h-[26rem] items-center justify-center py-6">
+    <div className="w-full max-w-[28rem] translate-y-2 px-8 py-10 text-center">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-amber-900/10 bg-[rgba(255,248,235,0.52)] text-amber-950 shadow-[0_8px_18px_rgba(0,0,0,0.04)]">
+        {icon}
+      </div>
+      <div className="mt-5 font-serif text-[1.8rem] font-black leading-none text-amber-950">{title}</div>
+      <p className="mx-auto mt-3 max-w-[23rem] text-sm leading-7 text-amber-950/72">{description}</p>
+    </div>
   </div>
 );
 
