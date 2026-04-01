@@ -455,6 +455,42 @@ export function createUniqueTargetId(existingIds: Iterable<string>, preferredNam
   return `${normalizedBase}-${suffix}`;
 }
 
+export function buildContentEditorDuplicateTargetIdMap(targets: ContentEditorTargetDraft[]) {
+  const firstTargetIdByKey = new Map<string, string>();
+  const duplicateTargetIdMap = new Map<string, string>();
+
+  const registerDuplicateKey = (key: string, targetId: string) => {
+    const firstTargetId = firstTargetIdByKey.get(key);
+
+    if (!firstTargetId) {
+      firstTargetIdByKey.set(key, targetId);
+      return;
+    }
+
+    duplicateTargetIdMap.set(targetId, firstTargetId);
+    if (!duplicateTargetIdMap.has(firstTargetId)) {
+      duplicateTargetIdMap.set(firstTargetId, targetId);
+    }
+  };
+
+  targets.forEach((target) => {
+    const normalizedName = normalizeContentEditorTargetName(target.name);
+    const normalizedId = String(target.id ?? "")
+      .trim()
+      .toLowerCase();
+
+    if (normalizedName) {
+      registerDuplicateKey(`name:${normalizedName}`, target.id);
+    }
+
+    if (normalizedId) {
+      registerDuplicateKey(`id:${normalizedId}`, target.id);
+    }
+  });
+
+  return duplicateTargetIdMap;
+}
+
 export function createEmptyContentEditorTarget(existingIds: Iterable<string>): ContentEditorTargetDraft {
   return {
     id: createUniqueTargetId(existingIds),

@@ -3,6 +3,7 @@ import test from "node:test";
 import { DECK_MODELS_BY_ID, RUNTIME_DECKS_BY_ID } from "./content";
 import {
   appendContentEditorTargetSyllable,
+  buildContentEditorDuplicateTargetIdMap,
   buildContentEditorTargetNameValidation,
   clampContentEditorSyllableCount,
   buildContentEditorReviewSummary,
@@ -543,6 +544,82 @@ test("content editor deriva deckId canonico do nome do deck para checagem e save
   assert.equal(createDeckIdCandidate("Fazenda Turbo"), "fazenda-turbo");
   assert.equal(createDeckIdCandidate("  Ação Épica  "), "acao-epica");
   assert.equal(createDeckIdCandidate("", "fazenda"), "fazenda");
+});
+
+test("content editor detecta alvo duplicado no catalogo por card semanticamente igual", () => {
+  const duplicateMap = buildContentEditorDuplicateTargetIdMap([
+    {
+      id: "vaca",
+      name: "VACA",
+      copies: "1",
+      description: "Original",
+      emoji: "🐮",
+      rarity: "comum",
+      syllablesText: "VA, CA",
+    },
+    {
+      id: "vaca-2",
+      name: "VACA",
+      copies: "1",
+      description: "Duplicado",
+      emoji: "🐶",
+      rarity: "raro",
+      syllablesText: "VA, KA",
+    },
+  ]);
+
+  assert.equal(duplicateMap.get("vaca"), "vaca-2");
+  assert.equal(duplicateMap.get("vaca-2"), "vaca");
+});
+
+test("content editor nao marca duplicidade quando o card muda semanticamente no catalogo", () => {
+  const duplicateMap = buildContentEditorDuplicateTargetIdMap([
+    {
+      id: "vaca",
+      name: "VACA",
+      copies: "1",
+      description: "Original",
+      emoji: "🐮",
+      rarity: "comum",
+      syllablesText: "VA, CA",
+    },
+    {
+      id: "cavalo",
+      name: "CAVALO",
+      copies: "1",
+      description: "Variacao",
+      emoji: "🐮",
+      rarity: "comum",
+      syllablesText: "CA, VA, LO",
+    },
+  ]);
+
+  assert.equal(duplicateMap.size, 0);
+});
+
+test("content editor detecta alvo duplicado no catalogo por id tecnico repetido", () => {
+  const duplicateMap = buildContentEditorDuplicateTargetIdMap([
+    {
+      id: "vaca",
+      name: "VACA",
+      copies: "1",
+      description: "Original",
+      emoji: "🐮",
+      rarity: "comum",
+      syllablesText: "VA, CA",
+    },
+    {
+      id: "vaca",
+      name: "VACA RARA",
+      copies: "1",
+      description: "Mesmo id",
+      emoji: "🐮",
+      rarity: "raro",
+      syllablesText: "VA, CA, RA",
+    },
+  ]);
+
+  assert.equal(duplicateMap.get("vaca"), "vaca");
 });
 
 test("content editor remove deck do catalogo bruto sem deixar entrada fantasma no indice", () => {

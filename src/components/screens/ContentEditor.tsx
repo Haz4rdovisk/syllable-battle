@@ -32,6 +32,7 @@ import {
   buildContentEditorSourceDiff,
   buildContentEditorPreview,
   syncDeckPoolWithTargetMinimums,
+  buildContentEditorDuplicateTargetIdMap,
   cloneRawDeckDefinition,
   createEmptyContentEditorDeckEntry,
   createContentEditorTargetDraftFromRawTarget,
@@ -39,6 +40,7 @@ import {
   createDeckIdCandidate,
   createDuplicatedContentEditorDeckEntry,
   createEmptyContentEditorTarget,
+  createUniqueTargetId,
   createRawDeckCatalogEntry,
   createRawDeckDefinitionSource,
   createRawTargetCatalogSource,
@@ -48,7 +50,6 @@ import {
   normalizeContentEditorPoolAdjustments,
   parseContentEditorTargetSyllables,
   RAW_TARGET_CATALOG_FILE_PATH,
-  removeContentEditorTargetSyllableAt,
   removeRawDeckFromCatalog,
   upsertRawDeckInCatalog,
   cloneRawTargetDefinition,
@@ -91,8 +92,7 @@ const createDraftForDeck = (entries: RawDeckCatalogEntry[], targets: typeof rawT
 
 const idleSaveStatus: SaveStatus = {
   tone: "idle",
-  message:
-    "Edicao local em memoria ate salvar no source bruto do deck selecionado. Os alvos salvam no catalogo global bruto compartilhado, o pool segue derivado e o deck recompila no pipeline real antes da projecao legado usada pela battle.",
+  message: "",
 };
 
 const DEFAULT_DECK_CLASS_LABEL = "Animais";
@@ -164,7 +164,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetCopiesMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetCopiesMatch[1]} Â· Copia`,
+      focus: `Alvo ${localTargetCopiesMatch[1]} · Copia`,
       message: "Use um inteiro positivo maior que zero para definir quantas copias desse alvo entram no deck.",
       raw: issue,
     };
@@ -174,7 +174,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetSyllablesMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetSyllablesMatch[1]} Â· Silabas`,
+      focus: `Alvo ${localTargetSyllablesMatch[1]} · Silabas`,
       message: "Digite pelo menos uma silaba para esse alvo poder gerar o pool minimo.",
       raw: issue,
     };
@@ -184,7 +184,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetNameMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetNameMatch[1]} Â· Nome x silabas`,
+      focus: `Alvo ${localTargetNameMatch[1]} · Nome x silabas`,
       message: `As silabas digitadas ainda nao formam corretamente o nome ${localTargetNameMatch[2]}.`,
       raw: issue,
     };
@@ -194,7 +194,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetSegmentationMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetSegmentationMatch[1]} Â· Nome x silabas`,
+      focus: `Alvo ${localTargetSegmentationMatch[1]} · Nome x silabas`,
       message: "Separe as silabas. Nao use a palavra inteira.",
       raw: issue,
     };
@@ -204,7 +204,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localDuplicateSyllableMatch) {
     return {
       scope: "Cards do Deck",
-      focus: `Silaba ${localDuplicateSyllableMatch[2]} Â· Linha ${localDuplicateSyllableMatch[3]}`,
+      focus: `Silaba ${localDuplicateSyllableMatch[2]} · Linha ${localDuplicateSyllableMatch[3]}`,
       message: "A mesma silaba apareceu mais de uma vez no deck. Cada linha deve representar uma silaba unica.",
       raw: issue,
     };
@@ -214,7 +214,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (pipelineTargetCopiesMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${pipelineTargetCopiesMatch[2]} Â· Copia`,
+      focus: `Alvo ${pipelineTargetCopiesMatch[2]} · Copia`,
       message: "O pipeline real rejeitou esse alvo porque o campo Copia precisa ser um inteiro positivo.",
       raw: issue,
     };
@@ -226,7 +226,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (pipelineTargetNeedsMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${pipelineTargetNeedsMatch[2]} Â· Silabas`,
+      focus: `Alvo ${pipelineTargetNeedsMatch[2]} · Silabas`,
       message: `Esse alvo pede ${pipelineTargetNeedsMatch[3]}x ${pipelineTargetNeedsMatch[4]}, mas o deck so fornece ${pipelineTargetNeedsMatch[5]}.`,
       raw: issue,
     };
@@ -238,7 +238,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (targetSyllablesMissingMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${targetSyllablesMissingMatch[2]} Â· Silabas`,
+      focus: `Alvo ${targetSyllablesMissingMatch[2]} · Silabas`,
       message: "Cada alvo precisa ter pelo menos uma silaba vinculada.",
       raw: issue,
     };
@@ -250,7 +250,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (targetSyllableEntryMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${targetSyllableEntryMatch[2]} Â· Silabas`,
+      focus: `Alvo ${targetSyllableEntryMatch[2]} · Silabas`,
       message: `Existe uma entrada vazia ou invalida na lista de silabas desse alvo (item ${Number(targetSyllableEntryMatch[3]) + 1}).`,
       raw: issue,
     };
@@ -260,7 +260,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (duplicateDeckTargetIdMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${duplicateDeckTargetIdMatch[2]} Â· id interno`,
+      focus: `Alvo ${duplicateDeckTargetIdMatch[2]} · id interno`,
       message: "Esse id interno ficou duplicado dentro do deck atual.",
       raw: issue,
     };
@@ -270,7 +270,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (duplicateTargetIdMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${duplicateTargetIdMatch[1]} Â· id interno`,
+      focus: `Alvo ${duplicateTargetIdMatch[1]} · id interno`,
       message: "Esse id interno conflita com outro target ja registrado no catalogo.",
       raw: issue,
     };
@@ -280,7 +280,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (deckSyllableCountMatch) {
     return {
       scope: "Cards do Deck",
-      focus: `Silaba ${deckSyllableCountMatch[2]} Â· Copias`,
+      focus: `Silaba ${deckSyllableCountMatch[2]} · Copias`,
       message: "Cada linha de silaba precisa ter um numero inteiro positivo de copias.",
       raw: issue,
     };
@@ -386,6 +386,9 @@ export const ContentEditor: React.FC = () => {
   );
   const [deckSearchValue, setDeckSearchValue] = useState("");
   const [isDeckActiveExpanded, setIsDeckActiveExpanded] = useState(false);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [isValidationSaveExpanded, setIsValidationSaveExpanded] = useState(true);
+  const [isSaveConfirmOpen, setIsSaveConfirmOpen] = useState(false);
   const [isSaveDiffExpanded, setIsSaveDiffExpanded] = useState(true);
   const [isGeneratedSourceExpanded, setIsGeneratedSourceExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -473,6 +476,7 @@ export const ContentEditor: React.FC = () => {
     () => catalogDraftTargets.find((target) => target.id === selectedCatalogTargetId) ?? null,
     [catalogDraftTargets, selectedCatalogTargetId],
   );
+  const sourceTargetIds = useMemo(() => new Set(sourceTargets.map((target) => target.id)), [sourceTargets]);
   const selectedCatalogTargetSyllables = useMemo(
     () => (selectedCatalogTargetDraft ? parseContentEditorTargetSyllables(selectedCatalogTargetDraft.syllablesText) : []),
     [selectedCatalogTargetDraft],
@@ -501,6 +505,40 @@ export const ContentEditor: React.FC = () => {
       }, {}),
     [catalogDraftTargets],
   );
+  const catalogDuplicateTargetIdMap = useMemo(
+    () => buildContentEditorDuplicateTargetIdMap(catalogDraftTargets),
+    [catalogDraftTargets],
+  );
+  const catalogDuplicateIssues = useMemo<LocalizedIssue[]>(() => {
+    const seenPairs = new Set<string>();
+
+    return catalogDraftTargets.flatMap((target) => {
+      const duplicateTargetId = catalogDuplicateTargetIdMap.get(target.id);
+      if (!duplicateTargetId) return [];
+
+      const pairKey = [target.id, duplicateTargetId].sort().join("|");
+      if (seenPairs.has(pairKey)) return [];
+      seenPairs.add(pairKey);
+
+      const duplicateTarget = catalogDraftTargets.find((entry) => entry.id === duplicateTargetId);
+      const currentLabel = target.name.trim() || target.id;
+      const duplicateLabel = duplicateTarget?.name.trim() || duplicateTargetId;
+
+      return [
+        {
+          scope: "Catalogo de Alvos",
+          focus: `Alvo ${currentLabel} · duplicado`,
+          message: `Esse alvo ja existe no catalogo como ${duplicateLabel}. Nao repita nome ou id tecnico.`,
+        },
+      ];
+    });
+  }, [catalogDraftTargets, catalogDuplicateTargetIdMap]);
+  const selectedCatalogDuplicateTarget = useMemo(() => {
+    if (!selectedCatalogTargetDraft) return null;
+    const duplicateTargetId = catalogDuplicateTargetIdMap.get(selectedCatalogTargetDraft.id);
+    if (!duplicateTargetId) return null;
+    return catalogDraftTargets.find((target) => target.id === duplicateTargetId) ?? null;
+  }, [catalogDraftTargets, catalogDuplicateTargetIdMap, selectedCatalogTargetDraft]);
   const missingTargetCount = useMemo(
     () => draft.targets.filter((target) => !targetNameValidationById[target.id]?.matchesName).length,
     [draft.targets, targetNameValidationById],
@@ -797,12 +835,36 @@ export const ContentEditor: React.FC = () => {
     patch: Partial<ContentEditorDeckDraft["targets"][number]>,
   ) => {
     setCatalogDraftTargets((currentCatalogTargets) => {
-      const nextCatalogTargets = currentCatalogTargets.map((target) =>
-        target.id === targetId ? { ...target, ...patch } : target,
-      );
+      const targetToUpdate = currentCatalogTargets.find((target) => target.id === targetId);
+      if (!targetToUpdate) return currentCatalogTargets;
+
+      const nextTargetBase = { ...targetToUpdate, ...patch };
+      const nextTargetId =
+        patch.name !== undefined && !sourceTargetIds.has(targetId)
+          ? createUniqueTargetId(
+              currentCatalogTargets.filter((target) => target.id !== targetId).map((target) => target.id),
+              nextTargetBase.name,
+            )
+          : targetId;
+      const nextTarget = {
+        ...nextTargetBase,
+        id: nextTargetId,
+      };
+      const nextCatalogTargets = currentCatalogTargets.map((target) => (target.id === targetId ? nextTarget : target));
 
       setDraft((currentDraft) => {
-        const nextDeckTargets = syncDeckCompositionTargetsFromCatalog(currentDraft.targets, nextCatalogTargets);
+        const nextDeckTargets = syncDeckCompositionTargetsFromCatalog(
+          currentDraft.targets.map((target) =>
+            target.id === targetId
+              ? {
+                  ...target,
+                  ...nextTarget,
+                  copies: target.copies,
+                }
+              : target,
+          ),
+          nextCatalogTargets,
+        );
         return {
           ...currentDraft,
           targets: nextDeckTargets,
@@ -812,6 +874,11 @@ export const ContentEditor: React.FC = () => {
           ),
         };
       });
+
+      if (nextTargetId !== targetId) {
+        setSelectedCatalogTargetId((current) => (current === targetId ? nextTargetId : current));
+        setSelectedTargetId((current) => (current === targetId ? nextTargetId : current));
+      }
 
       return nextCatalogTargets;
     });
@@ -1090,6 +1157,18 @@ export const ContentEditor: React.FC = () => {
   const addCatalogTargetToDeck = (targetId: string) => {
     const catalogTarget = catalogDraftTargets.find((target) => target.id === targetId);
     if (!catalogTarget) return;
+    const duplicateTargetId = catalogDuplicateTargetIdMap.get(targetId);
+
+    if (duplicateTargetId) {
+      const duplicateTarget = catalogDraftTargets.find((target) => target.id === duplicateTargetId);
+      setSaveStatus({
+        tone: "error",
+        message: `Nao da para adicionar ${catalogTarget.name || catalogTarget.id} ao deck porque ele duplica ${
+          duplicateTarget?.name || duplicateTargetId
+        } no catalogo.`,
+      });
+      return;
+    }
 
     updateDraft((current) => {
       if (current.targets.some((target) => target.id === targetId)) {
@@ -1137,23 +1216,18 @@ export const ContentEditor: React.FC = () => {
     });
   };
 
-  const duplicateTargetId = useMemo(() => {
-    if (!selectedTargetDraft) return false;
-    const selectedDeckTargetIds = new Set((selectedDeckEntry?.deck.targetIds ?? []).filter(Boolean));
-    return sourceTargets.some(
-      (target) => target.id === selectedTargetDraft.id && !selectedDeckTargetIds.has(selectedTargetDraft.id),
-    );
-  }, [selectedDeckEntry?.deck.targetIds, selectedTargetDraft, sourceTargets]);
   const savePreviewBlockers = useMemo(() => {
     const blockers: string[] = [];
     if (localIssues.length > 0) blockers.push("Corrija os erros locais do draft para liberar o save.");
     if (!preview.ok) blockers.push("O pipeline real ainda esta com erro para este deck.");
-    if (duplicateTargetId) blockers.push("Existe um conflito de id interno com outro target do catalogo.");
     if (deckNameConflictEntry) {
       blockers.push(`O nome atual gera o deckId "${draftDeckIdCandidate}", que ja esta em uso por outro deck.`);
     }
+    if (catalogDuplicateIssues.length > 0) {
+      blockers.push("Remova os alvos duplicados do catalogo antes de salvar.");
+    }
     return blockers;
-  }, [deckNameConflictEntry, draftDeckIdCandidate, duplicateTargetId, localIssues.length, preview.ok]);
+  }, [catalogDuplicateIssues.length, deckNameConflictEntry, draftDeckIdCandidate, localIssues.length, preview.ok]);
   const canPreviewSaveArtifacts = savePreviewBlockers.length === 0;
   const reviewSummary = useMemo(
     () =>
@@ -1181,14 +1255,6 @@ export const ContentEditor: React.FC = () => {
     () => (!preview.ok ? pipelineIssues.map(describeEditorIssue) : []),
     [pipelineIssues, preview.ok],
   );
-  const duplicateTargetIssue = useMemo<LocalizedIssue | null>(() => {
-    if (!duplicateTargetId || !selectedTargetDraft) return null;
-    return {
-      scope: "Targets do Deck",
-      focus: `Alvo ${selectedTargetDraft.id} Â· id interno`,
-      message: "Esse id interno conflita com um target de outro deck do catalogo.",
-    };
-  }, [duplicateTargetId, selectedTargetDraft]);
   const deckNameConflictIssue = useMemo<LocalizedIssue | null>(() => {
     if (!deckNameConflictEntry) return null;
     return {
@@ -1197,6 +1263,8 @@ export const ContentEditor: React.FC = () => {
       message: `Esse nome gera o deckId tecnico "${draftDeckIdCandidate}", que ja pertence ao deck ${deckNameConflictEntry.deck.name}.`,
     };
   }, [deckNameConflictEntry, draftDeckIdCandidate]);
+  const hasVisibleValidationIssues =
+    localIssues.length > 0 || !preview.ok || Boolean(deckNameConflictIssue) || catalogDuplicateIssues.length > 0;
   const selectedTargetCopiesHasIssue = useMemo(
     () =>
       Boolean(
@@ -1238,7 +1306,42 @@ export const ContentEditor: React.FC = () => {
   );
 
   const canSave =
-    import.meta.env.DEV && preview.ok && localIssues.length === 0 && !duplicateTargetId && !deckNameConflictEntry && !isSaving;
+    import.meta.env.DEV &&
+    preview.ok &&
+    localIssues.length === 0 &&
+    !deckNameConflictEntry &&
+    catalogDuplicateIssues.length === 0 &&
+    !isSaving;
+
+  const saveConfirmCopy = useMemo(() => {
+    const destinationLabel =
+      draftSaveEntry.id !== selectedDeckId && selectedDeckEntry
+        ? `${selectedDeckEntry.filePath} -> ${draftSaveEntry.filePath}`
+        : draftSaveEntry.filePath;
+
+    return {
+      destinationLabel,
+      sections: [
+        {
+          label: "Contexto",
+          headline: "Edicao local e catalogo global",
+          detail:
+            "Voce edita um deck por vez nesta tela, mas os alvos continuam gravando no catalogo global bruto compartilhado por todos os decks.",
+        },
+        {
+          label: "Pipeline",
+          headline: "Recompilacao antes do save",
+          detail:
+            "Antes de persistir, o draft recompila no pipeline real e continua gerando o Deck final consumido pelo runtime via adapter legado.",
+        },
+        {
+          label: "Arquivos",
+          headline: "Deck, indice e catalogo",
+          detail: `O save dev-only grava ${destinationLabel}, reescreve o indice bruto de decks e atualiza ${RAW_TARGET_CATALOG_FILE_PATH}.`,
+        },
+      ],
+    };
+  }, [draftSaveEntry.filePath, draftSaveEntry.id, selectedDeckEntry, selectedDeckId]);
 
   const handleSave = async () => {
     if (!canSave || !selectedDeckEntry) return;
@@ -1523,8 +1626,8 @@ export const ContentEditor: React.FC = () => {
                       <textarea
                         value={draft.description}
                         onChange={(event) => updateDeckField("description", event.target.value)}
-                        rows={2}
-                        className="w-full resize-none rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                        rows={1}
+                        className="h-12 w-full resize-none rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-2.5 text-sm leading-tight text-amber-950 outline-none transition focus:border-amber-500/30"
                       />
                     </Field>
                   </div>
@@ -1820,6 +1923,7 @@ export const ContentEditor: React.FC = () => {
                                     variant="ghost"
                                     className="h-10 min-w-[7rem] rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-3 text-emerald-950 hover:bg-emerald-200/80"
                                     onClick={() => addCatalogTargetToDeck(selectedCatalogTargetDraft.id)}
+                                    disabled={Boolean(selectedCatalogDuplicateTarget)}
                                   >
                                     <Plus className="h-4 w-4" />
                                     No deck
@@ -1895,22 +1999,29 @@ export const ContentEditor: React.FC = () => {
                                   onChange={(event) =>
                                     updateCatalogTarget(selectedCatalogTargetDraft.id, { description: event.target.value })
                                   }
-                                  rows={3}
-                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  rows={1}
+                                  className="h-12 w-full resize-none rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-2.5 text-sm leading-tight text-amber-950 outline-none transition focus:border-amber-500/30"
                                 />
                               </Field>
 
                               <div
                                 className={cn(
                                   "rounded-2xl border px-3 py-3 text-sm",
-                                  !selectedCatalogTargetNameValidation.canValidate
+                                  selectedCatalogDuplicateTarget
+                                    ? "border-rose-300/25 bg-rose-50/80 text-rose-950"
+                                    : !selectedCatalogTargetNameValidation.canValidate
                                     ? "border-amber-900/12 bg-white/65 text-amber-950/75"
                                     : !selectedCatalogTargetNameValidation.matchesName
                                       ? "border-rose-300/25 bg-rose-50/80 text-rose-950"
                                       : "border-emerald-700/15 bg-emerald-100/80 text-emerald-950",
                                 )}
                               >
-                                {selectedCatalogTargetNameValidation.canValidate ? (
+                                {selectedCatalogDuplicateTarget ? (
+                                  <span>
+                                    Esse alvo ja existe como{" "}
+                                    <span className="font-black">{selectedCatalogDuplicateTarget.name || selectedCatalogDuplicateTarget.id}</span>. Nao repita nome ou id tecnico.
+                                  </span>
+                                ) : selectedCatalogTargetNameValidation.canValidate ? (
                                   selectedCatalogTargetNameValidation.matchesName ? (
                                     <span>
                                       Nome valido: <span className="font-black">{selectedCatalogTargetNameValidation.normalizedName}</span>
@@ -1932,34 +2043,6 @@ export const ContentEditor: React.FC = () => {
                                 )}
                               </div>
 
-                              <div className="rounded-2xl border border-amber-900/12 bg-white/65 p-4">
-                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                  Sequencia atual do target
-                                </div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {selectedCatalogTargetSyllables.length > 0 ? (
-                                    selectedCatalogTargetSyllables.map((syllable, syllableIndex) => (
-                                      <button
-                                        key={`${selectedCatalogTargetDraft.id}-${syllable}-${syllableIndex}`}
-                                        type="button"
-                                        onClick={() =>
-                                          updateCatalogTarget(selectedCatalogTargetDraft.id, {
-                                            syllablesText: removeContentEditorTargetSyllableAt(
-                                              selectedCatalogTargetDraft.syllablesText,
-                                              syllableIndex,
-                                            ),
-                                          })
-                                        }
-                                        className="rounded-full border border-amber-900/12 bg-amber-50/75 px-3 py-1 text-[11px] font-black tracking-[0.16em] text-amber-950 transition hover:bg-rose-100/85"
-                                      >
-                                        {syllable} Â· remover
-                                      </button>
-                                    ))
-                                  ) : (
-                                    <div className="text-sm text-amber-950/60">Digite as silabas do alvo.</div>
-                                  )}
-                                </div>
-                              </div>
                             </div>
                               </div>
                             ) : null}
@@ -1971,109 +2054,148 @@ export const ContentEditor: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                  <Panel title="Preview do Pipeline" icon={<CheckCircle2 className="h-5 w-5" />}>
-                    {preview.ok && selectedDeckDefinition && preview.selectedRuntimeDeck ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                          <InfoTile label="Deck final runtime" value={preview.selectedRuntimeDeck.name} tone="success" slim plainValue />
-                          <InfoTile label="Targets finais" value={String(preview.selectedRuntimeDeck.targets.length)} tone="success" slim plainValue />
-                          <InfoTile
-                            label="Silabas totais runtime"
-                            value={String(
-                              Object.values(preview.selectedRuntimeDeck.syllables).reduce((sum, count) => sum + count, 0),
-                            )}
-                            tone="success"
-                            mini
-                            slim
-                            plainValue
-                          />
-                          <InfoTile label="CardIds derivados" value={selectedDeckDefinition.cardIds.join(", ")} compact slim plainValue />
-                          <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact slim plainValue />
-                        </div>
+                  <Panel
+                    title="Preview do Pipeline"
+                    icon={<CheckCircle2 className="h-5 w-5" />}
+                    collapsed={!isPreviewExpanded}
+                    headerAction={
+                      <button
+                        type="button"
+                        onClick={() => setIsPreviewExpanded((current) => !current)}
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-900/12 bg-amber-100/55 text-amber-950 transition hover:bg-amber-100/75"
+                        aria-label={isPreviewExpanded ? "Recolher preview do pipeline" : "Expandir preview do pipeline"}
+                      >
+                        {isPreviewExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                    }
+                  >
+                    {isPreviewExpanded ? (
+                      preview.ok && selectedDeckDefinition && preview.selectedRuntimeDeck ? (
+                        <div className="space-y-4">
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <InfoTile
+                              label="Deck final runtime"
+                              value={preview.selectedRuntimeDeck.name}
+                              tone="success"
+                              compact
+                              slim
+                              plainValue
+                            />
+                            <InfoTile
+                              label="Targets finais"
+                              value={String(preview.selectedRuntimeDeck.targets.length)}
+                              tone="success"
+                              slim
+                              plainValue
+                            />
+                            <InfoTile
+                              label="Silabas totais runtime"
+                              value={String(
+                                Object.values(preview.selectedRuntimeDeck.syllables).reduce((sum, count) => sum + count, 0),
+                              )}
+                              tone="success"
+                              mini
+                              slim
+                              plainValue
+                            />
+                          </div>
+                          <div className="grid gap-3">
+                            <InfoTile label="CardIds derivados" value={selectedDeckDefinition.cardIds.join(", ")} compact slim plainValue />
+                            <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact slim plainValue />
+                          </div>
 
-                        <div className="rounded-2xl border border-sky-700/12 bg-sky-100/85 px-4 py-4 text-sm text-sky-950">
-                          O runtime continua consumindo o mesmo shape final de <span className="font-black">Deck</span>,
-                          agora derivado explicitamente do <span className="font-black">deck model</span> central via adapter legado.
                         </div>
-                      </div>
-                    ) : (
-                      <EmptyCallout text="O preview do pipeline real aparece aqui assim que o draft voltar a ficar valido." />
-                    )}
+                      ) : (
+                        <EmptyCallout text="O preview do pipeline real aparece aqui assim que o draft voltar a ficar valido." />
+                      )
+                    ) : null}
                   </Panel>
-                  <Panel title="Validacao e Save" icon={<Save className="h-5 w-5" />}>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <InfoTile label="Modo" value="deck por targetIds + catalogo global" slim plainValue />
-                      <InfoTile
-                        label="Source bruto"
-                        value={`${draftSaveEntry.filePath} + ${RAW_TARGET_CATALOG_FILE_PATH}`}
-                        slim
-                        plainValue
-                      />
-                      <InfoTile
-                        label="Pipeline"
-                        value={preview.ok ? "valido" : "com erro"}
-                        tone={preview.ok ? "success" : "warning"}
-                        slim
-                        plainValue
-                      />
-                      <InfoTile
-                        label="Dirty"
-                        value={isDirty ? "sim" : "nao"}
-                        tone={isDirty ? "warning" : "success"}
-                        slim
-                        plainValue
-                      />
-                    </div>
+                  <Panel
+                    title="Validacao e Save"
+                    icon={<Save className="h-5 w-5" />}
+                    collapsed={!isValidationSaveExpanded}
+                    headerAction={
+                      <button
+                        type="button"
+                        onClick={() => setIsValidationSaveExpanded((current) => !current)}
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-900/12 bg-amber-100/55 text-amber-950 transition hover:bg-amber-100/75"
+                        aria-label={isValidationSaveExpanded ? "Recolher validacao e save" : "Expandir validacao e save"}
+                      >
+                        {isValidationSaveExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                    }
+                  >
+                    {isValidationSaveExpanded ? (
+                      <>
+                    {saveStatus.message ? (
+                      <div
+                        className={cn(
+                          "rounded-2xl border px-4 py-4 text-sm",
+                          saveStatus.tone === "success"
+                            ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
+                            : saveStatus.tone === "error"
+                              ? "border-rose-700/15 bg-rose-100/85 text-rose-950"
+                              : "border-amber-900/12 bg-[rgba(255,252,244,0.88)] text-amber-950/80",
+                        )}
+                      >
+                        {saveStatus.message}
+                      </div>
+                    ) : null}
+
+                    {hasVisibleValidationIssues ? (
+                      <div className="mt-4 space-y-3">
+                        {localIssues.length > 0 ? (
+                          localizedLocalIssues.map((issue) => (
+                            <IssueRow key={`local-${issue.scope}-${issue.focus}-${issue.message}`} issue={issue} tone="warning" />
+                          ))
+                        ) : null}
+
+                        {!preview.ok
+                          ? localizedPipelineIssues.map((issue) => (
+                              <IssueRow key={`pipeline-${issue.scope}-${issue.focus}-${issue.message}`} issue={issue} tone="warning" />
+                            ))
+                          : null}
+
+                        {deckNameConflictIssue ? <IssueRow issue={deckNameConflictIssue} tone="warning" /> : null}
+                        {catalogDuplicateIssues.map((issue) => (
+                          <IssueRow key={`catalog-duplicate-${issue.focus}-${issue.message}`} issue={issue} tone="warning" />
+                        ))}
+                      </div>
+                    ) : null}
 
                     <div
                       className={cn(
-                        "mt-4 rounded-2xl border px-4 py-4 text-sm",
-                        saveStatus.tone === "success"
-                          ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
-                          : saveStatus.tone === "error"
-                            ? "border-rose-700/15 bg-rose-100/85 text-rose-950"
-                            : "border-amber-900/12 bg-[rgba(255,252,244,0.88)] text-amber-950/80",
+                        "rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4",
+                        saveStatus.message || hasVisibleValidationIssues ? "mt-5" : "mt-0",
                       )}
                     >
-                      {saveStatus.message}
-                    </div>
-
-                    <div className="mt-4 space-y-3">
-                      {localIssues.length > 0 ? (
-                        localizedLocalIssues.map((issue) => (
-                          <IssueRow key={`local-${issue.scope}-${issue.focus}-${issue.message}`} issue={issue} tone="warning" />
-                        ))
-                      ) : null}
-
-                      {!preview.ok
-                        ? localizedPipelineIssues.map((issue) => (
-                            <IssueRow key={`pipeline-${issue.scope}-${issue.focus}-${issue.message}`} issue={issue} tone="warning" />
-                          ))
-                        : (
-                            <div className="rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-4 py-4 text-sm text-emerald-950">
-                              O draft recompila no pipeline real e continua gerando o Deck final do runtime via adapter atual. O save dev-only grava{" "}
-                              <span className="font-black">{draftSaveEntry.filePath}</span>, reescreve o indice bruto de decks e atualiza{" "}
-                              <span className="font-black">{RAW_TARGET_CATALOG_FILE_PATH}</span>.
-                            </div>
-                          )}
-
-                      {deckNameConflictIssue ? <IssueRow issue={deckNameConflictIssue} tone="warning" /> : null}
-                      {duplicateTargetIssue ? <IssueRow issue={duplicateTargetIssue} tone="warning" /> : null}
-                    </div>
-
-                    <div className="mt-5 rounded-[24px] border border-amber-900/12 bg-[rgba(255,252,244,0.88)] p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                            Review gate antes do save
-                          </div>
-                          <div className="mt-1 text-sm text-amber-950/70">
-                            Resumo curto do que mudou neste deck antes de gravar o source bruto.
-                          </div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">Review gate</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                            {reviewSummary.hasMeaningfulChanges ? "com mudancas" : "sem mudancas"}
+                          </Badge>
+                          <Badge
+                            className={cn(
+                              "border",
+                              preview.ok
+                                ? "border-emerald-700/15 bg-emerald-100/85 text-emerald-950"
+                                : "border-amber-900/15 bg-amber-100/85 text-amber-950",
+                            )}
+                          >
+                            Pipeline: {preview.ok ? "valido" : "com erro"}
+                          </Badge>
+                          <Badge
+                            className={cn(
+                              "border",
+                              isDirty
+                                ? "border-amber-900/15 bg-amber-100/85 text-amber-950"
+                                : "border-emerald-700/15 bg-emerald-100/85 text-emerald-950",
+                            )}
+                          >
+                            Dirty: {isDirty ? "sim" : "nao"}
+                          </Badge>
                         </div>
-                        <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
-                          {reviewSummary.hasMeaningfulChanges ? "com mudancas" : "sem mudancas"}
-                        </Badge>
                       </div>
 
                       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -2096,14 +2218,7 @@ export const ContentEditor: React.FC = () => {
                           onClick={() => setIsSaveDiffExpanded((current) => !current)}
                           className="flex w-full items-center justify-between gap-3 text-left"
                         >
-                          <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                              Diff antes do save
-                            </div>
-                            <div className="mt-1 text-sm text-amber-950/70">
-                              O que vai entrar no arquivo bruto quando o save estiver liberado.
-                            </div>
-                          </div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">Diff do save</div>
                           <div className="flex items-center gap-3">
                             {canPreviewSaveArtifacts ? (
                               <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
@@ -2203,13 +2318,8 @@ export const ContentEditor: React.FC = () => {
                           onClick={() => setIsGeneratedSourceExpanded((current) => !current)}
                           className="flex w-full items-center justify-between gap-3 text-left"
                         >
-                          <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                              Source gerado para save
-                            </div>
-                            <div className="mt-1 text-sm text-amber-950/70">
-                              Preview do arquivo TypeScript que sera gravado no deck selecionado.
-                            </div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                            Source gerado para save
                           </div>
                           <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-900/12 bg-amber-100/55 text-amber-950">
                             {isGeneratedSourceExpanded ? (
@@ -2250,10 +2360,10 @@ export const ContentEditor: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="mt-5 flex flex-wrap gap-3">
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
                       <Button
                         variant="ghost"
-                        className="border border-amber-900/15 bg-amber-50/45 text-amber-950 hover:bg-amber-100/70"
+                        className="min-w-[9.75rem] justify-center border border-amber-900/15 bg-amber-50/45 px-5 py-[1.3rem] text-base text-amber-950 hover:bg-amber-100/70"
                         onClick={resetDraft}
                         disabled={!isDirty}
                       >
@@ -2262,20 +2372,73 @@ export const ContentEditor: React.FC = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950 hover:bg-emerald-200/80"
-                        onClick={handleSave}
+                        className="min-w-[11.2rem] justify-center border border-emerald-700/15 bg-emerald-100/85 px-5 py-[1.3rem] text-base text-emerald-950 hover:bg-emerald-200/80"
+                        onClick={() => setIsSaveConfirmOpen(true)}
                         disabled={!canSave}
                       >
                         <Save className="h-4 w-4" />
-                        {isSaving ? "Salvando..." : "Salvar source bruto"}
+                        {isSaving ? "Salvando..." : "Salvar"}
                       </Button>
                     </div>
+                      </>
+                    ) : null}
                   </Panel>
                 </div>
               </div>
           </div>
         </section>
       </main>
+
+      {isSaveConfirmOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-6">
+          <div className="w-full max-w-2xl rounded-[28px] border border-emerald-950/15 bg-[#f8f0d8] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-950/55">
+              Confirmar save
+            </div>
+            <div className="mt-2 font-serif text-3xl font-black leading-none text-emerald-950">
+              Salvar source bruto do editor?
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {saveConfirmCopy.sections.map((section) => (
+                <div
+                  key={section.label}
+                  className="rounded-2xl border border-emerald-950/12 bg-white/55 px-4 py-4 text-emerald-950"
+                >
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-950/50">
+                    {section.label}
+                  </div>
+                  <div className="mt-2 font-serif text-lg font-black leading-tight">{section.headline}</div>
+                  <div className="mt-2 break-words [overflow-wrap:anywhere] text-sm leading-relaxed text-emerald-950/75">
+                    {section.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <Button
+                type="button"
+                onClick={() => setIsSaveConfirmOpen(false)}
+                className="flex-1 rounded-xl bg-stone-200 text-stone-950 hover:bg-stone-300"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setIsSaveConfirmOpen(false);
+                  void handleSave();
+                }}
+                disabled={!canSave || isSaving}
+                className="flex-1 rounded-xl bg-emerald-950 text-emerald-50 hover:bg-emerald-900 disabled:opacity-60"
+              >
+                {isSaving ? "Salvando..." : "Salvar no projeto"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -2424,14 +2587,23 @@ const Panel: React.FC<{
   children: React.ReactNode;
   className?: string;
   headerAction?: React.ReactNode;
-}> = ({ title, icon, children, className, headerAction }) => (
-  <section className={cn("paper-panel flex flex-col rounded-[28px] border-2 border-[#8d6e63]/30 p-5 shadow-[0_18px_34px_rgba(0,0,0,0.12)]", className)}>
-    <div className="mb-4 flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-900/12 bg-amber-100/55 text-amber-950">
-        {icon}
+  collapsed?: boolean;
+}> = ({ title, icon, children, className, headerAction, collapsed = false }) => (
+  <section
+    className={cn(
+      "paper-panel flex flex-col rounded-[28px] border-2 border-[#8d6e63]/30 shadow-[0_18px_34px_rgba(0,0,0,0.12)]",
+      collapsed ? "px-5 py-4" : "p-5",
+      className,
+    )}
+  >
+    <div className={cn("flex items-center justify-between gap-3", collapsed ? "min-h-[2.5rem]" : "mb-4")}>
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-900/12 bg-amber-100/55 text-amber-950">
+          {icon}
+        </div>
+        <h3 className="truncate font-serif text-2xl font-black leading-none tracking-tight text-amber-950">{title}</h3>
       </div>
-      <h3 className="font-serif text-2xl font-black tracking-tight text-amber-950">{title}</h3>
-      {headerAction ? <div className="ml-auto">{headerAction}</div> : null}
+      {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
     </div>
     {children}
   </section>
