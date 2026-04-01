@@ -8,12 +8,13 @@ import {
   DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
 } from "../game/battleCardStackVisuals";
 import { cn } from "../../lib/utils";
-import { getBattleHandLayout } from "./battleFlow";
+import { getBattleHandFrame, getBattleHandLayout } from "./battleFlow";
 import { getBattleStageDomMetrics, toBattleStageLocalRect } from "./BattleSceneSpace";
 
 const HAND_LAYOUT_SLOT_COUNT = 5;
 const clampScale = (value: number, min = 0.72, max = 1.24) =>
   Math.min(max, Math.max(min, value));
+const clampHandSceneScale = (value: number) => Math.max(0.6, value);
 
 export interface BattleHandLaneCard {
   id: string;
@@ -210,6 +211,8 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   const sizePreset = isDesktop ? "hand-desktop" : "hand-mobile";
   const cardWidth = isDesktop ? 110 : 86;
   const cardBaseHeight = isDesktop ? 150 : 120;
+  const baseHandFrame = getBattleHandFrame(presentation, totalCards, isDesktop);
+  const sceneLayoutWidth = baseHandFrame.width;
   const resolvedLaneHeight = laneWidth
     ? Math.min(
         isDesktop ? 176 : 140,
@@ -221,6 +224,14 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
     : isDesktop
       ? 150
       : 120;
+  const handSceneScale = clampHandSceneScale(
+    Math.min(
+      laneWidth && baseHandFrame.width > 0 ? laneWidth / baseHandFrame.width : 1,
+      (laneHeight ?? resolvedLaneHeight) && baseHandFrame.height > 0
+        ? (laneHeight ?? resolvedLaneHeight) / baseHandFrame.height
+        : 1,
+    ),
+  );
   const laneVars = {
     "--battle-hand-height": `${resolvedLaneHeight}px`,
     "--battle-hand-padding-x": `${isDesktop ? 12 : 8}px`,
@@ -249,7 +260,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   const layoutBounds =
     totalCards > 0
       ? Array.from({ length: totalCards }, (_, index) =>
-          getLayout(totalCards, index, isDesktop, laneWidth),
+          getLayout(totalCards, index, isDesktop, sceneLayoutWidth),
         ).reduce(
           (acc, layout) => ({
             minY: Math.min(acc.minY, layout.y),
@@ -262,7 +273,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
         )
       : { minY: 0, maxY: 0 };
 
-  const hostHeight = laneHeight ?? (isDesktop ? 192 : 160);
+  const hostHeight = baseHandFrame.height;
   const bottomOffset =
     totalCards > 0
       ? Math.max(
@@ -283,6 +294,22 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   const getStageLocalRect = <T extends { left: number; top: number; width: number; height: number }>(
     rect: T | null | undefined,
   ) => toBattleStageLocalRect(rect, getBattleStageDomMetrics(hostRef.current));
+  const sceneVisualRect =
+    hostRef.current && hostRectSnapshot
+      ? (() => {
+          const hostRect = getStageLocalRect(hostRef.current.getBoundingClientRect());
+          if (!hostRect) return null;
+          const sceneWidth = baseHandFrame.width * handSceneScale;
+          const sceneHeight = baseHandFrame.height * handSceneScale;
+          return {
+            hostRect,
+            sceneLeft: hostRect.left + (hostRect.width - sceneWidth) / 2,
+            sceneTop: hostRect.top + (hostRect.height - sceneHeight) / 2,
+            sceneWidth,
+            sceneHeight,
+          };
+        })()
+      : null;
   const handLaneDebugSnapshot = React.useMemo<BattleHandLaneDebugSnapshot>(
     () => ({
       presentation,
@@ -291,22 +318,22 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
       reservedSlots,
       laneWidth,
       laneHeight,
-      hostHeight,
+      hostHeight: Math.round(baseHandFrame.height * handSceneScale),
       bottomOffset,
       cardSize: {
-        width: cardWidth,
-        baseHeight: cardBaseHeight,
+        width: Math.round(cardWidth * handSceneScale),
+        baseHeight: Math.round(cardBaseHeight * handSceneScale),
       },
       layoutBounds: {
-        minY: Number.isFinite(layoutBounds.minY) ? layoutBounds.minY : 0,
-        maxY: Number.isFinite(layoutBounds.maxY) ? layoutBounds.maxY : 0,
+        minY: Number.isFinite(layoutBounds.minY) ? Math.round(layoutBounds.minY * handSceneScale) : 0,
+        maxY: Number.isFinite(layoutBounds.maxY) ? Math.round(layoutBounds.maxY * handSceneScale) : 0,
       },
       hostRect: hostRectSnapshot,
       stableCards: stableCards.map((card, index) => ({
         index,
         id: card.id,
         syllable: card.syllable,
-        layout: getLayout(totalCards, index, isDesktop, laneWidth),
+        layout: getLayout(totalCards, index, isDesktop, sceneLayoutWidth),
         selected: selectedIndexes.includes(index),
         hovered: hoveredCardIndex === index,
         newlyDrawn: freshCardIds.includes(card.id),
@@ -316,9 +343,9 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           incomingCard.finalTotal,
           incomingCard.finalIndex,
           isDesktop,
-          laneWidth,
+          sceneLayoutWidth,
         );
-        if (!hostRef.current) {
+        if (!sceneVisualRect) {
           return {
             id: incomingCard.id,
             syllable: incomingCard.card.syllable,
@@ -331,9 +358,8 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             motion: null,
           };
         }
-        const hostRect = getStageLocalRect(hostRef.current.getBoundingClientRect());
         const originRect = getStageLocalRect(incomingCard.origin);
-        if (!hostRect || !originRect) {
+        if (!originRect) {
           return {
             id: incomingCard.id,
             syllable: incomingCard.card.syllable,
@@ -346,29 +372,27 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             motion: null,
           };
         }
-        const cardSize = isDesktop
-          ? { width: 110, height: 150 }
-          : { width: 86, height: 120 };
+        const cardSize = { width: cardWidth, height: cardBaseHeight };
         const deckExitX =
           originRect.left +
           originRect.width / 2 -
-          hostRect.left -
-          cardSize.width / 2;
+          sceneVisualRect.sceneLeft -
+          (cardSize.width * handSceneScale) / 2;
         const deckExitY =
           originRect.top +
           Math.max(8, originRect.height * 0.14) -
-          hostRect.top -
-          cardSize.height * 0.18;
-        const baseLeft = hostRect.width / 2 - cardSize.width / 2;
-        const baseTop = hostRect.height - bottomOffset - cardSize.height;
-        const startX = deckExitX - baseLeft;
-        const startY = deckExitY - baseTop;
+          sceneVisualRect.sceneTop -
+          cardSize.height * handSceneScale * 0.18;
+        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
+        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
+        const startX = deckExitX / handSceneScale - baseLeft;
+        const startY = deckExitY / handSceneScale - baseTop;
         const startScale =
           cardSize.width > 0 && cardSize.height > 0
             ? clampScale(
                 Math.min(
-                  originRect.width / cardSize.width,
-                  originRect.height / cardSize.height,
+                  originRect.width / (cardSize.width * handSceneScale),
+                  originRect.height / (cardSize.height * handSceneScale),
                 ),
               )
             : 0.92;
@@ -398,9 +422,9 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           outgoingCard.initialTotal,
           outgoingCard.initialIndex,
           isDesktop,
-          laneWidth,
+          sceneLayoutWidth,
         );
-        if (!hostRef.current) {
+        if (!sceneVisualRect) {
           return {
             id: outgoingCard.id,
             syllable: outgoingCard.card.syllable,
@@ -414,9 +438,8 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             motion: null,
           };
         }
-        const hostRect = getStageLocalRect(hostRef.current.getBoundingClientRect());
         const destinationRect = getStageLocalRect(outgoingCard.destination);
-        if (!hostRect || !destinationRect) {
+        if (!destinationRect) {
           return {
             id: outgoingCard.id,
             syllable: outgoingCard.card.syllable,
@@ -430,41 +453,39 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             motion: null,
           };
         }
-        const cardSize = isDesktop
-          ? { width: 110, height: 150 }
-          : { width: 86, height: 120 };
-        const baseLeft = hostRect.width / 2 - cardSize.width / 2;
-        const baseTop = hostRect.height - bottomOffset - cardSize.height;
+        const cardSize = { width: cardWidth, height: cardBaseHeight };
+        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
+        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
         const destinationCenterX =
           destinationRect.left +
           destinationRect.width / 2 -
-          hostRect.left -
-          cardSize.width / 2;
+          sceneVisualRect.sceneLeft -
+          (cardSize.width * handSceneScale) / 2;
         const destinationCenterY =
           destinationRect.top +
           destinationRect.height / 2 -
-          hostRect.top -
-          cardSize.height / 2;
+          sceneVisualRect.sceneTop -
+          (cardSize.height * handSceneScale) / 2;
         const deckBottomX = destinationCenterX;
         const deckBottomY =
           destinationRect.top +
           destinationRect.height -
           Math.max(10, destinationRect.height * 0.16) -
-          hostRect.top -
-          cardSize.height * 0.82;
+          sceneVisualRect.sceneTop -
+          cardSize.height * handSceneScale * 0.82;
         const destinationMode = outgoingCard.destinationMode ?? "deck-bottom";
         const endX =
-          (destinationMode === "zone-center" ? destinationCenterX : deckBottomX) - baseLeft;
+          (destinationMode === "zone-center" ? destinationCenterX : deckBottomX) / handSceneScale - baseLeft;
         const endY =
-          (destinationMode === "zone-center" ? destinationCenterY : deckBottomY) - baseTop;
+          (destinationMode === "zone-center" ? destinationCenterY : deckBottomY) / handSceneScale - baseTop;
         const endScale =
           outgoingCard.endScale ??
           (destinationMode === "zone-center"
             ? 1
             : clampScale(
                 Math.min(
-                  destinationRect.width / cardSize.width,
-                  destinationRect.height / cardSize.height,
+                  destinationRect.width / (cardSize.width * handSceneScale),
+                  destinationRect.height / (cardSize.height * handSceneScale),
                 ),
               ));
         return {
@@ -502,10 +523,13 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
       incomingCards,
       isDesktop,
       isLocalPresentation,
+      handSceneScale,
       laneHeight,
       laneWidth,
       layoutBounds.maxY,
       layoutBounds.minY,
+      sceneLayoutWidth,
+      baseHandFrame.height,
       outgoingCards,
       presentation,
       reservedSlots,
@@ -540,9 +564,18 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           paddingInline: `var(--battle-hand-padding-x)`,
         }}
       >
+        <div
+          className="absolute left-1/2 top-1/2 overflow-visible"
+          style={{
+            width: `${baseHandFrame.width}px`,
+            height: `${baseHandFrame.height}px`,
+            transform: `translate(-50%, -50%) scale(${handSceneScale})`,
+            transformOrigin: "center center",
+          }}
+        >
         <AnimatePresence>
           {stableCards.map((card, i) => {
-            const layout = getLayout(totalCards, i, isDesktop, laneWidth);
+            const layout = getLayout(totalCards, i, isDesktop, sceneLayoutWidth);
             const selected = selectedIndexes.includes(i);
             const playable = isLocalPresentation ? targets.some((target) => canPlace(card.syllable, target)) : false;
 
@@ -552,9 +585,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                 initial={
                   card.skipEntryAnimation
                     ? false
-                    : isLocalPresentation
-                      ? { x: 600, y: 0, opacity: 0, rotate: 90, scale: 1 }
-                      : { x: 0, y: -60, opacity: 0, rotate: layout.rotate, scale: 0.9 }
+                    : { x: 0, y: -60, opacity: 0, rotate: layout.rotate, scale: 0.9 }
                 }
                 animate={{
                   x: layout.x,
@@ -599,38 +630,35 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
 
         {hostRef.current &&
           incomingCards.map((incomingCard) => {
-            const hostRect = getStageLocalRect(hostRef.current!.getBoundingClientRect());
             const originRect = getStageLocalRect(incomingCard.origin);
-            if (!hostRect || !originRect) return null;
-            const cardSize = isDesktop
-              ? { width: 110, height: 150 }
-              : { width: 86, height: 120 };
+            if (!sceneVisualRect || !originRect) return null;
+            const cardSize = { width: cardWidth, height: cardBaseHeight };
             const layout = getLayout(
               incomingCard.finalTotal,
               incomingCard.finalIndex,
               isDesktop,
-              laneWidth,
+              sceneLayoutWidth,
             );
             const deckExitX =
               originRect.left +
               originRect.width / 2 -
-              hostRect.left -
-              cardSize.width / 2;
+              sceneVisualRect.sceneLeft -
+              (cardSize.width * handSceneScale) / 2;
             const deckExitY =
               originRect.top +
               Math.max(8, originRect.height * 0.14) -
-              hostRect.top -
-              cardSize.height * 0.18;
-            const baseLeft = hostRect.width / 2 - cardSize.width / 2;
-            const baseTop = hostRect.height - bottomOffset - cardSize.height;
-            const startX = deckExitX - baseLeft;
-            const startY = deckExitY - baseTop;
+              sceneVisualRect.sceneTop -
+              cardSize.height * handSceneScale * 0.18;
+            const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
+            const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
+            const startX = deckExitX / handSceneScale - baseLeft;
+            const startY = deckExitY / handSceneScale - baseTop;
             const startScale =
               cardSize.width > 0 && cardSize.height > 0
                 ? clampScale(
                     Math.min(
-                      originRect.width / cardSize.width,
-                      originRect.height / cardSize.height,
+                      originRect.width / (cardSize.width * handSceneScale),
+                      originRect.height / (cardSize.height * handSceneScale),
                     ),
                   )
                 : 0.92;
@@ -689,49 +717,46 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
 
         {hostRef.current &&
           outgoingCards.map((outgoingCard) => {
-            const hostRect = getStageLocalRect(hostRef.current!.getBoundingClientRect());
             const destinationRect = getStageLocalRect(outgoingCard.destination);
-            if (!hostRect || !destinationRect) return null;
-            const cardSize = isDesktop
-              ? { width: 110, height: 150 }
-              : { width: 86, height: 120 };
+            if (!sceneVisualRect || !destinationRect) return null;
+            const cardSize = { width: cardWidth, height: cardBaseHeight };
             const layout = getLayout(
               outgoingCard.initialTotal,
               outgoingCard.initialIndex,
               isDesktop,
-              laneWidth,
+              sceneLayoutWidth,
             );
-            const baseLeft = hostRect.width / 2 - cardSize.width / 2;
-            const baseTop = hostRect.height - bottomOffset - cardSize.height;
+            const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
+            const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
             const destinationCenterX =
               destinationRect.left +
               destinationRect.width / 2 -
-              hostRect.left -
-              cardSize.width / 2;
+              sceneVisualRect.sceneLeft -
+              (cardSize.width * handSceneScale) / 2;
             const destinationCenterY =
               destinationRect.top +
               destinationRect.height / 2 -
-              hostRect.top -
-              cardSize.height / 2;
+              sceneVisualRect.sceneTop -
+              (cardSize.height * handSceneScale) / 2;
             const deckBottomX = destinationCenterX;
             const deckBottomY =
               destinationRect.top +
               destinationRect.height -
               Math.max(10, destinationRect.height * 0.16) -
-              hostRect.top -
-              cardSize.height * 0.82;
+              sceneVisualRect.sceneTop -
+              cardSize.height * handSceneScale * 0.82;
             const endX =
-              (outgoingCard.destinationMode === "zone-center" ? destinationCenterX : deckBottomX) - baseLeft;
+              (outgoingCard.destinationMode === "zone-center" ? destinationCenterX : deckBottomX) / handSceneScale - baseLeft;
             const endY =
-              (outgoingCard.destinationMode === "zone-center" ? destinationCenterY : deckBottomY) - baseTop;
+              (outgoingCard.destinationMode === "zone-center" ? destinationCenterY : deckBottomY) / handSceneScale - baseTop;
             const endScale =
               outgoingCard.endScale ??
               (outgoingCard.destinationMode === "zone-center"
                 ? 1
                 : clampScale(
                     Math.min(
-                      destinationRect.width / cardSize.width,
-                      destinationRect.height / cardSize.height,
+                      destinationRect.width / (cardSize.width * handSceneScale),
+                      destinationRect.height / (cardSize.height * handSceneScale),
                     ),
                   ));
             return (
@@ -785,6 +810,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
               </motion.div>
             );
           })}
+        </div>
       </div>
     </motion.div>
   );
