@@ -11,7 +11,6 @@ interface BattleActionButtonProps {
   subtitle?: string;
   disabled?: boolean;
   onClick?: () => void;
-  presentation: "desktop" | "mobile";
   visualState?: BattleActionVisualState;
   className?: string;
   layout?: BattleLayoutConfig;
@@ -30,7 +29,6 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
   subtitle,
   disabled = false,
   onClick,
-  presentation,
   visualState = "normal",
   className,
   layout = battleActiveLayoutConfig,
@@ -43,7 +41,8 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
   selectedElements = [],
   snapTargets = [],
 }) => {
-  const isDesktop = presentation === "desktop";
+  const actionFrame = layout.elements.action;
+  const isCompactFrame = actionFrame.width <= 228 || actionFrame.height <= 84;
   const effectiveVisualState = disabled ? "disabled" : visualState;
   const resolvedTitle =
     (effectiveVisualState === "hover" && layout.text.actionTitleHover) ||
@@ -60,13 +59,13 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
     layout.text.actionSubtitle ||
     subtitle;
   const titleStyle = {
-    fontSize: `${Math.max(layout.text.titleFontSize + (isDesktop ? 2 : 0), isDesktop ? 18 : 14)}px`,
+    fontSize: `${Math.max(layout.text.titleFontSize + (isCompactFrame ? 0 : 2), isCompactFrame ? 14 : 18)}px`,
     letterSpacing: `${layout.text.titleLetterSpacing}em`,
     textAlign: layout.text.titleAlign,
     color: "#fff8eb",
   } as React.CSSProperties;
   const subtitleStyle = {
-    fontSize: `${Math.max(layout.text.bodyFontSize - 1, isDesktop ? 11 : 10)}px`,
+    fontSize: `${Math.max(layout.text.bodyFontSize - 1, isCompactFrame ? 10 : 11)}px`,
     letterSpacing: `${layout.text.bodyLetterSpacing}em`,
     textAlign: layout.text.bodyAlign,
     color: "#f4dab2",
@@ -75,6 +74,12 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
   const isSelected = effectiveVisualState === "selected";
   const isHover = effectiveVisualState === "hover";
   const isDisabled = effectiveVisualState === "disabled";
+  const iconFontSize = Math.round(
+    Math.max(
+      isCompactFrame ? 40 : 52,
+      Math.min(actionFrame.height * (isCompactFrame ? 0.52 : 0.58), isCompactFrame ? 46 : 64),
+    ),
+  );
 
   return (
     <Button
@@ -84,9 +89,7 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
       onClick={onClick}
       className={cn(
         "relative isolate flex h-full w-full items-center justify-between gap-0 overflow-hidden font-black transition-all duration-200",
-        isDesktop
-          ? "rounded-[1.6rem] px-7"
-          : "w-full rounded-[1.35rem] px-5",
+        isCompactFrame ? "w-full rounded-[1.35rem] px-5" : "rounded-[1.6rem] px-7",
         !isHover && !isPressed && !isSelected && !isDisabled ? "shadow-[0_10px_22px_rgba(0,0,0,0.26)]" : "",
         isHover ? "brightness-110 saturate-110 shadow-[0_22px_44px_rgba(0,0,0,0.48)]" : "",
         isPressed ? "translate-y-[2px] brightness-95 shadow-[0_10px_24px_rgba(0,0,0,0.38)]" : "",
@@ -118,12 +121,12 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
       <div
         className={cn(
           "relative shrink-0 place-items-center transition-transform duration-200",
-          isDesktop ? "-ml-2 mr-0 grid" : "-ml-2 -mr-1 grid",
+          isCompactFrame ? "-ml-2 -mr-1 grid" : "-ml-2 mr-0 grid",
           isHover ? "-translate-y-0.5 scale-[1.04]" : "",
           isPressed ? "translate-y-0.5 scale-[0.96]" : "",
         )}
         style={{
-          height: isDesktop ? "78%" : "72%",
+          height: isCompactFrame ? "72%" : "78%",
           aspectRatio: "1 / 1",
         }}
       >
@@ -136,7 +139,7 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
             isDisabled ? "text-amber-100/65" : "",
           )}
           style={{
-            fontSize: `${isDesktop ? 64 : 40}px`,
+            fontSize: `${iconFontSize}px`,
           }}
         >
           {"\u21BB"}
@@ -145,7 +148,7 @@ export const BattleActionButton: React.FC<BattleActionButtonProps> = ({
       <div
         className={cn(
           "relative flex min-w-0 flex-1 flex-col items-center text-center",
-          isDesktop ? "-translate-x-2" : "",
+          isCompactFrame ? "" : "-translate-x-2",
         )}
       >
         <span

@@ -152,14 +152,9 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
     horizontal: number | null;
   }>({ vertical: null, horizontal: null });
 
-  const isVisible =
-    config.visibleDesktop || config.visibleTablet || config.visibleMobile;
-
   useEffect(() => {
     setLiveConfig(config);
   }, [config]);
-
-  if (!isVisible) return null;
 
   const resolvedConfig = editorMode ? liveConfig : config;
 

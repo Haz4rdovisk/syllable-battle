@@ -7,8 +7,8 @@ import {
   normalizeBattleLayoutEditorPreviewState,
 } from "./BattleLayoutEditorState";
 import {
-  createBattleLayoutConfig,
-  pruneBattleLayoutOverrides,
+  createBattleLayoutConfigForDevice,
+  normalizeBattleLayoutDeviceOverrides,
 } from "./BattleLayoutConfig";
 import { battleSceneFixtures } from "./BattleSceneFixtures";
 import { BattleSceneFixtureView } from "./BattleSceneFixtureView";
@@ -17,7 +17,8 @@ const defaultPreviewState: BattleLayoutEditorPreviewState = {
   fixtureKey: "calm",
   focusArea: "overview",
   selectedElements: [],
-  layoutOverrides: {},
+  layoutDevice: "desktop",
+  layoutDeviceOverrides: normalizeBattleLayoutDeviceOverrides({}),
   showGrid: true,
   gridSize: 8,
   snapThreshold: 12,
@@ -83,7 +84,10 @@ function readPreviewState(): BattleLayoutEditorPreviewState {
         ((parsed.focusArea ?? defaultPreviewState.focusArea) === "overview"
           ? []
           : [parsed.focusArea ?? defaultPreviewState.focusArea]),
-      layoutOverrides: pruneBattleLayoutOverrides(parsed.layoutOverrides ?? {}),
+      layoutDevice: parsed.layoutDevice ?? defaultPreviewState.layoutDevice,
+      layoutDeviceOverrides: normalizeBattleLayoutDeviceOverrides(
+        parsed.layoutDeviceOverrides ?? {},
+      ),
       showGrid: parsed.showGrid ?? defaultPreviewState.showGrid,
       gridSize: parsed.gridSize ?? defaultPreviewState.gridSize,
       snapThreshold: parsed.snapThreshold ?? defaultPreviewState.snapThreshold,
@@ -238,8 +242,12 @@ export const BattleLayoutPreview: React.FC = () => {
   }, []);
 
   const layout = useMemo(
-    () => createBattleLayoutConfig(previewState.layoutOverrides),
-    [previewState.layoutOverrides],
+    () =>
+      createBattleLayoutConfigForDevice(
+        previewState.layoutDeviceOverrides,
+        previewState.layoutDevice,
+      ),
+    [previewState.layoutDevice, previewState.layoutDeviceOverrides],
   );
   const fixture =
     battleSceneFixtures[previewState.fixtureKey] ?? battleSceneFixtures.calm;
@@ -248,6 +256,7 @@ export const BattleLayoutPreview: React.FC = () => {
     <BattleSceneFixtureView
       fixture={fixture}
       layout={layout}
+      layoutPreviewDevice={previewState.layoutDevice}
       focusArea={previewState.focusArea}
       selectedElements={previewState.selectedElements}
       viewportWidth={previewState.viewportWidth}

@@ -20,7 +20,12 @@ import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleStatusPanel } from "./BattleStatusPanel";
 import { BattleActionButton } from "./BattleActionButton";
-import { BattleEditableElementKey, BattleLayoutConfig } from "./BattleLayoutConfig";
+import { BattleChroniclesPanel } from "./BattleChroniclesPanel";
+import {
+  BattleEditableElementKey,
+  BattleLayoutConfig,
+  BattleLayoutDeviceKey,
+} from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattleEditableElement } from "./BattleEditableElement";
 import {
@@ -53,6 +58,8 @@ import {
   getBattleDesktopShellSlots,
   getBattleElementSceneRect,
   getBattleStageMetrics,
+  resolveBattleRuntimeLayoutDevice,
+  shouldUseBattleMobileShell,
 } from "./BattleSceneSpace";
 import { AnimatePresence, motion } from "motion/react";
 import { GameMessage } from "../../types/game";
@@ -346,6 +353,7 @@ const getPreviewAreaClass = (
 export const BattleSceneFixtureView: React.FC<{
   fixture?: BattleSceneFixtureData;
   layout?: BattleLayoutConfig;
+  layoutPreviewDevice?: BattleLayoutDeviceKey;
   focusArea?: BattleScenePreviewFocusArea;
   selectedElements?: BattleScenePreviewFocusArea[];
   viewportWidth?: number;
@@ -369,6 +377,7 @@ export const BattleSceneFixtureView: React.FC<{
 }> = ({
   fixture = midTurnBattleFixture,
   layout = battleActiveLayoutConfig,
+  layoutPreviewDevice,
   focusArea = "overview",
   selectedElements = [],
   viewportWidth = 1600,
@@ -416,6 +425,9 @@ export const BattleSceneFixtureView: React.FC<{
     targetAttack3Destination: null,
   },
 }) => {
+  const usesMobileShell = shouldUseBattleMobileShell(
+    layoutPreviewDevice ?? resolveBattleRuntimeLayoutDevice(viewportWidth),
+  );
   const isPureOverview = focusArea === "overview";
   const isHandPlayTargetEditorSet =
     animationSet === "hand-play-target" ||
@@ -423,15 +435,15 @@ export const BattleSceneFixtureView: React.FC<{
   const shellSlots = getBattleDesktopShellSlots(layout);
   const boardVars = getBattleBoardSurfaceVars(layout);
   const stageMetrics = getBattleStageMetrics(viewportWidth, viewportHeight);
-  const isCompactPreview = viewportHeight <= 428 || viewportWidth <= 915;
-  const isCompactShellPreview = viewportWidth < 1024;
+  const isCompactPreview = usesMobileShell;
+  const isCompactShellPreview = usesMobileShell;
   const isCompactTightPreview = isCompactShellPreview && viewportHeight <= 464;
   const compactTopShellClassName = isCompactTightPreview
-    ? "h-full w-full px-2.5 py-1.5 lg:hidden"
-    : "h-full w-full px-3 py-2 lg:hidden sm:px-4";
+    ? "h-full w-full"
+    : "h-full w-full";
   const compactControlShellClassName = isCompactTightPreview
-    ? "h-full w-full p-1.5 lg:hidden"
-    : "h-full w-full p-2 lg:hidden";
+    ? "h-full w-full"
+    : "h-full w-full";
   const compactFooterFrameClassName = isCompactTightPreview ? "origin-top scale-[0.86]" : undefined;
   const compactShellSlots = getBattleCompactShellSlots(layout, isCompactTightPreview);
   const majorGridMultiplier = stageMetrics.scale < 0.55 || isCompactPreview ? 8 : 4;
@@ -3151,6 +3163,27 @@ export const BattleSceneFixtureView: React.FC<{
                       className={getPreviewAreaClass(focusArea, ["enemyDeck"])}
                     />
                   </BattleEditableElement>
+                  <BattleEditableElement
+                    element="chronicles"
+                    motionReplayNonce={getMotionReplayNonce("chronicles")}
+                    layout={layout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
+                    viewportWidth={viewportWidth}
+                    viewportHeight={viewportHeight}
+                    previewAnimations={editorMode}
+                    editorMode={editorMode}
+                    selected={isSelected("chronicles")}
+                    snapTargets={snapTargets}
+                    className="absolute left-0 top-0"
+                  >
+                    <BattleChroniclesPanel
+                      entries={fixture.scene.leftSidebar.chronicles}
+                      className={getPreviewAreaClass(focusArea, ["chronicles"])}
+                      layout={layout}
+                      visualState={chroniclesVisualState}
+                    />
+                  </BattleEditableElement>
                 </div>
               </div>
             }
@@ -3276,7 +3309,6 @@ export const BattleSceneFixtureView: React.FC<{
                 >
                   <BattleHandFocusFrame
                     scale="mobile"
-                    compact
                     className={compactFooterFrameClassName}
                   >
                     <BattleHandLane
@@ -3389,7 +3421,6 @@ export const BattleSceneFixtureView: React.FC<{
                     className="absolute left-0 top-0"
                   >
                     <BattleStatusPanel
-                      presentation="mobile"
                       title={fixture.scene.rightSidebar.hud.title}
                       turnLabel={fixture.scene.rightSidebar.hud.turnLabel}
                       clock={fixture.scene.rightSidebar.hud.clock}
@@ -3424,7 +3455,6 @@ export const BattleSceneFixtureView: React.FC<{
                     className="absolute left-0 top-0"
                   >
                     <BattleActionButton
-                      presentation="mobile"
                       title={fixture.scene.rightSidebar.action?.title ?? "Trocar"}
                       subtitle={fixture.scene.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
                       layout={layout}

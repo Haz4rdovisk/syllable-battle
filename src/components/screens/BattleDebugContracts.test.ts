@@ -21,13 +21,15 @@ import {
 import {
   createBattleLayoutConfig,
   createBattleLayoutPresetSource,
+  normalizeBattleLayoutDeviceOverrides,
 } from "./BattleLayoutConfig";
 
 const createPreviewState = (): BattleLayoutEditorPreviewState => ({
   fixtureKey: "calm",
   focusArea: "overview",
   selectedElements: [],
-  layoutOverrides: {},
+  layoutDevice: "desktop",
+  layoutDeviceOverrides: normalizeBattleLayoutDeviceOverrides({}),
   showGrid: true,
   gridSize: 8,
   snapThreshold: 12,
@@ -82,11 +84,15 @@ test("normalizeBattleLayoutEditorPreviewState normaliza legado, clamps e default
     ...createPreviewState(),
     focusArea: "enemyDecks" as never,
     selectedElements: ["playerDecks"] as never,
-    layoutOverrides: {
+    layoutDeviceOverrides: {
+      desktop: {
       text: {
         actionTitle: "Atacar",
       },
       shell: {},
+      },
+      tablet: {},
+      mobile: {},
     },
     showGrid: undefined as never,
     gridSize: 99,
@@ -108,11 +114,14 @@ test("normalizeBattleLayoutEditorPreviewState normaliza legado, clamps e default
 
   assert.equal(normalized.focusArea, "enemyDeck");
   assert.deepEqual(normalized.selectedElements, ["playerDeck"]);
-  assert.deepEqual(normalized.layoutOverrides, {
+  assert.equal(normalized.layoutDevice, "desktop");
+  assert.deepEqual(normalized.layoutDeviceOverrides.desktop, {
     text: {
       actionTitle: "Atacar",
     },
   });
+  assert.deepEqual(normalized.layoutDeviceOverrides.tablet, {});
+  assert.deepEqual(normalized.layoutDeviceOverrides.mobile, {});
   assert.equal(normalized.showGrid, true);
   assert.equal(normalized.gridSize, 64);
   assert.equal(normalized.snapThreshold, 4);
@@ -163,6 +172,65 @@ test("normalizeBattleLayoutEditorPreviewState usa fallback de resolucao e seleca
   assert.equal(normalized.animationSet, "opening-target-entry-first-round");
   assert.equal(normalized.animationMode, "idle");
   assert.equal(normalized.animationPreset, "none");
+});
+
+test("normalizeBattleLayoutEditorPreviewState preserva desktop-tablet-mobile independentes", () => {
+  const normalized = normalizeBattleLayoutEditorPreviewState(
+    {
+      ...createPreviewState(),
+      layoutDevice: "mobile",
+      layoutDeviceOverrides: {
+        desktop: {
+          elements: {
+            board: {
+              x: 12,
+            },
+          },
+        },
+        tablet: {
+          elements: {
+            board: {
+              x: 12,
+              y: 20,
+            },
+          },
+        },
+        mobile: {
+          elements: {
+            board: {
+              x: 18,
+              y: 34,
+            },
+          },
+        },
+      },
+    },
+  );
+
+  assert.equal(normalized.layoutDevice, "mobile");
+  assert.deepEqual(normalized.layoutDeviceOverrides.desktop, {
+    elements: {
+      board: {
+        x: 12,
+      },
+    },
+  });
+  assert.deepEqual(normalized.layoutDeviceOverrides.tablet, {
+    elements: {
+      board: {
+        x: 12,
+        y: 20,
+      },
+    },
+  });
+  assert.deepEqual(normalized.layoutDeviceOverrides.mobile, {
+    elements: {
+      board: {
+        x: 18,
+        y: 34,
+      },
+    },
+  });
 });
 
 test("getLiveAnimationAnchorReferenceTarget resolve destinos por tipo de ancora", () => {
@@ -371,12 +439,32 @@ test("layout visual dos montes preserva compatibilidade legada e serializa a nov
 
   const presetSource = createBattleLayoutPresetSource({
     text: {
-      actionTitle: "Trocar",
+      actionTitle: "Golpear",
     },
   });
 
   assert.match(
     presetSource,
+    /battleActiveLayoutDeviceOverrides/,
+  );
+  assert.match(
+    presetSource,
+    /"text": \{\s+"actionTitle": "Golpear"\s+\}/,
+  );
+  assert.match(
+    presetSource,
     /"visuals": \{\s+"cardBackPresetId": "arcane",\s+"deckPilePresetId": "arcane",\s+"targetPilePresetId": "arcane"\s+\}/,
+  );
+  assert.match(
+    presetSource,
+    /"tablet": \{\s+"text": \{\s+"actionTitle": "Golpear"\s+\}/,
+  );
+  assert.match(
+    presetSource,
+    /"mobile": \{\s+"text": \{\s+"actionTitle": "Golpear"\s+\}/,
+  );
+  assert.doesNotMatch(
+    presetSource,
+    /battleActiveLayoutVariantOverrides|battleActiveCompactLayoutOverrides|battleActiveCompactLayoutConfig|BattleLayoutVariantOverrides/,
   );
 });

@@ -191,7 +191,6 @@ const createDefaultAction = (
     title={title}
     subtitle={subtitle}
     disabled={disabled}
-    presentation="desktop"
     visualState={visualState}
     layout={layout}
     viewportWidth={viewportWidth}
@@ -262,7 +261,6 @@ export const BattleRightSidebarView: React.FC<BattleRightSidebarViewProps> = ({
       >
         <div className={cn("flex h-full w-full min-h-0 items-stretch justify-center", hudClassName)}>
           <BattleStatusPanel
-            presentation="desktop"
             title={sidebar.hud.title}
             turnLabel={sidebar.hud.turnLabel}
             clock={sidebar.hud.clock}

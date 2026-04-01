@@ -9,6 +9,8 @@ import {
   getBattleDesktopShellSlots,
   getBattleEditorFrame,
   getBattleElementParentBase,
+  resolveBattleRuntimeLayoutDevice,
+  shouldUseBattleMobileShell,
   getBattleStageMetrics,
   toBattleStageLocalRect,
 } from "./BattleSceneSpace";
@@ -25,6 +27,21 @@ test("getBattleStageMetrics resolve scale, offsets e orientacao no stage base", 
     offsetY: 0,
     isPortrait: false,
   });
+});
+
+test("resolveBattleRuntimeLayoutDevice usa breakpoint unico para desktop tablet e mobile", () => {
+  assert.equal(resolveBattleRuntimeLayoutDevice(1280), "desktop");
+  assert.equal(resolveBattleRuntimeLayoutDevice(1440), "desktop");
+  assert.equal(resolveBattleRuntimeLayoutDevice(1279), "tablet");
+  assert.equal(resolveBattleRuntimeLayoutDevice(1024), "tablet");
+  assert.equal(resolveBattleRuntimeLayoutDevice(959), "mobile");
+  assert.equal(resolveBattleRuntimeLayoutDevice(844), "mobile");
+});
+
+test("shouldUseBattleMobileShell usa shell mobile apenas no layout mobile", () => {
+  assert.equal(shouldUseBattleMobileShell("desktop"), false);
+  assert.equal(shouldUseBattleMobileShell("tablet"), false);
+  assert.equal(shouldUseBattleMobileShell("mobile"), true);
 });
 
 test("getBattleStageMetrics faz clamp dos limites minimos e centraliza viewport retrato", () => {
@@ -86,9 +103,6 @@ test("getBattleEditorFrame calcula frame global e relativo ao parent base", () =
     duration: 0.28,
     delay: 0,
     easing: "ease-out",
-    visibleDesktop: true,
-    visibleTablet: true,
-    visibleMobile: true,
   };
 
   const frame = getBattleEditorFrame(config, 10, 20);
@@ -126,9 +140,6 @@ test("battleGlobalFrameToScenePosition e battleEditorFrameToScenePosition preser
     duration: 0.28,
     delay: 0,
     easing: "ease-out",
-    visibleDesktop: true,
-    visibleTablet: true,
-    visibleMobile: true,
   };
 
   const frame = getBattleEditorFrame(config, 252, 124);

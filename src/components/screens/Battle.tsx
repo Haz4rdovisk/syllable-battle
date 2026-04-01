@@ -36,7 +36,9 @@ import { BattlePillOverlay } from "./BattlePillOverlay";
 import type {
   BattleAnimationAnchorPoint,
 } from "./BattleLayoutConfig";
-import { useActiveBattleLayoutConfig } from "./BattleActiveLayout";
+import {
+  useActiveBattleLayoutConfig,
+} from "./BattleActiveLayout";
 import {
   BattleFieldLane,
   BattleFieldLaneDebugSnapshot,
@@ -76,6 +78,8 @@ import {
   BATTLE_STAGE_HEIGHT,
   BATTLE_STAGE_WIDTH,
   getBattleCompactShellSlots,
+  resolveBattleRuntimeLayoutDevice,
+  shouldUseBattleMobileShell,
 } from "./BattleSceneSpace";
 import { BattleDevWatcherSample, useBattleDevRuntime } from "./BattleDevRuntime";
 import {
@@ -302,7 +306,16 @@ export const Battle: React.FC<BattleProps> = ({
   onReturnToLobby,
   onChooseDecksAgain,
 }) => {
-  const activeBattleLayout = useActiveBattleLayoutConfig();
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? BATTLE_STAGE_WIDTH : window.innerWidth,
+  );
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window === "undefined" ? BATTLE_STAGE_HEIGHT : window.innerHeight,
+  );
+  const activeLayoutDevice = resolveBattleRuntimeLayoutDevice(viewportWidth);
+  const usesMobileShell = shouldUseBattleMobileShell(activeLayoutDevice);
+  const isDesktopViewport = activeLayoutDevice !== "mobile";
+  const activeBattleLayout = useActiveBattleLayoutConfig(activeLayoutDevice);
   const boardVars = getBattleBoardSurfaceVars(activeBattleLayout);
   const localPlayerIndex = localSide === "player" ? PLAYER : ENEMY;
   const remotePlayerIndex = localPlayerIndex === PLAYER ? ENEMY : PLAYER;
@@ -367,12 +380,6 @@ export const Battle: React.FC<BattleProps> = ({
     initialGameRef.current.openingIntroStep === "coin-choice" ? INTRO.coinChoiceMs : 0,
   );
   const [turnPresentationLocked, setTurnPresentationLocked] = useState(false);
-  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
-    typeof window === "undefined" ? true : window.innerWidth >= 1024,
-  );
-  const [viewportHeight, setViewportHeight] = useState(() =>
-    typeof window === "undefined" ? 900 : window.innerHeight,
-  );
   const [game, setGame] = useState<GameState>(initialGameRef.current);
 
   const actionTimersRef = useRef<NodeJS.Timeout[]>([]);
@@ -2036,20 +2043,20 @@ export const Battle: React.FC<BattleProps> = ({
 
   useEffect(() => {
     const updateViewportMode = () => {
-      setIsDesktopViewport(window.innerWidth >= 1024);
+      setViewportWidth(window.innerWidth);
       setViewportHeight(window.innerHeight);
     };
     updateViewportMode();
     window.addEventListener("resize", updateViewportMode);
     return () => window.removeEventListener("resize", updateViewportMode);
   }, []);
-  const isCompactTightViewport = !isDesktopViewport && viewportHeight <= 464;
+  const isCompactTightViewport = usesMobileShell && viewportHeight <= 464;
   const compactTopShellClassName = isCompactTightViewport
-    ? "h-full w-full px-2.5 py-1.5 lg:hidden"
-    : "h-full w-full px-3 py-2 lg:hidden sm:px-4";
+    ? "h-full w-full"
+    : "h-full w-full";
   const compactControlShellClassName = isCompactTightViewport
-    ? "h-full w-full p-1.5 lg:hidden"
-    : "h-full w-full p-2 lg:hidden";
+    ? "h-full w-full"
+    : "h-full w-full";
   const compactFooterFrameClassName = isCompactTightViewport ? "origin-top scale-[0.86]" : undefined;
   const compactShellSlots = getBattleCompactShellSlots(
     activeBattleLayout,
@@ -3678,7 +3685,7 @@ export const Battle: React.FC<BattleProps> = ({
         <BattleEditableElement element="shell" layout={activeBattleLayout}>
           <BattleBoardShell
             layout={activeBattleLayout}
-            compact={!isDesktopViewport}
+            compact={usesMobileShell}
             tight={isCompactTightViewport}
             leftSidebar={
               <BattleLeftSidebarView
@@ -3737,6 +3744,18 @@ export const Battle: React.FC<BattleProps> = ({
                       pilePresetId={activeBattleLayout.visuals.deckPilePresetId}
                     />
                   </BattleEditableElement>
+                  <BattleEditableElement
+                    element="chronicles"
+                    layout={activeBattleLayout}
+                    baseX={compactShellSlots.top.x}
+                    baseY={compactShellSlots.top.y}
+                    className="absolute left-0 top-0"
+                  >
+                    <BattleChroniclesPanel
+                      entries={sceneViewModel.leftSidebar.chronicles}
+                      layout={activeBattleLayout}
+                    />
+                  </BattleEditableElement>
                 </div>
               </div>
             }
@@ -3757,8 +3776,8 @@ export const Battle: React.FC<BattleProps> = ({
             <BattleEditableElement
               element="board"
               layout={activeBattleLayout}
-              baseX={!isDesktopViewport ? compactShellSlots.board.x : undefined}
-              baseY={!isDesktopViewport ? compactShellSlots.board.y : undefined}
+              baseX={usesMobileShell ? compactShellSlots.board.x : undefined}
+              baseY={usesMobileShell ? compactShellSlots.board.y : undefined}
             >
               <BattleBoardSurface layout={activeBattleLayout} />
             </BattleEditableElement>
@@ -3791,7 +3810,6 @@ export const Battle: React.FC<BattleProps> = ({
                 >
                   <BattleHandFocusFrame
                     scale="mobile"
-                    compact
                     className={compactFooterFrameClassName}
                   >
                     {renderPlayerHand("mobile")}
@@ -3845,7 +3863,6 @@ export const Battle: React.FC<BattleProps> = ({
                     className="absolute left-0 top-0"
                   >
                     <BattleStatusPanel
-                      presentation="mobile"
                       title="Tempo"
                       turnLabel={desktopTurnLabel}
                       clock={turnClock}
@@ -3862,7 +3879,6 @@ export const Battle: React.FC<BattleProps> = ({
                     className="absolute left-0 top-0"
                   >
                     <BattleActionButton
-                      presentation="mobile"
                       title="Trocar"
                       layout={activeBattleLayout}
                       className={cn(
@@ -3881,7 +3897,6 @@ export const Battle: React.FC<BattleProps> = ({
               sidebar={sceneViewModel.rightSidebar}
               action={
                 <BattleActionButton
-                  presentation="desktop"
                   title={sceneViewModel.rightSidebar.action?.title ?? "Trocar"}
                   subtitle={sceneViewModel.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
                   layout={activeBattleLayout}

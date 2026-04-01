@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  BattleLayoutDeviceOverrides,
+  BattleLayoutDeviceKey,
   BattleLayoutOverrides,
-  createBattleLayoutConfig,
-  pruneBattleLayoutOverrides,
+  createBattleLayoutConfigForDevice,
+  normalizeBattleLayoutDeviceOverrides,
 } from "./BattleLayoutConfig";
-import { battleActiveLayoutOverrides } from "./BattleLayoutPreset";
+import {
+  battleActiveLayoutDeviceOverrides,
+} from "./BattleLayoutPreset";
 import {
   BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY,
   BATTLE_LAYOUT_MODEL_VERSION,
@@ -12,32 +16,38 @@ import {
 } from "./BattleLayoutEditorState";
 
 export function readActiveBattleLayoutOverrides(): BattleLayoutOverrides {
+  return readActiveBattleLayoutDeviceOverrides().desktop;
+}
+
+export function readActiveBattleLayoutDeviceOverrides(): BattleLayoutDeviceOverrides {
   if (typeof window === "undefined") {
-    return pruneBattleLayoutOverrides(battleActiveLayoutOverrides);
+    return normalizeBattleLayoutDeviceOverrides(battleActiveLayoutDeviceOverrides);
   }
 
   try {
     const storedVersion = window.localStorage.getItem(BATTLE_LAYOUT_MODEL_VERSION_KEY);
     if (storedVersion !== String(BATTLE_LAYOUT_MODEL_VERSION)) {
-      return pruneBattleLayoutOverrides(battleActiveLayoutOverrides);
+      return normalizeBattleLayoutDeviceOverrides(battleActiveLayoutDeviceOverrides);
     }
     const raw = window.localStorage.getItem(BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY);
-    if (!raw) return pruneBattleLayoutOverrides(battleActiveLayoutOverrides);
-    return pruneBattleLayoutOverrides(
-      JSON.parse(raw) as BattleLayoutOverrides,
+    if (!raw) return normalizeBattleLayoutDeviceOverrides(battleActiveLayoutDeviceOverrides);
+    return normalizeBattleLayoutDeviceOverrides(
+      JSON.parse(raw) as BattleLayoutDeviceOverrides | BattleLayoutOverrides,
     );
   } catch {
-    return pruneBattleLayoutOverrides(battleActiveLayoutOverrides);
+    return normalizeBattleLayoutDeviceOverrides(battleActiveLayoutDeviceOverrides);
   }
 }
 
-export function useActiveBattleLayoutConfig() {
-  const [layoutOverrides, setLayoutOverrides] = useState<BattleLayoutOverrides>(
-    () => readActiveBattleLayoutOverrides(),
+export function useActiveBattleLayoutConfig(
+  device: BattleLayoutDeviceKey = "desktop",
+) {
+  const [layoutDeviceOverrides, setLayoutDeviceOverrides] = useState<BattleLayoutDeviceOverrides>(
+    () => readActiveBattleLayoutDeviceOverrides(),
   );
 
   useEffect(() => {
-    const sync = () => setLayoutOverrides(readActiveBattleLayoutOverrides());
+    const sync = () => setLayoutDeviceOverrides(readActiveBattleLayoutDeviceOverrides());
 
     window.addEventListener("storage", sync);
     window.addEventListener(BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY, sync as EventListener);
@@ -51,7 +61,7 @@ export function useActiveBattleLayoutConfig() {
   }, []);
 
   return useMemo(
-    () => createBattleLayoutConfig(layoutOverrides),
-    [layoutOverrides],
+    () => createBattleLayoutConfigForDevice(layoutDeviceOverrides, device),
+    [layoutDeviceOverrides, device],
   );
 }

@@ -54,7 +54,6 @@ export interface BattleHudLayoutConfig {
   mobileStatusHeight: number;
   actionWidth: number;
   actionHeight: number;
-  mobileActionWidth: number;
   mobileActionHeight: number;
   actionSlotHeight: number;
 }
@@ -108,9 +107,6 @@ export interface BattleElementPropertyConfig {
   duration: number;
   delay: number;
   easing: BattleElementEasing;
-  visibleDesktop: boolean;
-  visibleTablet: boolean;
-  visibleMobile: boolean;
 }
 
 export interface BattleTextLayoutConfig {
@@ -202,6 +198,14 @@ export type BattleLayoutOverrides = Partial<{
   animations: Partial<BattleAnimationLayoutConfig>;
 }>;
 
+export type BattleLayoutDeviceKey = "desktop" | "tablet" | "mobile";
+
+export interface BattleLayoutDeviceOverrides {
+  desktop: BattleLayoutOverrides;
+  tablet: BattleLayoutOverrides;
+  mobile: BattleLayoutOverrides;
+}
+
 const createDefaultElementConfig = (): BattleElementPropertyConfig => ({
   x: 0,
   y: 0,
@@ -220,9 +224,6 @@ const createDefaultElementConfig = (): BattleElementPropertyConfig => ({
   duration: 0.28,
   delay: 0,
   easing: "ease-out",
-  visibleDesktop: true,
-  visibleTablet: true,
-  visibleMobile: true,
 });
 
 const defaultShellLayout: BattleShellLayoutConfig = {
@@ -267,7 +268,6 @@ const defaultHudLayout: BattleHudLayoutConfig = {
   mobileStatusHeight: 88,
   actionWidth: 244,
   actionHeight: 112,
-  mobileActionWidth: 220,
   mobileActionHeight: 64,
   actionSlotHeight: 162,
 };
@@ -788,6 +788,75 @@ export function createBattleLayoutConfig(
   };
 }
 
+export function mergeBattleLayoutOverrides(
+  base: BattleLayoutOverrides,
+  patch: BattleLayoutOverrides,
+): BattleLayoutOverrides {
+  const next: BattleLayoutOverrides = { ...base };
+
+  if (patch.shell) {
+    next.shell = {
+      ...(base.shell ?? {}),
+      ...patch.shell,
+    };
+  }
+
+  if (patch.board) {
+    next.board = {
+      ...(base.board ?? {}),
+      ...patch.board,
+    };
+  }
+
+  if (patch.sidebars) {
+    next.sidebars = {
+      ...(base.sidebars ?? {}),
+      ...patch.sidebars,
+    };
+  }
+
+  if (patch.hud) {
+    next.hud = {
+      ...(base.hud ?? {}),
+      ...patch.hud,
+    };
+  }
+
+  if (patch.visuals) {
+    next.visuals = {
+      ...(base.visuals ?? {}),
+      ...patch.visuals,
+    };
+  }
+
+  if (patch.text) {
+    next.text = {
+      ...(base.text ?? {}),
+      ...patch.text,
+    };
+  }
+
+  if (patch.animations) {
+    next.animations = {
+      ...(base.animations ?? {}),
+      ...patch.animations,
+    };
+  }
+
+  if (patch.elements) {
+    next.elements = { ...(base.elements ?? {}) };
+    Object.entries(patch.elements).forEach(([elementKey, elementPatch]) => {
+      if (!elementPatch) return;
+      next.elements![elementKey as BattleEditableElementKey] = {
+        ...(base.elements?.[elementKey as BattleEditableElementKey] ?? {}),
+        ...elementPatch,
+      };
+    });
+  }
+
+  return next;
+}
+
 export function pruneBattleLayoutOverrides(
   overrides: BattleLayoutOverrides = {},
 ): BattleLayoutOverrides {
@@ -857,15 +926,73 @@ export function pruneBattleLayoutOverrides(
   return pruned;
 }
 
+const cloneBattleLayoutOverrides = (
+  overrides: BattleLayoutOverrides,
+): BattleLayoutOverrides => JSON.parse(JSON.stringify(overrides));
+
+const isBattleLayoutDeviceOverrides = (
+  overrides: unknown,
+): overrides is Partial<BattleLayoutDeviceOverrides> =>
+  !!overrides &&
+  typeof overrides === "object" &&
+  (Object.prototype.hasOwnProperty.call(overrides, "desktop") ||
+    Object.prototype.hasOwnProperty.call(overrides, "tablet") ||
+    Object.prototype.hasOwnProperty.call(overrides, "mobile"));
+
+export function normalizeBattleLayoutDeviceOverrides(
+  overrides?: BattleLayoutOverrides | Partial<BattleLayoutDeviceOverrides> | null,
+): BattleLayoutDeviceOverrides {
+  if (isBattleLayoutDeviceOverrides(overrides)) {
+    const desktop = pruneBattleLayoutOverrides(overrides.desktop ?? {});
+    const tablet = pruneBattleLayoutOverrides(
+      overrides.tablet ?? cloneBattleLayoutOverrides(desktop),
+    );
+    const mobile = pruneBattleLayoutOverrides(
+      overrides.mobile ?? cloneBattleLayoutOverrides(desktop),
+    );
+    return {
+      desktop,
+      tablet,
+      mobile,
+    };
+  }
+
+  const normalized = pruneBattleLayoutOverrides((overrides ?? {}) as BattleLayoutOverrides);
+  return {
+    desktop: normalized,
+    tablet: cloneBattleLayoutOverrides(normalized),
+    mobile: cloneBattleLayoutOverrides(normalized),
+  };
+}
+
+export function resolveBattleLayoutDeviceOverrides(
+  overrides: BattleLayoutDeviceOverrides,
+  device: BattleLayoutDeviceKey,
+): BattleLayoutOverrides {
+  return pruneBattleLayoutOverrides(overrides[device]);
+}
+
+export function createBattleLayoutConfigForDevice(
+  overrides: BattleLayoutDeviceOverrides,
+  device: BattleLayoutDeviceKey,
+): BattleLayoutConfig {
+  return createBattleLayoutConfig(resolveBattleLayoutDeviceOverrides(overrides, device));
+}
+
 export function createBattleLayoutPresetSource(
-  overrides: BattleLayoutOverrides = {},
+  overrides: BattleLayoutOverrides | Partial<BattleLayoutDeviceOverrides> = {},
 ): string {
-  const pruned = pruneBattleLayoutOverrides(overrides);
-  const visualOverrides = (overrides.visuals ?? {}) as LegacyBattleVisualLayoutOverrides;
+  const normalizedDeviceOverrides = normalizeBattleLayoutDeviceOverrides(overrides);
+  const serializable: BattleLayoutDeviceOverrides = {
+    desktop: pruneBattleLayoutOverrides(normalizedDeviceOverrides.desktop),
+    tablet: pruneBattleLayoutOverrides(normalizedDeviceOverrides.tablet),
+    mobile: pruneBattleLayoutOverrides(normalizedDeviceOverrides.mobile),
+  };
+  const visualOverrides = (serializable.desktop.visuals ?? {}) as LegacyBattleVisualLayoutOverrides;
   const legacyCardStackPresetId = visualOverrides.cardStackPresetId;
   const legacyPilePresetId = visualOverrides.pilePresetId;
-  const serializable: BattleLayoutOverrides = {
-    ...pruned,
+  serializable.desktop = {
+    ...serializable.desktop,
     visuals: {
       cardBackPresetId:
         visualOverrides.cardBackPresetId ??
@@ -885,14 +1012,30 @@ export function createBattleLayoutPresetSource(
   };
   return [
     'import {',
+    "  BattleLayoutDeviceOverrides,",
     "  BattleLayoutOverrides,",
     "  createBattleLayoutConfig,",
     '} from "./BattleLayoutConfig";',
     "",
-    `export const battleActiveLayoutOverrides: BattleLayoutOverrides = ${JSON.stringify(serializable, null, 2)};`,
+    `export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = ${JSON.stringify(serializable, null, 2)};`,
+    "",
+    "export const battleActiveDesktopLayoutOverrides: BattleLayoutOverrides =",
+    "  battleActiveLayoutDeviceOverrides.desktop;",
+    "",
+    "export const battleActiveTabletLayoutOverrides: BattleLayoutOverrides =",
+    "  battleActiveLayoutDeviceOverrides.tablet;",
+    "",
+    "export const battleActiveMobileLayoutOverrides: BattleLayoutOverrides =",
+    "  battleActiveLayoutDeviceOverrides.mobile;",
     "",
     "export const battleActiveLayoutConfig =",
-    "  createBattleLayoutConfig(battleActiveLayoutOverrides);",
+    "  createBattleLayoutConfig(battleActiveDesktopLayoutOverrides);",
+    "",
+    "export const battleActiveTabletLayoutConfig =",
+    "  createBattleLayoutConfig(battleActiveTabletLayoutOverrides);",
+    "",
+    "export const battleActiveMobileLayoutConfig =",
+    "  createBattleLayoutConfig(battleActiveMobileLayoutOverrides);",
     "",
   ].join("\n");
 }

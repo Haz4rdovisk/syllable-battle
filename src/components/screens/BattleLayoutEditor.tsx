@@ -14,15 +14,21 @@ import {
   BattleElementEasing,
   BattleElementPropertyConfig,
   BattleLayoutConfig,
+  BattleLayoutDeviceKey,
+  BattleLayoutDeviceOverrides,
   BattleLayoutOverrides,
-  createBattleLayoutConfig,
+  createBattleLayoutConfigForDevice,
   createBattleLayoutPresetSource,
+  mergeBattleLayoutOverrides,
+  normalizeBattleLayoutDeviceOverrides,
   pruneBattleLayoutOverrides,
 } from "./BattleLayoutConfig";
 import {
-  battleActiveLayoutOverrides,
+  battleActiveLayoutDeviceOverrides,
 } from "./BattleLayoutPreset";
-import { readActiveBattleLayoutOverrides } from "./BattleActiveLayout";
+import {
+  readActiveBattleLayoutDeviceOverrides,
+} from "./BattleActiveLayout";
 import {
   BattleActionVisualState,
   BattleLayoutPreviewAnimationAnchors,
@@ -32,7 +38,6 @@ import {
   BattleLayoutPreviewAnimationPreset,
   BattleEditorGroup,
   BattleChroniclesVisualState,
-  BattleLayoutPreviewDevice,
   battleLayoutPreviewDevices,
   battleLayoutPreviewResolutions,
   BattleStatusVisualState,
@@ -127,9 +132,6 @@ const elementPropertyDiffLabels: Record<keyof BattleElementPropertyConfig, strin
   duration: "Duracao",
   delay: "Delay",
   easing: "Easing",
-  visibleDesktop: "Visivel no desktop",
-  visibleTablet: "Visivel no tablet",
-  visibleMobile: "Visivel no mobile",
 };
 
 const fixtureOptions: BattleSceneFixtureKey[] = [
@@ -923,68 +925,6 @@ const getHandPlayTargetIndexFromPreset = (
   return null;
 };
 
-const mergeBattleLayoutOverrides = (
-  base: BattleLayoutOverrides,
-  patch: BattleLayoutOverrides,
-): BattleLayoutOverrides => {
-  const next: BattleLayoutOverrides = { ...base };
-
-  if (patch.shell) {
-    next.shell = {
-      ...(base.shell ?? {}),
-      ...patch.shell,
-    };
-  }
-
-  if (patch.board) {
-    next.board = {
-      ...(base.board ?? {}),
-      ...patch.board,
-    };
-  }
-
-  if (patch.sidebars) {
-    next.sidebars = {
-      ...(base.sidebars ?? {}),
-      ...patch.sidebars,
-    };
-  }
-
-  if (patch.hud) {
-    next.hud = {
-      ...(base.hud ?? {}),
-      ...patch.hud,
-    };
-  }
-
-  if (patch.text) {
-    next.text = {
-      ...(base.text ?? {}),
-      ...patch.text,
-    };
-  }
-
-  if (patch.animations) {
-    next.animations = {
-      ...(base.animations ?? {}),
-      ...patch.animations,
-    };
-  }
-
-  if (patch.elements) {
-    next.elements = { ...(base.elements ?? {}) };
-    Object.entries(patch.elements).forEach(([elementKey, elementPatch]) => {
-      if (!elementPatch) return;
-      next.elements![elementKey as BattleEditableElementKey] = {
-        ...(base.elements?.[elementKey as BattleEditableElementKey] ?? {}),
-        ...elementPatch,
-      };
-    });
-  }
-
-  return next;
-};
-
 const focusAreaToElementKey = (
   focusArea: BattleScenePreviewFocusArea,
 ): BattleEditableElementKey | null => {
@@ -1415,35 +1355,43 @@ const TextControl: React.FC<{
   </label>
 );
 
+const defaultLayoutDeviceOverrides = normalizeBattleLayoutDeviceOverrides(
+  battleActiveLayoutDeviceOverrides,
+);
+
+const createDefaultBattleLayoutEditorPreviewState = () =>
+  normalizeBattleLayoutEditorPreviewState({
+    fixtureKey: "calm",
+    focusArea: "shell",
+    selectedElements: ["shell"],
+    layoutDevice: "desktop",
+    layoutDeviceOverrides: defaultLayoutDeviceOverrides,
+    showGrid: true,
+    gridSize: 8,
+    snapThreshold: 12,
+    previewDevice: "desktop",
+    viewportWidth: battleLayoutPreviewDevices.desktop.width,
+    viewportHeight: battleLayoutPreviewDevices.desktop.height,
+    actionVisualState: "normal",
+    statusVisualState: "normal",
+    chroniclesVisualState: "normal",
+    animationSet: "opening-target-entry-first-round",
+    animationMode: "idle",
+    animationPreset: "none",
+    animationRunId: 0,
+    localMotionPreviewElement: null,
+    localMotionPreviewRunId: 0,
+    trajectoryLoopEnabled: false,
+    localMotionLoopEnabled: false,
+    combinedLoopEnabled: false,
+    animationAnchorTool: null,
+    animationDebugEnabled: false,
+    animationAnchors: defaultAnimationAnchors,
+  });
+
 const readInitialBattleLayoutEditorPreviewState = () => {
   if (typeof window === "undefined") {
-    return normalizeBattleLayoutEditorPreviewState({
-      fixtureKey: "calm",
-      focusArea: "shell",
-      selectedElements: ["shell"],
-      layoutOverrides: battleActiveLayoutOverrides,
-      showGrid: true,
-      gridSize: 8,
-      snapThreshold: 12,
-      previewDevice: "desktop",
-      viewportWidth: battleLayoutPreviewDevices.desktop.width,
-      viewportHeight: battleLayoutPreviewDevices.desktop.height,
-      actionVisualState: "normal",
-      statusVisualState: "normal",
-      chroniclesVisualState: "normal",
-      animationSet: "opening-target-entry-first-round",
-      animationMode: "idle",
-      animationPreset: "none",
-      animationRunId: 0,
-      localMotionPreviewElement: null,
-      localMotionPreviewRunId: 0,
-      trajectoryLoopEnabled: false,
-      localMotionLoopEnabled: false,
-      combinedLoopEnabled: false,
-      animationAnchorTool: null,
-      animationDebugEnabled: false,
-      animationAnchors: defaultAnimationAnchors,
-    });
+    return createDefaultBattleLayoutEditorPreviewState();
   }
 
   try {
@@ -1456,63 +1404,11 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       window.localStorage.removeItem(BATTLE_LAYOUT_EDITOR_STATE_KEY);
       window.localStorage.removeItem(BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY);
       window.localStorage.removeItem(BATTLE_LAYOUT_EDITOR_BASELINE_KEY);
-      return normalizeBattleLayoutEditorPreviewState({
-        fixtureKey: "calm",
-        focusArea: "shell",
-        selectedElements: ["shell"],
-        layoutOverrides: battleActiveLayoutOverrides,
-        showGrid: true,
-        gridSize: 8,
-        snapThreshold: 12,
-        previewDevice: "desktop",
-        viewportWidth: battleLayoutPreviewDevices.desktop.width,
-        viewportHeight: battleLayoutPreviewDevices.desktop.height,
-        actionVisualState: "normal",
-        statusVisualState: "normal",
-        chroniclesVisualState: "normal",
-        animationSet: "opening-target-entry-first-round",
-        animationMode: "idle",
-        animationPreset: "none",
-        animationRunId: 0,
-        localMotionPreviewElement: null,
-        localMotionPreviewRunId: 0,
-        trajectoryLoopEnabled: false,
-        localMotionLoopEnabled: false,
-        combinedLoopEnabled: false,
-        animationAnchorTool: null,
-        animationDebugEnabled: false,
-        animationAnchors: defaultAnimationAnchors,
-      });
+      return createDefaultBattleLayoutEditorPreviewState();
     }
     const raw = window.localStorage.getItem(BATTLE_LAYOUT_EDITOR_STATE_KEY);
     if (!raw) {
-      return normalizeBattleLayoutEditorPreviewState({
-        fixtureKey: "calm",
-        focusArea: "shell",
-        selectedElements: ["shell"],
-        layoutOverrides: battleActiveLayoutOverrides,
-        showGrid: true,
-        gridSize: 8,
-        snapThreshold: 12,
-        previewDevice: "desktop",
-        viewportWidth: battleLayoutPreviewDevices.desktop.width,
-        viewportHeight: battleLayoutPreviewDevices.desktop.height,
-        actionVisualState: "normal",
-        statusVisualState: "normal",
-        chroniclesVisualState: "normal",
-        animationSet: "opening-target-entry-first-round",
-        animationMode: "idle",
-        animationPreset: "none",
-        animationRunId: 0,
-        localMotionPreviewElement: null,
-        localMotionPreviewRunId: 0,
-        trajectoryLoopEnabled: false,
-        localMotionLoopEnabled: false,
-        combinedLoopEnabled: false,
-        animationAnchorTool: null,
-        animationDebugEnabled: false,
-        animationAnchors: defaultAnimationAnchors,
-      });
+      return createDefaultBattleLayoutEditorPreviewState();
     }
 
     const parsed = JSON.parse(raw);
@@ -1524,7 +1420,8 @@ const readInitialBattleLayoutEditorPreviewState = () => {
         (parsed.focusArea === "overview"
           ? []
           : [parsed.focusArea ?? "shell"]),
-      layoutOverrides: parsed.layoutOverrides ?? battleActiveLayoutOverrides,
+      layoutDevice: parsed.layoutDevice ?? "desktop",
+      layoutDeviceOverrides: parsed.layoutDeviceOverrides ?? defaultLayoutDeviceOverrides,
       showGrid: parsed.showGrid ?? true,
       gridSize: parsed.gridSize ?? 8,
       snapThreshold: parsed.snapThreshold ?? 12,
@@ -1603,33 +1500,7 @@ const readInitialBattleLayoutEditorPreviewState = () => {
       },
     });
   } catch {
-    return normalizeBattleLayoutEditorPreviewState({
-      fixtureKey: "calm",
-      focusArea: "shell",
-      selectedElements: ["shell"],
-      layoutOverrides: battleActiveLayoutOverrides,
-      showGrid: true,
-      gridSize: 8,
-      snapThreshold: 12,
-      previewDevice: "desktop",
-      viewportWidth: battleLayoutPreviewDevices.desktop.width,
-      viewportHeight: battleLayoutPreviewDevices.desktop.height,
-      actionVisualState: "normal",
-      statusVisualState: "normal",
-      chroniclesVisualState: "normal",
-      animationSet: "opening-target-entry-first-round",
-      animationMode: "idle",
-      animationPreset: "none",
-      animationRunId: 0,
-      localMotionPreviewElement: null,
-      localMotionPreviewRunId: 0,
-      trajectoryLoopEnabled: false,
-      localMotionLoopEnabled: false,
-      combinedLoopEnabled: false,
-      animationAnchorTool: null,
-      animationDebugEnabled: false,
-      animationAnchors: defaultAnimationAnchors,
-    });
+    return createDefaultBattleLayoutEditorPreviewState();
   }
 };
 
@@ -1638,6 +1509,8 @@ export const BattleLayoutEditor: React.FC = () => {
     () => readInitialBattleLayoutEditorPreviewState(),
     [],
   );
+  const initialLayoutOverrides =
+    initialPreviewState.layoutDeviceOverrides[initialPreviewState.layoutDevice];
   const [fixtureKey, setFixtureKey] = useState<BattleSceneFixtureKey>(
     initialPreviewState.fixtureKey,
   );
@@ -1646,17 +1519,19 @@ export const BattleLayoutEditor: React.FC = () => {
   const [selectedElements, setSelectedElements] = useState<
     BattleScenePreviewFocusArea[]
   >(initialPreviewState.selectedElements);
-  const [layoutOverrides, setLayoutOverrides] = useState<BattleLayoutOverrides>(
-    initialPreviewState.layoutOverrides,
+  const [layoutDevice, setLayoutDevice] = useState<BattleLayoutDeviceKey>(
+    initialPreviewState.layoutDevice,
   );
+  const [layoutDeviceOverrides, setLayoutDeviceOverrides] =
+    useState<BattleLayoutDeviceOverrides>(
+      initialPreviewState.layoutDeviceOverrides,
+    );
   const [showGrid, setShowGrid] = useState(initialPreviewState.showGrid);
   const [gridSize, setGridSize] = useState(initialPreviewState.gridSize);
   const [snapThreshold, setSnapThreshold] = useState(initialPreviewState.snapThreshold);
   const [undoStack, setUndoStack] = useState<BattleLayoutOverrides[]>([]);
   const [redoStack, setRedoStack] = useState<BattleLayoutOverrides[]>([]);
   const [previewScale, setPreviewScale] = useState(65);
-  const [previewDevice, setPreviewDevice] =
-    useState<BattleLayoutPreviewDevice>(initialPreviewState.previewDevice);
   const [viewportWidth, setViewportWidth] = useState(
     initialPreviewState.viewportWidth,
   );
@@ -1708,55 +1583,55 @@ export const BattleLayoutEditor: React.FC = () => {
   const [animationAnchors, setAnimationAnchors] = useState<BattleLayoutPreviewAnimationAnchors>(
     initialPreviewState.animationAnchors ?? {
       openingTargetEntry0Origin:
-        initialPreviewState.layoutOverrides.animations?.openingTargetEntry0Origin ?? null,
+        initialLayoutOverrides.animations?.openingTargetEntry0Origin ?? null,
       openingTargetEntry1Origin:
-        initialPreviewState.layoutOverrides.animations?.openingTargetEntry1Origin ?? null,
+        initialLayoutOverrides.animations?.openingTargetEntry1Origin ?? null,
       openingTargetEntry2Origin:
-        initialPreviewState.layoutOverrides.animations?.openingTargetEntry2Origin ?? null,
+        initialLayoutOverrides.animations?.openingTargetEntry2Origin ?? null,
       openingTargetEntry3Origin:
-        initialPreviewState.layoutOverrides.animations?.openingTargetEntry3Origin ?? null,
+        initialLayoutOverrides.animations?.openingTargetEntry3Origin ?? null,
       replacementTargetEntry0Origin:
-        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry0Origin ?? null,
+        initialLayoutOverrides.animations?.replacementTargetEntry0Origin ?? null,
       replacementTargetEntry1Origin:
-        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry1Origin ?? null,
+        initialLayoutOverrides.animations?.replacementTargetEntry1Origin ?? null,
       replacementTargetEntry2Origin:
-        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry2Origin ?? null,
+        initialLayoutOverrides.animations?.replacementTargetEntry2Origin ?? null,
       replacementTargetEntry3Origin:
-        initialPreviewState.layoutOverrides.animations?.replacementTargetEntry3Origin ?? null,
+        initialLayoutOverrides.animations?.replacementTargetEntry3Origin ?? null,
       postPlayHandDrawOrigin:
-        initialPreviewState.layoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
+        initialLayoutOverrides.animations?.postPlayHandDrawOrigin ?? null,
       handPlayTarget0Destination:
-        initialPreviewState.layoutOverrides.animations?.handPlayTarget0Destination ?? null,
+        initialLayoutOverrides.animations?.handPlayTarget0Destination ?? null,
       handPlayTarget1Destination:
-        initialPreviewState.layoutOverrides.animations?.handPlayTarget1Destination ?? null,
+        initialLayoutOverrides.animations?.handPlayTarget1Destination ?? null,
       mulliganReturn1Destination:
-        initialPreviewState.layoutOverrides.animations?.mulliganReturn1Destination ?? null,
+        initialLayoutOverrides.animations?.mulliganReturn1Destination ?? null,
       mulliganReturn2Destination:
-        initialPreviewState.layoutOverrides.animations?.mulliganReturn2Destination ?? null,
+        initialLayoutOverrides.animations?.mulliganReturn2Destination ?? null,
       mulliganReturn3Destination:
-        initialPreviewState.layoutOverrides.animations?.mulliganReturn3Destination ?? null,
+        initialLayoutOverrides.animations?.mulliganReturn3Destination ?? null,
       mulliganDraw1Origin:
-        initialPreviewState.layoutOverrides.animations?.mulliganDraw1Origin ?? null,
+        initialLayoutOverrides.animations?.mulliganDraw1Origin ?? null,
       mulliganDraw2Origin:
-        initialPreviewState.layoutOverrides.animations?.mulliganDraw2Origin ?? null,
+        initialLayoutOverrides.animations?.mulliganDraw2Origin ?? null,
       mulliganDraw3Origin:
-        initialPreviewState.layoutOverrides.animations?.mulliganDraw3Origin ?? null,
+        initialLayoutOverrides.animations?.mulliganDraw3Origin ?? null,
       targetAttack0Impact:
-        initialPreviewState.layoutOverrides.animations?.targetAttack0Impact ?? null,
+        initialLayoutOverrides.animations?.targetAttack0Impact ?? null,
       targetAttack1Impact:
-        initialPreviewState.layoutOverrides.animations?.targetAttack1Impact ?? null,
+        initialLayoutOverrides.animations?.targetAttack1Impact ?? null,
       targetAttack2Impact:
-        initialPreviewState.layoutOverrides.animations?.targetAttack2Impact ?? null,
+        initialLayoutOverrides.animations?.targetAttack2Impact ?? null,
       targetAttack3Impact:
-        initialPreviewState.layoutOverrides.animations?.targetAttack3Impact ?? null,
+        initialLayoutOverrides.animations?.targetAttack3Impact ?? null,
       targetAttack0Destination:
-        initialPreviewState.layoutOverrides.animations?.targetAttack0Destination ?? null,
+        initialLayoutOverrides.animations?.targetAttack0Destination ?? null,
       targetAttack1Destination:
-        initialPreviewState.layoutOverrides.animations?.targetAttack1Destination ?? null,
+        initialLayoutOverrides.animations?.targetAttack1Destination ?? null,
       targetAttack2Destination:
-        initialPreviewState.layoutOverrides.animations?.targetAttack2Destination ?? null,
+        initialLayoutOverrides.animations?.targetAttack2Destination ?? null,
       targetAttack3Destination:
-        initialPreviewState.layoutOverrides.animations?.targetAttack3Destination ?? null,
+        initialLayoutOverrides.animations?.targetAttack3Destination ?? null,
     },
   );
   const animationResetTimerRef = useRef<number | null>(null);
@@ -1788,7 +1663,13 @@ export const BattleLayoutEditor: React.FC = () => {
     }
   });
   const [importText, setImportText] = useState(
-    JSON.stringify(pruneBattleLayoutOverrides(initialPreviewState.layoutOverrides), null, 2),
+    JSON.stringify(
+      pruneBattleLayoutOverrides(
+        initialPreviewState.layoutDeviceOverrides[initialPreviewState.layoutDevice],
+      ),
+      null,
+      2,
+    ),
   );
   const [pendingImportOverrides, setPendingImportOverrides] =
     useState<BattleLayoutOverrides | null>(null);
@@ -1796,34 +1677,62 @@ export const BattleLayoutEditor: React.FC = () => {
   const [isPresetSaveConfirmOpen, setIsPresetSaveConfirmOpen] = useState(false);
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [presetSaveFeedback, setPresetSaveFeedback] = useState<string | null>(null);
-  const [resetBaseline, setResetBaseline] = useState<BattleLayoutOverrides>(() => {
-    if (typeof window === "undefined") {
-      return pruneBattleLayoutOverrides(battleActiveLayoutOverrides);
-    }
-    try {
-      const raw = window.localStorage.getItem(BATTLE_LAYOUT_EDITOR_BASELINE_KEY);
-      if (raw) {
-        return pruneBattleLayoutOverrides(JSON.parse(raw) as BattleLayoutOverrides);
+  const [resetBaselineByDevice, setResetBaselineByDevice] =
+    useState<BattleLayoutDeviceOverrides>(() => {
+      if (typeof window === "undefined") {
+        return normalizeBattleLayoutDeviceOverrides(battleActiveLayoutDeviceOverrides);
       }
-    } catch {
-      // fall through to active layout
-    }
-    return readActiveBattleLayoutOverrides();
-  });
+      try {
+        const raw = window.localStorage.getItem(BATTLE_LAYOUT_EDITOR_BASELINE_KEY);
+        if (raw) {
+          return normalizeBattleLayoutDeviceOverrides(
+            JSON.parse(raw) as BattleLayoutDeviceOverrides | BattleLayoutOverrides,
+          );
+        }
+      } catch {
+        // fall through to active layout
+      }
+      return readActiveBattleLayoutDeviceOverrides();
+    });
   const dragBaselineRef = useRef<BattleLayoutOverrides | null>(null);
   const dragSelectionBaselineRef = useRef<
     Partial<Record<BattleEditableElementKey, { x: number; y: number }>>
   >({});
+  const layoutDeviceRef = useRef(layoutDevice);
+  const setLayoutOverrides = useCallback(
+    (
+      next:
+        | BattleLayoutOverrides
+        | ((previous: BattleLayoutOverrides) => BattleLayoutOverrides),
+    ) => {
+      setLayoutDeviceOverrides((current) => {
+        const activeDevice = layoutDeviceRef.current;
+        const previous = current[activeDevice];
+        const resolvedNext =
+          typeof next === "function" ? next(previous) : next;
+        const prunedNext = pruneBattleLayoutOverrides(resolvedNext);
+        if (JSON.stringify(previous) === JSON.stringify(prunedNext)) {
+          return current;
+        }
+        return {
+          ...current,
+          [activeDevice]: prunedNext,
+        };
+      });
+    },
+    [],
+  );
+  const layoutOverrides = layoutDeviceOverrides[layoutDevice];
+  const resetBaseline = resetBaselineByDevice[layoutDevice];
   const layoutOverridesRef = useRef(layoutOverrides);
   const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
-
   const layout = useMemo(
-    () => createBattleLayoutConfig(pruneBattleLayoutOverrides(layoutOverrides)),
-    [layoutOverrides],
+    () => createBattleLayoutConfigForDevice(layoutDeviceOverrides, layoutDevice),
+    [layoutDevice, layoutDeviceOverrides],
   );
   const baselineLayout = useMemo(
-    () => createBattleLayoutConfig(pruneBattleLayoutOverrides(resetBaseline)),
-    [resetBaseline],
+    () => createBattleLayoutConfigForDevice(resetBaselineByDevice, layoutDevice),
+    [layoutDevice, resetBaselineByDevice],
   );
   const normalizedOverrides = useMemo(
     () => pruneBattleLayoutOverrides(layoutOverrides),
@@ -1999,6 +1908,12 @@ export const BattleLayoutEditor: React.FC = () => {
   useEffect(() => {
     layoutOverridesRef.current = layoutOverrides;
   }, [layoutOverrides]);
+
+  useEffect(() => {
+    layoutDeviceRef.current = layoutDevice;
+    setUndoStack([]);
+    setRedoStack([]);
+  }, [layoutDevice]);
 
   useEffect(() => {
     setAnimationAnchors({
@@ -2275,11 +2190,12 @@ export const BattleLayoutEditor: React.FC = () => {
       fixtureKey,
       focusArea,
       selectedElements,
-      layoutOverrides,
+      layoutDevice,
+      layoutDeviceOverrides,
       showGrid,
       gridSize,
       snapThreshold,
-      previewDevice,
+      previewDevice: layoutDevice,
       viewportWidth,
       viewportHeight,
       actionVisualState,
@@ -2304,7 +2220,7 @@ export const BattleLayoutEditor: React.FC = () => {
     );
     window.localStorage.setItem(
       BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY,
-      JSON.stringify(pruneBattleLayoutOverrides(layoutOverrides)),
+      JSON.stringify(normalizeBattleLayoutDeviceOverrides(layoutDeviceOverrides)),
     );
     window.dispatchEvent(new Event(BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY));
     previewFrameRef.current?.contentWindow?.postMessage(
@@ -2318,11 +2234,11 @@ export const BattleLayoutEditor: React.FC = () => {
     fixtureKey,
     focusArea,
     selectedElements,
-    layoutOverrides,
+    layoutDevice,
+    layoutDeviceOverrides,
     showGrid,
     gridSize,
     snapThreshold,
-    previewDevice,
     viewportWidth,
     viewportHeight,
     actionVisualState,
@@ -2570,9 +2486,9 @@ export const BattleLayoutEditor: React.FC = () => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(
       BATTLE_LAYOUT_EDITOR_BASELINE_KEY,
-      JSON.stringify(pruneBattleLayoutOverrides(resetBaseline)),
+      JSON.stringify(normalizeBattleLayoutDeviceOverrides(resetBaselineByDevice)),
     );
-  }, [resetBaseline]);
+  }, [resetBaselineByDevice]);
 
   const fixtureMeta = battleSceneFixtureMeta[fixtureKey];
 
@@ -3047,7 +2963,7 @@ export const BattleLayoutEditor: React.FC = () => {
   };
 
   const copyPresetTs = async () => {
-    const ts = createBattleLayoutPresetSource(layoutOverrides);
+    const ts = createBattleLayoutPresetSource(layoutDeviceOverrides);
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(ts);
     }
@@ -3055,7 +2971,7 @@ export const BattleLayoutEditor: React.FC = () => {
 
   const downloadPresetTs = () => {
     if (typeof window === "undefined" || typeof document === "undefined") return;
-    const ts = createBattleLayoutPresetSource(layoutOverrides);
+    const ts = createBattleLayoutPresetSource(layoutDeviceOverrides);
     const blob = new Blob([ts], { type: "text/typescript;charset=utf-8" });
     const url = window.URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -3071,7 +2987,9 @@ export const BattleLayoutEditor: React.FC = () => {
     if (typeof window === "undefined") return;
     setIsSavingPreset(true);
     setPresetSaveFeedback(null);
-    const approvedOverrides = normalizedOverrides;
+    const approvedOverrides = normalizeBattleLayoutDeviceOverrides(
+      layoutDeviceOverrides,
+    );
 
     try {
       const response = await fetch("/__battle-layout/preset", {
@@ -3094,8 +3012,8 @@ export const BattleLayoutEditor: React.FC = () => {
 
       setUndoStack([]);
       setRedoStack([]);
-      setResetBaseline(approvedOverrides);
-      setLayoutOverrides(approvedOverrides);
+      setResetBaselineByDevice(approvedOverrides);
+      setLayoutDeviceOverrides(approvedOverrides);
       setFocusArea("overview");
       setSelectedElements([]);
       setPresetSaveFeedback("Preset salvo no arquivo e promovido como novo default.");
@@ -3127,7 +3045,10 @@ export const BattleLayoutEditor: React.FC = () => {
       pendingImportOverrides,
     );
     applyOverrides(mergedOverrides);
-    setResetBaseline(mergedOverrides);
+    setResetBaselineByDevice((current) => ({
+      ...current,
+      [layoutDevice]: pruneBattleLayoutOverrides(mergedOverrides),
+    }));
     setPendingImportOverrides(null);
     setIsImportConfirmOpen(false);
   };
@@ -3446,7 +3367,6 @@ export const BattleLayoutEditor: React.FC = () => {
   const actionControls: LayoutNumberControl[] = [
     createSectionNumberControl("hud", "actionWidth", { label: "Largura do botao", min: 200, max: 320, step: 4 }),
     createSectionNumberControl("hud", "actionHeight", { label: "Altura do botao", min: 88, max: 160, step: 4 }),
-    createSectionNumberControl("hud", "mobileActionWidth", { label: "Largura do botao no mobile", min: 180, max: 260, step: 4 }),
     createSectionNumberControl("hud", "mobileActionHeight", { label: "Altura do botao no mobile", min: 56, max: 88, step: 4 }),
     createSectionNumberControl("hud", "actionSlotHeight", { label: "Altura da area do botao", min: 120, max: 240, step: 4 }),
   ];
@@ -3761,8 +3681,8 @@ export const BattleLayoutEditor: React.FC = () => {
       node.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
   }, [normalizedNavigatorSearch, treeAutoScrollTargetKey]);
-  const previewDevicePreset = battleLayoutPreviewDevices[previewDevice];
-  const previewResolutionOptions = battleLayoutPreviewResolutions[previewDevice];
+  const previewDevice = layoutDevice;
+  const previewResolutionOptions = battleLayoutPreviewResolutions[layoutDevice];
   const selectedResolutionValue = `${viewportWidth}x${viewportHeight}`;
   const hasPresetResolution = previewResolutionOptions.some(
     (option) => `${option.width}x${option.height}` === selectedResolutionValue,
@@ -4737,56 +4657,6 @@ export const BattleLayoutEditor: React.FC = () => {
                         }
                         onReset={() =>
                           resetElementPropertyToBaseline(activeElementKey!, "snapToGrid")
-                        }
-                      />
-                    </div>
-                  </section>
-
-                  <section className="space-y-3 rounded-3xl border border-amber-900/12 bg-white/30 p-3">
-                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/60">
-                      Visibilidade
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <ToggleControl
-                        label="Desktop"
-                        checked={activeElementConfig.visibleDesktop}
-                        onChange={(checked) =>
-                          updateElementProperty(activeElementKey!, "visibleDesktop", checked)
-                        }
-                        changed={
-                          activeElementConfig.visibleDesktop !==
-                          baselineLayout.elements[activeElementKey!].visibleDesktop
-                        }
-                        onReset={() =>
-                          resetElementPropertyToBaseline(activeElementKey!, "visibleDesktop")
-                        }
-                      />
-                      <ToggleControl
-                        label="Tablet"
-                        checked={activeElementConfig.visibleTablet}
-                        onChange={(checked) =>
-                          updateElementProperty(activeElementKey!, "visibleTablet", checked)
-                        }
-                        changed={
-                          activeElementConfig.visibleTablet !==
-                          baselineLayout.elements[activeElementKey!].visibleTablet
-                        }
-                        onReset={() =>
-                          resetElementPropertyToBaseline(activeElementKey!, "visibleTablet")
-                        }
-                      />
-                      <ToggleControl
-                        label="Mobile"
-                        checked={activeElementConfig.visibleMobile}
-                        onChange={(checked) =>
-                          updateElementProperty(activeElementKey!, "visibleMobile", checked)
-                        }
-                        changed={
-                          activeElementConfig.visibleMobile !==
-                          baselineLayout.elements[activeElementKey!].visibleMobile
-                        }
-                        onReset={() =>
-                          resetElementPropertyToBaseline(activeElementKey!, "visibleMobile")
                         }
                       />
                     </div>
@@ -5800,25 +5670,27 @@ export const BattleLayoutEditor: React.FC = () => {
               </div>
 
               <div className="flex h-[48px] items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-1">
-                {(Object.entries(battleLayoutPreviewDevices) as Array<
-                  [BattleLayoutPreviewDevice, (typeof battleLayoutPreviewDevices)[BattleLayoutPreviewDevice]]
-                >).map(([deviceKey, device]) => (
+                {([
+                  ["desktop", "Desktop"],
+                  ["tablet", "Tablet"],
+                  ["mobile", "Mobile"],
+                ] as const).map(([variantKey, label]) => (
                   <button
-                    key={deviceKey}
+                    key={variantKey}
                     type="button"
                     onClick={() => {
-                      setPreviewDevice(deviceKey);
-                      setViewportWidth(device.width);
-                      setViewportHeight(device.height);
-                  }}
-                  className={cn(
-                    "flex h-[36px] items-center rounded-md px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition-colors",
-                    previewDevice === deviceKey
-                      ? "bg-amber-200 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,251,235,0.3)]"
-                      : "text-amber-100/70 hover:bg-white/10",
+                      setLayoutDevice(variantKey);
+                      setViewportWidth(battleLayoutPreviewDevices[variantKey].width);
+                      setViewportHeight(battleLayoutPreviewDevices[variantKey].height);
+                    }}
+                    className={cn(
+                      "flex h-[36px] items-center rounded-md px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition-colors",
+                      layoutDevice === variantKey
+                        ? "bg-amber-200 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,251,235,0.3)]"
+                        : "text-amber-100/70 hover:bg-white/10",
                     )}
                   >
-                    {device.label}
+                    {label}
                   </button>
                 ))}
               </div>

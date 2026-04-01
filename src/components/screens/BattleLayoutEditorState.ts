@@ -1,7 +1,9 @@
 import {
   BattleEditableElementKey,
   BattleLayoutOverrides,
-  pruneBattleLayoutOverrides,
+  BattleLayoutDeviceKey,
+  BattleLayoutDeviceOverrides,
+  normalizeBattleLayoutDeviceOverrides,
 } from "./BattleLayoutConfig";
 import { BattleSceneFixtureKey } from "./BattleSceneFixtures";
 import { BattleScenePreviewFocusArea } from "./BattleSceneFixtureView";
@@ -165,7 +167,8 @@ export interface BattleLayoutEditorPreviewState {
   fixtureKey: BattleSceneFixtureKey;
   focusArea: BattleScenePreviewFocusArea;
   selectedElements: BattleScenePreviewFocusArea[];
-  layoutOverrides: BattleLayoutOverrides;
+  layoutDevice: BattleLayoutDeviceKey;
+  layoutDeviceOverrides: BattleLayoutDeviceOverrides;
   showGrid: boolean;
   gridSize: number;
   snapThreshold: number;
@@ -199,7 +202,7 @@ export const BATTLE_LAYOUT_EDITOR_STATE_KEY =
   "syllable-battle:battle-layout-editor-state";
 export const BATTLE_LAYOUT_MODEL_VERSION_KEY =
   "syllable-battle:battle-layout-model-version";
-export const BATTLE_LAYOUT_MODEL_VERSION = 9;
+export const BATTLE_LAYOUT_MODEL_VERSION = 10;
 export const BATTLE_LAYOUT_ACTIVE_OVERRIDES_KEY =
   "syllable-battle:battle-layout-active-overrides";
 export const BATTLE_LAYOUT_EDITOR_ELEMENT_CLIPBOARD_KEY =
@@ -296,6 +299,9 @@ export function normalizeBattleLayoutEditorPreviewState(
       rawAnimationPreset === "hand-play-target-3")
       ? "none"
       : state.animationPreset ?? "none";
+  const normalizedDeviceOverrides = normalizeBattleLayoutDeviceOverrides(
+    state.layoutDeviceOverrides ?? {},
+  );
 
   const clampAnimationPoint = (
     point: BattleLayoutPreviewAnimationAnchorPoint | null | undefined,
@@ -312,7 +318,8 @@ export function normalizeBattleLayoutEditorPreviewState(
   return {
     ...state,
     focusArea: normalizedFocusArea,
-    layoutOverrides: pruneBattleLayoutOverrides(state.layoutOverrides),
+    layoutDevice: state.layoutDevice ?? "desktop",
+    layoutDeviceOverrides: normalizedDeviceOverrides,
     showGrid: state.showGrid ?? true,
     gridSize: Number.isFinite(state.gridSize)
       ? Math.min(64, Math.max(4, Math.round(state.gridSize)))

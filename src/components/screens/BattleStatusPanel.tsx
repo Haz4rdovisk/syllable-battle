@@ -6,7 +6,6 @@ import { BattleStatusVisualState } from "./BattleLayoutEditorState";
 import type { BattleScenePreviewFocusArea } from "./BattleSceneFixtureView";
 
 interface BattleStatusPanelProps {
-  presentation: "desktop" | "mobile";
   title: string;
   turnLabel: string;
   clock: string;
@@ -31,7 +30,6 @@ interface BattleStatusPanelProps {
 }
 
 export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
-  presentation,
   title,
   turnLabel,
   clock,
@@ -51,66 +49,32 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
   const isUrgent = clockUrgent || visualState === "urgent";
   const isSelected = visualState === "selected";
   const resolvedTitle = layout.text.statusTitle || title;
+  const statusFrame = layout.elements.status;
+  const isCompactFrame = statusFrame.width <= 220 || statusFrame.height <= 96;
+  const panelPaddingClass = isCompactFrame ? "px-4 py-3 rounded-[1.4rem]" : "p-4 rounded-xl";
+  const titleSpacingClass = isCompactFrame ? "mb-1.5 pb-1.5" : "mb-2 pb-2";
+  const turnMinHeightClass = isCompactFrame ? "min-h-[26px]" : "min-h-[34px]";
   const titleStyle = {
-    fontSize: `clamp(${Math.max(layout.text.bodyFontSize - 1, 11)}px, 0.8vw, ${layout.text.bodyFontSize}px)`,
+    fontSize: `${Math.max(layout.text.bodyFontSize - 1, isCompactFrame ? 10 : 11)}px`,
     letterSpacing: `${layout.text.bodyLetterSpacing}em`,
     textAlign: layout.text.bodyAlign,
     color: layout.text.titleColor,
   } as React.CSSProperties;
   const turnStyle = {
-    fontSize: `clamp(${Math.max(layout.text.titleFontSize - 1, 13)}px, 1vw, ${Math.max(layout.text.titleFontSize, 13)}px)`,
+    fontSize: `${Math.max(layout.text.titleFontSize - (isCompactFrame ? 2 : 1), isCompactFrame ? 12 : 13)}px`,
     letterSpacing: `${layout.text.titleLetterSpacing}em`,
     textAlign: layout.text.titleAlign,
     color: isUrgent ? "#881337" : "rgba(120,53,15,0.9)",
   } as React.CSSProperties;
-
-  if (presentation === "mobile") {
-    const mobileVars = {
-      "--battle-mobile-status-width": `${layout.hud.mobileStatusWidth}px`,
-      "--battle-mobile-status-height": `${layout.hud.mobileStatusHeight}px`,
-    } as React.CSSProperties;
-
-    return (
-      <div
-        className="grid w-full gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-        style={mobileVars}
-      >
-        <div
-          className={cn(
-            "paper-panel relative mx-auto flex w-full min-w-0 flex-col justify-center overflow-hidden rounded-[1.5rem] border-2 px-4 py-3 text-center transition-all duration-300 sm:mx-0",
-            isUrgent
-              ? "animate-pulse border-rose-300/45 bg-[linear-gradient(180deg,rgba(255,241,242,0.98),rgba(255,228,230,0.94))] shadow-[0_0_28px_rgba(244,63,94,0.16)]"
-              : "border-amber-900/16 bg-[linear-gradient(180deg,rgba(245,236,214,0.94),rgba(240,224,191,0.88))] shadow-[0_10px_22px_rgba(0,0,0,0.14)]",
-            isSelected
-              ? "ring-2 ring-amber-200/85 ring-offset-2 ring-offset-[#f5ecd6] shadow-[0_0_0_1px_rgba(180,83,9,0.22),0_18px_34px_rgba(120,53,15,0.18)]"
-              : "",
-          )}
-          style={{
-            height: "min(100%, var(--battle-mobile-status-height))",
-            maxWidth: "min(100%, var(--battle-mobile-status-width))",
-          }}
-        >
-          <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-700/30 to-transparent" />
-          <div className="font-black uppercase text-amber-950/68" style={titleStyle}>{resolvedTitle}</div>
-          <div className="mt-1 font-black uppercase text-amber-950/88" style={titleStyle}>{turnLabel}</div>
-          <div
-            className={cn("mt-2 font-serif font-black tabular-nums leading-none", isUrgent ? "text-rose-900" : "text-amber-950/90")}
-            style={{ fontSize: "clamp(1.8rem, 4vw, 2.25rem)" }}
-          >
-            {clock}
-          </div>
-        </div>
-
-        {action ? <div className="flex justify-center sm:justify-end">{action}</div> : null}
-      </div>
-    );
-  }
-
   const statusVars = {
-    "--battle-status-width": `${layout.hud.statusWidth}px`,
-    "--battle-status-height": `${layout.hud.statusHeight}px`,
     "--battle-action-slot-height": `${layout.hud.actionSlotHeight}px`,
   } as React.CSSProperties;
+  const clockFontSize = Math.round(
+    Math.max(
+      isCompactFrame ? 28 : 34,
+      Math.min(statusFrame.height * (isCompactFrame ? 0.34 : 0.38), isCompactFrame ? 36 : 48),
+    ),
+  );
 
   return (
     <div
@@ -120,7 +84,8 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
       <div
         data-battle-visual-root="true"
         className={cn(
-          "paper-panel relative flex min-h-0 flex-1 w-full min-w-0 flex-col justify-center overflow-hidden rounded-xl border-2 p-4 text-center transition-all duration-300",
+          "paper-panel relative flex min-h-0 flex-1 w-full min-w-0 flex-col justify-center overflow-hidden border-2 text-center transition-all duration-300",
+          panelPaddingClass,
           isUrgent
             ? "animate-pulse border-rose-300/40 bg-parchment/95 shadow-[0_0_30px_rgba(244,63,94,0.18)]"
             : "border-amber-900/18 bg-[linear-gradient(180deg,rgba(245,236,214,0.95),rgba(240,224,191,0.9))] shadow-[0_12px_26px_rgba(0,0,0,0.14)]",
@@ -130,17 +95,17 @@ export const BattleStatusPanel: React.FC<BattleStatusPanelProps> = ({
         )}
       >
         {isUrgent ? <div className="absolute inset-0 bg-rose-100/35" /> : null}
-        <div className="mb-2 border-b-2 border-amber-900/8 pb-2 font-black uppercase text-amber-950/68" style={titleStyle}>
+        <div className={cn("border-b-2 border-amber-900/8 font-black uppercase text-amber-950/68", titleSpacingClass)} style={titleStyle}>
           {resolvedTitle}
         </div>
-        <div className="flex min-h-[34px] items-center justify-center px-2">
+        <div className={cn("flex items-center justify-center px-2", turnMinHeightClass)}>
           <div className="max-w-full font-serif font-black uppercase leading-tight" style={turnStyle}>
             {turnLabel}
           </div>
         </div>
         <div
           className={cn("mt-2.5 font-serif font-black tabular-nums leading-none tracking-[0.04em]", isUrgent ? "text-rose-950" : "text-amber-950/90")}
-          style={{ fontSize: "clamp(2.35rem, 4.2vw, 3rem)" }}
+          style={{ fontSize: `${clockFontSize}px` }}
         >
           {clock}
         </div>

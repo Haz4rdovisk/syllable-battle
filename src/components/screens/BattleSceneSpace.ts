@@ -3,6 +3,7 @@ import type {
   BattleEditableElementKey,
   BattleElementPropertyConfig,
   BattleLayoutConfig,
+  BattleLayoutDeviceKey,
 } from "./BattleLayoutConfig";
 
 export interface BattleSceneRect {
@@ -39,11 +40,29 @@ export interface BattleEditorFrame extends BattleSceneRect {
 
 export const BATTLE_STAGE_WIDTH = 1600;
 export const BATTLE_STAGE_HEIGHT = 900;
+export const BATTLE_MOBILE_LAYOUT_BREAKPOINT = 960;
+export const BATTLE_TABLET_LAYOUT_BREAKPOINT = 1280;
 
 export const battleSceneReference = {
   width: BATTLE_STAGE_WIDTH,
   height: BATTLE_STAGE_HEIGHT,
 } as const;
+
+export const resolveBattleRuntimeLayoutDevice = (
+  viewportWidth: number,
+): BattleLayoutDeviceKey => {
+  if (viewportWidth < BATTLE_MOBILE_LAYOUT_BREAKPOINT) {
+    return "mobile";
+  }
+  if (viewportWidth < BATTLE_TABLET_LAYOUT_BREAKPOINT) {
+    return "tablet";
+  }
+  return "desktop";
+};
+
+export const shouldUseBattleMobileShell = (
+  device: BattleLayoutDeviceKey,
+): boolean => device === "mobile";
 
 export const getBattleStageMetrics = (
   viewportWidth: number,

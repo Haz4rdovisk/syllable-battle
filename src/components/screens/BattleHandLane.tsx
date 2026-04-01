@@ -546,6 +546,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
 
   return (
     <motion.div
+      data-battle-visual-root="true"
       animate={pulse ? { y: [0, -6, 0], rotate: [0, 1, 0] } : {}}
       transition={{ duration: 0.62, ease: "easeOut" }}
       className="relative h-full w-full min-h-0 overflow-visible"
