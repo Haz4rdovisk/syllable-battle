@@ -5,6 +5,7 @@ export const desertoDeck: RawDeckDefinition = {
   name: "Deserto",
   description: "Criaturas do deserto. Precisas e resistentes.",
   emoji: "🏜️",
+  superclass: "animal",
   visualTheme: "dune",
   syllables: {
     CA: 4,

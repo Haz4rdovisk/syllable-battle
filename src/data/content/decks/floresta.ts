@@ -5,6 +5,7 @@ export const florestaDeck: RawDeckDefinition = {
   name: "Floresta",
   description: "Animais ágeis. Equilibrado.",
   emoji: "🌿",
+  superclass: "animal",
   visualTheme: "canopy",
   syllables: {
     LO: 4,

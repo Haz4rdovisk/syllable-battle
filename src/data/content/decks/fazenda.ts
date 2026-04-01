@@ -5,6 +5,7 @@ export const fazendaDeck: RawDeckDefinition = {
   name: "Fazenda",
   description: "Animais comuns. Ideal para começar.",
   emoji: "🚜",
+  superclass: "animal",
   visualTheme: "harvest",
   syllables: {
     VA: 4,

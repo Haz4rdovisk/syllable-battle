@@ -158,6 +158,8 @@ function validateTargetDefinition(
     `Target "${targetId || name || "unknown"}" emoji`,
     issues,
   );
+  const superclass = normalizeContentId(String(rawTarget.superclass ?? "animal")) || "animal";
+  const classKey = normalizeContentId(String(rawTarget.classKey ?? "fazenda")) || "fazenda";
   const syllables = validateSyllableList(
     rawTarget.syllables,
     `Target "${targetId || name || "unknown"}" syllables`,
@@ -171,6 +173,8 @@ function validateTargetDefinition(
     cardIds: syllables.map((syllable) => getOrCreateCard(cardsById, syllable).id),
     rarity: rarity ?? "comum",
     description: normalizeOptionalText(rawTarget.description),
+    superclass,
+    classKey,
   };
 }
 
@@ -189,6 +193,7 @@ function validateDeckDefinition(
     issues,
   );
   const emoji = validateRequiredText(String(rawDeck.emoji ?? ""), `${deckLabel} emoji`, issues);
+  const superclass = normalizeContentId(String(rawDeck.superclass ?? "animal")) || "animal";
 
   if (!DECK_VISUAL_THEME_CLASSES[rawDeck.visualTheme]) {
     issues.push(`${deckLabel} uses unknown visualTheme "${String(rawDeck.visualTheme)}".`);
@@ -267,6 +272,7 @@ function validateDeckDefinition(
     name,
     description,
     emoji,
+    superclass,
     visualTheme: rawDeck.visualTheme,
     cardIds: Object.keys(cardPool),
     cardPool,

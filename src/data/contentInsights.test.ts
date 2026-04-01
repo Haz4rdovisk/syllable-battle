@@ -20,6 +20,8 @@ interface TargetSeed {
   syllables: string[];
   rarity: Rarity;
   description?: string;
+  superclass?: string;
+  classKey?: string;
 }
 
 const createDeckModel = (
@@ -65,12 +67,15 @@ const createDeckModel = (
     cardIds: target.syllables.map((syllable) => cardsBySyllable.get(syllable) ?? `syllable.${syllable.toLowerCase()}`),
     rarity: target.rarity,
     description: target.description,
+    superclass: target.superclass ?? "animal",
+    classKey: target.classKey ?? "fazenda",
   }));
   const definition = {
     id,
     name,
     description,
     emoji,
+    superclass: "animal",
     visualTheme,
     cardIds: cards.map((entry) => entry.card.id),
     cardPool: Object.fromEntries(cards.map((entry) => [entry.card.id, entry.copiesInDeck])),

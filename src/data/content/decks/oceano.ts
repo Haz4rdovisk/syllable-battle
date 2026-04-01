@@ -5,6 +5,7 @@ export const oceanoDeck: RawDeckDefinition = {
   name: "Oceano",
   description: "Criaturas marinhas. Alto dano.",
   emoji: "🔱",
+  superclass: "animal",
   visualTheme: "abyss",
   syllables: {
     BA: 4,

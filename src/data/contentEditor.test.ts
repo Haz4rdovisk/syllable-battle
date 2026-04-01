@@ -313,6 +313,7 @@ test("content editor deriva o pool salvo dos targets validos e remove silabas or
     name: "Deck Teste",
     description: "Deck para validar derivacao do pool.",
     emoji: "ðŸ§ª",
+    superclass: "animal",
     visualTheme: "harvest",
     manualPoolAdjustments: [
       { id: "row-ba", syllable: "BA", count: "2", mode: "manual" },
@@ -344,6 +345,7 @@ test("content editor nao depende de pool previo para aceitar alvo valido com sil
     name: "Deck Teste",
     description: "Deck para validar alvo primeiro.",
     emoji: "ðŸ§ª",
+    superclass: "animal",
     visualTheme: "harvest",
     manualPoolAdjustments: [],
     targets: [
@@ -469,6 +471,8 @@ test("content editor permite criar editar e remover target no draft mantendo cat
     emoji: "🐮",
     rarity: "raro",
     syllables: ["VA", "CA"],
+    superclass: "animal",
+    classKey: "fazenda",
   });
 
   const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);

@@ -15,6 +15,8 @@ export interface TargetDefinition {
   cardIds: string[];
   rarity: Rarity;
   description?: string;
+  superclass: string;
+  classKey: string;
 }
 
 export interface DeckDefinition {
@@ -22,6 +24,7 @@ export interface DeckDefinition {
   name: string;
   description: string;
   emoji: string;
+  superclass: string;
   visualTheme: DeckVisualThemeId;
   cardIds: string[];
   cardPool: Record<string, number>;
@@ -82,6 +85,8 @@ export interface RawTargetDefinition {
   syllables: string[];
   rarity: string;
   description?: string;
+  superclass?: string;
+  classKey?: string;
 }
 
 export interface RawDeckDefinition {
@@ -89,6 +94,7 @@ export interface RawDeckDefinition {
   name: string;
   description: string;
   emoji: string;
+  superclass?: string;
   visualTheme: DeckVisualThemeId;
   syllables: Record<string, number>;
   targetIds: string[];

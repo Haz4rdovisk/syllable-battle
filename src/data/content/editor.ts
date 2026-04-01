@@ -53,6 +53,8 @@ export interface ContentEditorTargetDraft {
   emoji: string;
   rarity: string;
   syllablesText: string;
+  superclass?: string;
+  classKey?: string;
 }
 
 export interface ContentEditorTargetNameValidation {
@@ -69,6 +71,7 @@ export interface ContentEditorDeckDraft {
   name: string;
   description: string;
   emoji: string;
+  superclass: string;
   visualTheme: DeckVisualThemeId;
   manualPoolAdjustments: ContentEditorPoolAdjustment[];
   targets: ContentEditorTargetDraft[];
@@ -113,6 +116,15 @@ export interface ContentEditorReviewSummary {
 }
 
 const normalizeDeckSlug = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const normalizeTargetTaxonomyValue = (value: string) =>
   value
     .trim()
     .toLowerCase()
@@ -182,6 +194,8 @@ export const createContentEditorTargetDraftFromRawTarget = (
   emoji: target?.emoji ?? "?",
   rarity: target?.rarity ?? "comum",
   syllablesText: target ? target.syllables.join(", ") : "",
+  superclass: target?.superclass ?? "animal",
+  classKey: target?.classKey ?? "fazenda",
 });
 
 const expandDraftTargetIds = (targets: ContentEditorTargetDraft[]) =>
@@ -191,6 +205,8 @@ const expandDraftTargetIds = (targets: ContentEditorTargetDraft[]) =>
 
 const buildRawTargetDefinitionFromDraft = (target: ContentEditorTargetDraft): RawTargetDefinition => {
   const description = target.description.trim();
+  const superclass = normalizeTargetTaxonomyValue(target.superclass ?? "") || "animal";
+  const classKey = normalizeTargetTaxonomyValue(target.classKey ?? "") || "fazenda";
 
   return {
     id: target.id,
@@ -199,6 +215,8 @@ const buildRawTargetDefinitionFromDraft = (target: ContentEditorTargetDraft): Ra
     emoji: target.emoji,
     rarity: target.rarity,
     syllables: parseContentEditorTargetSyllables(target.syllablesText),
+    superclass,
+    classKey,
   };
 };
 
@@ -235,6 +253,7 @@ export function createContentEditorDeckDraft(
     name: deck.name,
     description: deck.description,
     emoji: deck.emoji,
+    superclass: deck.superclass ?? "animal",
     visualTheme: deck.visualTheme,
     manualPoolAdjustments: normalizeContentEditorPoolAdjustments(
       Object.entries(deck.syllables).map(([syllable, count]) => ({
@@ -287,6 +306,7 @@ export function createEmptyRawDeckDefinition(existingDeckIds: Iterable<string>):
     name: "Novo Deck",
     description: "Deck novo em construcao.",
     emoji: "🃏",
+    superclass: "animal",
     visualTheme: "harvest",
     syllables: {},
     targetIds: [],
@@ -355,6 +375,7 @@ function buildRawDeckDefinitionFromDraft(
     name: draft.name,
     description: draft.description,
     emoji: draft.emoji,
+    superclass: draft.superclass,
     visualTheme: draft.visualTheme,
     syllables,
     targetIds,
@@ -500,6 +521,8 @@ export function createEmptyContentEditorTarget(existingIds: Iterable<string>): C
     emoji: "?",
     rarity: "comum",
     syllablesText: "",
+    superclass: "animal",
+    classKey: "fazenda",
   };
 }
 
@@ -883,6 +906,7 @@ export function buildContentEditorReviewSummary(
   if (baseline.name !== draft.name) metadataChanges.push("nome");
   if (baseline.emoji !== draft.emoji) metadataChanges.push("emoji");
   if (baseline.description !== draft.description) metadataChanges.push("descricao");
+  if (baseline.superclass !== draft.superclass) metadataChanges.push("superclasse");
   if (baseline.visualTheme !== draft.visualTheme) metadataChanges.push("theme");
 
   const baselineTargetsById = new Map(baseline.targets.map((target) => [target.id, target]));

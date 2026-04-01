@@ -95,9 +95,50 @@ const idleSaveStatus: SaveStatus = {
   message: "",
 };
 
-const DEFAULT_DECK_CLASS_LABEL = "Animais";
+const DECK_SUPERCLASS_OPTIONS = [{ id: "animal", label: "Animais" }] as const;
+const TARGET_RARITY_OPTIONS = [
+  { id: "comum", label: "Comum" },
+  { id: "raro", label: "Raro" },
+  { id: "épico", label: "Epico" },
+  { id: "lendário", label: "Lendario" },
+] as const;
 
 const normalizeEditorSyllable = (value: string) => value.trim().toUpperCase();
+const normalizeCatalogFilterValue = (value: string) => value.trim().toLowerCase();
+const normalizeTaxonomyValue = (value: string) =>
+  normalizeCatalogFilterValue(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const formatTaxonomyLabel = (value: string, emptyLabel: string) => {
+  const normalized = normalizeTaxonomyValue(value);
+  if (!normalized) return emptyLabel;
+
+  return normalized
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+};
+
+const getTargetSuperclassLabel = (superclass: string) =>
+  formatTaxonomyLabel(superclass, "Sem superclasse");
+
+const getDeckSuperclassLabel = (superclass: string) =>
+  DECK_SUPERCLASS_OPTIONS.find((option) => option.id === superclass)?.label ?? formatTaxonomyLabel(superclass, "Sem superclasse");
+
+const getTargetClassLabel = (classKey: string) =>
+  formatTaxonomyLabel(classKey, "Sem classe");
+
+const getTargetRarityOrder = (rarity: string) => {
+  const normalized = normalizeRarity(rarity);
+  if (normalized === "lendário") return 3;
+  if (normalized === "épico") return 2;
+  if (normalized === "raro") return 1;
+  return 0;
+};
 
 const getDerivedCardsGridColumns = (width: number) => {
   if (width >= 1280) return 4;
@@ -385,9 +426,15 @@ export const ContentEditor: React.FC = () => {
     typeof window !== "undefined" ? getDerivedCardsGridColumns(window.innerWidth) : 2,
   );
   const [deckSearchValue, setDeckSearchValue] = useState("");
+  const [catalogSearchValue, setCatalogSearchValue] = useState("");
+  const [catalogSuperclassFilter, setCatalogSuperclassFilter] = useState<"all" | string>("all");
+  const [catalogClassFilter, setCatalogClassFilter] = useState<"all" | string>("all");
+  const [catalogRarityFilter, setCatalogRarityFilter] = useState<"all" | string>("all");
+  const [catalogSortMode, setCatalogSortMode] = useState<"default" | "rarity">("default");
+  const [catalogSortDirection, setCatalogSortDirection] = useState<"desc" | "asc">("desc");
   const [isDeckActiveExpanded, setIsDeckActiveExpanded] = useState(false);
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
-  const [isValidationSaveExpanded, setIsValidationSaveExpanded] = useState(true);
+  const [isValidationSaveExpanded, setIsValidationSaveExpanded] = useState(false);
   const [isSaveConfirmOpen, setIsSaveConfirmOpen] = useState(false);
   const [isSaveDiffExpanded, setIsSaveDiffExpanded] = useState(true);
   const [isGeneratedSourceExpanded, setIsGeneratedSourceExpanded] = useState(false);
@@ -397,6 +444,7 @@ export const ContentEditor: React.FC = () => {
   const contentTopRef = useRef<HTMLDivElement | null>(null);
   const previousSelectedDeckIdRef = useRef(selectedDeckId);
   const deferredDeckSearch = useDeferredValue(deckSearchValue.trim().toLowerCase());
+  const deferredCatalogSearch = useDeferredValue(normalizeCatalogFilterValue(catalogSearchValue));
   const sourceDecksById = useMemo(
     () =>
       sourceEntries.reduce<Record<string, ReturnType<typeof cloneRawDeckDefinition>>>((acc, entry) => {
@@ -591,6 +639,136 @@ export const ContentEditor: React.FC = () => {
     () => (selectedCatalogTargetDraft ? draft.targets.some((target) => target.id === selectedCatalogTargetDraft.id) : false),
     [draft.targets, selectedCatalogTargetDraft],
   );
+  const catalogValidTaxonomyTargets = useMemo(
+    () =>
+      catalogDraftTargets.filter((target) => {
+        const validation = catalogTargetNameValidationById[target.id];
+        return Boolean(validation?.canValidate && validation.matchesName && !catalogDuplicateTargetIdMap.get(target.id));
+      }),
+    [catalogDraftTargets, catalogDuplicateTargetIdMap, catalogTargetNameValidationById],
+  );
+  const catalogReadyForDeckTargetIds = useMemo(
+    () => new Set(catalogValidTaxonomyTargets.map((target) => target.id)),
+    [catalogValidTaxonomyTargets],
+  );
+  const selectedCatalogTargetCanEnterDeck = useMemo(
+    () => Boolean(selectedCatalogTargetDraft && catalogReadyForDeckTargetIds.has(selectedCatalogTargetDraft.id)),
+    [catalogReadyForDeckTargetIds, selectedCatalogTargetDraft],
+  );
+  const catalogSuperclassOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          catalogValidTaxonomyTargets
+            .map((target) => normalizeTaxonomyValue(target.superclass ?? ""))
+            .filter(Boolean),
+        ),
+      )
+        .sort((left, right) => left.localeCompare(right, "pt-BR"))
+        .map((id) => ({ id, label: getTargetSuperclassLabel(id) })),
+    [catalogValidTaxonomyTargets],
+  );
+  const deckSuperclassOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...catalogSuperclassOptions.map((option) => option.id),
+          normalizeTaxonomyValue(draft.superclass),
+        ].filter(Boolean)),
+      )
+        .sort((left, right) => left.localeCompare(right, "pt-BR"))
+        .map((id) => ({ id, label: getDeckSuperclassLabel(id) })),
+    [catalogSuperclassOptions, draft.superclass],
+  );
+  const catalogClassOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          catalogValidTaxonomyTargets
+            .filter((target) => {
+              const normalizedSuperclass = normalizeTaxonomyValue(target.superclass ?? "");
+              return catalogSuperclassFilter === "all" || normalizedSuperclass === catalogSuperclassFilter;
+            })
+            .map((target) => normalizeTaxonomyValue(target.classKey ?? ""))
+            .filter(Boolean),
+        ),
+      )
+        .sort((left, right) => left.localeCompare(right, "pt-BR"))
+        .map((id) => ({ id, label: getTargetClassLabel(id) })),
+    [catalogSuperclassFilter, catalogValidTaxonomyTargets],
+  );
+  const filteredCatalogDraftTargets = useMemo(
+    () => {
+      const nextTargets = catalogDraftTargets.filter((target) => {
+        const normalizedSuperclass = normalizeTaxonomyValue(target.superclass ?? "");
+        const normalizedClassKey = normalizeTaxonomyValue(target.classKey ?? "");
+
+        if (catalogSuperclassFilter !== "all" && normalizedSuperclass !== catalogSuperclassFilter) {
+          return false;
+        }
+
+        if (catalogClassFilter !== "all" && normalizedClassKey !== catalogClassFilter) {
+          return false;
+        }
+
+        if (catalogRarityFilter !== "all" && normalizeRarity(target.rarity) !== catalogRarityFilter) {
+          return false;
+        }
+
+        if (!deferredCatalogSearch) {
+          return true;
+        }
+
+        const searchCorpus = [
+          target.id,
+          target.name,
+          target.superclass,
+          target.classKey,
+          normalizedSuperclass,
+          normalizedClassKey,
+          getTargetSuperclassLabel(target.superclass ?? ""),
+          getTargetClassLabel(target.classKey ?? ""),
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return searchCorpus.includes(deferredCatalogSearch);
+      });
+
+      if (catalogSortMode === "rarity") {
+        nextTargets.sort((left, right) => {
+          const rarityDelta =
+            getTargetRarityOrder(right.rarity) - getTargetRarityOrder(left.rarity);
+
+          if (rarityDelta !== 0) {
+            return catalogSortDirection === "desc" ? rarityDelta : -rarityDelta;
+          }
+
+          return left.name.localeCompare(right.name, "pt-BR");
+        });
+      }
+
+      return nextTargets;
+    },
+    [
+      catalogClassFilter,
+      catalogDraftTargets,
+      catalogRarityFilter,
+      catalogSortDirection,
+      catalogSortMode,
+      catalogSuperclassFilter,
+      deferredCatalogSearch,
+    ],
+  );
+  const isCatalogFilterActive =
+    deferredCatalogSearch.length > 0 ||
+    catalogSuperclassFilter !== "all" ||
+    catalogClassFilter !== "all" ||
+    catalogRarityFilter !== "all" ||
+    catalogSortMode !== "default";
+  const catalogCountLabel = isCatalogFilterActive
+    ? `${filteredCatalogDraftTargets.length}/${catalogDraftTargets.length} alvo(s)`
+    : `${catalogDraftTargets.length} alvo(s)`;
   const persistedSource = useMemo(
     () =>
       selectedDeckEntry && persistedDeck
@@ -619,10 +797,10 @@ export const ContentEditor: React.FC = () => {
   );
   const catalogTargetGridItems = useMemo(
     () => [
-      { kind: "add" as const, id: "__add-catalog-target__" },
-      ...catalogDraftTargets.map((target) => ({ kind: "target" as const, id: target.id, target })),
+      ...(isCatalogFilterActive ? [] : [{ kind: "add" as const, id: "__add-catalog-target__" }]),
+      ...filteredCatalogDraftTargets.map((target) => ({ kind: "target" as const, id: target.id, target })),
     ],
-    [catalogDraftTargets],
+    [filteredCatalogDraftTargets, isCatalogFilterActive],
   );
   const syllableGridItems = useMemo(
     () => effectivePoolRows.map((row) => ({ kind: "row" as const, id: row.id, row })),
@@ -692,6 +870,24 @@ export const ContentEditor: React.FC = () => {
     [deferredDeckSearch, sourceEntries],
   );
   useEffect(() => {
+    if (catalogClassFilter === "all") return;
+
+    const classStillVisible = catalogClassOptions.some((option) => option.id === catalogClassFilter);
+
+    if (!classStillVisible) {
+      setCatalogClassFilter("all");
+    }
+  }, [catalogClassFilter, catalogClassOptions]);
+  useEffect(() => {
+    if (catalogSuperclassFilter === "all") return;
+
+    const superclassStillVisible = catalogSuperclassOptions.some((option) => option.id === catalogSuperclassFilter);
+
+    if (!superclassStillVisible) {
+      setCatalogSuperclassFilter("all");
+    }
+  }, [catalogSuperclassFilter, catalogSuperclassOptions]);
+  useEffect(() => {
     if (selectedTargetId && !draft.targets.some((target) => target.id === selectedTargetId)) {
       setSelectedTargetId("");
     }
@@ -701,6 +897,11 @@ export const ContentEditor: React.FC = () => {
       setSelectedCatalogTargetId("");
     }
   }, [catalogDraftTargets, selectedCatalogTargetId]);
+  useEffect(() => {
+    if (selectedCatalogTargetId && !filteredCatalogDraftTargets.some((target) => target.id === selectedCatalogTargetId)) {
+      setSelectedCatalogTargetId("");
+    }
+  }, [filteredCatalogDraftTargets, selectedCatalogTargetId]);
 
   useEffect(() => {
     if (selectedSyllableRowId && !effectivePoolRows.some((row) => row.id === selectedSyllableRowId)) {
@@ -892,7 +1093,7 @@ export const ContentEditor: React.FC = () => {
     return entries[Math.min(removedIndex, entries.length - 1)]?.id ?? entries[0]?.id ?? "";
   };
 
-  const updateDeckField = <K extends keyof Pick<ContentEditorDeckDraft, "name" | "description" | "emoji" | "visualTheme">>(
+  const updateDeckField = <K extends keyof Pick<ContentEditorDeckDraft, "name" | "description" | "emoji" | "superclass" | "visualTheme">>(
     field: K,
     value: ContentEditorDeckDraft[K],
   ) => {
@@ -1137,6 +1338,10 @@ export const ContentEditor: React.FC = () => {
     catalogDraftTargets.forEach((target) => targetIds.add(target.id));
 
     const nextTarget = createEmptyContentEditorTarget(targetIds);
+    setCatalogSearchValue("");
+    setCatalogSuperclassFilter("all");
+    setCatalogClassFilter("all");
+    setCatalogRarityFilter("all");
     setCatalogDraftTargets((current) => [nextTarget, ...current]);
     setSelectedCatalogTargetId(nextTarget.id);
     setSaveStatus(idleSaveStatus);
@@ -1154,10 +1359,32 @@ export const ContentEditor: React.FC = () => {
     });
   };
 
+  const closeCatalogTargetEditor = (targetId: string) => {
+    setSelectedCatalogTargetId("");
+
+    if (typeof window === "undefined") return;
+
+    window.requestAnimationFrame(() => {
+      const cardButton = document.querySelector<HTMLElement>(`[data-catalog-target-card="${targetId}"]`);
+      if (!cardButton) return;
+      cardButton.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      cardButton.focus({ preventScroll: true });
+    });
+  };
+
   const addCatalogTargetToDeck = (targetId: string) => {
     const catalogTarget = catalogDraftTargets.find((target) => target.id === targetId);
     if (!catalogTarget) return;
     const duplicateTargetId = catalogDuplicateTargetIdMap.get(targetId);
+    const targetValidation = catalogTargetNameValidationById[targetId];
+
+    if (!targetValidation?.canValidate || !targetValidation.matchesName) {
+      setSaveStatus({
+        tone: "error",
+        message: `Nao da para adicionar ${catalogTarget.name || catalogTarget.id} ao deck antes de validar nome e silabas.`,
+      });
+      return;
+    }
 
     if (duplicateTargetId) {
       const duplicateTarget = catalogDraftTargets.find((target) => target.id === duplicateTargetId);
@@ -1307,6 +1534,8 @@ export const ContentEditor: React.FC = () => {
 
   const canSave =
     import.meta.env.DEV &&
+    isDirty &&
+    hasSaveSourceChanges &&
     preview.ok &&
     localIssues.length === 0 &&
     !deckNameConflictEntry &&
@@ -1493,7 +1722,7 @@ export const ContentEditor: React.FC = () => {
                         <div className="min-w-0">
                           <div className="truncate font-serif text-2xl font-black text-amber-50">{entry.deck.name}</div>
                           <div className="mt-1 truncate text-[11px] font-black uppercase tracking-[0.22em] text-amber-100/68">
-                            {DEFAULT_DECK_CLASS_LABEL}
+                            {getDeckSuperclassLabel(entry.deck.superclass ?? "animal")}
                           </div>
                         </div>
                       </div>
@@ -1572,13 +1801,27 @@ export const ContentEditor: React.FC = () => {
                   title="Deck Ativo"
                   icon={<FilePenLine className="h-5 w-5" />}
                 >
-                  <div className="grid gap-4 xl:grid-cols-[11rem_13rem_minmax(0,1fr)_7rem] xl:items-end">
+                  <div className="grid gap-4 xl:grid-cols-[11rem_11rem_11rem_minmax(0,1fr)_7rem] xl:items-end">
                     <Field label="Deck id tecnico">
                       <input
                         value={draftSaveEntry.id}
                         readOnly
                         className="w-full rounded-2xl border border-amber-900/15 bg-amber-100/55 px-4 py-3 text-sm text-amber-950/70 outline-none"
                       />
+                    </Field>
+
+                    <Field label="Superclasse">
+                      <select
+                        value={draft.superclass}
+                        onChange={(event) => updateDeckField("superclass", event.target.value)}
+                        className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                      >
+                        {deckSuperclassOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
 
                     <Field label="Visual theme seguro">
@@ -1622,7 +1865,7 @@ export const ContentEditor: React.FC = () => {
                       />
                     </Field>
 
-                    <Field label="Descricao" className="xl:col-span-4">
+                    <Field label="Descricao" className="xl:col-span-5">
                       <textarea
                         value={draft.description}
                         onChange={(event) => updateDeckField("description", event.target.value)}
@@ -1862,7 +2105,7 @@ export const ContentEditor: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="xl:h-[min(86.7vh,67rem)] xl:min-h-0">
+                <div className="xl:h-[min(95.4vh,73.7rem)] xl:min-h-0">
                   <Panel
                     title="Catalogo de Alvos"
                     icon={<BookOpenText className="h-5 w-5" />}
@@ -1870,18 +2113,136 @@ export const ContentEditor: React.FC = () => {
                     headerAction={
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <Badge className="border border-amber-900/12 bg-white/85 text-amber-950">
-                          {catalogDraftTargets.length} alvo(s)
+                          {catalogCountLabel}
                         </Badge>
                       </div>
                     }
                   >
+                    <div className="border-b border-amber-900/10 px-6 py-5">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+                        <label className="block flex-1">
+                          <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/50">
+                            <Search className="h-4 w-4" />
+                            Catalogo
+                          </div>
+                          <input
+                            value={catalogSearchValue}
+                            onChange={(event) => setCatalogSearchValue(event.target.value)}
+                            placeholder="Nome, id, classe ou raridade"
+                            className="w-full rounded-2xl border border-amber-900/15 bg-white/75 px-4 py-3 text-sm text-amber-950 outline-none transition placeholder:text-amber-900/35 focus:border-amber-500/30"
+                          />
+                        </label>
+
+                        <Field label="Superclasse" className="xl:w-[10rem]">
+                          <select
+                            value={catalogSuperclassFilter}
+                            onChange={(event) => setCatalogSuperclassFilter(event.target.value)}
+                            className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                          >
+                            <option value="all">todas</option>
+                            {catalogSuperclassOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+
+                        <Field label="Classe" className="xl:w-[10rem]">
+                          <select
+                            value={catalogClassFilter}
+                            onChange={(event) => setCatalogClassFilter(event.target.value)}
+                            className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                          >
+                            <option value="all">todas</option>
+                            {catalogClassOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+
+                        <Field label="Raridade" className="xl:w-[9rem]">
+                          <select
+                            value={catalogRarityFilter}
+                            onChange={(event) => setCatalogRarityFilter(event.target.value)}
+                            className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                          >
+                            <option value="all">todas</option>
+                            {TARGET_RARITY_OPTIONS.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+
+                        <div className="flex flex-wrap items-center gap-2 xl:ml-auto xl:pb-[1px]">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() =>
+                              setCatalogSortMode((current) => (current === "rarity" ? "default" : "rarity"))
+                            }
+                            className={cn(
+                              "h-11 rounded-2xl border px-3 text-amber-950 transition",
+                              catalogSortMode === "rarity"
+                                ? "border-amber-500/30 bg-amber-100/80 hover:bg-amber-100"
+                                : "border-amber-900/12 bg-white/70 hover:bg-amber-100/70",
+                            )}
+                          >
+                            <Layers3 className="h-4 w-4" />
+                            Raridade
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() =>
+                              setCatalogSortDirection((current) => (current === "desc" ? "asc" : "desc"))
+                            }
+                            disabled={catalogSortMode !== "rarity"}
+                            className="h-11 rounded-2xl border border-amber-900/12 bg-white/70 px-3 text-amber-950 hover:bg-amber-100/70 disabled:cursor-default disabled:opacity-45"
+                          >
+                            {catalogSortDirection === "desc" ? (
+                              <ArrowDown className="h-4 w-4" />
+                            ) : (
+                              <ArrowUp className="h-4 w-4" />
+                            )}
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setCatalogSearchValue("");
+                              setCatalogSuperclassFilter("all");
+                              setCatalogClassFilter("all");
+                              setCatalogRarityFilter("all");
+                            }}
+                            disabled={!isCatalogFilterActive}
+                            className="h-11 rounded-2xl border border-amber-900/12 bg-white/70 px-3 text-amber-950 hover:bg-amber-100/70 disabled:cursor-default disabled:opacity-45"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Limpar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 no-scrollbar">
+                      {filteredCatalogDraftTargets.length === 0 ? (
+                        <div className="mb-4 rounded-[28px] border border-dashed border-amber-900/15 bg-white/55 px-5 py-10 text-center text-sm text-amber-950/70">
+                          Nenhum alvo bate com a busca ou com os filtros atuais.
+                        </div>
+                      ) : null}
                       <div className="grid grid-cols-2 gap-x-3 gap-y-3 md:grid-cols-3 xl:grid-cols-6">
                         {catalogTargetGridItems.map((item, index) => (
                           <React.Fragment key={item.id}>
                             {item.kind === "target" ? (
                               <button
                                 type="button"
+                                data-catalog-target-card={item.target.id}
                                 onClick={() =>
                                   setSelectedCatalogTargetId((current) => (current === item.target.id ? "" : item.target.id))
                                 }
@@ -1915,19 +2276,37 @@ export const ContentEditor: React.FC = () => {
                               </Badge>
                               <div className="ml-auto flex flex-wrap items-center gap-2">
                                 {selectedCatalogTargetIsInDeck ? (
-                                  <Badge className="h-10 min-w-[7rem] justify-center rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-3 text-emerald-950">
-                                    Adicionado
-                                  </Badge>
+                                  <>
+                                    <Badge className="h-10 min-w-[7rem] justify-center rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-3 text-emerald-950">
+                                      Adicionado
+                                    </Badge>
+                                    <Button
+                                      variant="ghost"
+                                      className="h-10 min-w-[7rem] rounded-2xl border border-amber-900/12 bg-white/80 px-3 text-amber-950 hover:bg-amber-100/75"
+                                      onClick={() => closeCatalogTargetEditor(selectedCatalogTargetDraft.id)}
+                                    >
+                                      Concluir
+                                    </Button>
+                                  </>
                                 ) : (
-                                  <Button
-                                    variant="ghost"
-                                    className="h-10 min-w-[7rem] rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-3 text-emerald-950 hover:bg-emerald-200/80"
-                                    onClick={() => addCatalogTargetToDeck(selectedCatalogTargetDraft.id)}
-                                    disabled={Boolean(selectedCatalogDuplicateTarget)}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                    No deck
-                                  </Button>
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      className="h-10 min-w-[7rem] rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-3 text-emerald-950 hover:bg-emerald-200/80"
+                                      onClick={() => addCatalogTargetToDeck(selectedCatalogTargetDraft.id)}
+                                      disabled={!selectedCatalogTargetCanEnterDeck}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      No deck
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      className="h-10 min-w-[7rem] rounded-2xl border border-amber-900/12 bg-white/80 px-3 text-amber-950 hover:bg-amber-100/75"
+                                      onClick={() => closeCatalogTargetEditor(selectedCatalogTargetDraft.id)}
+                                    >
+                                      Concluir
+                                    </Button>
+                                  </>
                                 )}
                                 <Button
                                   variant="ghost"
@@ -1960,7 +2339,7 @@ export const ContentEditor: React.FC = () => {
                                 </Field>
                               </div>
 
-                              <div className="grid gap-4 md:grid-cols-2">
+                              <div className="grid gap-4 md:grid-cols-3">
                                 <Field label="Rarity">
                                   <select
                                     value={selectedCatalogTargetDraft.rarity}
@@ -1974,6 +2353,30 @@ export const ContentEditor: React.FC = () => {
                                   </select>
                                 </Field>
 
+                                <Field label="Superclasse">
+                                  <input
+                                    value={selectedCatalogTargetDraft.superclass ?? ""}
+                                    onChange={(event) =>
+                                      updateCatalogTarget(selectedCatalogTargetDraft.id, { superclass: event.target.value })
+                                    }
+                                    placeholder="Ex.: animal"
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  />
+                                </Field>
+
+                                <Field label="Classe">
+                                  <input
+                                    value={selectedCatalogTargetDraft.classKey ?? ""}
+                                    onChange={(event) =>
+                                      updateCatalogTarget(selectedCatalogTargetDraft.id, { classKey: event.target.value })
+                                    }
+                                    placeholder="Ex.: fazenda"
+                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/70 px-4 py-3 text-sm text-amber-950 outline-none transition focus:border-amber-500/30"
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
                                 <Field label="Silabas do alvo">
                                   <input
                                     value={selectedCatalogTargetDraft.syllablesText}
@@ -1991,6 +2394,20 @@ export const ContentEditor: React.FC = () => {
                                     )}
                                   />
                                 </Field>
+
+                                <div className="rounded-2xl border border-amber-900/12 bg-amber-50/55 px-4 py-3 text-sm text-amber-950">
+                                  <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
+                                    Classificacao
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                                      {getTargetSuperclassLabel(selectedCatalogTargetDraft.superclass)}
+                                    </Badge>
+                                    <Badge className="border border-amber-900/12 bg-white/80 text-amber-950">
+                                      {getTargetClassLabel(selectedCatalogTargetDraft.classKey)}
+                                    </Badge>
+                                  </div>
+                                </div>
                               </div>
 
                               <Field label="Descricao">
@@ -2238,7 +2655,7 @@ export const ContentEditor: React.FC = () => {
                             hasSaveSourceChanges ? (
                               <div className="mt-4 space-y-4">
                                 <div>
-                                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">
+                                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/55">
                                     Deck bruto
                                   </div>
                                   {saveSourceDiff.hasChanges ? (
@@ -2266,7 +2683,7 @@ export const ContentEditor: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">
+                                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/55">
                                     Catalogo global de alvos
                                   </div>
                                   {targetSourceDiff.hasChanges ? (
@@ -2715,7 +3132,7 @@ const IssueRow: React.FC<{
 const EmptyCallout: React.FC<{
   text: string;
 }> = ({ text }) => (
-  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4 text-sm text-amber-950/75">
+  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.92)] px-4 py-4 text-sm font-medium text-amber-950/88">
     {text}
   </div>
 );
