@@ -1,10 +1,9 @@
 import React from "react";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
-import { BattleLayoutConfig } from "./BattleLayoutConfig";
+import { BattleEditableElementKey, BattleLayoutConfig } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattleActionVisualState } from "./BattleLayoutEditorState";
-import type { BattleScenePreviewFocusArea } from "./BattleSceneFixtureView";
 
 interface BattleActionButtonProps {
   title: string;
@@ -20,7 +19,7 @@ interface BattleActionButtonProps {
   snapThreshold?: number;
   previewAnimations?: boolean;
   editorMode?: boolean;
-  selectedElements?: BattleScenePreviewFocusArea[];
+  selectedElements?: BattleEditableElementKey[];
   snapTargets?: Array<unknown>;
 }
 

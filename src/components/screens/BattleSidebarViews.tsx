@@ -8,7 +8,6 @@ import { BattleActionButton } from "./BattleActionButton";
 import { BattleEditableElementKey, BattleLayoutConfig } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattleEditableElement } from "./BattleEditableElement";
-import type { BattleScenePreviewFocusArea } from "./BattleSceneFixtureView";
 import { BattleActionVisualState, BattleChroniclesVisualState, BattleStatusVisualState } from "./BattleLayoutEditorState";
 
 const noopRef = () => {};
@@ -28,7 +27,7 @@ export interface BattleLeftSidebarViewProps {
   snapThreshold?: number;
   previewAnimations?: boolean;
   motionReplayNonceByElement?: Partial<Record<BattleEditableElementKey, number>>;
-  selectedElements?: BattleScenePreviewFocusArea[];
+  selectedElements?: BattleEditableElementKey[];
   snapTargets?: Array<{
     key: BattleEditableElementKey;
     x: number;
@@ -56,7 +55,7 @@ export interface BattleRightSidebarViewProps {
   snapThreshold?: number;
   previewAnimations?: boolean;
   motionReplayNonceByElement?: Partial<Record<BattleEditableElementKey, number>>;
-  selectedElements?: BattleScenePreviewFocusArea[];
+  selectedElements?: BattleEditableElementKey[];
   actionVisualState?: BattleActionVisualState;
   statusVisualState?: BattleStatusVisualState;
   snapTargets?: Array<{
@@ -178,7 +177,7 @@ const createDefaultAction = (
   viewportWidth?: number,
   gridSize: number = 8,
   snapThreshold: number = 12,
-  selectedElements: BattleScenePreviewFocusArea[] = [],
+  selectedElements: BattleEditableElementKey[] = [],
   snapTargets: Array<{
     key: BattleEditableElementKey;
     x: number;

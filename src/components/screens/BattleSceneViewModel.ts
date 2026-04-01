@@ -1,5 +1,11 @@
-import { ChronicleEntry, GameMessage } from "../../types/game";
+import { ChronicleEntry, GameMessage, GameState } from "../../types/game";
 import { BattleFieldLaneSlot } from "./BattleFieldLane";
+import {
+  BattleHandLaneCard,
+  BattleHandLaneDebugSnapshot,
+  BattleHandLaneIncomingCard,
+  BattleHandLaneOutgoingCard,
+} from "./BattleHandLane";
 
 export interface BattlePortraitViewModel {
   label: string;
@@ -26,6 +32,7 @@ export interface BattleActionButtonViewModel {
   title: string;
   subtitle?: string;
   disabled?: boolean;
+  onClick?: () => void;
 }
 
 export interface BattleSceneBoardModel {
@@ -47,6 +54,34 @@ export interface BattleRightSidebarViewModel {
   action?: BattleActionButtonViewModel;
 }
 
+export interface BattleSceneHandModel {
+  side: 0 | 1;
+  presentation: "local" | "remote";
+  stableCards: BattleHandLaneCard[];
+  incomingCards?: BattleHandLaneIncomingCard[];
+  outgoingCards?: BattleHandLaneOutgoingCard[];
+  reservedSlots?: number;
+  pulse?: boolean;
+  hoveredCardIndex?: number | null;
+  selectedIndexes?: number[];
+  canInteract?: boolean;
+  showTurnHighlights?: boolean;
+  showPlayableHints?: boolean;
+  targets?: GameState["players"][0]["targets"];
+  freshCardIds?: string[];
+  onCardClick?: (index: number) => void;
+  onHoverCard?: (index: number | null) => void;
+  onIncomingCardComplete?: (incomingCard: BattleHandLaneIncomingCard) => void;
+  onOutgoingCardComplete?: (outgoingCard: BattleHandLaneOutgoingCard) => void;
+  bindCardRef?: (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => void;
+  onDebugSnapshotByScale?: Partial<Record<"desktop" | "mobile", (snapshot: BattleHandLaneDebugSnapshot) => void>>;
+}
+
+export interface BattleSceneHandsModel {
+  top: BattleSceneHandModel;
+  bottom: BattleSceneHandModel;
+}
+
 export function createBattleSceneBoardModel(
   board: BattleSceneBoardModel,
 ): BattleSceneBoardModel {
@@ -57,6 +92,7 @@ export interface BattleSceneModel {
   board: BattleSceneBoardModel;
   leftSidebar: BattleLeftSidebarViewModel;
   rightSidebar: BattleRightSidebarViewModel;
+  hands: BattleSceneHandsModel;
 }
 
 export type BattleBoardSurfaceViewModel = BattleSceneBoardModel;

@@ -171,6 +171,23 @@ const boardMidTurn = createBattleSceneBoardModel({
 export const midTurnBattleFixture: BattleSceneFixtureData = {
   scene: {
     board: boardMidTurn,
+    hands: {
+      top: {
+        side: 1,
+        presentation: "remote",
+        stableCards: enemyHandBase,
+      },
+      bottom: {
+        side: 0,
+        presentation: "local",
+        stableCards: playerHandBase,
+        selectedIndexes: [0],
+        canInteract: true,
+        showTurnHighlights: true,
+        showPlayableHints: true,
+        targets: boardMidTurn.playerFieldSlots.map((slot) => slot.displayedTarget!.target),
+      },
+    },
     leftSidebar: {
       decks: { targetDeckCount: 4, deckCount: 36 },
       chronicles: baseChronicles,
@@ -239,6 +256,16 @@ export const enemyTurnBattleFixture: BattleSceneFixtureData = {
         clock: "41",
       },
       action: makeAction(true),
+    },
+    hands: {
+      ...midTurnBattleFixture.scene.hands,
+      bottom: {
+        ...midTurnBattleFixture.scene.hands.bottom,
+        selectedIndexes: [],
+        canInteract: false,
+        showTurnHighlights: false,
+        showPlayableHints: false,
+      },
     },
   },
   selectedIndexes: [],

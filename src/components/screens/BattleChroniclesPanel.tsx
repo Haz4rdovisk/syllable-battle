@@ -5,7 +5,6 @@ import { cn } from "../../lib/utils";
 import { BattleEditableElementKey, BattleLayoutConfig } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattleChroniclesVisualState } from "./BattleLayoutEditorState";
-import type { BattleScenePreviewFocusArea } from "./BattleSceneFixtureView";
 
 interface BattleChroniclesPanelProps {
   entries: ChronicleEntry[];
@@ -18,7 +17,7 @@ interface BattleChroniclesPanelProps {
   snapThreshold?: number;
   previewAnimations?: boolean;
   editorMode?: boolean;
-  selectedElements?: BattleScenePreviewFocusArea[];
+  selectedElements?: BattleEditableElementKey[];
   snapTargets?: Array<{
     key: BattleEditableElementKey;
     x: number;

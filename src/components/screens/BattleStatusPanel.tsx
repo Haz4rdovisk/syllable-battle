@@ -3,7 +3,6 @@ import { cn } from "../../lib/utils";
 import { BattleEditableElementKey, BattleLayoutConfig } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattleStatusVisualState } from "./BattleLayoutEditorState";
-import type { BattleScenePreviewFocusArea } from "./BattleSceneFixtureView";
 
 interface BattleStatusPanelProps {
   title: string;
@@ -19,7 +18,7 @@ interface BattleStatusPanelProps {
   snapThreshold?: number;
   previewAnimations?: boolean;
   editorMode?: boolean;
-  selectedElements?: BattleScenePreviewFocusArea[];
+  selectedElements?: BattleEditableElementKey[];
   snapTargets?: Array<{
     key: BattleEditableElementKey;
     x: number;
