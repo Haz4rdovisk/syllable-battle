@@ -28,7 +28,7 @@ export interface BattleActionButtonViewModel {
   disabled?: boolean;
 }
 
-export interface BattleBoardSurfaceViewModel {
+export interface BattleSceneBoardModel {
   enemyFieldSlots: BattleFieldLaneSlot[];
   playerFieldSlots: BattleFieldLaneSlot[];
   currentMessage: GameMessage | null;
@@ -47,14 +47,19 @@ export interface BattleRightSidebarViewModel {
   action?: BattleActionButtonViewModel;
 }
 
-export function createBattleBoardSurfaceViewModel(
-  board: BattleBoardSurfaceViewModel,
-): BattleBoardSurfaceViewModel {
+export function createBattleSceneBoardModel(
+  board: BattleSceneBoardModel,
+): BattleSceneBoardModel {
   return board;
 }
 
-export interface BattleSceneViewModel {
-  board: BattleBoardSurfaceViewModel;
+export interface BattleSceneModel {
+  board: BattleSceneBoardModel;
   leftSidebar: BattleLeftSidebarViewModel;
   rightSidebar: BattleRightSidebarViewModel;
 }
+
+export type BattleBoardSurfaceViewModel = BattleSceneBoardModel;
+export type BattleSceneViewModel = BattleSceneModel;
+
+export const createBattleBoardSurfaceViewModel = createBattleSceneBoardModel;

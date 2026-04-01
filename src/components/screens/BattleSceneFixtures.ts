@@ -1,8 +1,8 @@
 import { GameMessage, Syllable, UITarget } from "../../types/game";
 import {
   BattleActionButtonViewModel,
-  BattleSceneViewModel,
-  createBattleBoardSurfaceViewModel,
+  BattleSceneModel,
+  createBattleSceneBoardModel,
 } from "./BattleSceneViewModel";
 
 export interface BattleSceneFixtureHandCard {
@@ -13,7 +13,7 @@ export interface BattleSceneFixtureHandCard {
 }
 
 export interface BattleSceneFixtureData {
-  scene: BattleSceneViewModel;
+  scene: BattleSceneModel;
   playerHand: BattleSceneFixtureHandCard[];
   enemyHand: BattleSceneFixtureHandCard[];
   selectedIndexes?: number[];
@@ -160,7 +160,7 @@ const baseHud = {
   clockUrgent: false,
 } as const;
 
-const boardMidTurn = createBattleBoardSurfaceViewModel({
+const boardMidTurn = createBattleSceneBoardModel({
   enemyFieldSlots,
   playerFieldSlots,
   currentMessage: makeMessage("Sua vez"),

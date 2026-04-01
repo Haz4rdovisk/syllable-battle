@@ -23,16 +23,12 @@ import {
 } from "../../logic/gameLogic";
 import {
   TargetCard,
-  PlayerPortrait,
   CardPile,
   BoardZoneId,
   ZoneAnchorSnapshot,
   VisualTargetEntity,
 } from "../game/GameComponents";
-import { BattleBoardShell } from "./BattleBoardShell";
-import { BattleBoardSurface, getBattleBoardSurfaceVars } from "./BattleBoardSurface";
-import { BattleBoardMessage } from "./BattleBoardMessage";
-import { BattlePillOverlay } from "./BattlePillOverlay";
+import { BattleBoardSurface } from "./BattleBoardSurface";
 import type {
   BattleAnimationAnchorPoint,
 } from "./BattleLayoutConfig";
@@ -50,10 +46,11 @@ import {
   BattleHandLaneOutgoingCard,
 } from "./BattleHandLane";
 import { BattleHandFocusFrame } from "./BattleHandFocusFrame";
-import { BattleSceneViewModel, createBattleBoardSurfaceViewModel } from "./BattleSceneViewModel";
+import { BattleSceneModel, createBattleSceneBoardModel } from "./BattleSceneViewModel";
 import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleStatusPanel } from "./BattleStatusPanel";
 import { BattleChroniclesPanel } from "./BattleChroniclesPanel";
+import { BattleSceneRenderer } from "./BattleSceneRenderer";
 import { BattleSceneView } from "./BattleSceneView";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleActionButton } from "./BattleActionButton";
@@ -316,7 +313,6 @@ export const Battle: React.FC<BattleProps> = ({
   const usesMobileShell = shouldUseBattleMobileShell(activeLayoutDevice);
   const isDesktopViewport = activeLayoutDevice !== "mobile";
   const activeBattleLayout = useActiveBattleLayoutConfig(activeLayoutDevice);
-  const boardVars = getBattleBoardSurfaceVars(activeBattleLayout);
   const localPlayerIndex = localSide === "player" ? PLAYER : ENEMY;
   const remotePlayerIndex = localPlayerIndex === PLAYER ? ENEMY : PLAYER;
   const getTurnMessageTitle = useCallback(
@@ -3616,8 +3612,8 @@ export const Battle: React.FC<BattleProps> = ({
   const battleDebugWatcherSummary = import.meta.env.DEV
     ? `watch:samples:${battleDebugSamplesRef.current.length} fallbacks:${animationFallbackHistoryRef.current.length} last:${battleDebugLatestSample ? new Date(battleDebugLatestSample.at).toLocaleTimeString("pt-BR", { hour12: false }) : "-"}`
     : "";
-  const sceneViewModel: BattleSceneViewModel = {
-    board: createBattleBoardSurfaceViewModel({
+  const sceneModel: BattleSceneModel = {
+    board: createBattleSceneBoardModel({
       enemyFieldSlots,
       playerFieldSlots,
       currentMessage: game.currentMessage,
@@ -3663,6 +3659,237 @@ export const Battle: React.FC<BattleProps> = ({
       },
     },
   };
+  const sceneShellSlots = {
+    leftSidebar: (
+      <BattleLeftSidebarView
+        sidebar={sceneModel.leftSidebar}
+        targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
+        deckAnchorRef={bindZoneRef("enemyDeck", "desktop")}
+        discardAnchorRef={bindZoneRef("enemyDiscard", "desktop")}
+        layout={activeBattleLayout}
+      />
+    ),
+    centerTopMobile: (
+      <div className={compactTopShellClassName}>
+        <div className="relative h-full w-full overflow-visible">
+          <BattleEditableElement
+            element="topHand"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.top.x}
+            baseY={compactShellSlots.top.y}
+            className="absolute left-0 top-0"
+          >
+            <div className="flex h-full w-full items-start justify-center">
+              {renderEnemyHand("mobile")}
+            </div>
+          </BattleEditableElement>
+          <BattleEditableElement
+            element="enemyTargetDeck"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.top.x}
+            baseY={compactShellSlots.top.y}
+            className="absolute left-0 top-0"
+          >
+            <BattleSinglePile
+              label="ALVOS"
+              count={sceneModel.leftSidebar.decks.targetDeckCount}
+              color="bg-rose-950"
+              variant="target"
+              anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
+              fitParent
+              pilePresetId={activeBattleLayout.visuals.targetPilePresetId}
+            />
+          </BattleEditableElement>
+          <BattleEditableElement
+            element="enemyDeck"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.top.x}
+            baseY={compactShellSlots.top.y}
+            className="absolute left-0 top-0"
+          >
+            <BattleSinglePile
+              label="DECK"
+              count={sceneModel.leftSidebar.decks.deckCount}
+              color="bg-amber-950"
+              variant="deck"
+              anchorRef={bindZoneRef("enemyDeck", "mobile")}
+              fitParent
+              pilePresetId={activeBattleLayout.visuals.deckPilePresetId}
+            />
+          </BattleEditableElement>
+          <BattleEditableElement
+            element="chronicles"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.top.x}
+            baseY={compactShellSlots.top.y}
+            className="absolute left-0 top-0"
+          >
+            <BattleChroniclesPanel
+              entries={sceneModel.leftSidebar.chronicles}
+              layout={activeBattleLayout}
+            />
+          </BattleEditableElement>
+        </div>
+      </div>
+    ),
+    centerTopDesktop: (
+      <BattleEditableElement
+        element="topHand"
+        layout={activeBattleLayout}
+        className="flex items-start justify-center"
+      >
+        <div className="flex h-full w-full items-start justify-center">
+          {renderEnemyHand("desktop")}
+        </div>
+      </BattleEditableElement>
+    ),
+    boardSurface: (
+      <BattleEditableElement
+        element="board"
+        layout={activeBattleLayout}
+        baseX={usesMobileShell ? compactShellSlots.board.x : undefined}
+        baseY={usesMobileShell ? compactShellSlots.board.y : undefined}
+      >
+        <BattleBoardSurface layout={activeBattleLayout} />
+      </BattleEditableElement>
+    ),
+    centerBottomDesktop: (
+      <BattleEditableElement
+        element="bottomHand"
+        layout={activeBattleLayout}
+        className="flex items-end justify-center"
+      >
+        <div className="flex h-full w-full items-end justify-center overflow-visible">
+          <BattleHandFocusFrame scale="desktop">{renderPlayerHand("desktop")}</BattleHandFocusFrame>
+        </div>
+      </BattleEditableElement>
+    ),
+    centerBottomMobile: isCompactTightViewport ? (
+      <BattleEditableElement
+        element="bottomHand"
+        layout={activeBattleLayout}
+        baseX={compactShellSlots.bottom?.x}
+        baseY={compactShellSlots.bottom?.y}
+        className="absolute left-0 top-0"
+      >
+        <BattleHandFocusFrame
+          scale="mobile"
+          className={compactFooterFrameClassName}
+        >
+          {renderPlayerHand("mobile")}
+        </BattleHandFocusFrame>
+      </BattleEditableElement>
+    ) : null,
+    centerControlMobile: (
+      <div className={compactControlShellClassName}>
+        <div className="relative h-full w-full overflow-visible">
+          <BattleEditableElement
+            element="playerTargetDeck"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.control.x}
+            baseY={compactShellSlots.control.y}
+            className="absolute left-0 top-0"
+          >
+            <BattleSinglePile
+              label="ALVOS"
+              count={sceneModel.rightSidebar.decks.targetDeckCount}
+              color="bg-rose-950"
+              variant="target"
+              anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
+              fitParent
+              pilePresetId={activeBattleLayout.visuals.targetPilePresetId}
+            />
+          </BattleEditableElement>
+          <BattleEditableElement
+            element="playerDeck"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.control.x}
+            baseY={compactShellSlots.control.y}
+            className="absolute left-0 top-0"
+          >
+            <BattleSinglePile
+              label="DECK"
+              count={sceneModel.rightSidebar.decks.deckCount}
+              color="bg-amber-950"
+              variant="deck"
+              anchorRef={bindZoneRef("playerDeck", "mobile")}
+              fitParent
+              pilePresetId={activeBattleLayout.visuals.deckPilePresetId}
+            />
+          </BattleEditableElement>
+
+          <BattleEditableElement
+            element="status"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.control.x}
+            baseY={compactShellSlots.control.y}
+            className="absolute left-0 top-0"
+          >
+            <BattleStatusPanel
+              title={sceneModel.rightSidebar.hud.title}
+              turnLabel={sceneModel.rightSidebar.hud.turnLabel}
+              clock={sceneModel.rightSidebar.hud.clock}
+              clockUrgent={sceneModel.rightSidebar.hud.clockUrgent}
+              layout={activeBattleLayout}
+            />
+          </BattleEditableElement>
+
+          <BattleEditableElement
+            element="action"
+            layout={activeBattleLayout}
+            baseX={compactShellSlots.control.x}
+            baseY={compactShellSlots.control.y}
+            className="absolute left-0 top-0"
+          >
+            <BattleActionButton
+              title={sceneModel.rightSidebar.action?.title ?? "Trocar"}
+              subtitle={sceneModel.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
+              layout={activeBattleLayout}
+              className={cn(
+                "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
+                mulliganButtonClass,
+              )}
+              disabled={Boolean(sceneModel.rightSidebar.action?.disabled ?? mulliganDisabled)}
+              onClick={handleMulligan}
+            />
+          </BattleEditableElement>
+        </div>
+      </div>
+    ),
+    rightSidebar: (
+      <BattleRightSidebarView
+        sidebar={sceneModel.rightSidebar}
+        action={
+          <BattleActionButton
+            title={sceneModel.rightSidebar.action?.title ?? "Trocar"}
+            subtitle={sceneModel.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
+            layout={activeBattleLayout}
+            className={cn(
+              "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
+              mulliganButtonClass,
+            )}
+            disabled={Boolean(sceneModel.rightSidebar.action?.disabled ?? mulliganDisabled)}
+            onClick={handleMulligan}
+          />
+        }
+        targetDeckAnchorRef={bindZoneRef("playerTargetDeck", "desktop")}
+        deckAnchorRef={bindZoneRef("playerDeck", "desktop")}
+        discardAnchorRef={bindZoneRef("playerDiscard", "desktop")}
+        layout={activeBattleLayout}
+      />
+    ),
+    footerMobileHand: isCompactTightViewport ? null : (
+      <BattleEditableElement
+        element="bottomHand"
+        layout={activeBattleLayout}
+        baseX={compactShellSlots.footer?.x}
+        baseY={compactShellSlots.footer?.y}
+        className="absolute left-0 top-0"
+      >
+        <BattleHandFocusFrame scale="mobile">{renderPlayerHand("mobile")}</BattleHandFocusFrame>
+      </BattleEditableElement>
+    ),
+  } satisfies React.ComponentProps<typeof BattleSceneRenderer>["shellSlots"];
   return (
     <BattleSceneView
       travelLayer={null}
@@ -3682,376 +3909,73 @@ export const Battle: React.FC<BattleProps> = ({
       }
     >
       <main className="relative z-10 flex h-full min-h-0 flex-col">
-        <BattleEditableElement element="shell" layout={activeBattleLayout}>
-          <BattleBoardShell
-            layout={activeBattleLayout}
-            compact={usesMobileShell}
-            tight={isCompactTightViewport}
-            leftSidebar={
-              <BattleLeftSidebarView
-                sidebar={sceneViewModel.leftSidebar}
-                targetDeckAnchorRef={bindZoneRef("enemyTargetDeck", "desktop")}
-              deckAnchorRef={bindZoneRef("enemyDeck", "desktop")}
-              discardAnchorRef={bindZoneRef("enemyDiscard", "desktop")}
-              layout={activeBattleLayout}
-            />
-            }
-            centerTopMobile={
-              <div className={compactTopShellClassName}>
-                <div className="relative h-full w-full overflow-visible">
-                  <BattleEditableElement
-                    element="topHand"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.top.x}
-                    baseY={compactShellSlots.top.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <div className="flex h-full w-full items-start justify-center">
-                      {renderEnemyHand("mobile")}
-                    </div>
-                  </BattleEditableElement>
-                  <BattleEditableElement
-                    element="enemyTargetDeck"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.top.x}
-                    baseY={compactShellSlots.top.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <BattleSinglePile
-                      label="ALVOS"
-                      count={sceneViewModel.leftSidebar.decks.targetDeckCount}
-                      color="bg-rose-950"
-                      variant="target"
-                      anchorRef={bindZoneRef("enemyTargetDeck", "mobile")}
-                      fitParent
-                      pilePresetId={activeBattleLayout.visuals.targetPilePresetId}
-                    />
-                  </BattleEditableElement>
-                  <BattleEditableElement
-                    element="enemyDeck"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.top.x}
-                    baseY={compactShellSlots.top.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <BattleSinglePile
-                      label="DECK"
-                      count={sceneViewModel.leftSidebar.decks.deckCount}
-                      color="bg-amber-950"
-                      variant="deck"
-                      anchorRef={bindZoneRef("enemyDeck", "mobile")}
-                      fitParent
-                      pilePresetId={activeBattleLayout.visuals.deckPilePresetId}
-                    />
-                  </BattleEditableElement>
-                  <BattleEditableElement
-                    element="chronicles"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.top.x}
-                    baseY={compactShellSlots.top.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <BattleChroniclesPanel
-                      entries={sceneViewModel.leftSidebar.chronicles}
-                      layout={activeBattleLayout}
-                    />
-                  </BattleEditableElement>
-                </div>
-              </div>
-            }
-            centerTopDesktop={
-            <>
-              <BattleEditableElement
-                element="topHand"
-                layout={activeBattleLayout}
-                className="flex items-start justify-center"
+        <BattleSceneRenderer
+          model={sceneModel}
+          shellSlots={sceneShellSlots}
+          compact={usesMobileShell}
+          tight={isCompactTightViewport}
+          layout={activeBattleLayout}
+          elementConfig={{
+            classNameByElement: {
+              shell: "relative",
+              enemyField: "absolute left-0 top-0",
+              playerField: "absolute left-0 top-0",
+              boardMessage: "pointer-events-none absolute left-0 top-0 z-20",
+            },
+            zIndexOverrides: {
+              enemyField: enemyFieldHasOutgoingTarget ? 90 : undefined,
+              playerField: playerFieldHasOutgoingTarget ? 90 : undefined,
+            },
+          }}
+          onEnemyFieldDebugSnapshot={(snapshot) => setFieldLaneDebugSnapshot("enemy", snapshot)}
+          onPlayerFieldDebugSnapshot={(snapshot) => setFieldLaneDebugSnapshot("player", snapshot)}
+        />
+        {import.meta.env.DEV ? (
+          <div className="absolute right-3 top-3 z-[80] rounded-md border border-white/10 bg-black/70 px-3 py-2 font-mono text-[10px] leading-tight text-emerald-200">
+            <div className="pointer-events-auto mb-2 flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={downloadBattleDebugDump}
+                className="h-7 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2 text-[10px] font-bold uppercase tracking-wide text-emerald-100 hover:bg-emerald-500/20"
               >
-                <div className="flex h-full w-full items-start justify-center">
-                  {renderEnemyHand("desktop")}
-                </div>
-              </BattleEditableElement>
-            </>
-          }
-          boardSurface={
-            <BattleEditableElement
-              element="board"
-              layout={activeBattleLayout}
-              baseX={usesMobileShell ? compactShellSlots.board.x : undefined}
-              baseY={usesMobileShell ? compactShellSlots.board.y : undefined}
-            >
-              <BattleBoardSurface layout={activeBattleLayout} />
-            </BattleEditableElement>
-          }
-            centerBottomDesktop={
-              <>
-                <BattleEditableElement
-                element="bottomHand"
-                layout={activeBattleLayout}
-                className="flex items-end justify-center"
+                Dump
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={clearBattleDebugWatcher}
+                className="h-7 rounded-md border border-white/15 bg-white/5 px-2 text-[10px] font-bold uppercase tracking-wide text-white/80 hover:bg-white/10"
               >
-                <div className="flex h-full w-full items-end justify-center overflow-visible">
-                  <BattleHandFocusFrame
-                    scale="desktop"
-                  >
-                    {renderPlayerHand("desktop")}
-                  </BattleHandFocusFrame>
-                </div>
-                </BattleEditableElement>
-              </>
-            }
-            centerBottomMobile={
-              isCompactTightViewport ? (
-                <BattleEditableElement
-                  element="bottomHand"
-                  layout={activeBattleLayout}
-                  baseX={compactShellSlots.bottom?.x}
-                  baseY={compactShellSlots.bottom?.y}
-                  className="absolute left-0 top-0"
-                >
-                  <BattleHandFocusFrame
-                    scale="mobile"
-                    className={compactFooterFrameClassName}
-                  >
-                    {renderPlayerHand("mobile")}
-                  </BattleHandFocusFrame>
-                </BattleEditableElement>
-              ) : null
-            }
-            centerControlMobile={
-              <div className={compactControlShellClassName}>
-                <div className="relative h-full w-full overflow-visible">
-                  <BattleEditableElement
-                    element="playerTargetDeck"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.control.x}
-                    baseY={compactShellSlots.control.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <BattleSinglePile
-                      label="ALVOS"
-                      count={sceneViewModel.rightSidebar.decks.targetDeckCount}
-                      color="bg-rose-950"
-                      variant="target"
-                      anchorRef={bindZoneRef("playerTargetDeck", "mobile")}
-                      fitParent
-                      pilePresetId={activeBattleLayout.visuals.targetPilePresetId}
-                    />
-                  </BattleEditableElement>
-                  <BattleEditableElement
-                    element="playerDeck"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.control.x}
-                    baseY={compactShellSlots.control.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <BattleSinglePile
-                      label="DECK"
-                      count={sceneViewModel.rightSidebar.decks.deckCount}
-                      color="bg-amber-950"
-                      variant="deck"
-                      anchorRef={bindZoneRef("playerDeck", "mobile")}
-                      fitParent
-                      pilePresetId={activeBattleLayout.visuals.deckPilePresetId}
-                    />
-                  </BattleEditableElement>
-
-                  <BattleEditableElement
-                    element="status"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.control.x}
-                    baseY={compactShellSlots.control.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <BattleStatusPanel
-                      title="Tempo"
-                      turnLabel={desktopTurnLabel}
-                      clock={turnClock}
-                      clockUrgent={turnClockUrgent}
-                      layout={activeBattleLayout}
-                    />
-                  </BattleEditableElement>
-
-                  <BattleEditableElement
-                    element="action"
-                    layout={activeBattleLayout}
-                    baseX={compactShellSlots.control.x}
-                    baseY={compactShellSlots.control.y}
-                    className="absolute left-0 top-0"
-                  >
-                    <BattleActionButton
-                      title="Trocar"
-                      layout={activeBattleLayout}
-                      className={cn(
-                        "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
-                        mulliganButtonClass,
-                      )}
-                      disabled={mulliganDisabled}
-                      onClick={handleMulligan}
-                    />
-                  </BattleEditableElement>
-                </div>
-              </div>
-            }
-            rightSidebar={
-              <BattleRightSidebarView
-              sidebar={sceneViewModel.rightSidebar}
-              action={
-                <BattleActionButton
-                  title={sceneViewModel.rightSidebar.action?.title ?? "Trocar"}
-                  subtitle={sceneViewModel.rightSidebar.action?.subtitle ?? "Ate 3 cartas"}
-                  layout={activeBattleLayout}
-                  className={cn(
-                    "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]",
-                    mulliganButtonClass,
-                  )}
-                  disabled={Boolean(sceneViewModel.rightSidebar.action?.disabled ?? mulliganDisabled)}
-                  onClick={handleMulligan}
-                />
-              }
-              targetDeckAnchorRef={bindZoneRef("playerTargetDeck", "desktop")}
-              deckAnchorRef={bindZoneRef("playerDeck", "desktop")}
-              discardAnchorRef={bindZoneRef("playerDiscard", "desktop")}
-              layout={activeBattleLayout}
-            />
-            }
-            footerMobileHand={
-              isCompactTightViewport ? null : (
-                <BattleEditableElement
-                  element="bottomHand"
-                  layout={activeBattleLayout}
-                  baseX={compactShellSlots.footer?.x}
-                  baseY={compactShellSlots.footer?.y}
-                  className="absolute left-0 top-0"
-                >
-                  <BattleHandFocusFrame
-                    scale="mobile"
-                  >
-                    {renderPlayerHand("mobile")}
-                  </BattleHandFocusFrame>
-                </BattleEditableElement>
-              )
-            }
-          />
-          <BattleEditableElement
-            element="enemyField"
-            layout={activeBattleLayout}
-            className="absolute left-0 top-0"
-            zIndexOverride={enemyFieldHasOutgoingTarget ? 90 : undefined}
-          >
-          <div style={boardVars}>
-            <BattleFieldLane
-              presentation="enemy"
-              containerRef={bindZoneRef("enemyField", "main")}
-              sectionClassName="flex min-h-0 items-end justify-center overflow-visible pb-1"
-              slots={sceneViewModel.board.enemyFieldSlots}
-              onDebugSnapshot={(snapshot) => setFieldLaneDebugSnapshot("enemy", snapshot)}
-            />
-          </div>
-        </BattleEditableElement>
-        <BattleEditableElement
-            element="playerField"
-            layout={activeBattleLayout}
-            className="absolute left-0 top-0"
-            zIndexOverride={playerFieldHasOutgoingTarget ? 90 : undefined}
-          >
-          <div style={boardVars}>
-            <BattleFieldLane
-              presentation="player"
-              containerRef={bindZoneRef("playerField", "main")}
-              sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1"
-              slots={sceneViewModel.board.playerFieldSlots}
-              onDebugSnapshot={(snapshot) => setFieldLaneDebugSnapshot("player", snapshot)}
-            />
-          </div>
-        </BattleEditableElement>
-          <BattleEditableElement
-            element="boardMessage"
-            layout={activeBattleLayout}
-            className="pointer-events-none absolute left-0 top-0 z-20"
-          >
-            <div className="flex h-full w-full items-center justify-center">
-              <AnimatePresence mode="wait">
-                {sceneViewModel.board.currentMessage ? (
-                  <BattleBoardMessage message={sceneViewModel.board.currentMessage} />
-                ) : null}
-              </AnimatePresence>
+                Limpar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  animationFallbackHistoryRef.current = [];
+                  setAnimationFallbackHistoryVersion((value) => value + 1);
+                }}
+                className="h-7 rounded-md border border-amber-400/30 bg-amber-500/10 px-2 text-[10px] font-bold uppercase tracking-wide text-amber-100 hover:bg-amber-500/20"
+              >
+                Limpar Fallback
+              </Button>
             </div>
-          </BattleEditableElement>
-          <BattlePillOverlay
-            side="enemy"
-            portrait={
-              <PlayerPortrait
-                label={sceneViewModel.board.enemyPortrait.label}
-                avatar={sceneViewModel.board.enemyPortrait.avatar}
-                isLocal={sceneViewModel.board.enemyPortrait.isLocal}
-                life={sceneViewModel.board.enemyPortrait.life}
-                active={sceneViewModel.board.enemyPortrait.active}
-                flashDamage={sceneViewModel.board.enemyPortrait.flashDamage}
-              />
-            }
-            layout={activeBattleLayout}
-          />
-          <BattlePillOverlay
-            side="player"
-            portrait={
-              <PlayerPortrait
-                label={sceneViewModel.board.playerPortrait.label}
-                avatar={sceneViewModel.board.playerPortrait.avatar}
-                isLocal={sceneViewModel.board.playerPortrait.isLocal}
-                life={sceneViewModel.board.playerPortrait.life}
-                active={sceneViewModel.board.playerPortrait.active}
-                flashDamage={sceneViewModel.board.playerPortrait.flashDamage}
-              />
-            }
-            layout={activeBattleLayout}
-          />
-          {import.meta.env.DEV ? (
-            <div className="absolute right-3 top-3 z-[80] rounded-md border border-white/10 bg-black/70 px-3 py-2 font-mono text-[10px] leading-tight text-emerald-200">
-              <div className="pointer-events-auto mb-2 flex items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={downloadBattleDebugDump}
-                  className="h-7 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2 text-[10px] font-bold uppercase tracking-wide text-emerald-100 hover:bg-emerald-500/20"
-                >
-                  Dump
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={clearBattleDebugWatcher}
-                  className="h-7 rounded-md border border-white/15 bg-white/5 px-2 text-[10px] font-bold uppercase tracking-wide text-white/80 hover:bg-white/10"
-                >
-                  Limpar
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    animationFallbackHistoryRef.current = [];
-                    setAnimationFallbackHistoryVersion((value) => value + 1);
-                  }}
-                  className="h-7 rounded-md border border-amber-400/30 bg-amber-500/10 px-2 text-[10px] font-bold uppercase tracking-wide text-amber-100 hover:bg-amber-500/20"
-                >
-                  Limpar Fallback
-                </Button>
-              </div>
-              <div>{`watcher: ativo`}</div>
-              <div>{battleDebugWatcherSummary}</div>
-              <div>{`stage: ${liveAnimationDebugData.stageLine.replace(/^stage:/, "")}`}</div>
-              <div>{`turn:${game.turn} intro:${game.openingIntroStep} combat:${game.combatLocked ? 1 : 0} msg:${game.currentMessage?.title ?? "-"}`}</div>
-              <div>{`probe:${liveAnimationDebugData.probeLines.length} snapshots:${liveAnimationDebugData.snapshotLines.length}`}</div>
-              <div className={latestFallbackEvent ? "text-amber-200" : "text-emerald-200"}>
-                {latestFallbackEvent
-                  ? `ultimo fallback: ${latestFallbackEvent.label}`
-                  : "fallback: nenhum"}
-              </div>
+            <div>{`watcher: ativo`}</div>
+            <div>{battleDebugWatcherSummary}</div>
+            <div>{`stage: ${liveAnimationDebugData.stageLine.replace(/^stage:/, "")}`}</div>
+            <div>{`turn:${game.turn} intro:${game.openingIntroStep} combat:${game.combatLocked ? 1 : 0} msg:${game.currentMessage?.title ?? "-"}`}</div>
+            <div>{`probe:${liveAnimationDebugData.probeLines.length} snapshots:${liveAnimationDebugData.snapshotLines.length}`}</div>
+            <div className={latestFallbackEvent ? "text-amber-200" : "text-emerald-200"}>
+              {latestFallbackEvent
+                ? `ultimo fallback: ${latestFallbackEvent.label}`
+                : "fallback: nenhum"}
             </div>
-          ) : null}
-        </BattleEditableElement>
+          </div>
+        ) : null}
       </main>
 
       <AnimatePresence>
