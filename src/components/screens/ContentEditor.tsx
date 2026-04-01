@@ -1,9 +1,8 @@
-import React, { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
-  BarChart3,
   BookOpenText,
   CheckCircle2,
   ChevronDown,
@@ -43,15 +42,14 @@ import {
   createRawDeckCatalogEntry,
   createRawDeckDefinitionSource,
   createRawTargetCatalogSource,
-  formatContentEditorTargetSyllables,
   getContentEditorLocalIssues,
   hydrateRawDeckDefinitionFromDraft,
   hydrateRawTargetCatalogFromDraftTargets,
   normalizeContentEditorPoolAdjustments,
   parseContentEditorTargetSyllables,
   RAW_TARGET_CATALOG_FILE_PATH,
-  removeRawDeckFromCatalog,
   removeContentEditorTargetSyllableAt,
+  removeRawDeckFromCatalog,
   upsertRawDeckInCatalog,
   cloneRawTargetDefinition,
 } from "../../data/content/editor";
@@ -97,6 +95,8 @@ const idleSaveStatus: SaveStatus = {
     "Edicao local em memoria ate salvar no source bruto do deck selecionado. Os alvos salvam no catalogo global bruto compartilhado, o pool segue derivado e o deck recompila no pipeline real antes da projecao legado usada pela battle.",
 };
 
+const DEFAULT_DECK_CLASS_LABEL = "Animais";
+
 const normalizeEditorSyllable = (value: string) => value.trim().toUpperCase();
 
 const getDerivedCardsGridColumns = (width: number) => {
@@ -114,6 +114,22 @@ const getCatalogTargetGridColumns = (width: number) => {
   if (width >= 1280) return 6;
   if (width >= 768) return 3;
   return 2;
+};
+
+const findNearestScrollContainer = (element: HTMLElement | null) => {
+  let current = element?.parentElement ?? null;
+
+  while (current) {
+    const style = window.getComputedStyle(current);
+
+    if ((style.overflowY === "auto" || style.overflowY === "scroll") && current.scrollHeight > current.clientHeight) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
 };
 
 const getTargetCopiesDisplayValue = (copiesText: string) => {
@@ -148,7 +164,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetCopiesMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetCopiesMatch[1]} · Copia`,
+      focus: `Alvo ${localTargetCopiesMatch[1]} Â· Copia`,
       message: "Use um inteiro positivo maior que zero para definir quantas copias desse alvo entram no deck.",
       raw: issue,
     };
@@ -158,7 +174,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetSyllablesMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetSyllablesMatch[1]} · Silabas`,
+      focus: `Alvo ${localTargetSyllablesMatch[1]} Â· Silabas`,
       message: "Digite pelo menos uma silaba para esse alvo poder gerar o pool minimo.",
       raw: issue,
     };
@@ -168,7 +184,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetNameMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetNameMatch[1]} · Nome x silabas`,
+      focus: `Alvo ${localTargetNameMatch[1]} Â· Nome x silabas`,
       message: `As silabas digitadas ainda nao formam corretamente o nome ${localTargetNameMatch[2]}.`,
       raw: issue,
     };
@@ -178,7 +194,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localTargetSegmentationMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${localTargetSegmentationMatch[1]} · Nome x silabas`,
+      focus: `Alvo ${localTargetSegmentationMatch[1]} Â· Nome x silabas`,
       message: "Separe as silabas. Nao use a palavra inteira.",
       raw: issue,
     };
@@ -188,7 +204,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (localDuplicateSyllableMatch) {
     return {
       scope: "Cards do Deck",
-      focus: `Silaba ${localDuplicateSyllableMatch[2]} · Linha ${localDuplicateSyllableMatch[3]}`,
+      focus: `Silaba ${localDuplicateSyllableMatch[2]} Â· Linha ${localDuplicateSyllableMatch[3]}`,
       message: "A mesma silaba apareceu mais de uma vez no deck. Cada linha deve representar uma silaba unica.",
       raw: issue,
     };
@@ -198,7 +214,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (pipelineTargetCopiesMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${pipelineTargetCopiesMatch[2]} · Copia`,
+      focus: `Alvo ${pipelineTargetCopiesMatch[2]} Â· Copia`,
       message: "O pipeline real rejeitou esse alvo porque o campo Copia precisa ser um inteiro positivo.",
       raw: issue,
     };
@@ -210,7 +226,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (pipelineTargetNeedsMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${pipelineTargetNeedsMatch[2]} · Silabas`,
+      focus: `Alvo ${pipelineTargetNeedsMatch[2]} Â· Silabas`,
       message: `Esse alvo pede ${pipelineTargetNeedsMatch[3]}x ${pipelineTargetNeedsMatch[4]}, mas o deck so fornece ${pipelineTargetNeedsMatch[5]}.`,
       raw: issue,
     };
@@ -222,7 +238,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (targetSyllablesMissingMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${targetSyllablesMissingMatch[2]} · Silabas`,
+      focus: `Alvo ${targetSyllablesMissingMatch[2]} Â· Silabas`,
       message: "Cada alvo precisa ter pelo menos uma silaba vinculada.",
       raw: issue,
     };
@@ -234,7 +250,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (targetSyllableEntryMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${targetSyllableEntryMatch[2]} · Silabas`,
+      focus: `Alvo ${targetSyllableEntryMatch[2]} Â· Silabas`,
       message: `Existe uma entrada vazia ou invalida na lista de silabas desse alvo (item ${Number(targetSyllableEntryMatch[3]) + 1}).`,
       raw: issue,
     };
@@ -244,7 +260,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (duplicateDeckTargetIdMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${duplicateDeckTargetIdMatch[2]} · id interno`,
+      focus: `Alvo ${duplicateDeckTargetIdMatch[2]} Â· id interno`,
       message: "Esse id interno ficou duplicado dentro do deck atual.",
       raw: issue,
     };
@@ -254,7 +270,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (duplicateTargetIdMatch) {
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${duplicateTargetIdMatch[1]} · id interno`,
+      focus: `Alvo ${duplicateTargetIdMatch[1]} Â· id interno`,
       message: "Esse id interno conflita com outro target ja registrado no catalogo.",
       raw: issue,
     };
@@ -264,7 +280,7 @@ const describeEditorIssue = (issue: string): LocalizedIssue => {
   if (deckSyllableCountMatch) {
     return {
       scope: "Cards do Deck",
-      focus: `Silaba ${deckSyllableCountMatch[2]} · Copias`,
+      focus: `Silaba ${deckSyllableCountMatch[2]} Â· Copias`,
       message: "Cada linha de silaba precisa ter um numero inteiro positivo de copias.",
       raw: issue,
     };
@@ -457,17 +473,9 @@ export const ContentEditor: React.FC = () => {
     () => catalogDraftTargets.find((target) => target.id === selectedCatalogTargetId) ?? null,
     [catalogDraftTargets, selectedCatalogTargetId],
   );
-  const selectedTargetSyllables = useMemo(
-    () => (selectedTargetDraft ? parseContentEditorTargetSyllables(selectedTargetDraft.syllablesText) : []),
-    [selectedTargetDraft],
-  );
   const selectedCatalogTargetSyllables = useMemo(
     () => (selectedCatalogTargetDraft ? parseContentEditorTargetSyllables(selectedCatalogTargetDraft.syllablesText) : []),
     [selectedCatalogTargetDraft],
-  );
-  const selectedTargetNameValidation = useMemo(
-    () => buildContentEditorTargetNameValidation(selectedTargetDraft?.name ?? "", selectedTargetDraft?.syllablesText ?? ""),
-    [selectedTargetDraft],
   );
   const selectedCatalogTargetNameValidation = useMemo(
     () =>
@@ -573,8 +581,8 @@ export const ContentEditor: React.FC = () => {
   );
   const catalogTargetGridItems = useMemo(
     () => [
-      ...catalogDraftTargets.map((target) => ({ kind: "target" as const, id: target.id, target })),
       { kind: "add" as const, id: "__add-catalog-target__" },
+      ...catalogDraftTargets.map((target) => ({ kind: "target" as const, id: target.id, target })),
     ],
     [catalogDraftTargets],
   );
@@ -687,11 +695,24 @@ export const ContentEditor: React.FC = () => {
 
     if (!previousDeckId || previousDeckId === selectedDeckId || typeof window === "undefined") return;
 
+    let innerFrameId = 0;
     const frameId = window.requestAnimationFrame(() => {
-      contentTopRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+      innerFrameId = window.requestAnimationFrame(() => {
+        const scrollContainer = findNearestScrollContainer(contentTopRef.current);
+
+        if (scrollContainer) {
+          scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+          return;
+        }
+
+        contentTopRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+      });
     });
 
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.cancelAnimationFrame(innerFrameId);
+    };
   }, [selectedDeckId]);
 
   useEffect(() => {
@@ -818,38 +839,47 @@ export const ContentEditor: React.FC = () => {
     let constraintMessage = "";
 
     setDraft((current) => {
+      const currentRows = syncDeckPoolWithTargetMinimums(current.manualPoolAdjustments, current.targets);
+      const currentRow = currentRows.find((row) => row.id === rowId);
+      if (!currentRow) return current;
+
+      const currentSyllable = normalizeEditorSyllable(currentRow.syllable);
+      const nextSyllable = normalizeEditorSyllable(patch.syllable ?? currentRow.syllable);
+      const minimumRequired = buildMinimumDeckPoolFromTargets(current.targets).get(nextSyllable) ?? 0;
+      const requestedCount = patch.count ?? currentRow.count;
+      const clampedCount =
+        patch.count === undefined ? requestedCount : clampContentEditorSyllableCount(requestedCount, nextSyllable, current.targets);
+
+      if (patch.count !== undefined && clampedCount !== requestedCount && minimumRequired > 0) {
+        const blockingTargets = current.targets
+          .filter(
+            (target) =>
+              targetNameValidationById[target.id]?.matchesName &&
+              parseContentEditorTargetSyllables(target.syllablesText).includes(nextSyllable),
+          )
+          .map((target) => target.name);
+
+        constraintMessage = `Nao da para baixar ${nextSyllable} abaixo de ${minimumRequired} porque ${blockingTargets.join(", ")} usam essa silaba.`;
+      }
+
+      const nextExtraCount = Math.max(0, Number(clampedCount) - minimumRequired);
       const nextRows = normalizeContentEditorPoolAdjustments(
-        syncDeckPoolWithTargetMinimums(current.manualPoolAdjustments, current.targets).map((row) => {
-          if (row.id !== rowId) return row;
-
-          const nextRow = { ...row, ...patch, mode: "manual" as const };
-          if (patch.count === undefined) {
-            return nextRow;
-          }
-
-          const minimumRequired = requiredPoolCounts.get(normalizeEditorSyllable(nextRow.syllable)) ?? 0;
-          const clampedCount = clampContentEditorSyllableCount(nextRow.count, nextRow.syllable, current.targets);
-
-          if (clampedCount !== nextRow.count && minimumRequired > 0) {
-            const blockingTargets = current.targets
-              .filter(
-                (target) =>
-                  targetNameValidationById[target.id]?.matchesName &&
-                  parseContentEditorTargetSyllables(target.syllablesText).includes(
-                    normalizeEditorSyllable(nextRow.syllable),
-                  ),
-              )
-              .map((target) => target.name);
-
-            constraintMessage = `Nao da para baixar ${normalizeEditorSyllable(nextRow.syllable)} abaixo de ${minimumRequired} porque ${blockingTargets.join(", ")} usam essa silaba.`;
-          }
-
-          return {
-            ...nextRow,
-            count: clampedCount,
-            mode: "manual" as const,
-          };
-        }),
+        [
+          ...current.manualPoolAdjustments.filter((adjustment) => {
+            const normalizedAdjustmentSyllable = normalizeEditorSyllable(adjustment.syllable);
+            return adjustment.id !== rowId && normalizedAdjustmentSyllable !== currentSyllable && normalizedAdjustmentSyllable !== nextSyllable;
+          }),
+          ...(nextExtraCount > 0
+            ? [
+                {
+                  id: rowId,
+                  syllable: nextSyllable,
+                  count: String(nextExtraCount),
+                  mode: "manual" as const,
+                },
+              ]
+            : []),
+        ],
         current.targets,
       );
 
@@ -1034,18 +1064,13 @@ export const ContentEditor: React.FC = () => {
     }
   };
 
-  const removeSyllableFromTarget = (targetId: string, index: number) => {
-    void targetId;
-    void index;
-  };
-
   const addCatalogTarget = () => {
     const targetIds = new Set<string>();
     sourceTargets.forEach((target) => targetIds.add(target.id));
     catalogDraftTargets.forEach((target) => targetIds.add(target.id));
 
     const nextTarget = createEmptyContentEditorTarget(targetIds);
-    setCatalogDraftTargets((current) => [...current, nextTarget]);
+    setCatalogDraftTargets((current) => [nextTarget, ...current]);
     setSelectedCatalogTargetId(nextTarget.id);
     setSaveStatus(idleSaveStatus);
   };
@@ -1160,7 +1185,7 @@ export const ContentEditor: React.FC = () => {
     if (!duplicateTargetId || !selectedTargetDraft) return null;
     return {
       scope: "Targets do Deck",
-      focus: `Alvo ${selectedTargetDraft.id} · id interno`,
+      focus: `Alvo ${selectedTargetDraft.id} Â· id interno`,
       message: "Esse id interno conflita com um target de outro deck do catalogo.",
     };
   }, [duplicateTargetId, selectedTargetDraft]);
@@ -1184,23 +1209,6 @@ export const ContentEditor: React.FC = () => {
       ),
     [localIssues, pipelineIssues, selectedTargetDraft],
   );
-  const selectedTargetSyllablesHasIssue = useMemo(() => {
-    if (!selectedTargetDraft) return false;
-    const hasSyllablesInput = selectedTargetDraft.syllablesText.trim().length > 0;
-    if (!hasSyllablesInput) return false;
-    if (selectedTargetNameValidation.canValidate && !selectedTargetNameValidation.matchesName) return true;
-
-    return pipelineIssues.some(
-      (issue) =>
-        issue.includes(`target "${selectedTargetDraft.id}" needs`) ||
-        issue.includes(`target "${selectedTargetDraft.id}" syllables`),
-    );
-  }, [
-    pipelineIssues,
-    selectedTargetDraft,
-    selectedTargetNameValidation.canValidate,
-    selectedTargetNameValidation.matchesName,
-  ]);
   const selectedCatalogTargetSyllablesHasIssue = useMemo(() => {
     if (!selectedCatalogTargetDraft) return false;
     const hasSyllablesInput = selectedCatalogTargetDraft.syllablesText.trim().length > 0;
@@ -1381,8 +1389,8 @@ export const ContentEditor: React.FC = () => {
                         </div>
                         <div className="min-w-0">
                           <div className="truncate font-serif text-2xl font-black text-amber-50">{entry.deck.name}</div>
-                          <div className="truncate text-[11px] font-black uppercase tracking-[0.22em] text-amber-100/60">
-                            {entry.id}
+                          <div className="mt-1 truncate text-[11px] font-black uppercase tracking-[0.22em] text-amber-100/68">
+                            {DEFAULT_DECK_CLASS_LABEL}
                           </div>
                         </div>
                       </div>
@@ -1419,59 +1427,39 @@ export const ContentEditor: React.FC = () => {
         </aside>
 
         <section className="relative flex min-w-0 flex-1 flex-col gap-6">
-          <div ref={contentTopRef} />
           <div
+            ref={contentTopRef}
             className={cn(
-              "rounded-[32px] border border-amber-200/10 bg-gradient-to-br p-6 shadow-[0_10px_22px_rgba(0,0,0,0.16)]",
+              "rounded-[26px] border border-amber-200/10 bg-gradient-to-br px-4 py-2.5 shadow-[0_10px_22px_rgba(0,0,0,0.16)] sm:px-5 sm:py-3",
               DECK_VISUAL_THEME_CLASSES[draft.visualTheme],
             )}
           >
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex shrink-0 flex-col items-center gap-3">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/15 bg-black/15 text-5xl shadow-[0_12px_24px_rgba(0,0,0,0.2)]">
-                    {draft.emoji || "?"}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsDeckActiveExpanded((current) => !current)}
-                    className="flex items-center gap-2 rounded-2xl border border-white/15 bg-black/15 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-50 transition hover:bg-black/25"
-                  >
-                    Editar
-                    {isDeckActiveExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-                </div>
-                <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-100/60">Deck</div>
-                  <h2 className="mt-2 font-serif text-4xl font-black tracking-tight text-amber-50">{draft.name}</h2>
-                  <p className="mt-3 max-w-3xl font-serif text-sm italic leading-relaxed text-amber-50/80">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/15 bg-black/15 text-[1.75rem] shadow-[0_10px_20px_rgba(0,0,0,0.18)] sm:h-14 sm:w-14 sm:text-[2rem]">
+                {draft.emoji || "?"}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <h2 className="truncate font-serif text-[1.7rem] font-black leading-none tracking-tight text-amber-50 sm:text-[2rem]">
+                    {draft.name}
+                  </h2>
+                  <span className="hidden h-1 w-1 rounded-full bg-amber-100/50 sm:block" />
+                  <p className="hidden min-w-0 flex-1 truncate font-serif text-[12px] italic leading-none text-amber-50/76 sm:block">
                     {draft.description || "Sem descricao ainda."}
                   </p>
                 </div>
+                <p className="mt-0.5 truncate font-serif text-[11px] italic leading-snug text-amber-50/76 sm:hidden">
+                  {draft.description || "Sem descricao ainda."}
+                </p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <MetricCard
-                  label="Targets no draft"
-                  value={String(draft.targets.length)}
-                  icon={<BookOpenText className="h-4 w-4" />}
-                />
-                <MetricCard
-                  label="Cards no pool"
-                  value={String(effectivePoolRows.length)}
-                  icon={<Layers3 className="h-4 w-4" />}
-                />
-                <MetricCard
-                  label="TargetIds derivados"
-                  value={String(derivedTargetIdCount)}
-                  icon={<Shield className="h-4 w-4" />}
-                />
-                <MetricCard
-                  label="Copias no pool"
-                  value={String(draftPoolCopies)}
-                  icon={<BarChart3 className="h-4 w-4" />}
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeckActiveExpanded((current) => !current)}
+                className="flex shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-white/15 bg-black/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-50 transition hover:bg-black/25"
+              >
+                Editar
+                {isDeckActiveExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
             </div>
           </div>
 
@@ -1607,168 +1595,48 @@ export const ContentEditor: React.FC = () => {
                             data-editor-niche="target"
                             className="paper-panel col-span-2 rounded-[28px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_20px_40px_rgba(0,0,0,0.15)] xl:col-span-3"
                           >
-                            <div className="mb-4 flex items-center gap-3">
-                              <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
-                                id interno: {selectedTargetDraft.id}
-                              </Badge>
-                              <div className="ml-auto flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                className="h-10 min-w-[5.75rem] rounded-2xl border border-amber-900/15 bg-amber-50/50 px-3 text-amber-950 hover:bg-amber-100/70"
-                                onClick={() => moveTarget(selectedTargetDraft.id, -1)}
-                                disabled={draft.targets[0]?.id === selectedTargetDraft.id}
-                              >
-                                <ArrowUp className="h-4 w-4" />
-                                Subir
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="h-10 min-w-[5.75rem] rounded-2xl border border-amber-900/15 bg-amber-50/50 px-3 text-amber-950 hover:bg-amber-100/70"
-                                onClick={() => moveTarget(selectedTargetDraft.id, 1)}
-                                disabled={draft.targets[draft.targets.length - 1]?.id === selectedTargetDraft.id}
-                              >
-                                <ArrowDown className="h-4 w-4" />
-                                Descer
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="h-10 min-w-[5.75rem] rounded-2xl border border-rose-300/25 bg-rose-500/10 px-3 text-rose-900 hover:bg-rose-500/15"
-                                onClick={() => removeTarget(selectedTargetDraft.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Remover
-                              </Button>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-4">
-                              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_7rem]">
-                                <Field label="Nome">
-                                  <input
-                                    value={selectedTargetDraft.name}
-                                    readOnly
-                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
-                                  />
-                                </Field>
-
-                                <Field label="Copia">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={selectedTargetDraft.copies}
-                                    onChange={(event) => updateTarget(selectedTargetDraft.id, { copies: event.target.value })}
-                                    className={cn(
-                                      "w-full rounded-2xl border px-3 py-3 text-sm text-amber-950 outline-none transition",
-                                      selectedTargetCopiesHasIssue
-                                        ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                        : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
-                                    )}
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="grid gap-4 md:grid-cols-2">
-                                <Field label="Emoji">
-                                  <input
-                                    value={selectedTargetDraft.emoji}
-                                    readOnly
-                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
-                                  />
-                                </Field>
-
-                                <Field label="Rarity">
-                                  <select
-                                    value={selectedTargetDraft.rarity}
-                                    disabled
-                                    className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
-                                  >
-                                    <option value="comum">comum</option>
-                                    <option value="raro">raro</option>
-                                    <option value="epico">epico</option>
-                                    <option value="lendario">lendario</option>
-                                  </select>
-                                </Field>
-                              </div>
-
-                              <Field label="Descricao">
-                                <textarea
-                                  value={selectedTargetDraft.description}
-                                  readOnly
-                                  rows={3}
-                                  className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none"
+                            <div className="grid gap-4 lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-end">
+                              <Field label="Copias">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={selectedTargetDraft.copies}
+                                  onChange={(event) => updateTarget(selectedTargetDraft.id, { copies: event.target.value })}
+                                  className={cn(
+                                    "w-full rounded-2xl border px-3 py-2.5 text-center text-base font-black text-amber-950 outline-none transition",
+                                    selectedTargetCopiesHasIssue
+                                      ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                      : "border-amber-900/15 bg-white/70 focus:border-amber-500/30",
+                                  )}
                                 />
                               </Field>
-
-                              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                                <div className="space-y-4">
-                                  <Field label="Silabas do target">
-                                    <input
-                                      value={selectedTargetDraft.syllablesText}
-                                      placeholder="Ex.: BA, NA, NA"
-                                      readOnly
-                                      className="w-full rounded-2xl border border-amber-900/15 bg-white/65 px-4 py-3 text-sm text-amber-950/75 outline-none placeholder:text-amber-900/35"
-                                    />
-                                  </Field>
-                                  <div className="text-xs text-amber-950/60">
-                                    A definicao do alvo agora e editada no Catalogo de Alvos logo abaixo.
-                                  </div>
-                                  <div
-                                    className={cn(
-                                      "rounded-2xl border px-3 py-3 text-sm",
-                                      !selectedTargetNameValidation.canValidate
-                                        ? "border-amber-900/12 bg-white/65 text-amber-950/75"
-                                        : !selectedTargetNameValidation.matchesName
-                                          ? "border-rose-300/25 bg-rose-50/80 text-rose-950"
-                                        : "border-emerald-700/15 bg-emerald-100/80 text-emerald-950",
-                                    )}
-                                  >
-                                    {selectedTargetNameValidation.canValidate ? (
-                                      selectedTargetNameValidation.matchesName ? (
-                                        <span>
-                                          Nome valido: <span className="font-black">{selectedTargetNameValidation.normalizedName}</span>
-                                        </span>
-                                      ) : (
-                                        <span>
-                                          {selectedTargetNameValidation.respectsExplicitSegmentation ? (
-                                            <>
-                                              Nome <span className="font-black">{selectedTargetNameValidation.normalizedName || "?"}</span> nao bate com{" "}
-                                              <span className="font-black">{selectedTargetNameValidation.normalizedSyllableWord || "?"}</span>.
-                                            </>
-                                          ) : (
-                                            <>Separe as silabas. Nao use a palavra inteira.</>
-                                          )}
-                                        </span>
-                                      )
-                                    ) : (
-                                      <span>Preencha nome e silabas para validar o alvo.</span>
-                                    )}
-                                  </div>
-
-                                  <div className="rounded-2xl border border-amber-900/12 bg-white/65 p-4">
-                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/45">
-                                      Sequencia atual do target
-                                    </div>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                      {selectedTargetSyllables.length > 0 ? (
-                                        selectedTargetSyllables.map((syllable, index) => (
-                                          <button
-                                            key={`${selectedTargetDraft.id}-${syllable}-${index}`}
-                                            type="button"
-                                            onClick={() => removeSyllableFromTarget(selectedTargetDraft.id, index)}
-                                            className="rounded-full border border-amber-900/12 bg-amber-50/75 px-3 py-1 text-[11px] font-black tracking-[0.16em] text-amber-950 transition hover:bg-rose-100/85"
-                                          >
-                                            {syllable} · remover
-                                          </button>
-                                        ))
-                                      ) : (
-                                        <div className="text-sm text-amber-950/60">
-                                          Digite as silabas do alvo.
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
+                              <div className="grid gap-2 sm:grid-cols-3">
+                                <Button
+                                  variant="ghost"
+                                  className="h-11 w-full rounded-2xl border border-amber-900/15 bg-amber-50/50 px-4 text-amber-950 hover:bg-amber-100/70"
+                                  onClick={() => moveTarget(selectedTargetDraft.id, -1)}
+                                  disabled={draft.targets[0]?.id === selectedTargetDraft.id}
+                                >
+                                  <ArrowUp className="h-4 w-4" />
+                                  Subir
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  className="h-11 w-full rounded-2xl border border-amber-900/15 bg-amber-50/50 px-4 text-amber-950 hover:bg-amber-100/70"
+                                  onClick={() => moveTarget(selectedTargetDraft.id, 1)}
+                                  disabled={draft.targets[draft.targets.length - 1]?.id === selectedTargetDraft.id}
+                                >
+                                  <ArrowDown className="h-4 w-4" />
+                                  Descer
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  className="h-11 w-full rounded-2xl border border-rose-300/25 bg-rose-500/10 px-4 text-rose-900 hover:bg-rose-500/15"
+                                  onClick={() => removeTarget(selectedTargetDraft.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Remover
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -1831,57 +1699,25 @@ export const ContentEditor: React.FC = () => {
                                   data-editor-niche="syllable"
                                   className="paper-panel col-span-2 rounded-[24px] border-2 border-amber-900/25 p-4 text-amber-950 shadow-[0_16px_30px_rgba(0,0,0,0.12)] sm:col-span-3 xl:col-span-4"
                                 >
-                                  <div className="mb-4 flex flex-wrap items-center gap-3">
-                                    <Badge className="border border-amber-900/15 bg-amber-900/5 text-amber-950">
-                                      id interno: {selectedSyllableCardId || "syllable.sem-id"}
-                                    </Badge>
-                                    {selectedSyllableRow?.mode === "auto" ? (
-                                      <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
-                                        gerada pelos alvos
-                                      </Badge>
-                                    ) : null}
-                                  </div>
+                                  <div className="grid gap-4 lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-end">
+                                    <Field label="Copias">
+                                      <input
+                                        type="number"
+                                        min={selectedSyllableMinimumCount}
+                                        value={selectedSyllableRow.count}
+                                        onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
+                                        className={cn(
+                                          "w-full rounded-2xl border px-3 py-2.5 text-center text-base font-black text-amber-950 outline-none transition",
+                                          selectedSyllableCountHasIssue
+                                            ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
+                                            : "border-amber-900/15 bg-white/80 focus:border-amber-500/30",
+                                        )}
+                                      />
+                                    </Field>
 
-                                    <div className="grid gap-4">
-                                    <div className="grid gap-3 md:grid-cols-2">
-                                      <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-                                          Targets usando
-                                        </div>
-                                        <div className="mt-2 flex items-end justify-between gap-3">
-                                          <div className="font-serif text-2xl font-black text-amber-950">
-                                            {selectedSyllableUsedByTargets.length}
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-                                          Copias
-                                        </div>
-                                        <input
-                                          type="number"
-                                          min={selectedSyllableMinimumCount}
-                                          value={selectedSyllableRow.count}
-                                          onChange={(event) => updateSyllableRow(selectedSyllableRow.id, { count: event.target.value })}
-                                          className={cn(
-                                            "mt-2 w-full rounded-xl border px-3 py-2.5 text-sm font-black text-amber-950 outline-none transition",
-                                            selectedSyllableCountHasIssue
-                                              ? "border-rose-400/50 bg-rose-50/85 focus:border-rose-500/40"
-                                              : "border-amber-900/15 bg-white/80 focus:border-amber-500/30",
-                                          )}
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.88)] px-4 py-4 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
-                                      <div className="flex items-center justify-between gap-3">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-                                          Aparece em
-                                        </div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-900/40">
-                                          {selectedSyllableUsedByTargets.length} alvo(s)
-                                        </div>
+                                    <div className="rounded-2xl border border-amber-900/12 bg-amber-50/50 px-4 py-4 shadow-[0_8px_18px_rgba(0,0,0,0.06)]">
+                                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
+                                        Aparece em {selectedSyllableUsedByTargets.length} alvo(s)
                                       </div>
                                       <div className="mt-3 flex flex-wrap gap-2">
                                         {selectedSyllableUsedByTargets.length > 0 ? (
@@ -1900,13 +1736,13 @@ export const ContentEditor: React.FC = () => {
                                         )}
                                       </div>
                                     </div>
-
-                                    {poolConstraintMessage && selectedSyllableMinimumCount > 0 ? (
-                                      <div className="rounded-2xl border border-rose-300/25 bg-rose-50/85 px-4 py-3 text-sm text-rose-950">
-                                        {poolConstraintMessage}
-                                      </div>
-                                    ) : null}
                                   </div>
+
+                                  {poolConstraintMessage && selectedSyllableMinimumCount > 0 ? (
+                                    <div className="mt-4 rounded-2xl border border-rose-300/25 bg-rose-50/85 px-4 py-3 text-sm text-rose-950">
+                                      {poolConstraintMessage}
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </React.Fragment>
@@ -1976,8 +1812,8 @@ export const ContentEditor: React.FC = () => {
                               </Badge>
                               <div className="ml-auto flex flex-wrap items-center gap-2">
                                 {selectedCatalogTargetIsInDeck ? (
-                                  <Badge className="border border-emerald-700/15 bg-emerald-100/85 text-emerald-950">
-                                    ja esta no deck
+                                  <Badge className="h-10 min-w-[7rem] justify-center rounded-2xl border border-emerald-700/15 bg-emerald-100/85 px-3 text-emerald-950">
+                                    Adicionado
                                   </Badge>
                                 ) : (
                                   <Button
@@ -2116,7 +1952,7 @@ export const ContentEditor: React.FC = () => {
                                         }
                                         className="rounded-full border border-amber-900/12 bg-amber-50/75 px-3 py-1 text-[11px] font-black tracking-[0.16em] text-amber-950 transition hover:bg-rose-100/85"
                                       >
-                                        {syllable} · remover
+                                        {syllable} Â· remover
                                       </button>
                                     ))
                                   ) : (
@@ -2612,24 +2448,6 @@ const Field: React.FC<{
   </label>
 );
 
-const MetricCard: React.FC<{
-  label: string;
-  value: string;
-  icon?: React.ReactNode;
-}> = ({ label, value, icon }) => (
-  <div className="rounded-2xl border border-amber-900/12 bg-[rgba(255,252,244,0.92)] px-4 py-3 text-amber-950 shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
-    <div className="flex items-center justify-between gap-3">
-      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-900/55">{label}</div>
-      {icon ? (
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-900/12 bg-amber-100/55 text-amber-900/80">
-          {icon}
-        </div>
-      ) : null}
-    </div>
-    <div className="mt-1 font-serif text-3xl font-black">{value}</div>
-  </div>
-);
-
 const InfoTile: React.FC<{
   label: string;
   value: string;
@@ -2729,3 +2547,4 @@ const EmptyCallout: React.FC<{
     {text}
   </div>
 );
+
