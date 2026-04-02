@@ -15,47 +15,30 @@ import {
 import {
   makeInitialGame,
   CONFIG,
-  TIMINGS,
   isHandStuck,
-  clearTransientPlayerState,
-  replaceTargetInSlot,
 } from "../../logic/gameLogic";
 import {
-  TargetCard,
-  CardPile,
   BoardZoneId,
   ZoneAnchorSnapshot,
   VisualTargetEntity,
 } from "../game/GameComponents";
-import type {
-  BattleAnimationAnchorPoint,
-} from "./BattleLayoutConfig";
 import {
   useActiveBattleLayoutConfig,
 } from "./BattleActiveLayout";
 import {
-  BattleFieldLane,
   BattleFieldLaneDebugSnapshot,
-  BattleFieldOutgoingTarget,
 } from "./BattleFieldLane";
 import {
-  BattleHandLaneDebugSnapshot,
   BattleHandLaneOutgoingCard,
+  BattleHandLaneDebugSnapshot,
 } from "./BattleHandLane";
 import { BattleSceneModel } from "./BattleSceneViewModel";
 import {
   createDamageAppliedEvent,
-  createMulliganResolutionEvents,
-  createPlayResolutionEvents,
   createTargetReplacedEvent,
   createTurnStartedEvent,
 } from "./battleEvents";
-import {
-  getMulliganDrawStartDelayMs,
-  getMulliganFinishDelayMs,
-  resolveBotTurnAction,
-} from "./battleFlow";
-import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
+import { resolveBattlePlayAction } from "./battleResolution";
 import {
   BATTLE_STAGE_HEIGHT,
   BATTLE_STAGE_WIDTH,
@@ -64,36 +47,30 @@ import {
 } from "./BattleSceneSpace";
 import { BattleDevWatcherSample, useBattleDevRuntime } from "./BattleDevRuntime";
 import {
-  LiveBattleAnimationAnchorKey,
-  buildBattleDebugPointSnapshot,
-  buildBattleProbeRow,
-  buildLiveAnimationSnapshotEntries,
-  createLiveAnimationAnchorPoints,
-  formatBattleDebugFallbackLine,
-  formatBattleDebugPoint,
-  formatBattleDebugSnapshot,
-  formatBattleProbeLine,
-  getBattleDebugZoneSnapshotCenter,
-  getLiveAnimationAnchorReferenceTarget,
-  getVisibleBattleAnimationAnchors,
-  toBattleDebugScenePoint,
-  toBattleDebugScreenPoint,
-} from "./BattleDebugGeometry";
-import {
   BATTLE_SHARED_FLOW_TIMINGS,
   BATTLE_SHARED_OPENING_TARGET_TIMINGS,
 } from "./battleSharedTimings";
-import {
-  applyBattleSimplePlayRuntime,
-} from "./battleSimplePlayRuntime";
-import { prepareBattleSimplePlayStep } from "./battleSimplePlayStep";
 import { buildBattleSceneModelFromRuntime } from "./BattleSceneRuntimeAdapter";
-import { BattleRuntimeState as BattleRuntimeStateContract, AnimationFallbackEvent as BattleAnimationFallbackEventContract } from "./BattleRuntimeState";
+import {
+  AnimationFallbackEvent,
+  BattleIntroPhase,
+  BattleRuntimeState as BattleRuntimeStateContract,
+  ENEMY,
+  HAND_LAYOUT_SLOT_COUNT,
+  IncomingHandCard,
+  IncomingTargetCard,
+  LockedTargetSlotsState,
+  MulliganDebugState,
+  OutgoingTargetCard,
+  PendingMulliganDraw,
+  PendingTargetPlacementsState,
+  PLAYER,
+  StableHandsState,
+  StableTargetsState,
+  VisualHandCard,
+} from "./BattleRuntimeState";
 import { BattleVisualQueueState as BattleVisualQueueStateContract } from "./BattleVisualQueue";
 import {
-  buildBattleSnapshotSignature,
-  compareBattleSnapshotProgress,
-  getTurnCycleKey,
   getTurnPresentationKey,
   useBattleSnapshotAuthority,
 } from "./BattleSnapshotAuthority";
@@ -102,16 +79,10 @@ import { useBattleIntroFlow } from "./BattleIntroFlow";
 import { useBattleVisualOrchestrator } from "./BattleVisualOrchestrator";
 import { useBattleRoomBridge } from "./BattleRoomBridge";
 import { useBattleCombatFlow } from "./BattleCombatFlow";
+import { useBattleControllerGeometry } from "./BattleControllerGeometry";
+import { useBattleControllerDebug } from "./BattleControllerDebug";
 
-const PLAYER = 0;
-const ENEMY = 1;
-const zoneRefKey = (zoneId: BoardZoneId, slot: string) => `${zoneId}:${slot}`;
-const HAND_LAYOUT_SLOT_COUNT = 5;
 const FLOW = BATTLE_SHARED_FLOW_TIMINGS;
-
-const TARGET_ATTACK_WINDUP_EXTRA_MS = 90;
-const TARGET_ATTACK_TRAVEL_EXTRA_MS = 120;
-const TARGET_ATTACK_EXIT_EXTRA_MS = 180;
 
 const INTRO = {
   coinChoiceMs: 20000,
@@ -141,81 +112,6 @@ const TURN_RELEASE_DELAY_MS =
 
 type PlayResolution = NonNullable<ReturnType<typeof resolveBattlePlayAction>>;
 
-type BattleIntroPhase = "coin-choice" | "coin-fall" | "coin-result" | "targets" | "done";
-
-interface VisualHandCard {
-  id: string;
-  syllable: Syllable;
-  side: typeof PLAYER | typeof ENEMY;
-  hidden: boolean;
-  skipEntryAnimation?: boolean;
-}
-
-type StableHandsState = Record<typeof PLAYER | typeof ENEMY, VisualHandCard[]>;
-
-interface IncomingHandCard {
-  id: string;
-  side: typeof PLAYER | typeof ENEMY;
-  card: VisualHandCard;
-  origin: ZoneAnchorSnapshot;
-  finalIndex: number;
-  finalTotal: number;
-  delayMs: number;
-  durationMs: number;
-}
-
-type StableTargetsState = Record<typeof PLAYER | typeof ENEMY, Array<VisualTargetEntity | null>>;
-type LockedTargetSlotsState = Record<typeof PLAYER | typeof ENEMY, boolean[]>;
-type PendingTargetPlacementsState = Record<typeof PLAYER | typeof ENEMY, Array<Syllable | null>>;
-
-interface IncomingTargetCard {
-  id: string;
-  side: typeof PLAYER | typeof ENEMY;
-  slotIndex: number;
-  entity: VisualTargetEntity;
-  origin: ZoneAnchorSnapshot;
-  delayMs: number;
-  durationMs: number;
-}
-
-interface OutgoingTargetCard {
-  id: string;
-  side: typeof PLAYER | typeof ENEMY;
-  slotIndex: number;
-  entity: VisualTargetEntity;
-  impactDestination?: ZoneAnchorSnapshot | null;
-  destination: ZoneAnchorSnapshot;
-  delayMs: number;
-  windupMs: number;
-  attackMs: number;
-  pauseMs: number;
-  exitMs: number;
-}
-
-interface MulliganDebugState {
-  source: string;
-  requestedIndexes: number[];
-  requestedSyllables: string[];
-  removedStableCards: string[];
-  drawnCards: string[];
-  externalActionId: string | null;
-  clearIncomingHand: boolean;
-}
-
-interface PendingMulliganDraw {
-  syllable: Syllable;
-  finalIndex: number;
-  finalTotal: number;
-  originOverride: ZoneAnchorSnapshot | null;
-}
-
-interface AnimationFallbackEvent {
-  id: string;
-  label: string;
-  reason: string;
-  fallback: string;
-  createdAt: number;
-}
 
 export interface BattleControllerProps {
   mode: GameMode;
@@ -261,7 +157,7 @@ export interface BattleController {
   downloadBattleDebugDump: () => void;
   clearAnimationFallbacks: () => void;
   battleDebugWatcherSummary: string;
-  latestFallbackEvent: BattleAnimationFallbackEventContract | null;
+  latestFallbackEvent: AnimationFallbackEvent | null;
   liveAnimationDebugData: {
     stageLine: string;
     probeLines: string[];
@@ -789,19 +685,6 @@ export const useBattleController = ({
     visualTimersRef.current.push(timer);
   }, []);
 
-  const bindZoneRef = useCallback(
-    (zoneId: BoardZoneId, slot: string) => (node: HTMLDivElement | null) => {
-      zoneNodesRef.current[zoneRefKey(zoneId, slot)] = node;
-    },
-    [],
-  );
-
-  const bindHandCardRef = useCallback(
-    (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => {
-      handCardNodesRef.current[`${cardId}:${layoutId}`] = node;
-    },
-    [],
-  );
   const setHandLaneDebugSnapshot = useCallback(
     (key: string, snapshot: BattleHandLaneDebugSnapshot) => {
       handLaneDebugRef.current[key] = snapshot;
@@ -814,837 +697,80 @@ export const useBattleController = ({
     },
     [],
   );
-
-  const snapshotZone = useCallback((zoneId: BoardZoneId): ZoneAnchorSnapshot | null => {
-    const bestNode = Object.entries(zoneNodesRef.current)
-      .filter(([key, node]) => key.startsWith(`${zoneId}:`) && node)
-      .map(([, node]) => node as HTMLDivElement)
-      .map((node) => ({ node, rect: node.getBoundingClientRect() }))
-      .filter(({ rect }) => rect.width > 0 && rect.height > 0)
-      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
-
-    if (!bestNode) return null;
-
-    const { left, top, width, height } = bestNode.rect;
-    return { left, top, width, height };
-  }, []);
-
-  const snapshotZoneSlot = useCallback((zoneId: BoardZoneId, slot: string): ZoneAnchorSnapshot | null => {
-    const node = zoneNodesRef.current[zoneRefKey(zoneId, slot)];
-    if (!node) return null;
-    const rect = node.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return null;
-    return {
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-    };
-  }, []);
-
-  const snapshotHandCard = useCallback((cardId: string): ZoneAnchorSnapshot | null => {
-    const bestNode = Object.entries(handCardNodesRef.current)
-      .filter(([key, node]) => key.startsWith(`${cardId}:`) && node)
-      .map(([, node]) => node as HTMLDivElement)
-      .map((node) => ({ node, rect: node.getBoundingClientRect() }))
-      .filter(({ rect }) => rect.width > 0 && rect.height > 0)
-      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
-
-    if (!bestNode) return null;
-
-    const { left, top, width, height } = bestNode.rect;
-    return {
-      left,
-      top,
-      width,
-      height,
-    };
-  }, []);
-
-  const resolveBattleStageMetrics = useCallback(() => {
-    const selector = '[data-battle-stage-root="true"]';
-    if (typeof document === "undefined") {
-      return {
-        selector,
-        rootCount: 0,
-        root: null as HTMLElement | null,
-        rect: null as DOMRect | null,
-        scaleX: null as number | null,
-        scaleY: null as number | null,
-        reason: "no-document" as string | null,
-      };
-    }
-
-    const roots = Array.from(document.querySelectorAll<HTMLElement>(selector));
-    const root = roots[0] ?? null;
-    if (!root) {
-      return {
-        selector,
-        rootCount: roots.length,
-        root,
-        rect: null,
-        scaleX: null,
-        scaleY: null,
-        reason: "stage-root-missing",
-      };
-    }
-
-    const rect = root.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      return {
-        selector,
-        rootCount: roots.length,
-        root,
-        rect,
-        scaleX: null,
-        scaleY: null,
-        reason: `stage-rect-invalid:${Math.round(rect.width)}x${Math.round(rect.height)}`,
-      };
-    }
-
-    return {
-      selector,
-      rootCount: roots.length,
-      root,
-      rect,
-      scaleX: rect.width / BATTLE_STAGE_WIDTH,
-      scaleY: rect.height / BATTLE_STAGE_HEIGHT,
-      reason: null,
-    };
-  }, []);
-
-  const serializeZoneAnchorSnapshot = useCallback((snapshot: ZoneAnchorSnapshot | null | undefined) => {
-    if (!snapshot) return null;
-    return {
-      left: Math.round(snapshot.left),
-      top: Math.round(snapshot.top),
-      width: Math.round(snapshot.width),
-      height: Math.round(snapshot.height),
-    };
-  }, []);
-
-  const snapshotSceneAnimationOrigin = useCallback(
-    (point: { x: number; y: number } | null | undefined): ZoneAnchorSnapshot | null => {
-      if (!point) return null;
-      const stageMetrics = resolveBattleStageMetrics();
-      if (!stageMetrics.rect || stageMetrics.scaleX == null || stageMetrics.scaleY == null) {
-        return null;
-      }
-      return {
-        left: stageMetrics.rect.left + point.x * stageMetrics.scaleX,
-        top: stageMetrics.rect.top + point.y * stageMetrics.scaleY,
-        width: 0,
-        height: 0,
-      };
-    },
-    [resolveBattleStageMetrics],
-  );
-  const getSceneAnimationOriginFailureReason = useCallback(
-    (point: { x: number; y: number } | null | undefined) => {
-      if (!point) return "anchor-not-set";
-      return resolveBattleStageMetrics().reason;
-    },
-    [resolveBattleStageMetrics],
-  );
-  const pushAnimationFallbackEvent = useCallback((label: string, reason: string, fallback: string) => {
-    animationFallbackHistoryRef.current = [
-      {
-        id: `anim-fallback-${animationFallbackIdRef.current++}`,
-        label,
-        reason,
-        fallback,
-        createdAt: Date.now(),
-      },
-      ...animationFallbackHistoryRef.current,
-    ].slice(0, 16);
-    setAnimationFallbackHistoryVersion((value) => value + 1);
-  }, []);
-  const snapshotSceneAnimationOriginWithFallback = useCallback(
-    (
-      label: string,
-      point: { x: number; y: number } | null | undefined,
-      fallback: string,
-    ) => {
-      const snapshot = snapshotSceneAnimationOrigin(point);
-      if (snapshot) return snapshot;
-      const reason = getSceneAnimationOriginFailureReason(point) ?? "snapshot-null";
-      pushAnimationFallbackEvent(label, reason, fallback);
-      return null;
-    },
-    [getSceneAnimationOriginFailureReason, pushAnimationFallbackEvent, snapshotSceneAnimationOrigin],
-  );
-  const getPostPlayHandDrawOriginSnapshot = useCallback(
-    (side: typeof PLAYER | typeof ENEMY) => {
-      if (side !== localPlayerIndex) return null;
-      return snapshotSceneAnimationOriginWithFallback(
-        "post-play-hand-draw",
-        activeBattleLayout.animations.postPlayHandDrawOrigin,
-        "deck",
-      );
-    },
-    [activeBattleLayout.animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOriginWithFallback],
-  );
-  const handPlayTargetPointsByIndex = useMemo(
-    () => ({
-      0: activeBattleLayout.animations.handPlayTarget0Destination,
-      1: activeBattleLayout.animations.handPlayTarget1Destination,
-    }),
-    [
-      activeBattleLayout.animations.handPlayTarget0Destination,
-      activeBattleLayout.animations.handPlayTarget1Destination,
-    ],
-  );
-  const getHandPlayTargetDestinationSnapshot = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, targetIndex: number) => {
-      if (side !== localPlayerIndex) return null;
-      if (targetIndex !== 0 && targetIndex !== 1) {
-        return null;
-      }
-      return snapshotSceneAnimationOriginWithFallback(
-        `hand-play-target-${targetIndex}`,
-        handPlayTargetPointsByIndex[targetIndex],
-        `player-field-slot-${targetIndex}`,
-      );
-    },
-    [handPlayTargetPointsByIndex, localPlayerIndex, snapshotSceneAnimationOriginWithFallback],
-  );
-  const replacementTargetEntryPointsByIndex = useMemo(
-    () => ({
-      0: activeBattleLayout.animations.replacementTargetEntry0Origin,
-      1: activeBattleLayout.animations.replacementTargetEntry1Origin,
-      2: activeBattleLayout.animations.replacementTargetEntry2Origin,
-      3: activeBattleLayout.animations.replacementTargetEntry3Origin,
-    }),
-    [
-      activeBattleLayout.animations.replacementTargetEntry0Origin,
-      activeBattleLayout.animations.replacementTargetEntry1Origin,
-      activeBattleLayout.animations.replacementTargetEntry2Origin,
-      activeBattleLayout.animations.replacementTargetEntry3Origin,
-    ],
-  );
-  const getReplacementTargetEntryOriginSnapshot = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, slotIndex: number) => {
-      if (slotIndex !== 0 && slotIndex !== 1) return null;
-      const replacementIndex = side * CONFIG.targetsInPlay + slotIndex;
-      return snapshotSceneAnimationOriginWithFallback(
-        `replacement-target-entry-${replacementIndex}`,
-        replacementTargetEntryPointsByIndex[replacementIndex],
-        `${side === PLAYER ? "player" : "enemy"}-target-deck`,
-      );
-    },
-    [replacementTargetEntryPointsByIndex, snapshotSceneAnimationOriginWithFallback],
-  );
-  const mulliganReturnPointsByCount = useMemo(
-    () => ({
-      1: activeBattleLayout.animations.mulliganReturn1Destination,
-      2: activeBattleLayout.animations.mulliganReturn2Destination,
-      3: activeBattleLayout.animations.mulliganReturn3Destination,
-    }),
-    [
-      activeBattleLayout.animations.mulliganReturn1Destination,
-      activeBattleLayout.animations.mulliganReturn2Destination,
-      activeBattleLayout.animations.mulliganReturn3Destination,
-    ],
-  );
-  const mulliganDrawPointsByCount = useMemo(
-    () => ({
-      1: activeBattleLayout.animations.mulliganDraw1Origin,
-      2: activeBattleLayout.animations.mulliganDraw2Origin,
-      3: activeBattleLayout.animations.mulliganDraw3Origin,
-    }),
-    [
-      activeBattleLayout.animations.mulliganDraw1Origin,
-      activeBattleLayout.animations.mulliganDraw2Origin,
-      activeBattleLayout.animations.mulliganDraw3Origin,
-    ],
-  );
-  const getMulliganAnimationPointByCount = useCallback(
-    (
-      count: number,
-      pointsByCount: {
-        1: BattleAnimationAnchorPoint | null;
-        2: BattleAnimationAnchorPoint | null;
-        3: BattleAnimationAnchorPoint | null;
-      },
-    ) => {
-      if (count === 1 || count === 2 || count === 3) {
-        return pointsByCount[count];
-      }
-      return null;
-    },
-    [],
-  );
-  const getMulliganHandReturnDestinationSnapshot = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, count: number) => {
-      if (side !== localPlayerIndex) return null;
-      const configuredPoint = getMulliganAnimationPointByCount(
-        count,
-        mulliganReturnPointsByCount,
-      );
-      return snapshotSceneAnimationOriginWithFallback(
-        `mulligan-return-${count}`,
-        configuredPoint,
-        "deck",
-      );
-    },
-    [
-      getMulliganAnimationPointByCount,
-      localPlayerIndex,
-      mulliganReturnPointsByCount,
-      snapshotSceneAnimationOriginWithFallback,
-    ],
-  );
-  const getMulliganHandDrawOriginSnapshot = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, count: number) => {
-      if (side !== localPlayerIndex) return null;
-      const configuredPoint = getMulliganAnimationPointByCount(
-        count,
-        mulliganDrawPointsByCount,
-      );
-      return snapshotSceneAnimationOriginWithFallback(
-        `mulligan-draw-${count}`,
-        configuredPoint,
-        "deck",
-      );
-    },
-    [
-      getMulliganAnimationPointByCount,
-      localPlayerIndex,
-      mulliganDrawPointsByCount,
-      snapshotSceneAnimationOriginWithFallback,
-    ],
-  );
-  const getBattleStageMetrics = useCallback(() => {
-    const resolved = resolveBattleStageMetrics();
-    if (!resolved.rect || resolved.scaleX == null || resolved.scaleY == null) return null;
-    return {
-      rect: resolved.rect,
-      scaleX: resolved.scaleX,
-      scaleY: resolved.scaleY,
-    };
-  }, [resolveBattleStageMetrics]);
-  const getScreenPointFromScenePoint = useCallback(
-    (point: BattleAnimationAnchorPoint | null | undefined) => {
-      const stageMetrics = getBattleStageMetrics();
-      return toBattleDebugScreenPoint(point, stageMetrics);
-    },
-    [getBattleStageMetrics],
-  );
-  const getScenePointFromScreenPoint = useCallback(
-    (point: { x: number; y: number } | null | undefined) => {
-      const stageMetrics = getBattleStageMetrics();
-      return toBattleDebugScenePoint(point, stageMetrics);
-    },
-    [getBattleStageMetrics],
-  );
-  const liveAnimationAnchorPoints = useMemo(
-    () => createLiveAnimationAnchorPoints(activeBattleLayout.animations),
-    [activeBattleLayout.animations],
-  );
-  const getReferenceScreenPointForAnimationAnchor = useCallback(
-    (anchorKey: LiveBattleAnimationAnchorKey) => {
-      const target = getLiveAnimationAnchorReferenceTarget(
-        anchorKey,
-        CONFIG.targetsInPlay,
-      );
-      if (!target) return null;
-      if (target.kind === "slot") {
-        return getBattleDebugZoneSnapshotCenter(
-          snapshotZoneSlot(target.zoneId, target.slot),
-        );
-      }
-      return getBattleDebugZoneSnapshotCenter(snapshotZone(target.zoneId));
-    },
-    [snapshotZone, snapshotZoneSlot],
-  );
-  const liveVisibleAnimationAnchors = useMemo(
-    () => getVisibleBattleAnimationAnchors(liveAnimationAnchorPoints),
-    [liveAnimationAnchorPoints],
-  );
-  const liveAnchorProbeRows = useMemo(
-    () =>
-      liveVisibleAnimationAnchors.map(({ anchor, point }) => {
-        const screen = getScreenPointFromScenePoint(point);
-        const referenceScreen = getReferenceScreenPointForAnimationAnchor(anchor);
-        const reference = getScenePointFromScreenPoint(referenceScreen);
-        return buildBattleProbeRow({
-          anchor,
-          point,
-          screen,
-          reference,
-          referenceScreen,
-        });
-      }),
-    [
-      getReferenceScreenPointForAnimationAnchor,
-      getScenePointFromScreenPoint,
-      getScreenPointFromScenePoint,
-      liveVisibleAnimationAnchors,
-    ],
-  );
-  const liveAnimationDebugData = useMemo(() => {
-    const stageMetrics = getBattleStageMetrics();
-    const stageLine = stageMetrics
-      ? `stage:${Math.round(stageMetrics.rect.width)}x${Math.round(stageMetrics.rect.height)} scale:${stageMetrics.scaleX.toFixed(3)},${stageMetrics.scaleY.toFixed(3)} off:${Math.round(stageMetrics.rect.left)},${Math.round(stageMetrics.rect.top)}`
-      : "stage:-";
-    const probeLines = liveAnchorProbeRows.map(
-      (row) => formatBattleProbeLine(row),
-    );
-    const groupedSnapshotRows = buildLiveAnimationSnapshotEntries(
-      activeBattleLayout.animations,
-    ).reduce<Record<string, string[]>>((acc, entry) => {
-      const snapshot = snapshotSceneAnimationOrigin(entry.point);
-      const line = `${entry.key}:${formatBattleDebugPoint(entry.point)} -> ${formatBattleDebugSnapshot(snapshot)}`;
-      acc[entry.group] = [...(acc[entry.group] ?? []), line];
-      return acc;
-    }, {});
-    const snapshotLines = [
-      `postPlayDraw:${groupedSnapshotRows.postPlayDraw?.join(" | ") ?? "-"}`,
-      `handPlayDests:[${groupedSnapshotRows.handPlayDests?.join(" | ") ?? "-"}]`,
-      `replacementOrigins:[${groupedSnapshotRows.replacementOrigins?.join(" | ") ?? "-"}]`,
-      `mulliganReturns:[${groupedSnapshotRows.mulliganReturns?.join(" | ") ?? "-"}]`,
-      `mulliganDraws:[${groupedSnapshotRows.mulliganDraws?.join(" | ") ?? "-"}]`,
-      `attackImpacts:[${groupedSnapshotRows.attackImpacts?.join(" | ") ?? "-"}]`,
-      `attackDests:[${groupedSnapshotRows.attackDests?.join(" | ") ?? "-"}]`,
-      `openingOrigins:[${groupedSnapshotRows.openingOrigins?.join(" | ") ?? "-"}]`,
-    ];
-    const fallbackLines = animationFallbackHistoryRef.current.map(
-      formatBattleDebugFallbackLine,
-    );
-
-    return {
-      stageLine,
-      anchorsLine: `anchors:[${liveVisibleAnimationAnchors.map(({ anchor, point }) => `${anchor}@${formatBattleDebugPoint(point)}`).join(" | ")}]`,
-      probeLines,
-      snapshotLines,
-      fallbackLines,
-    };
-  }, [
-    activeBattleLayout.animations,
-    animationFallbackHistoryVersion,
-    battleDebugWatcherVersion,
-    getBattleStageMetrics,
-    liveAnchorProbeRows,
-    liveVisibleAnimationAnchors,
-    snapshotSceneAnimationOrigin,
-  ]);
-  const buildFreshAnimationProbeSnapshot = useCallback(() => {
-    const stageResolution = resolveBattleStageMetrics();
-    const stageLine =
-      stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
-        ? `stage:${Math.round(stageResolution.rect.width)}x${Math.round(stageResolution.rect.height)} scale:${stageResolution.scaleX.toFixed(3)},${stageResolution.scaleY.toFixed(3)} off:${Math.round(stageResolution.rect.left)},${Math.round(stageResolution.rect.top)}`
-        : "stage:-";
-    const stageDiagnostics = {
-      selector: stageResolution.selector,
-      rootCount: stageResolution.rootCount,
-      stageRootFound: Boolean(stageResolution.root),
-      stageRootConnected: stageResolution.root ? stageResolution.root.isConnected : false,
-      stageRootTag: stageResolution.root?.tagName ?? null,
-      stageRootClassName: stageResolution.root?.className ?? null,
-      reason: stageResolution.reason,
-      rect:
-        stageResolution.rect == null
-          ? null
-          : {
-              left: Math.round(stageResolution.rect.left),
-              top: Math.round(stageResolution.rect.top),
-              width: Math.round(stageResolution.rect.width),
-              height: Math.round(stageResolution.rect.height),
-            },
-      scale:
-        stageResolution.scaleX == null || stageResolution.scaleY == null
-          ? null
-          : {
-              x: Number(stageResolution.scaleX.toFixed(3)),
-              y: Number(stageResolution.scaleY.toFixed(3)),
-            },
-    };
-    const toSnapshotWithMetrics = (point: BattleAnimationAnchorPoint | null | undefined) => {
-      return buildBattleDebugPointSnapshot(
-        point,
-        stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
-          ? {
-              rect: stageResolution.rect,
-              scaleX: stageResolution.scaleX,
-              scaleY: stageResolution.scaleY,
-            }
-          : null,
-      );
-    };
-    const toScreenPointWithMetrics = (point: BattleAnimationAnchorPoint | null | undefined) => {
-      return toBattleDebugScreenPoint(
-        point,
-        stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
-          ? {
-              rect: stageResolution.rect,
-              scaleX: stageResolution.scaleX,
-              scaleY: stageResolution.scaleY,
-            }
-          : null,
-      );
-    };
-    const toScenePointWithMetrics = (point: { x: number; y: number } | null | undefined) => {
-      return toBattleDebugScenePoint(
-        point,
-        stageResolution.rect && stageResolution.scaleX != null && stageResolution.scaleY != null
-          ? {
-              rect: stageResolution.rect,
-              scaleX: stageResolution.scaleX,
-              scaleY: stageResolution.scaleY,
-            }
-          : null,
-      );
-    };
-    const visibleAnchors =
-      getVisibleBattleAnimationAnchors(liveAnimationAnchorPoints);
-    const probeRows = visibleAnchors.map(({ anchor, point }) => {
-      const screen = toScreenPointWithMetrics(point);
-      const referenceScreen = getReferenceScreenPointForAnimationAnchor(anchor);
-      const reference = toScenePointWithMetrics(referenceScreen);
-      const failureReason = point ? stageResolution.reason : "anchor-not-set";
-      return buildBattleProbeRow({
-        anchor,
-        point,
-        screen,
-        reference,
-        referenceScreen,
-        failureReason,
-      });
-    });
-    const snapshotEntries = buildLiveAnimationSnapshotEntries(
-      activeBattleLayout.animations,
-    );
-    const groupedSnapshotRows = snapshotEntries.reduce<Record<string, string[]>>((acc, entry) => {
-      const snapshot = toSnapshotWithMetrics(entry.point);
-      const line = `${entry.key}:${formatBattleDebugPoint(entry.point)} -> ${formatBattleDebugSnapshot(snapshot)}`;
-      acc[entry.group] = [...(acc[entry.group] ?? []), line];
-      return acc;
-    }, {});
-    const snapshotRows = snapshotEntries.map((entry) => {
-      const snapshot = toSnapshotWithMetrics(entry.point);
-      return {
-        group: entry.group,
-        key: entry.key,
-        point: entry.point,
-        snapshot: serializeZoneAnchorSnapshot(snapshot),
-        failureReason: entry.point ? stageResolution.reason : "anchor-not-set",
-      };
-    });
-    const fallbackEntries = animationFallbackHistoryRef.current.map((entry) => ({
-      id: entry.id,
-      label: entry.label,
-      reason: entry.reason,
-      fallback: entry.fallback,
-      createdAt: entry.createdAt,
-      createdAtIso: new Date(entry.createdAt).toISOString(),
-    }));
-    const fallbackLines = fallbackEntries.map(formatBattleDebugFallbackLine);
-
-    return {
-      stage: stageLine,
-      stageDiagnostics,
-      anchors: `anchors:[${visibleAnchors.map(({ anchor, point }) => `${anchor}@${formatBattleDebugPoint(point)}`).join(" | ")}]`,
-      anchorPoints: visibleAnchors.map(({ anchor, point }) => ({ anchor, point })),
-      probes: probeRows.map(
-        (row) => formatBattleProbeLine(row),
-      ),
-      probeRows,
-      snapshots: [
-        `postPlayDraw:${groupedSnapshotRows.postPlayDraw?.join(" | ") ?? "-"}`,
-        `handPlayDests:[${groupedSnapshotRows.handPlayDests?.join(" | ") ?? "-"}]`,
-        `replacementOrigins:[${groupedSnapshotRows.replacementOrigins?.join(" | ") ?? "-"}]`,
-        `mulliganReturns:[${groupedSnapshotRows.mulliganReturns?.join(" | ") ?? "-"}]`,
-        `mulliganDraws:[${groupedSnapshotRows.mulliganDraws?.join(" | ") ?? "-"}]`,
-        `attackImpacts:[${groupedSnapshotRows.attackImpacts?.join(" | ") ?? "-"}]`,
-        `attackDests:[${groupedSnapshotRows.attackDests?.join(" | ") ?? "-"}]`,
-        `openingOrigins:[${groupedSnapshotRows.openingOrigins?.join(" | ") ?? "-"}]`,
-      ],
-      snapshotRows,
-      fallbacks: fallbackLines,
-      fallbackEntries,
-      counters: {
-        anchors: visibleAnchors.length,
-        probes: probeRows.length,
-        snapshots: snapshotRows.length,
-        fallbacks: fallbackEntries.length,
-      },
-    };
-  }, [
-    activeBattleLayout.animations,
-    getReferenceScreenPointForAnimationAnchor,
-    liveAnimationAnchorPoints,
-    resolveBattleStageMetrics,
-    serializeZoneAnchorSnapshot,
-  ]);
-  const buildBattleDevSnapshot = useCallback(() => {
-    const stageMetrics = getBattleStageMetrics();
-    const animationProbe = buildFreshAnimationProbeSnapshot();
-    const stageRect = stageMetrics
-      ? {
-          left: Math.round(stageMetrics.rect.left),
-          top: Math.round(stageMetrics.rect.top),
-          width: Math.round(stageMetrics.rect.width),
-          height: Math.round(stageMetrics.rect.height),
-          scaleX: Number(stageMetrics.scaleX.toFixed(3)),
-          scaleY: Number(stageMetrics.scaleY.toFixed(3)),
-        }
-      : null;
-
-    return {
-      capturedAt: new Date().toISOString(),
-      location:
-        typeof window === "undefined"
-          ? null
-          : {
-              href: window.location.href,
-              innerWidth: window.innerWidth,
-              innerHeight: window.innerHeight,
-              devicePixelRatio: window.devicePixelRatio,
-              visibility: document.visibilityState,
-            },
-      stageRect,
-      stageRootDiagnostics: animationProbe.stageDiagnostics,
-      openingIntroStep: game.openingIntroStep,
-      turn: game.turn,
-      localPlayerIndex,
-      remotePlayerIndex,
-      mode,
-      roomTransportKind: roomTransportKind ?? "none",
-      winner: game.winner,
-      combatLocked: game.combatLocked,
-      actedThisTurn: game.actedThisTurn,
-      currentMessage: game.currentMessage,
-      messageQueue: game.messageQueue.map((message) => ({
-        kind: message.kind,
-        title: message.title,
-        detail: message.detail,
-      })),
-      selectedHandIndexes: [...game.selectedHandIndexes],
-      selectedSyllables: game.selectedHandIndexes.map(
-        (index) => stableHands[localPlayerIndex][index]?.syllable ?? `missing:${index}`,
-      ),
-      localHand: [...game.players[localPlayerIndex].hand],
-      remoteHand: [...game.players[remotePlayerIndex].hand],
-      stableLocalHand: stableHands[localPlayerIndex].map((card) => ({
-        id: card.id,
-        syllable: card.syllable,
-        skipEntryAnimation: Boolean(card.skipEntryAnimation),
-      })),
-      stableRemoteHand: stableHands[remotePlayerIndex].map((card) => ({
-        id: card.id,
-        syllable: card.syllable,
-        skipEntryAnimation: Boolean(card.skipEntryAnimation),
-      })),
-      incomingLocalHand: incomingHands[localPlayerIndex].map((card) => ({
-        id: card.id,
-        syllable: card.card.syllable,
-        finalIndex: card.finalIndex,
-        finalTotal: card.finalTotal,
-        delayMs: card.delayMs,
-        durationMs: card.durationMs,
-        origin: card.origin,
-      })),
-      incomingRemoteHand: incomingHands[remotePlayerIndex].map((card) => ({
-        id: card.id,
-        syllable: card.card.syllable,
-        finalIndex: card.finalIndex,
-        finalTotal: card.finalTotal,
-        delayMs: card.delayMs,
-        durationMs: card.durationMs,
-        origin: card.origin,
-      })),
-      outgoingLocalHand: outgoingHands[localPlayerIndex].map((card) => ({
-        id: card.id,
-        syllable: card.card.syllable,
-        destination: card.destination,
-        initialIndex: card.initialIndex,
-        initialTotal: card.initialTotal,
-        delayMs: card.delayMs,
-        durationMs: card.durationMs,
-        destinationMode: card.destinationMode ?? "card-origin",
-      })),
-      outgoingRemoteHand: outgoingHands[remotePlayerIndex].map((card) => ({
-        id: card.id,
-        syllable: card.card.syllable,
-        destination: card.destination,
-        initialIndex: card.initialIndex,
-        initialTotal: card.initialTotal,
-        delayMs: card.delayMs,
-        durationMs: card.durationMs,
-        destinationMode: card.destinationMode ?? "card-origin",
-      })),
-      pendingMulliganDrawCounts: { ...pendingMulliganDrawCountsRef.current },
-      pendingMulliganDrawQueues: {
-        player: pendingMulliganDrawQueuesRef.current[PLAYER].map((draw) => ({
-          syllable: draw.syllable,
-          finalIndex: draw.finalIndex,
-          finalTotal: draw.finalTotal,
-          originOverride: draw.originOverride,
-        })),
-        enemy: pendingMulliganDrawQueuesRef.current[ENEMY].map((draw) => ({
-          syllable: draw.syllable,
-          finalIndex: draw.finalIndex,
-          finalTotal: draw.finalTotal,
-          originOverride: draw.originOverride,
-        })),
-      },
-      incomingTargets: {
-        player: incomingTargets[PLAYER].map((target) => ({
-          id: target.id,
-          slotIndex: target.slotIndex,
-          name: target.entity.target.name,
-          origin: target.origin,
-          delayMs: target.delayMs,
-          durationMs: target.durationMs,
-        })),
-        enemy: incomingTargets[ENEMY].map((target) => ({
-          id: target.id,
-          slotIndex: target.slotIndex,
-          name: target.entity.target.name,
-          origin: target.origin,
-          delayMs: target.delayMs,
-          durationMs: target.durationMs,
-        })),
-      },
-      outgoingTargets: {
-        player: outgoingTargets[PLAYER].map((target) => ({
-          id: target.id,
-          slotIndex: target.slotIndex,
-          name: target.entity.target.name,
-          impactDestination: target.impactDestination,
-          destination: target.destination,
-          delayMs: target.delayMs,
-          windupMs: target.windupMs,
-          attackMs: target.attackMs,
-          pauseMs: target.pauseMs,
-          exitMs: target.exitMs,
-        })),
-        enemy: outgoingTargets[ENEMY].map((target) => ({
-          id: target.id,
-          slotIndex: target.slotIndex,
-          name: target.entity.target.name,
-          impactDestination: target.impactDestination,
-          destination: target.destination,
-          delayMs: target.delayMs,
-          windupMs: target.windupMs,
-          attackMs: target.attackMs,
-          pauseMs: target.pauseMs,
-          exitMs: target.exitMs,
-        })),
-      },
-      lockedTargetSlots,
-      pendingTargetPlacements,
-      freshCardIds: [...freshCardIds],
-      mulliganDebug,
-      battleEvents: battleEventsRef.current.slice(-40),
-      debugWatcher: {
-        startedAt:
-          battleDebugStartedAtRef.current != null
-            ? new Date(battleDebugStartedAtRef.current).toISOString()
-            : null,
-        sampleCount: battleDebugSamplesRef.current.length,
-        fallbackCount: animationFallbackHistoryRef.current.length,
-        sampleCapacity: 800,
-        captureIntervalMs: 300,
-        lastSampleAt:
-          battleDebugSamplesRef.current.length > 0
-            ? new Date(
-                battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1]?.at ?? Date.now(),
-              ).toISOString()
-            : null,
-        lastSampleId:
-          battleDebugSamplesRef.current.length > 0
-            ? battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1]?.id ?? null
-            : null,
-        lastSampleReason:
-          battleDebugSamplesRef.current.length > 0
-            ? battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1]?.reason ?? null
-            : null,
-        lastSignatureLength: battleDebugLastSignatureRef.current.length,
-      },
-      animationProbe,
-      timeDiagnostics: {
-        nowIso: new Date().toISOString(),
-        turnRemainingMs,
-        coinChoiceRemainingMs,
-      },
-      timerDiagnostics: {
-        actionTimerCount: actionTimersRef.current.length,
-        visualTimerCount: visualTimersRef.current.length,
-      },
-      zoneSnapshots: {
-        playerDeck: serializeZoneAnchorSnapshot(snapshotZone("playerDeck")),
-        enemyDeck: serializeZoneAnchorSnapshot(snapshotZone("enemyDeck")),
-        playerTargetDeck: serializeZoneAnchorSnapshot(snapshotZone("playerTargetDeck")),
-        enemyTargetDeck: serializeZoneAnchorSnapshot(snapshotZone("enemyTargetDeck")),
-        playerFieldSlots: Array.from({ length: CONFIG.targetsInPlay }, (_, index) => ({
-          slot: index,
-          snapshot: serializeZoneAnchorSnapshot(snapshotZoneSlot("playerField", `slot-${index}`)),
-        })),
-        enemyFieldSlots: Array.from({ length: CONFIG.targetsInPlay }, (_, index) => ({
-          slot: index,
-          snapshot: serializeZoneAnchorSnapshot(snapshotZoneSlot("enemyField", `slot-${index}`)),
-        })),
-      },
-      handCardSnapshots: {
-        player: stableHands[localPlayerIndex].map((card, index) => ({
-          index,
-          id: card.id,
-          syllable: card.syllable,
-          snapshot: serializeZoneAnchorSnapshot(snapshotHandCard(card.id)),
-        })),
-        enemy: stableHands[remotePlayerIndex].map((card, index) => ({
-          index,
-          id: card.id,
-          syllable: card.syllable,
-          snapshot: serializeZoneAnchorSnapshot(snapshotHandCard(card.id)),
-        })),
-      },
-      domDiagnostics: {
-        zoneNodeCount: Object.values(zoneNodesRef.current).filter(Boolean).length,
-        handCardNodeCount: Object.values(handCardNodesRef.current).filter(Boolean).length,
-      },
-      laneDebug: {
-        hands: { ...handLaneDebugRef.current },
-        fields: { ...fieldLaneDebugRef.current },
-      },
-      rawAnimationAnchors: activeBattleLayout.animations,
-      authoritativeSnapshotState: authoritativeBattleSnapshot
-        ? {
-            turn: authoritativeBattleSnapshot.turn,
-            intro: authoritativeBattleSnapshot.openingIntroStep,
-            winner: authoritativeBattleSnapshot.winner,
-          }
-        : null,
-      pendingExternalActionId: pendingExternalAction?.id ?? null,
-    };
-  }, [
-    activeBattleLayout.animations,
-    authoritativeBattleSnapshot,
-    buildFreshAnimationProbeSnapshot,
-    coinChoiceRemainingMs,
-    freshCardIds,
-    game,
-    getBattleStageMetrics,
-    incomingHands,
-    incomingTargets,
-    localPlayerIndex,
-    lockedTargetSlots,
-    mode,
-    mulliganDebug,
-    outgoingHands,
-    outgoingTargets,
-    pendingExternalAction,
-    pendingTargetPlacements,
-    remotePlayerIndex,
-    roomTransportKind,
-    serializeZoneAnchorSnapshot,
-    snapshotHandCard,
+  const {
+    bindZoneRef,
+    bindHandCardRef,
     snapshotZone,
     snapshotZoneSlot,
+    getZoneSlotRect,
+    snapshotHandCard,
+    resolveBattleStageMetrics,
+    serializeZoneAnchorSnapshot,
+    snapshotSceneAnimationOrigin,
+    snapshotSceneAnimationOriginWithFallback,
+    getPostPlayHandDrawOriginSnapshot,
+    getHandPlayTargetDestinationSnapshot,
+    getReplacementTargetEntryOriginSnapshot,
+    getMulliganHandReturnDestinationSnapshot,
+    getMulliganHandDrawOriginSnapshot,
+    getBattleStageMetrics,
+  } = useBattleControllerGeometry({
+    localPlayerIndex,
+    animations: activeBattleLayout.animations,
+    zoneNodesRef,
+    handCardNodesRef,
+    animationFallbackHistoryRef,
+    animationFallbackIdRef,
+    setAnimationFallbackHistoryVersion,
+  });
+  const {
+    liveAnimationDebugData,
+    buildBattleDevSnapshot,
+    latestFallbackEvent,
+    battleDebugWatcherSummary,
+  } = useBattleControllerDebug({
+    animations: activeBattleLayout.animations,
+    game,
+    localPlayerIndex,
+    remotePlayerIndex,
+    mode,
+    roomTransportKind,
+    authoritativeBattleSnapshot,
+    pendingExternalAction,
     stableHands,
+    incomingHands,
+    outgoingHands,
+    pendingMulliganDrawCountsRef,
+    pendingMulliganDrawQueuesRef,
+    incomingTargets,
+    outgoingTargets,
+    lockedTargetSlots,
+    pendingTargetPlacements,
+    freshCardIds,
+    mulliganDebug,
+    battleEventsRef,
+    battleDebugSamplesRef,
+    battleDebugStartedAtRef,
+    battleDebugLastSignatureRef,
+    animationFallbackHistoryRef,
+    battleDebugWatcherVersion,
+    animationFallbackHistoryVersion,
     turnRemainingMs,
-  ]);
+    coinChoiceRemainingMs,
+    actionTimersRef,
+    visualTimersRef,
+    zoneNodesRef,
+    handCardNodesRef,
+    handLaneDebugRef,
+    fieldLaneDebugRef,
+    getBattleStageMetrics,
+    resolveBattleStageMetrics,
+    serializeZoneAnchorSnapshot,
+    snapshotSceneAnimationOrigin,
+    snapshotZone,
+    snapshotZoneSlot,
+    snapshotHandCard,
+  });
   const bumpBattleDebugWatcherVersion = useCallback(() => {
     setBattleDebugWatcherVersion((value) => value + 1);
   }, []);
@@ -2185,495 +1311,6 @@ export const useBattleController = ({
     emitTargetReplacedEvent,
   });
 
-  /*
-  const handleOutgoingTargetComplete = useCallback(
-    (outgoingTarget: BattleFieldOutgoingTarget & { side: typeof PLAYER | typeof ENEMY }) => {
-      removeOutgoingTarget(outgoingTarget.side, outgoingTarget.id);
-    },
-    [removeOutgoingTarget],
-  );
-
-  const queueCompletedTargetDeparture = useCallback(
-    (result: {
-      actorIndex: 0 | 1;
-      completedSlot: number | null;
-    }) => {
-      if (result.completedSlot == null) return;
-
-      const side = result.actorIndex;
-      const stableTarget = stableTargetsRef.current[side][result.completedSlot];
-      const origin = snapshotZoneSlot(zoneIdForSide(side, "field"), `slot-${result.completedSlot}`);
-      const activeDeckSlot = isDesktopViewport ? "desktop" : "mobile";
-      const attackIndex = side * CONFIG.targetsInPlay + result.completedSlot;
-      const configuredImpact =
-        attackIndex === 0
-          ? activeBattleLayout.animations.targetAttack0Impact
-          : attackIndex === 1
-            ? activeBattleLayout.animations.targetAttack1Impact
-            : attackIndex === 2
-              ? activeBattleLayout.animations.targetAttack2Impact
-              : activeBattleLayout.animations.targetAttack3Impact;
-      const configuredDestination =
-        attackIndex === 0
-          ? activeBattleLayout.animations.targetAttack0Destination
-          : attackIndex === 1
-            ? activeBattleLayout.animations.targetAttack1Destination
-            : attackIndex === 2
-              ? activeBattleLayout.animations.targetAttack2Destination
-              : activeBattleLayout.animations.targetAttack3Destination;
-      const impactDestination =
-        snapshotSceneAnimationOriginWithFallback(
-          `target-attack-impact-${attackIndex}`,
-          configuredImpact,
-          "field-slot-center",
-        ) ?? null;
-      const destination =
-        snapshotSceneAnimationOriginWithFallback(
-          `target-attack-destination-${attackIndex}`,
-          configuredDestination,
-          `${side === PLAYER ? "player" : "enemy"}-target-deck`,
-        ) ??
-        snapshotZoneSlot(zoneIdForSide(side, "targetDeck"), activeDeckSlot) ??
-        snapshotZone(zoneIdForSide(side, "targetDeck"));
-
-      if (!stableTarget || !origin || !destination) {
-        setStableTargetSlot(side, result.completedSlot, null);
-        lockTargetSlot(side, result.completedSlot, true);
-        return;
-      }
-
-      lockTargetSlot(side, result.completedSlot, true);
-      setStableTargetSlot(side, result.completedSlot, null);
-      appendOutgoingTarget(side, {
-        id: `target-motion-${stableTarget.id}-depart`,
-        side,
-        slotIndex: result.completedSlot,
-        entity: stableTarget,
-        impactDestination,
-        destination,
-        delayMs: 0,
-        windupMs: FLOW.attackWindupMs + TARGET_ATTACK_WINDUP_EXTRA_MS,
-        attackMs: FLOW.attackTravelMs + TARGET_ATTACK_TRAVEL_EXTRA_MS,
-        pauseMs: FLOW.impactPauseMs,
-        exitMs: FLOW.targetExitMs + TARGET_ATTACK_EXIT_EXTRA_MS,
-      });
-    },
-    [activeBattleLayout.animations, appendOutgoingTarget, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotSceneAnimationOriginWithFallback, snapshotZone, snapshotZoneSlot],
-  );
-
-  const queueReplacementTargetArrival = useCallback(
-    (
-      actorIndex: 0 | 1,
-      slotIndex: number,
-      logicalTarget: GameState["players"][0]["targets"][number],
-    ) => {
-      if (!logicalTarget) {
-        lockTargetSlot(actorIndex, slotIndex, false);
-        return;
-      }
-
-      const activeDeckSlot = isDesktopViewport ? "desktop" : "mobile";
-      const origin =
-        getReplacementTargetEntryOriginSnapshot(actorIndex, slotIndex) ??
-        snapshotZoneSlot(zoneIdForSide(actorIndex, "targetDeck"), activeDeckSlot) ??
-        snapshotZone(zoneIdForSide(actorIndex, "targetDeck"));
-      const entity = toVisualTarget(logicalTarget, actorIndex, slotIndex);
-
-      if (!origin) {
-        setStableTargetSlot(actorIndex, slotIndex, entity);
-        lockTargetSlot(actorIndex, slotIndex, false);
-        return;
-      }
-
-      appendIncomingTarget(actorIndex, {
-        id: `incoming-target-${entity.id}`,
-        side: actorIndex,
-        slotIndex,
-        entity,
-        origin,
-        delayMs: 0,
-        durationMs: TIMINGS.leaveMs,
-      });
-    },
-    [appendIncomingTarget, getReplacementTargetEntryOriginSnapshot, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotZone, snapshotZoneSlot, toVisualTarget],
-  );
-
-  const commitIncomingTargetToField = useCallback(
-    (incomingTarget: IncomingTargetCard) => {
-      removeIncomingTarget(incomingTarget.side, incomingTarget.id);
-      setStableTargetSlot(incomingTarget.side, incomingTarget.slotIndex, incomingTarget.entity);
-      lockTargetSlot(incomingTarget.side, incomingTarget.slotIndex, false);
-    },
-    [lockTargetSlot, removeIncomingTarget, setStableTargetSlot],
-  );
-
-  const commitPlayedTargetProgress = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, slotIndex: number) => {
-      const logicalTarget = gameRef.current.players[side].targets[slotIndex];
-      if (!logicalTarget) {
-        setPendingTargetPlacement(side, slotIndex, null);
-        lockTargetSlot(side, slotIndex, false);
-        return;
-      }
-
-      setStableTargetSlot(side, slotIndex, toVisualTarget(logicalTarget, side, slotIndex));
-      setPendingTargetPlacement(side, slotIndex, null);
-      lockTargetSlot(side, slotIndex, false);
-    },
-    [lockTargetSlot, setPendingTargetPlacement, setStableTargetSlot, toVisualTarget],
-  );
-
-  const startCombatSequence = (result: any) => {
-    const attackStartDelay = FLOW.cardToFieldMs + FLOW.cardSettleMs;
-    const impactDelayMs =
-      attackStartDelay +
-      FLOW.attackWindupMs +
-      TARGET_ATTACK_WINDUP_EXTRA_MS +
-      FLOW.attackTravelMs +
-      TARGET_ATTACK_TRAVEL_EXTRA_MS;
-    const replacementDelayMs =
-      attackStartDelay +
-      FLOW.attackWindupMs +
-      TARGET_ATTACK_WINDUP_EXTRA_MS +
-      FLOW.attackTravelMs +
-      TARGET_ATTACK_TRAVEL_EXTRA_MS +
-      FLOW.impactPauseMs +
-      FLOW.targetExitMs +
-      TARGET_ATTACK_EXIT_EXTRA_MS +
-      FLOW.replacementGapMs;
-    const combatResolveEndMs = replacementDelayMs + FLOW.targetEnterMs;
-    const drawStartDelayMs = impactDelayMs + FLOW.impactPauseMs + FLOW.drawSettleMs;
-    const drawTotalMs =
-      (result.drawnCards.length > 0 ? FLOW.drawTravelMs : 0) +
-      Math.max(0, result.drawnCards.length - 1) * FLOW.drawStaggerMs;
-    const drawResolveEndMs = drawStartDelayMs + drawTotalMs;
-    const finishDelayMs = Math.max(combatResolveEndMs, drawResolveEndMs) + FLOW.turnHandoffMs;
-
-    const t1 = setTimeout(() => {
-      queueCompletedTargetDeparture(result);
-    }, attackStartDelay);
-
-    if (result.drawnCards.length > 0) {
-      queueHandDrawBatch(result.actorIndex, result.drawnCards, {
-        initialDelayMs: drawStartDelayMs,
-        staggerMs: FLOW.drawStaggerMs,
-        durationMs: FLOW.drawTravelMs,
-        originOverride: getPostPlayHandDrawOriginSnapshot(result.actorIndex),
-      });
-    }
-
-    const t2 = setTimeout(() => {
-      if (!result.damage) return;
-      emitDamageAppliedEvent(
-        gameRef.current.turn,
-        result.actorIndex,
-        result.actorIndex === PLAYER ? ENEMY : PLAYER,
-        result.damage,
-        result.damageSource,
-        result.impactLife,
-      );
-      setGame((prev) => {
-        const players = [...prev.players];
-        const opponentIndex = result.actorIndex === PLAYER ? ENEMY : PLAYER;
-        players[opponentIndex] = {
-          ...players[opponentIndex],
-          life: result.impactLife,
-          flashDamage: result.damage,
-        };
-        return {
-          ...prev,
-          players,
-        };
-      });
-    }, impactDelayMs);
-
-    const t3 = setTimeout(() => {
-      if (result.completedSlot == null) return;
-      const pIdx = result.actorIndex;
-      const deck = pIdx === PLAYER ? playerDeck : enemyDeck;
-      const previousTargetName = gameRef.current.players[pIdx].targets[result.completedSlot]?.name ?? "";
-      const nextPlayer = replaceTargetInSlot(gameRef.current.players[pIdx], result.completedSlot, deck);
-      const nextTarget = nextPlayer.targets[result.completedSlot];
-
-      emitTargetReplacedEvent(gameRef.current.turn, result.actorIndex, result.completedSlot, previousTargetName, nextTarget?.name ?? "");
-
-      setGame((prev) => {
-        const players = [...prev.players];
-        players[pIdx] = nextPlayer;
-        return { ...prev, players };
-      });
-
-      queueReplacementTargetArrival(result.actorIndex, result.completedSlot, nextTarget);
-    }, replacementDelayMs);
-
-    const t4 = setTimeout(() => {
-      setGame((prev) => ({
-        ...prev,
-        combatLocked: false,
-        players: prev.players.map((p) => ({ ...p, flashDamage: 0 })),
-      }));
-
-      if (result.winner !== null) {
-        setGame((prev) => ({ ...prev, winner: result.winner }));
-      } else {
-        finalizeTurn();
-      }
-    }, finishDelayMs);
-
-    actionTimersRef.current.push(t1, t2, t3, t4);
-  };
-
-  const resolvePlayInternal = (handIndex: number, targetIndex: number) =>
-    resolveBattlePlayAction(gameRef.current, handIndex, targetIndex);
-
-  type PlayResolution = NonNullable<ReturnType<typeof resolvePlayInternal>>;
-  const emitResolvedPlayLogicalEvents = useCallback(
-    ({
-      side,
-      targetIndex,
-      result,
-    }: {
-      side: typeof PLAYER | typeof ENEMY;
-      targetIndex: number;
-      result: PlayResolution;
-    }) => {
-      createPlayResolutionEvents({
-        turn: game.turn,
-        side,
-        playedCard: result.playedCard,
-        targetSlot: targetIndex,
-        targetName: game.players[side].targets[targetIndex]?.name ?? "",
-        damage: result.damage,
-        damageSource: result.damageSource,
-        completedSlot: result.completedSlot,
-        drawnCards: result.drawnCards,
-      }).forEach(emitBattleEvent);
-    },
-    [emitBattleEvent, game.players, game.turn],
-  );
-
-  const applyResolvedMulliganFlow = ({
-    side,
-    removedStableCards,
-    removedCardLayouts,
-    remainingStableCount,
-    drawnCards,
-  }: {
-    side: typeof PLAYER | typeof ENEMY;
-    removedStableCards: VisualHandCard[];
-    removedCardLayouts: Array<{ index: number; total: number }>;
-    remainingStableCount: number;
-    drawnCards: Syllable[];
-  }) => {
-    createMulliganResolutionEvents({
-      turn: game.turn,
-      side,
-      returned: removedStableCards.map((card) => card.syllable),
-      drawn: drawnCards,
-    }).forEach(emitBattleEvent);
-
-    const deckDestination =
-      getMulliganHandReturnDestinationSnapshot(side, removedStableCards.length) ??
-      snapshotZone(zoneIdForSide(side, "deck"));
-    if (deckDestination) {
-      removedStableCards.forEach((card, index) => {
-        const layout = removedCardLayouts[index];
-        if (!layout) return;
-        appendOutgoingCard(side, {
-          id: `outgoing-${card.id}-${index}`,
-          side,
-          card,
-          destination: deckDestination,
-          initialIndex: layout.index,
-          initialTotal: layout.total,
-          delayMs: index * FLOW.mulliganReturnStaggerMs,
-          durationMs: FLOW.mulliganReturnMs,
-        });
-      });
-    }
-
-    commitPendingMulliganDrawCounts({
-      ...pendingMulliganDrawCountsRef.current,
-      [side]: pendingMulliganDrawCountsRef.current[side] + drawnCards.length,
-    });
-    const plannedDraws = drawnCards.map((syllable, index) => ({
-      syllable,
-      finalIndex: Math.min(HAND_LAYOUT_SLOT_COUNT - 1, remainingStableCount + index),
-      finalTotal: Math.min(HAND_LAYOUT_SLOT_COUNT, remainingStableCount + drawnCards.length),
-      originOverride: getMulliganHandDrawOriginSnapshot(side, drawnCards.length),
-    }));
-    pendingMulliganDrawQueuesRef.current = {
-      ...pendingMulliganDrawQueuesRef.current,
-      [side]: plannedDraws.slice(1),
-    };
-    if (plannedDraws.length > 0) {
-      queueHandDrawBatch(side, [plannedDraws[0].syllable], {
-        initialDelayMs: getMulliganDrawStartDelayMs(FLOW, removedStableCards.length),
-        staggerMs: 0,
-        durationMs: FLOW.drawTravelMs,
-        finalTotalOverride: plannedDraws[0].finalTotal,
-        finalIndexBase: plannedDraws[0].finalIndex,
-        originOverride: plannedDraws[0].originOverride,
-      });
-    }
-
-    const t = setTimeout(finalizeTurn, getMulliganFinishDelayMs(FLOW, removedStableCards.length, drawnCards.length));
-    actionTimersRef.current.push(t);
-  };
-
-  const executeBattleTurnAction = ({
-    side,
-    move,
-    selectedCardOrigin,
-    clearSelection,
-    clearIncomingHand,
-  }: {
-    side: typeof PLAYER | typeof ENEMY;
-    move: BattleTurnAction;
-    selectedCardOrigin?: ZoneAnchorSnapshot | null;
-    clearSelection: boolean;
-    clearIncomingHand?: boolean;
-  }) => {
-    if (move.type === "play") {
-      const result = resolvePlayInternal(move.handIndex, move.targetIndex);
-      if (!result) return;
-
-      const stableBeforePlay = stableHandsRef.current[side];
-      const simplePlayStep = prepareBattleSimplePlayStep({
-        side,
-        flow: FLOW,
-        result,
-        handIndex: move.handIndex,
-        targetIndex: move.targetIndex,
-        targetName: game.players[side].targets[move.targetIndex]?.name ?? "",
-        stableHandCountBeforePlay: stableBeforePlay.length,
-        handLayoutSlotCount: HAND_LAYOUT_SLOT_COUNT,
-        fieldZoneId: zoneIdForSide(side, "field"),
-        getHandPlayTargetDestinationSnapshot,
-        getPostPlayHandDrawOriginSnapshot,
-        snapshotZoneSlot,
-      });
-      const [playedStableCard] = removeStableCards(side, [move.handIndex]);
-      lockTargetSlot(side, simplePlayStep.logicalEvent.targetIndex, true);
-      setPendingTargetPlacement(
-        side,
-        simplePlayStep.logicalEvent.targetIndex,
-        simplePlayStep.logicalEvent.result.playedCard,
-      );
-
-      applyBattleSimplePlayRuntime({
-        side,
-        localPlayerIndex,
-        targetIndex: simplePlayStep.logicalEvent.targetIndex,
-        result: simplePlayStep.logicalEvent.result,
-        clearSelection,
-        flow: FLOW,
-        playedStableCard,
-        playedCardLayout: simplePlayStep.statefulExecution.playedCardLayout,
-        visualPlan: simplePlayStep.visualPlan,
-        visualGeometry: simplePlayStep.liveGeometry.visualGeometry,
-        fallbackHandPlayDestination: simplePlayStep.liveGeometry.fallbackHandPlayDestination,
-        fallbackPostPlayDrawOrigin: simplePlayStep.liveGeometry.fallbackPostPlayDrawOrigin,
-        appendOutgoingCard,
-        queueHandDrawBatch,
-        setGame,
-        buildNextLog: (prevLog) =>
-          buildPlayChronicleEntries(
-            side,
-            simplePlayStep.logicalEvent.result,
-            simplePlayStep.logicalEvent.targetName,
-          ).reduce(
-            (acc, entry) => addLog(acc, entry),
-            prevLog,
-          ),
-        emitResolvedPlayLogicalEvents,
-        commitPlayedTargetProgress,
-        scheduleActionTimer: (callback, delayMs) => {
-          const t = setTimeout(callback, delayMs);
-          actionTimersRef.current.push(t);
-        },
-        startCombatSequence,
-        finalizeTurn,
-      });
-      return;
-    }
-
-    if (move.type === "mulligan") {
-      const selectedIndexes = [...move.handIndexes].sort((a, b) => b - a);
-      const requestedSyllables = selectedIndexes.map(
-        (index) => stableHandsRef.current[side][index]?.syllable ?? `missing:${index}`,
-      );
-      const stableBeforeRemoval = stableHandsRef.current[side];
-      const removedCardLayouts = [...selectedIndexes]
-        .sort((a, b) => a - b)
-        .map((index) => ({
-          index,
-          total: stableBeforeRemoval.length,
-        }));
-      const resolution = resolveBattleMulliganAction(gameRef.current, side, selectedIndexes, CONFIG.handSize);
-      const removedStableCards = removeStableCards(side, selectedIndexes);
-      const remainingStableCount = stableHandsRef.current[side].length;
-      const returnedCountForLog = removedStableCards.length;
-
-      if (clearIncomingHand) {
-        commitIncomingHands({
-          ...incomingHandsRef.current,
-          [side]: [],
-        });
-        commitOutgoingHands({
-          ...outgoingHandsRef.current,
-          [side]: [],
-        });
-        commitOutgoingTargets({
-          ...outgoingTargetsRef.current,
-          [side]: [],
-        });
-        commitPendingMulliganDrawCounts({
-          ...pendingMulliganDrawCountsRef.current,
-          [side]: 0,
-        });
-        pendingMulliganDrawQueuesRef.current = {
-          ...pendingMulliganDrawQueuesRef.current,
-          [side]: [],
-        };
-      }
-
-      setGame((prev) => {
-        return {
-          ...prev,
-          players: resolution.nextPlayers as any,
-          selectedHandIndexes: clearSelection ? [] : prev.selectedHandIndexes,
-          selectedCardForPlay: clearSelection ? null : prev.selectedCardForPlay,
-          actedThisTurn: true,
-          currentMessage: null,
-          log: addLog(prev.log, buildHandSwapChronicleEntry(side, returnedCountForLog)),
-        };
-      });
-
-      setMulliganDebug({
-        source: "executeBattleTurnAction",
-        requestedIndexes: [...selectedIndexes],
-        requestedSyllables,
-        removedStableCards: removedStableCards.map((card) => card.syllable),
-        drawnCards: [...resolution.drawnCards],
-        externalActionId: null,
-        clearIncomingHand: Boolean(clearIncomingHand),
-      });
-
-      applyResolvedMulliganFlow({
-        side,
-        removedStableCards,
-        removedCardLayouts,
-        remainingStableCount,
-        drawnCards: resolution.drawnCards,
-      });
-      return;
-    }
-
-    finalizeTurn();
-  };
-
-  */
 
   const snapshotActionOrigin = useCallback(
     (side: typeof PLAYER | typeof ENEMY, action: BattleTurnAction) => {
@@ -2706,66 +1343,6 @@ export const useBattleController = ({
     executeBattleTurnAction,
   });
 
-  /*
-  const requestBattleAction = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, action: BattleTurnAction) => {
-      if (mode !== "multiplayer" || !onActionRequested) return false;
-
-      const sequence = actionSequenceRef.current[side];
-      actionSequenceRef.current[side] += 1;
-      const id = `battle-action-${side === PLAYER ? "player" : "enemy"}-${gameRef.current.setupVersion}-${battleActionIdRef.current++}`;
-      onActionRequested({
-        id,
-        setupVersion: gameRef.current.setupVersion,
-        sequence,
-        turn: gameRef.current.turn,
-        side: side === PLAYER ? "player" : "enemy",
-        action,
-      });
-      if (roomTransportKind === "remote" && side === localPlayerIndex) {
-        processedExternalActionIdsRef.current.add(id);
-      }
-      return true;
-    },
-    [localPlayerIndex, mode, onActionRequested, roomTransportKind],
-  );
-
-  const shouldExecuteLocallyAfterRequest = useCallback(
-    (side: typeof PLAYER | typeof ENEMY) => {
-      if (mode !== "multiplayer" || !onActionRequested) return false;
-      if (roomTransportKind !== "remote") return false;
-      return side === localPlayerIndex;
-    },
-    [localPlayerIndex, mode, onActionRequested, roomTransportKind],
-  );
-
-  const dispatchBattleAction = useCallback(
-    ({
-      side,
-      move,
-      clearSelection,
-      clearIncomingHand,
-    }: {
-      side: typeof PLAYER | typeof ENEMY;
-      move: BattleTurnAction;
-      clearSelection: boolean;
-      clearIncomingHand?: boolean;
-    }) => {
-      const requested = requestBattleAction(side, move);
-      if (requested && !shouldExecuteLocallyAfterRequest(side)) return;
-
-      executeBattleTurnAction({
-        side,
-        move,
-        selectedCardOrigin: snapshotActionOrigin(side, move),
-        clearSelection,
-        clearIncomingHand,
-      });
-    },
-    [requestBattleAction, shouldExecuteLocallyAfterRequest, snapshotActionOrigin],
-  );
-
-  */
 
   const playOnTarget = (targetIndex: number) => {
     if (
@@ -2873,333 +1450,6 @@ export const useBattleController = ({
     visibilityRecoveryFrameRef,
   });
 
-  /*
-  useEffect(() => {
-    const shouldRunEnemyAuto = mode === "bot" || (mode === "multiplayer" && enableMockRoomBot);
-    if (introPhase !== "done" || game.turn !== remotePlayerIndex || game.winner !== null || game.combatLocked || !shouldRunEnemyAuto) return;
-
-    const botAction = setTimeout(() => {
-      const move = resolveBotTurnAction({
-        actedThisTurn: gameRef.current.actedThisTurn,
-        hand: gameRef.current.players[remotePlayerIndex].hand,
-        targets: gameRef.current.players[remotePlayerIndex].targets,
-        mulliganUsedThisRound: gameRef.current.players[remotePlayerIndex].mulliganUsedThisRound,
-        maxMulligan: CONFIG.maxMulligan,
-      });
-      if (move) {
-        dispatchBattleAction({
-          side: remotePlayerIndex,
-          move,
-          clearSelection: false,
-          clearIncomingHand: false,
-        });
-      }
-    }, TIMINGS.botThinkMs);
-
-    return () => clearTimeout(botAction);
-  }, [dispatchBattleAction, enableMockRoomBot, game.turn, game.winner, game.combatLocked, introPhase, mode, remotePlayerIndex]);
-
-  useEffect(() => {
-    if (!pendingExternalAction) return;
-    if (introPhase !== "done") return;
-    if (processedExternalActionIdsRef.current.has(pendingExternalAction.id)) return;
-    if (pendingExternalAction.setupVersion !== gameRef.current.setupVersion) {
-      processedExternalActionIdsRef.current.add(pendingExternalAction.id);
-      onExternalActionConsumed?.(pendingExternalAction.id);
-      return;
-    }
-    if (pendingExternalAction.turn < gameRef.current.turn) {
-      processedExternalActionIdsRef.current.add(pendingExternalAction.id);
-      onExternalActionConsumed?.(pendingExternalAction.id);
-      return;
-    }
-    if (pendingExternalAction.turn !== gameRef.current.turn) return;
-
-    const side = pendingExternalAction.side === "player" ? PLAYER : ENEMY;
-    if (pendingExternalAction.action.type === "mulligan") {
-      setMulliganDebug({
-        source: "pendingExternalAction",
-        requestedIndexes: [...pendingExternalAction.action.handIndexes],
-        requestedSyllables: pendingExternalAction.action.handIndexes.map(
-          (index) => stableHandsRef.current[side][index]?.syllable ?? `missing:${index}`,
-        ),
-        removedStableCards: [],
-        drawnCards: [],
-        externalActionId: pendingExternalAction.id,
-        clearIncomingHand: side === localPlayerIndex,
-      });
-    }
-    processedExternalActionIdsRef.current.add(pendingExternalAction.id);
-    onExternalActionConsumed?.(pendingExternalAction.id);
-
-    executeBattleTurnAction({
-      side,
-      move: pendingExternalAction.action,
-      selectedCardOrigin: snapshotActionOrigin(side, pendingExternalAction.action),
-      clearSelection: side === localPlayerIndex,
-      clearIncomingHand: side === localPlayerIndex && pendingExternalAction.action.type === "mulligan",
-    });
-  }, [executeBattleTurnAction, introPhase, localPlayerIndex, onExternalActionConsumed, pendingExternalAction, snapshotActionOrigin]);
-  */
-
-  /*
-  useEffect(() => {
-    if (mode !== "multiplayer" || localSide !== "player" || !onBattleSnapshotPublished) return;
-    if (!isIntroSnapshotState(game) && !isWinnerSnapshotState(game) && !isSnapshotCheckpointClear(game)) return;
-
-    const signature = buildBattleSnapshotSignature(game);
-    if (publishedSnapshotSignatureRef.current === signature) return;
-    publishedSnapshotSignatureRef.current = signature;
-    onBattleSnapshotPublished(cloneInitialGame(game));
-  }, [
-    buildBattleSnapshotSignature,
-    cloneInitialGame,
-    game,
-    isWinnerSnapshotState,
-    isSnapshotCheckpointClear,
-    localSide,
-    mode,
-    onBattleSnapshotPublished,
-  ]);
-
-  useEffect(() => {
-    if (!authoritativeBattleSnapshot || mode !== "multiplayer") return;
-    pendingAuthoritativeSnapshotRef.current = authoritativeBattleSnapshot;
-  }, [authoritativeBattleSnapshot, mode]);
-
-  useEffect(() => {
-    if (typeof document === "undefined" || typeof window === "undefined") return;
-
-    const runVisibilityRecovery = () => {
-      visibilityRecoveryFrameRef.current = null;
-
-      if (pendingResultOverlayRecoveryRef.current || (gameRef.current.winner !== null && !gameRef.current.combatLocked)) {
-        setShowResultOverlay(true);
-        pendingResultOverlayRecoveryRef.current = false;
-      }
-
-      const hiddenAt = lastHiddenAtRef.current;
-      lastHiddenAtRef.current = null;
-      if (!hiddenAt) return;
-
-      const hiddenMs = Date.now() - hiddenAt;
-      if (hiddenMs < 300) return;
-
-      needsVisibilityRecoveryRef.current = true;
-      clearVisualTimers();
-      setFreshCardIds([]);
-      setEnemyHandPulse(false);
-      setTurnPresentationLocked(false);
-      setTurnRemainingMs(TURN_TIMER.limitMs);
-      setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
-
-      const authorityCanResolveTimeout = mode !== "multiplayer" || localSide === "player";
-      if (
-        authorityCanResolveTimeout &&
-        gameRef.current.openingIntroStep === "done" &&
-        gameRef.current.winner === null &&
-        !gameRef.current.actedThisTurn &&
-        gameRef.current.turnDeadlineAt != null &&
-        Date.now() >= gameRef.current.turnDeadlineAt
-      ) {
-        const overdueTurnKey = getTurnCycleKey(gameRef.current);
-        if (timedOutTurnKeyRef.current !== overdueTurnKey) {
-          timedOutTurnKeyRef.current = overdueTurnKey;
-          finalizeTurn();
-          return;
-        }
-      }
-
-      if (mode !== "multiplayer") return;
-
-      const latestSnapshot = pendingAuthoritativeSnapshotRef.current ?? authoritativeBattleSnapshot;
-      const canRecoverFromSnapshot =
-        latestSnapshot &&
-        compareBattleSnapshotProgress(latestSnapshot, gameRef.current) >= 0 &&
-        (isIntroSnapshotState(latestSnapshot) || isWinnerSnapshotState(latestSnapshot) || isSnapshotCheckpointClear(latestSnapshot));
-
-      if (localSide === "player") {
-        if (canRecoverFromSnapshot) {
-          hydrateBattleSnapshot(latestSnapshot);
-          if (latestSnapshot.winner !== null && !latestSnapshot.combatLocked) {
-            setShowResultOverlay(true);
-            pendingResultOverlayRecoveryRef.current = false;
-          }
-        }
-        if (!onBattleSnapshotPublished) return;
-
-        const publishRecoverySnapshot = () => {
-          onBattleSnapshotPublished(cloneInitialGame(gameRef.current));
-        };
-
-        const earlyTimer = setTimeout(publishRecoverySnapshot, 260);
-        const settleTimer = setTimeout(publishRecoverySnapshot, 980);
-        visualTimersRef.current.push(earlyTimer, settleTimer);
-        return;
-      }
-
-      if (latestSnapshot) {
-        hydrateBattleSnapshot(latestSnapshot);
-        if (latestSnapshot.winner !== null && !latestSnapshot.combatLocked) {
-          setShowResultOverlay(true);
-          pendingResultOverlayRecoveryRef.current = false;
-        }
-        needsVisibilityRecoveryRef.current = false;
-      }
-    };
-
-    const scheduleVisibilityRecovery = () => {
-      if (visibilityRecoveryFrameRef.current != null) return;
-      visibilityRecoveryFrameRef.current = window.requestAnimationFrame(runVisibilityRecovery);
-    };
-
-    const handleVisibilityRecovery = () => {
-      if (document.hidden) {
-        lastHiddenAtRef.current = Date.now();
-        if (visibilityRecoveryFrameRef.current != null) {
-          window.cancelAnimationFrame(visibilityRecoveryFrameRef.current);
-          visibilityRecoveryFrameRef.current = null;
-        }
-        return;
-      }
-
-      scheduleVisibilityRecovery();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityRecovery);
-    window.addEventListener("focus", handleVisibilityRecovery);
-
-    return () => {
-      if (visibilityRecoveryFrameRef.current != null) {
-        window.cancelAnimationFrame(visibilityRecoveryFrameRef.current);
-        visibilityRecoveryFrameRef.current = null;
-      }
-      document.removeEventListener("visibilitychange", handleVisibilityRecovery);
-      window.removeEventListener("focus", handleVisibilityRecovery);
-    };
-  }, [
-    authoritativeBattleSnapshot,
-    clearVisualTimers,
-    cloneInitialGame,
-    hydrateBattleSnapshot,
-    isIntroSnapshotState,
-    isSnapshotCheckpointClear,
-    isWinnerSnapshotState,
-    finalizeTurn,
-    localSide,
-    mode,
-    onBattleSnapshotPublished,
-  ]);
-
-  useEffect(() => {
-    if (mode !== "multiplayer" || localSide === "player") return;
-    const pendingSnapshot = pendingAuthoritativeSnapshotRef.current;
-    if (!pendingSnapshot) return;
-    const introSyncInFlight = isIntroSnapshotState(gameRef.current) || isIntroSnapshotState(pendingSnapshot);
-    const winnerSyncInFlight = isWinnerSnapshotState(pendingSnapshot);
-    const forceVisibilityRecovery = needsVisibilityRecoveryRef.current;
-    if (!introSyncInFlight && !winnerSyncInFlight && !forceVisibilityRecovery && !isSnapshotCheckpointClear(gameRef.current)) return;
-
-      const nextSignature = buildBattleSnapshotSignature(pendingSnapshot);
-      const currentSignature = buildBattleSnapshotSignature(gameRef.current);
-      const progressComparison = compareBattleSnapshotProgress(pendingSnapshot, gameRef.current);
-      pendingAuthoritativeSnapshotRef.current = null;
-      needsVisibilityRecoveryRef.current = false;
-    if (progressComparison < 0) return;
-    if (nextSignature === currentSignature) return;
-
-      hydrateBattleSnapshot(pendingSnapshot);
-      if (
-        pendingSnapshot.winner !== null &&
-        !pendingSnapshot.combatLocked &&
-        (typeof document === "undefined" || !document.hidden)
-      ) {
-        setShowResultOverlay(true);
-        pendingResultOverlayRecoveryRef.current = false;
-      }
-  }, [
-    authoritativeBattleSnapshot,
-    buildBattleSnapshotSignature,
-    hydrateBattleSnapshot,
-    incomingHands,
-    incomingTargets,
-    isIntroSnapshotState,
-    isWinnerSnapshotState,
-    isSnapshotCheckpointClear,
-    localSide,
-    mode,
-  ]);
-
-  useEffect(() => {
-    if (introPhase !== "done") {
-      presentedTurnKeyRef.current = `${game.setupVersion}:intro`;
-      setTurnPresentationLocked(false);
-      return;
-    }
-
-    if (game.winner !== null) {
-      setTurnPresentationLocked(false);
-      return;
-    }
-
-    const presentationKey = getTurnPresentationKey(game);
-    if (presentedTurnKeyRef.current === presentationKey) return;
-    presentedTurnKeyRef.current = presentationKey;
-    setTurnPresentationLocked(true);
-
-    const queueTimer = setTimeout(() => {
-      setGame((prev) => {
-        if (prev.winner !== null || prev.openingIntroStep !== "done") return prev;
-        if (prev.setupVersion !== game.setupVersion || prev.turn !== game.turn || prev.turnDeadlineAt !== game.turnDeadlineAt) return prev;
-        return {
-          ...prev,
-          messageQueue: [
-            ...prev.messageQueue,
-            { title: getTurnMessageTitle(prev.turn), detail: "", kind: "turn" },
-          ],
-        };
-      });
-    }, TURN_PRESENTATION.preBannerDelayMs);
-
-    const releaseTimer = setTimeout(() => {
-      setTurnPresentationLocked(false);
-    }, TURN_PRESENTATION.preBannerDelayMs + TURN_PRESENTATION.bannerDurationMs + TURN_PRESENTATION.interactionReleaseBufferMs);
-
-    return () => {
-      clearTimeout(queueTimer);
-      clearTimeout(releaseTimer);
-    };
-  }, [game.setupVersion, game.turn, game.turnDeadlineAt, game.winner, getTurnMessageTitle, introPhase]);
-
-  useEffect(() => {
-    if (game.currentMessage) {
-      const durationMs =
-        game.currentMessage.kind === "turn"
-          ? TURN_PRESENTATION.bannerDurationMs
-          : game.currentMessage.kind === "damage"
-            ? 900
-            : 1100;
-      const t = setTimeout(() => setGame((prev) => ({ ...prev, currentMessage: null })), durationMs);
-      return () => clearTimeout(t);
-    }
-
-    if (game.messageQueue.length > 0 && introPhase === "done" && !hasBlockingVisuals() && !game.combatLocked) {
-      setGame((prev) => {
-        const [first, ...rest] = prev.messageQueue;
-        return { ...prev, currentMessage: first, messageQueue: rest };
-      });
-    }
-  }, [
-    game.combatLocked,
-    game.currentMessage,
-    game.messageQueue,
-    hasBlockingVisuals,
-    incomingHands,
-    incomingTargets,
-    introPhase,
-  ]);
-
-  */
 
   const introActive = introPhase !== "done";
   const me = game.players[localPlayerIndex];
@@ -3270,7 +1520,6 @@ export const useBattleController = ({
     const incomingTarget = incomingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
     const outgoingTarget = outgoingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
     const displayedTarget = outgoingTarget?.entity ?? incomingTarget?.entity ?? visualTarget;
-    const slotNode = zoneNodesRef.current[zoneRefKey("enemyField", `slot-${idx}`)];
 
     return {
       key: displayedTarget?.id ?? `enemy-slot-${idx}`,
@@ -3278,7 +1527,7 @@ export const useBattleController = ({
       displayedTarget,
       incomingTarget,
       outgoingTarget,
-      slotRect: slotNode?.getBoundingClientRect() ?? null,
+      slotRect: getZoneSlotRect("enemyField", `slot-${idx}`),
       selectedCard: null,
       canClick: false,
       onClick: () => {},
@@ -3292,7 +1541,6 @@ export const useBattleController = ({
     const incomingTarget = incomingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
     const outgoingTarget = outgoingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
     const displayedTarget = outgoingTarget?.entity ?? incomingTarget?.entity ?? visualTarget;
-    const slotNode = zoneNodesRef.current[zoneRefKey("playerField", `slot-${idx}`)];
 
     return {
       key: displayedTarget?.id ?? `player-slot-${idx}`,
@@ -3300,7 +1548,7 @@ export const useBattleController = ({
       displayedTarget,
       incomingTarget,
       outgoingTarget,
-      slotRect: slotNode?.getBoundingClientRect() ?? null,
+      slotRect: getZoneSlotRect("playerField", `slot-${idx}`),
       selectedCard,
       pendingCard: pendingTargetPlacements[localPlayerIndex][idx],
       canClick: Boolean(
@@ -3319,13 +1567,6 @@ export const useBattleController = ({
       playerHand: me.hand,
     };
   });
-  const battleDebugLatestSample =
-    battleDebugSamplesRef.current[battleDebugSamplesRef.current.length - 1] ?? null;
-  const latestFallbackEvent =
-    animationFallbackHistoryRef.current[0] ?? null;
-  const battleDebugWatcherSummary = import.meta.env.DEV
-    ? `watch:samples:${battleDebugSamplesRef.current.length} fallbacks:${animationFallbackHistoryRef.current.length} last:${battleDebugLatestSample ? new Date(battleDebugLatestSample.at).toLocaleTimeString("pt-BR", { hour12: false }) : "-"}`
-    : "";
   const handleSelectPlayerHandCard = useCallback(
     (index: number) => {
       setGame((prev) => {
@@ -3513,3 +1754,6 @@ export const useBattleController = ({
     beginCoinChoiceResolution,
   } satisfies BattleController;
 };
+
+
+
