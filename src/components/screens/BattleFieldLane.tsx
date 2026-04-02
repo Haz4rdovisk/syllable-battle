@@ -9,6 +9,8 @@ const noopDivRef = () => {};
 
 export interface BattleFieldIncomingTarget {
   id: string;
+  side: 0 | 1;
+  slotIndex: number;
   entity: VisualTargetEntity;
   origin: ZoneAnchorSnapshot;
   delayMs: number;

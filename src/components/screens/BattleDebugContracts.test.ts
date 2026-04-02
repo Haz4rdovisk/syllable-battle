@@ -523,6 +523,8 @@ test("buildBattleFieldLaneSlotsFromTargetField reutiliza a mesma pipeline de mot
         displayedTarget: stableEntity,
         incomingTarget: {
           id: "preview-incoming-target",
+          side: 0,
+          slotIndex: 0,
           entity: incomingTargetEntity,
           origin: { left: 10, top: 20, width: 30, height: 40 },
           delayMs: 80,
@@ -563,6 +565,8 @@ test("buildBattleFieldLaneSlotsFromTargetField reutiliza a mesma pipeline de mot
 
   assert.equal(laneSlots.length, 1);
   assert.equal(laneSlots[0]?.incomingTarget?.id, "preview-incoming-target");
+  assert.equal(laneSlots[0]?.incomingTarget?.side, 0);
+  assert.equal(laneSlots[0]?.incomingTarget?.slotIndex, 0);
   assert.equal(laneSlots[0]?.outgoingTarget?.id, "preview-outgoing-target");
   assert.equal(laneSlots[0]?.pendingCard, "CA");
   assert.equal(laneSlots[0]?.displayedTarget?.id, "runtime-target-outgoing-ui-visual");

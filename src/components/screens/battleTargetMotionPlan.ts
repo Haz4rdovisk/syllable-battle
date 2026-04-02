@@ -134,6 +134,8 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
         isIncomingNode(node)
           ? {
               id: node.sceneNodeId,
+              side: fieldSlot.slot.runtimeSide,
+              slotIndex: fieldSlot.slot.slotIndex,
               entity: node.visualEntity,
               origin: node.motion.origin,
               delayMs: node.motion.delayMs,
@@ -195,6 +197,8 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
     const incomingTarget = incomingNode
       ? {
           id: incomingNode.sceneNodeId,
+          side: fieldSlot.slot.runtimeSide,
+          slotIndex: fieldSlot.slot.slotIndex,
           entity: incomingNode.visualEntity,
           origin: incomingNode.motion.origin,
           delayMs: incomingNode.motion.delayMs,
