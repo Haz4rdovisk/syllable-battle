@@ -8,13 +8,40 @@ import type {
   Target,
 } from "../../types/game";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
-import type { BattleDeckSpec, BattleSetupSpec, BattleTargetSpec } from "../../data/content";
+import type {
+  BattleCardSpec,
+  BattleDeckSpec,
+  BattleSetupSpec,
+  BattleTargetSpec,
+} from "../../data/content";
+
+export interface BattleRuntimeDeckCatalog {
+  deckId: string;
+  visualTheme: BattleDeckSpec["presentation"]["visualTheme"];
+  cardsById: Record<string, BattleCardSpec>;
+  cardsBySyllable: Record<Syllable, BattleCardSpec>;
+  cardRefsByRuntimeId: Record<string, BattleRuntimeCardRef>;
+  cardRefsBySyllable: Record<Syllable, BattleRuntimeCardRef[]>;
+  targetSpecsByInstanceId: Record<string, BattleTargetSpec>;
+  targetSpecsByTargetId: Record<string, BattleTargetSpec>;
+  targetInstanceIdsInOrder: string[];
+}
+
+export interface BattleRuntimeCardRef {
+  runtimeCardId: string;
+  deckId: string;
+  cardId: string;
+  syllable: Syllable;
+  copyIndex: number;
+}
 
 export interface BattleRuntimeSetup {
   mode: BattleSetupSpec["mode"];
   roomId?: string;
   playerDeckSpec: BattleDeckSpec;
   enemyDeckSpec: BattleDeckSpec;
+  playerDeckCatalog: BattleRuntimeDeckCatalog;
+  enemyDeckCatalog: BattleRuntimeDeckCatalog;
 }
 
 function createRuntimeTargetFromSpec(target: BattleTargetSpec): Target {
@@ -25,25 +52,114 @@ function createRuntimeTargetFromSpec(target: BattleTargetSpec): Target {
     syllables: [...target.requiredSyllables],
     rarity: target.rarity,
     description: target.description,
+    canonicalTargetId: target.targetId,
+    targetInstanceId: target.targetInstanceId,
+    requiredCardIds: [...target.requiredCardIds],
+    targetSuperclass: target.taxonomy.superclass,
+    targetClassKey: target.taxonomy.classKey,
   };
 }
 
+function createBattleRuntimeDeckCatalog(deck: BattleDeckSpec): BattleRuntimeDeckCatalog {
+  const runtimeCardRefs = deck.cards.flatMap((card) =>
+    Array.from({ length: card.copiesInDeck }, (_, copyIndex) => ({
+      runtimeCardId: `${deck.deckId}:${card.cardId}:${copyIndex}`,
+      deckId: deck.deckId,
+      cardId: card.cardId,
+      syllable: card.syllable,
+      copyIndex,
+    })),
+  );
+
+  return {
+    deckId: deck.deckId,
+    visualTheme: deck.presentation.visualTheme,
+    cardsById: deck.cards.reduce<Record<string, BattleCardSpec>>((acc, card) => {
+      acc[card.cardId] = card;
+      return acc;
+    }, {}),
+    cardsBySyllable: deck.cards.reduce<Record<Syllable, BattleCardSpec>>((acc, card) => {
+      acc[card.syllable] = card;
+      return acc;
+    }, {}),
+    cardRefsByRuntimeId: runtimeCardRefs.reduce<Record<string, BattleRuntimeCardRef>>((acc, cardRef) => {
+      acc[cardRef.runtimeCardId] = cardRef;
+      return acc;
+    }, {}),
+    cardRefsBySyllable: runtimeCardRefs.reduce<Record<Syllable, BattleRuntimeCardRef[]>>((acc, cardRef) => {
+      acc[cardRef.syllable] = [...(acc[cardRef.syllable] ?? []), cardRef];
+      return acc;
+    }, {}),
+    targetSpecsByInstanceId: deck.targetPool.reduce<Record<string, BattleTargetSpec>>((acc, target) => {
+      acc[target.targetInstanceId] = target;
+      return acc;
+    }, {}),
+    targetSpecsByTargetId: deck.targetPool.reduce<Record<string, BattleTargetSpec>>((acc, target) => {
+      acc[target.targetId] = target;
+      return acc;
+    }, {}),
+    targetInstanceIdsInOrder: deck.gameplay.targetOrder.slice(),
+  };
+}
+
+function expandBattleRuntimeCardPool(deck: BattleDeckSpec): BattleCardSpec[] {
+  const cards: BattleCardSpec[] = [];
+  deck.cards.forEach((card) => {
+    for (let index = 0; index < card.copiesInDeck; index += 1) {
+      cards.push(card);
+    }
+  });
+  return shuffle(cards);
+}
+
+function resolveBattleRuntimeCardRefsForPile(
+  deckCatalog: BattleRuntimeDeckCatalog,
+  pile: Syllable[],
+  consumedCounts: Map<Syllable, number>,
+): BattleRuntimeCardRef[] {
+  return pile.map((syllable) => {
+    const refs = deckCatalog.cardRefsBySyllable[syllable] ?? [];
+    const nextIndex = consumedCounts.get(syllable) ?? 0;
+    consumedCounts.set(syllable, nextIndex + 1);
+    return (
+      refs[nextIndex] ?? {
+        runtimeCardId: `${deckCatalog.deckId}:untracked:${syllable}:${nextIndex}`,
+        deckId: deckCatalog.deckId,
+        cardId: deckCatalog.cardsBySyllable[syllable]?.cardId ?? `untracked:${syllable}`,
+        syllable,
+        copyIndex: nextIndex,
+      }
+    );
+  });
+}
+
 export function createBattleRuntimeTargetDeck(deck: BattleDeckSpec): Target[] {
-  return shuffle(deck.targetPool.map(createRuntimeTargetFromSpec));
+  return shuffle(
+    deck.targetPool.map((target) => ({
+      ...createRuntimeTargetFromSpec(target),
+      sourceDeckId: deck.deckId,
+    })),
+  );
 }
 
 export function createBattleRuntimeSyllableDeck(deck: BattleDeckSpec): Syllable[] {
-  const syllables: Syllable[] = [];
-  deck.cards.forEach((card) => {
-    for (let index = 0; index < card.copiesInDeck; index += 1) {
-      syllables.push(card.syllable);
-    }
-  });
-  return shuffle(syllables);
+  return expandBattleRuntimeCardPool(deck).map((card) => card.syllable);
 }
 
 export function resolveBattleRuntimeDeckThemeClass(deck: BattleDeckSpec): string {
   return DECK_VISUAL_THEME_CLASSES[deck.presentation.visualTheme] ?? DECK_VISUAL_THEME_CLASSES.harvest;
+}
+
+export function resolveBattleRuntimePlayerCardPiles(
+  player: Pick<PlayerState, "hand" | "syllableDeck" | "discard">,
+  deckCatalog: BattleRuntimeDeckCatalog,
+) {
+  const consumedCounts = new Map<Syllable, number>();
+  return {
+    hand: resolveBattleRuntimeCardRefsForPile(deckCatalog, player.hand, consumedCounts),
+    syllableDeck: resolveBattleRuntimeCardRefsForPile(deckCatalog, player.syllableDeck, consumedCounts),
+    discard: resolveBattleRuntimeCardRefsForPile(deckCatalog, player.discard, consumedCounts),
+  };
 }
 
 export function createBattleRuntimePlayerState(deck: BattleDeckSpec, name: string): PlayerState {
@@ -74,6 +190,8 @@ export function createBattleRuntimeSetup(setup: BattleSetupSpec): BattleRuntimeS
     roomId: setup.roomId,
     playerDeckSpec: setup.participants.player.deck,
     enemyDeckSpec: setup.participants.enemy.deck,
+    playerDeckCatalog: createBattleRuntimeDeckCatalog(setup.participants.player.deck),
+    enemyDeckCatalog: createBattleRuntimeDeckCatalog(setup.participants.enemy.deck),
   };
 }
 

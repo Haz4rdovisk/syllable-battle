@@ -12,6 +12,8 @@ export type BattleIntroPhase = "coin-choice" | "coin-fall" | "coin-result" | "ta
 export interface VisualHandCard {
   id: string;
   syllable: Syllable;
+  cardId?: string;
+  runtimeCardId?: string;
   side: BattleRuntimeSide;
   hidden: boolean;
   skipEntryAnimation?: boolean;

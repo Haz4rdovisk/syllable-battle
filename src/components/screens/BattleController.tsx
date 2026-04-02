@@ -79,7 +79,11 @@ import { useBattleRoomBridge } from "./BattleRoomBridge";
 import { useBattleCombatFlow } from "./BattleCombatFlow";
 import { useBattleControllerGeometry } from "./BattleControllerGeometry";
 import { useBattleControllerDebug } from "./BattleControllerDebug";
-import { createBattleRuntimeInitialGameState, createBattleRuntimeSetup } from "./BattleRuntimeSetup";
+import {
+  createBattleRuntimeInitialGameState,
+  createBattleRuntimeSetup,
+  resolveBattleRuntimePlayerCardPiles,
+} from "./BattleRuntimeSetup";
 
 const FLOW = BATTLE_SHARED_FLOW_TIMINGS;
 
@@ -289,10 +293,21 @@ export const useBattleController = ({
   const publishedSnapshotSignatureRef = useRef<string>("");
   const timedOutTurnKeyRef = useRef("");
   const presentedTurnKeyRef = useRef(getTurnPresentationKey(initialGameRef.current));
+  const resolveDeckCatalogForSide = useCallback(
+    (side: typeof PLAYER | typeof ENEMY) =>
+      side === PLAYER ? runtimeSetup.playerDeckCatalog : runtimeSetup.enemyDeckCatalog,
+    [runtimeSetup],
+  );
   const createVisualHandCard = useCallback(
-    (syllable: Syllable, side: typeof PLAYER | typeof ENEMY): VisualHandCard => ({
+    (
+      syllable: Syllable,
+      side: typeof PLAYER | typeof ENEMY,
+      cardRef?: { cardId: string; runtimeCardId: string },
+    ): VisualHandCard => ({
       id: `hand-card-${side}-${handCardIdRef.current++}`,
       syllable,
+      cardId: cardRef?.cardId,
+      runtimeCardId: cardRef?.runtimeCardId,
       side,
       hidden: side === ENEMY,
       skipEntryAnimation: false,
@@ -300,11 +315,26 @@ export const useBattleController = ({
     [],
   );
   const buildStableHands = useCallback(
-    (state: GameState): StableHandsState => ({
-      [PLAYER]: state.players[PLAYER].hand.map((syllable) => createVisualHandCard(syllable, PLAYER)),
-      [ENEMY]: state.players[ENEMY].hand.map((syllable) => createVisualHandCard(syllable, ENEMY)),
-    }),
-    [createVisualHandCard],
+    (state: GameState): StableHandsState => {
+      const playerHandRefs = resolveBattleRuntimePlayerCardPiles(
+        state.players[PLAYER],
+        resolveDeckCatalogForSide(PLAYER),
+      ).hand;
+      const enemyHandRefs = resolveBattleRuntimePlayerCardPiles(
+        state.players[ENEMY],
+        resolveDeckCatalogForSide(ENEMY),
+      ).hand;
+
+      return {
+        [PLAYER]: state.players[PLAYER].hand.map((syllable, index) =>
+          createVisualHandCard(syllable, PLAYER, playerHandRefs[index]),
+        ),
+        [ENEMY]: state.players[ENEMY].hand.map((syllable, index) =>
+          createVisualHandCard(syllable, ENEMY, enemyHandRefs[index]),
+        ),
+      };
+    },
+    [createVisualHandCard, resolveDeckCatalogForSide],
   );
   const toVisualTarget = useCallback(
     (
@@ -567,23 +597,29 @@ export const useBattleController = ({
       logicalHand: Syllable[],
       currentStableSide: VisualHandCard[],
     ) => {
+      const handRefs = resolveBattleRuntimePlayerCardPiles(
+        gameRef.current.players[side],
+        resolveDeckCatalogForSide(side),
+      ).hand;
       const buckets = new Map<string, VisualHandCard[]>();
       currentStableSide.forEach((card) => {
-        const bucket = buckets.get(card.syllable) ?? [];
+        const bucketKey = card.runtimeCardId ?? card.syllable;
+        const bucket = buckets.get(bucketKey) ?? [];
         bucket.push(card);
-        buckets.set(card.syllable, bucket);
+        buckets.set(bucketKey, bucket);
       });
 
-      return logicalHand.map((syllable) => {
-        const bucket = buckets.get(syllable);
+      return logicalHand.map((syllable, index) => {
+        const cardRef = handRefs[index];
+        const bucket = buckets.get(cardRef?.runtimeCardId ?? syllable);
         if (bucket && bucket.length > 0) {
           return bucket.shift()!;
         }
 
-        return createVisualHandCard(syllable, side);
+        return createVisualHandCard(syllable, side, cardRef);
       });
     },
-    [createVisualHandCard],
+    [createVisualHandCard, gameRef, resolveDeckCatalogForSide],
   );
 
   const removeStableCards = useCallback(
@@ -928,9 +964,18 @@ export const useBattleController = ({
       const baseCount = stableCount + incomingCount;
       const finalTotal = config?.finalTotalOverride ?? Math.min(HAND_LAYOUT_SLOT_COUNT, baseCount + cards.length);
       const finalIndexBase = config?.finalIndexBase ?? baseCount;
+      const handRefs = resolveBattleRuntimePlayerCardPiles(
+        gameRef.current.players[side],
+        resolveDeckCatalogForSide(side),
+      ).hand;
 
       cards.forEach((card, index) => {
-        const visualCard = createVisualHandCard(card, side);
+        const resolvedHandIndex = Math.min(handRefs.length - 1, finalIndexBase + index);
+        const visualCard = createVisualHandCard(
+          card,
+          side,
+          resolvedHandIndex >= 0 ? handRefs[resolvedHandIndex] : undefined,
+        );
         if (!origin) {
           appendStableCard(side, visualCard, { skipEntryAnimation: false });
           return;
@@ -948,7 +993,7 @@ export const useBattleController = ({
         });
       });
     },
-    [appendIncomingCard, appendStableCard, createVisualHandCard, snapshotZone],
+    [appendIncomingCard, appendStableCard, createVisualHandCard, gameRef, resolveDeckCatalogForSide, snapshotZone],
   );
 
   const startNextMulliganDraw = useCallback(
@@ -1261,8 +1306,8 @@ export const useBattleController = ({
   } = useBattleCombatFlow<VisualHandCard, VisualTargetEntity>({
     flow: FLOW,
     localPlayerIndex,
-    playerDeck: playerDeckSpec,
-    enemyDeck: enemyDeckSpec,
+    playerDeckSpec,
+    enemyDeckSpec,
     handLayoutSlotCount: HAND_LAYOUT_SLOT_COUNT,
     game,
     gameRef,

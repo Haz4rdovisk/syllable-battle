@@ -32,6 +32,12 @@ export interface Target {
   syllables: Syllable[];
   rarity: Rarity;
   description?: string;
+  canonicalTargetId?: string;
+  targetInstanceId?: string;
+  requiredCardIds?: string[];
+  targetSuperclass?: string;
+  targetClassKey?: string;
+  sourceDeckId?: string;
 }
 
 export interface Deck {

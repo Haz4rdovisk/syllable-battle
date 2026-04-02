@@ -17,6 +17,7 @@ import {
   createBattleRuntimeSetup,
   replaceBattleRuntimeTargetInSlot,
   resolveBattleRuntimeDeckThemeClass,
+  resolveBattleRuntimePlayerCardPiles,
 } from "../components/screens/BattleRuntimeSetup";
 import {
   CARD_CATALOG,
@@ -461,6 +462,16 @@ test("ponte unica BattleSetupSpec -> runtime atual gera setup local coerente sem
 
   assert.equal(runtime.playerDeckSpec.deckId, localDeck.deckId);
   assert.equal(runtime.enemyDeckSpec.deckId, remoteDeck.deckId);
+  assert.equal(runtime.playerDeckCatalog.deckId, localDeck.deckId);
+  assert.equal(runtime.enemyDeckCatalog.deckId, remoteDeck.deckId);
+  assert.equal(
+    runtime.playerDeckCatalog.cardsById[localDeck.battleDeck.cards[0]!.cardId]?.cardId,
+    localDeck.battleDeck.cards[0]!.cardId,
+  );
+  assert.equal(
+    runtime.playerDeckCatalog.cardsBySyllable[localDeck.battleDeck.cards[0]!.syllable]?.cardId,
+    localDeck.battleDeck.cards[0]!.cardId,
+  );
   assert.equal(
     resolveBattleRuntimeDeckThemeClass(runtime.playerDeckSpec),
     RUNTIME_DECKS_BY_ID[localDeck.deckId]?.color,
@@ -520,12 +531,23 @@ test("runtime interno continua aceitando mulligan sem depender de Deck na borda 
   assert.ok(setup);
 
   const initialGame = createBattleRuntimeInitialGameState(setup);
+  const beforeMulliganRefs = resolveBattleRuntimePlayerCardPiles(
+    initialGame.players[0]!,
+    createBattleRuntimeSetup(setup).playerDeckCatalog,
+  );
   const mulligan = resolveBattleMulliganAction(initialGame, 0, [0, 1], CONFIG.handSize);
+  const afterMulliganRefs = resolveBattleRuntimePlayerCardPiles(
+    mulligan.nextPlayers[0]!,
+    createBattleRuntimeSetup(setup).playerDeckCatalog,
+  );
 
   assert.equal(mulligan.nextPlayers[0]?.hand.length, CONFIG.handSize);
   assert.equal(mulligan.nextPlayers[0]?.mulliganUsedThisRound, true);
   assert.equal(mulligan.returnedCards.length, 2);
   assert.equal(mulligan.drawnCards.length, 2);
+  assert.equal(beforeMulliganRefs.hand.length, CONFIG.handSize);
+  assert.equal(afterMulliganRefs.hand.length, CONFIG.handSize);
+  assert.equal(afterMulliganRefs.discard.length, mulligan.nextPlayers[0]?.discard.length ?? 0);
 });
 
 test("reposicao de target usa BattleDeckSpec na borda interna sem reintroduzir Deck no flow", () => {
@@ -553,9 +575,104 @@ test("reposicao de target usa BattleDeckSpec na borda interna sem reintroduzir D
   assert.equal(replacedPlayer.targets.length, CONFIG.targetsInPlay);
   assert.ok(replacedPlayer.targets[0]);
   assert.equal(replacedPlayer.targets[0]?.justArrived, true);
+  assert.equal(
+    replacedPlayer.targets[0]?.canonicalTargetId,
+    replacedPlayer.targets[0]?.id,
+  );
+  assert.ok(replacedPlayer.targets[0]?.targetInstanceId);
+  assert.deepEqual(
+    replacedPlayer.targets[0]?.requiredCardIds,
+    setup.participants.player.deck.targetPool.find(
+      (target) => target.targetInstanceId === replacedPlayer.targets[0]?.targetInstanceId,
+    )?.requiredCardIds,
+  );
   assert.ok(
     setup.participants.player.deck.targetPool.some(
       (target) => target.targetId === replacedPlayer.targets[0]?.id,
     ),
   );
+});
+
+test("targets do runtime preservam identidade canonica mesmo mantendo o shape operacional", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  const remoteDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+  assert.ok(remoteDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "local",
+    localDeckId: localDeck.deckId,
+    remoteDeckId: remoteDeck.deckId,
+    localSide: "player",
+  });
+  assert.ok(setup);
+
+  const initialGame = createBattleRuntimeInitialGameState(setup);
+  const firstTarget = initialGame.players[0]?.targets[0];
+  assert.ok(firstTarget);
+
+  assert.equal(firstTarget?.canonicalTargetId, firstTarget?.id);
+  assert.ok(firstTarget?.targetInstanceId);
+  assert.ok(firstTarget?.requiredCardIds?.length);
+  assert.equal(firstTarget?.sourceDeckId, setup.participants.player.deck.deckId);
+});
+
+test("runtime card lookup preserva cardId ate a borda operacional da mao e da compra", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  const remoteDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+  assert.ok(remoteDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "local",
+    localDeckId: localDeck.deckId,
+    remoteDeckId: remoteDeck.deckId,
+    localSide: "player",
+  });
+  assert.ok(setup);
+
+  const runtime = createBattleRuntimeSetup(setup);
+  const initialGame = createBattleRuntimeInitialGameState(setup);
+  const playerPiles = resolveBattleRuntimePlayerCardPiles(
+    initialGame.players[0]!,
+    runtime.playerDeckCatalog,
+  );
+
+  assert.equal(playerPiles.hand.length, initialGame.players[0]?.hand.length);
+  assert.equal(playerPiles.syllableDeck.length, initialGame.players[0]?.syllableDeck.length);
+  assert.equal(playerPiles.discard.length, initialGame.players[0]?.discard.length);
+  assert.ok(playerPiles.hand.every((cardRef) => cardRef.cardId.startsWith("syllable.")));
+  assert.ok(
+    playerPiles.hand.every(
+      (cardRef) => runtime.playerDeckCatalog.cardsById[cardRef.cardId]?.syllable === cardRef.syllable,
+    ),
+  );
+});
+
+test("runtime card lookup mantem refs unicas entre mao deck e descarte", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  const remoteDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+  assert.ok(remoteDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "local",
+    localDeckId: localDeck.deckId,
+    remoteDeckId: remoteDeck.deckId,
+    localSide: "player",
+  });
+  assert.ok(setup);
+
+  const runtime = createBattleRuntimeSetup(setup);
+  const initialGame = createBattleRuntimeInitialGameState(setup);
+  const player = initialGame.players[0]!;
+  const simulatedPlayer = {
+    ...player,
+    discard: player.hand.slice(0, 1),
+    hand: player.hand.slice(1),
+  };
+  const piles = resolveBattleRuntimePlayerCardPiles(simulatedPlayer, runtime.playerDeckCatalog);
+  const allRuntimeIds = [...piles.hand, ...piles.syllableDeck, ...piles.discard].map((cardRef) => cardRef.runtimeCardId);
+
+  assert.equal(new Set(allRuntimeIds).size, allRuntimeIds.length);
 });

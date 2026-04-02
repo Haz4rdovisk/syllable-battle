@@ -15,8 +15,8 @@ import { replaceBattleRuntimeTargetInSlot } from "./BattleRuntimeSetup";
 interface UseBattleCombatFlowParams<TVisualHandCard, TVisualTarget> {
   flow: any;
   localPlayerIndex: BattleRuntimeSide;
-  playerDeck: BattleDeckSpec;
-  enemyDeck: BattleDeckSpec;
+  playerDeckSpec: BattleDeckSpec;
+  enemyDeckSpec: BattleDeckSpec;
   handLayoutSlotCount: number;
   game: GameState;
   gameRef: React.MutableRefObject<GameState>;
@@ -81,8 +81,8 @@ export const useBattleCombatFlow = <
 >({
   flow,
   localPlayerIndex,
-  playerDeck,
-  enemyDeck,
+  playerDeckSpec,
+  enemyDeckSpec,
   handLayoutSlotCount,
   game,
   gameRef,
@@ -311,7 +311,7 @@ export const useBattleCombatFlow = <
     const t3 = setTimeout(() => {
       if (result.completedSlot == null) return;
       const playerIndex = result.actorIndex;
-      const deck = playerIndex === PLAYER ? playerDeck : enemyDeck;
+      const deck = playerIndex === PLAYER ? playerDeckSpec : enemyDeckSpec;
       const previousTargetName = gameRef.current.players[playerIndex].targets[result.completedSlot]?.name ?? "";
       const nextPlayer = replaceBattleRuntimeTargetInSlot(
         gameRef.current.players[playerIndex],
@@ -346,7 +346,7 @@ export const useBattleCombatFlow = <
     }, finishDelayMs);
 
     actionTimersRef.current.push(t1, t2, t3, t4);
-  }, [actionTimersRef, emitDamageAppliedEvent, emitTargetReplacedEvent, enemyDeck, finalizeTurn, flow, gameRef, getPostPlayHandDrawOriginSnapshot, playerDeck, queueCompletedTargetDeparture, queueHandDrawBatch, queueReplacementTargetArrival, setGame]);
+  }, [actionTimersRef, emitDamageAppliedEvent, emitTargetReplacedEvent, enemyDeckSpec, finalizeTurn, flow, gameRef, getPostPlayHandDrawOriginSnapshot, playerDeckSpec, queueCompletedTargetDeparture, queueHandDrawBatch, queueReplacementTargetArrival, setGame]);
 
   const resolvePlayInternal = useCallback(
     (handIndex: number, targetIndex: number) => resolveBattlePlayAction(gameRef.current, handIndex, targetIndex),
