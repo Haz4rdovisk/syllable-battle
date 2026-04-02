@@ -5,6 +5,10 @@ import type {
   BattleLayoutConfig,
   BattleLayoutDeviceKey,
 } from "./BattleLayoutConfig";
+import {
+  battleTargetFieldSlotElementKeys,
+  getBattleTargetFieldSlotElementKey,
+} from "./BattleLayoutConfig";
 
 export interface BattleSceneRect {
   x: number;
@@ -247,6 +251,10 @@ export const getBattleElementParentBase = (
     case "shell":
     case "enemyField":
     case "playerField":
+    case "enemyFieldSlot0":
+    case "enemyFieldSlot1":
+    case "playerFieldSlot0":
+    case "playerFieldSlot1":
     case "boardMessage":
     case "enemyPill":
     case "playerPill":
@@ -269,6 +277,48 @@ export const getBattleElementParentBase = (
     default:
       return { x: 0, y: 0 };
   }
+};
+
+export const isBattleTargetFieldSlotElementKey = (
+  key: BattleEditableElementKey,
+): key is
+  | "enemyFieldSlot0"
+  | "enemyFieldSlot1"
+  | "playerFieldSlot0"
+  | "playerFieldSlot1" => battleTargetFieldSlotElementKeys.includes(
+  key as (typeof battleTargetFieldSlotElementKeys)[number],
+);
+
+export const getBattleTargetFieldSlotSceneRect = (
+  side: "player" | "enemy",
+  slotIndex: number,
+  layout: BattleLayoutConfig,
+): BattleSceneRect =>
+  getBattleElementSceneRect(
+    getBattleTargetFieldSlotElementKey(side, slotIndex),
+    layout,
+  );
+
+export const getBattleFieldContainerSceneRect = (
+  side: "player" | "enemy",
+  layout: BattleLayoutConfig,
+): BattleSceneRect =>
+  getBattleElementSceneRect(side === "player" ? "playerField" : "enemyField", layout);
+
+export const getBattleTargetFieldSlotLocalRect = (
+  side: "player" | "enemy",
+  slotIndex: number,
+  layout: BattleLayoutConfig,
+): BattleSceneRect => {
+  const containerRect = getBattleFieldContainerSceneRect(side, layout);
+  const slotRect = getBattleTargetFieldSlotSceneRect(side, slotIndex, layout);
+
+  return {
+    x: slotRect.x - containerRect.x,
+    y: slotRect.y - containerRect.y,
+    width: slotRect.width,
+    height: slotRect.height,
+  };
 };
 
 export const getBattleElementSceneRect = (

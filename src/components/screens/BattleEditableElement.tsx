@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import {
+  getBattleTargetFieldSlotElementKey,
   BattleEditableElementKey,
   BattleElementAnchor,
   BattleElementPropertyConfig,
@@ -10,6 +11,7 @@ import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BATTLE_LAYOUT_EDITOR_MESSAGE_TYPE } from "./BattleLayoutEditorState";
 import {
   battleGlobalFrameToScenePosition,
+  getBattleElementSceneRect,
   getBattleElementParentBase,
   getBattleStageMetrics,
   getBattleEditorFrame,
@@ -156,7 +158,53 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
     setLiveConfig(config);
   }, [config]);
 
-  const resolvedConfig = editorMode ? liveConfig : config;
+  const deriveFieldContainerConfig = (
+    elementKey: BattleEditableElementKey,
+    sourceConfig: BattleElementPropertyConfig,
+  ) => {
+    if (elementKey !== "enemyField" && elementKey !== "playerField") {
+      return sourceConfig;
+    }
+
+    const side = elementKey === "enemyField" ? "enemy" : "player";
+    const slotRects = [0, 1].map((slotIndex) =>
+      getBattleElementSceneRect(
+        getBattleTargetFieldSlotElementKey(side, slotIndex),
+        layout,
+      ),
+    );
+
+    if (slotRects.some((rect) => rect.width <= 0 || rect.height <= 0)) {
+      return sourceConfig;
+    }
+
+    const left = Math.min(...slotRects.map((rect) => rect.x));
+    const top = Math.min(...slotRects.map((rect) => rect.y));
+    const right = Math.max(...slotRects.map((rect) => rect.x + rect.width));
+    const bottom = Math.max(...slotRects.map((rect) => rect.y + rect.height));
+    const nextPosition = battleGlobalFrameToScenePosition(
+      {
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+      },
+      sourceConfig.anchor,
+    );
+
+    return {
+      ...sourceConfig,
+      x: nextPosition.x,
+      y: nextPosition.y,
+      width: right - left,
+      height: bottom - top,
+    };
+  };
+
+  const resolvedConfig = deriveFieldContainerConfig(
+    element,
+    editorMode ? liveConfig : config,
+  );
 
   const sharedStyle: React.CSSProperties = {
     width:
@@ -186,7 +234,11 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
     resolvedBaseX,
     resolvedBaseY,
   );
-  const savedFrame = getBattleEditorFrame(config, resolvedBaseX, resolvedBaseY);
+  const savedFrame = getBattleEditorFrame(
+    deriveFieldContainerConfig(element, config),
+    resolvedBaseX,
+    resolvedBaseY,
+  );
   const resolvedPositionStyle =
     className && /\babsolute\b/.test(className) ? undefined : "relative";
   const replayKey =

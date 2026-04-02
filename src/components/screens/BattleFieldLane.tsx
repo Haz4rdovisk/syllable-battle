@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "motion/react";
 import { Syllable } from "../../types/game";
 import { TargetCard, getTravelTargetCardSize, VisualTargetEntity, ZoneAnchorSnapshot } from "../game/GameComponents";
-import { getBattleStageDomMetrics, toBattleStageLocalRect } from "./BattleSceneSpace";
+import { BattleSceneRect, getBattleStageDomMetrics, toBattleStageLocalRect } from "./BattleSceneSpace";
 import type { BattleTargetScenePhase } from "./BattleTargetField";
 
 const noopDivRef = () => {};
@@ -36,6 +36,7 @@ export interface BattleFieldLaneSlot {
   outgoingTarget?: BattleFieldOutgoingTarget | null;
   renderNodes?: BattleFieldLaneRenderNode[];
   slotRect: DOMRect | null;
+  authoredSceneRect?: BattleSceneRect | null;
   selectedCard: Syllable | null;
   pendingCard?: Syllable | null;
   canClick: boolean;
@@ -63,6 +64,7 @@ interface BattleFieldLaneProps {
   presentation: "player" | "enemy";
   containerRef?: (node: HTMLDivElement | null) => void;
   sectionClassName?: string;
+  fieldSceneRect?: BattleSceneRect | null;
   slots: BattleFieldLaneSlot[];
   onDebugSnapshot?: (snapshot: BattleFieldLaneDebugSnapshot) => void;
 }
@@ -350,6 +352,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
   presentation,
   containerRef = noopDivRef,
   sectionClassName = "w-full",
+  fieldSceneRect = null,
   slots,
   onDebugSnapshot,
 }) => {
@@ -360,6 +363,27 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
   const getStageLocalRect = <T extends { left: number; top: number; width: number; height: number }>(
     rect: T | null | undefined,
   ) => toBattleStageLocalRect(rect, getBattleStageDomMetrics(containerNodeRef.current));
+  const useAuthoredSlotGeometry =
+    fieldSceneRect !== null &&
+    slots.every(
+      (slot) =>
+        Boolean(slot.authoredSceneRect) &&
+        (slot.authoredSceneRect?.width ?? 0) > 0 &&
+        (slot.authoredSceneRect?.height ?? 0) > 0,
+    );
+  const getResolvedSlotRect = (
+    slot: BattleFieldLaneSlot,
+  ): ReturnType<typeof toBattleStageLocalRect> => {
+    if (slot.authoredSceneRect) {
+      return {
+        left: slot.authoredSceneRect.x,
+        top: slot.authoredSceneRect.y,
+        width: slot.authoredSceneRect.width,
+        height: slot.authoredSceneRect.height,
+      };
+    }
+    return getStageLocalRect(slot.slotRect);
+  };
   const fieldLaneDebugSnapshot = React.useMemo<BattleFieldLaneDebugSnapshot>(
     () => ({
       presentation,
@@ -377,7 +401,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
           slot.renderNodes && slot.renderNodes.length > 0
             ? slot.renderNodes
             : buildBattleFieldLaneRenderNodesFromCompatSlot(slot);
-        const slotRect = getStageLocalRect(slot.slotRect);
+        const slotRect = getResolvedSlotRect(slot);
         const leadingIncomingNode =
           renderNodes.find((node) => node.incomingTarget) ?? null;
         const leadingOutgoingNode =
@@ -446,12 +470,12 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
             slot.displayedTarget?.target.name ??
             null,
           renderNodePhases,
-          slotRect: slot.slotRect
+          slotRect: slotRect
             ? {
-                left: Math.round(slot.slotRect.left),
-                top: Math.round(slot.slotRect.top),
-                width: Math.round(slot.slotRect.width),
-                height: Math.round(slot.slotRect.height),
+                left: Math.round(slotRect.left),
+                top: Math.round(slotRect.top),
+                width: Math.round(slotRect.width),
+                height: Math.round(slotRect.height),
               }
             : null,
           selectedCard: slot.selectedCard,
@@ -505,20 +529,44 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
           containerNodeRef.current = node;
           containerRef(node);
         }}
-        className="mx-auto grid h-full w-full max-w-[var(--battle-board-lane-max-width-mobile)] grid-cols-2 items-stretch justify-items-stretch gap-3 lg:max-w-[var(--battle-board-lane-max-width-desktop)] lg:gap-4"
+        className={
+          useAuthoredSlotGeometry
+            ? "relative h-full w-full overflow-visible"
+            : "mx-auto grid h-full w-full max-w-[var(--battle-board-lane-max-width-mobile)] grid-cols-2 items-stretch justify-items-stretch gap-3 lg:max-w-[var(--battle-board-lane-max-width-desktop)] lg:gap-4"
+        }
       >
         {slots.map((slot) => {
-          const slotRect = getStageLocalRect(slot.slotRect);
+          const slotRect = getResolvedSlotRect(slot);
           const renderNodes =
             slot.renderNodes && slot.renderNodes.length > 0
               ? slot.renderNodes
               : buildBattleFieldLaneRenderNodesFromCompatSlot(slot);
+          const authoredLocalRect =
+            useAuthoredSlotGeometry && fieldSceneRect && slot.authoredSceneRect
+              ? {
+                  left: slot.authoredSceneRect.x - fieldSceneRect.x,
+                  top: slot.authoredSceneRect.y - fieldSceneRect.y,
+                  width: slot.authoredSceneRect.width,
+                  height: slot.authoredSceneRect.height,
+                }
+              : null;
 
           return (
             <div
               key={slot.key}
               ref={slot.slotRef}
-              className="relative flex h-full w-full items-start justify-center overflow-visible"
+              className="relative flex items-start justify-center overflow-visible"
+              style={
+                authoredLocalRect
+                  ? {
+                      position: "absolute",
+                      left: authoredLocalRect.left,
+                      top: authoredLocalRect.top,
+                      width: authoredLocalRect.width,
+                      height: authoredLocalRect.height,
+                    }
+                  : { height: "100%", width: "100%" }
+              }
             >
               {renderNodes.map((node) => {
                 return (

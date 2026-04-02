@@ -8,6 +8,7 @@ import {
   BattleSceneFixtureKey,
 } from "./BattleSceneFixtures";
 import {
+  battleTargetFieldSlotElementKeys,
   BattleAnimationAnchorPoint,
   BattleEditableElementKey,
   BattleElementAnchor,
@@ -19,6 +20,7 @@ import {
   BattleLayoutOverrides,
   createBattleLayoutConfigForDevice,
   createBattleLayoutPresetSource,
+  getBattleTargetFieldSlotElementKey,
   mergeBattleLayoutOverrides,
   normalizeBattleLayoutDeviceOverrides,
   pruneBattleLayoutOverrides,
@@ -238,14 +240,17 @@ const sceneTreeGroups: Array<{
     title: "Centro",
     elements: [
       "board",
-      "enemyField",
-      "playerField",
+      ...battleTargetFieldSlotElementKeys,
       "boardMessage",
       "enemyPill",
       "playerPill",
       "topHand",
       "bottomHand",
     ],
+  },
+  {
+    title: "Containers de campo",
+    elements: ["enemyField", "playerField"],
   },
   {
     title: "Laterais",
@@ -929,6 +934,7 @@ const focusAreaToElementKey = (
   focusArea: BattleScenePreviewFocusArea,
 ): BattleEditableElementKey | null => {
   if (focusArea === "overview") return null;
+  if (focusArea === "enemyField" || focusArea === "playerField") return null;
   return focusArea;
 };
 
@@ -1734,6 +1740,14 @@ export const BattleLayoutEditor: React.FC = () => {
     () => createBattleLayoutConfigForDevice(resetBaselineByDevice, layoutDevice),
     [layoutDevice, resetBaselineByDevice],
   );
+  const getFieldSlotRect = useCallback(
+    (side: "player" | "enemy", slotIndex: number) =>
+      getBattleElementSceneRect(
+        getBattleTargetFieldSlotElementKey(side, slotIndex),
+        layout,
+      ),
+    [layout],
+  );
   const normalizedOverrides = useMemo(
     () => pruneBattleLayoutOverrides(layoutOverrides),
     [layoutOverrides],
@@ -1816,34 +1830,16 @@ export const BattleLayoutEditor: React.FC = () => {
         anchorRect = getBattleElementSceneRect("playerDeck", layout);
       } else if (anchorTool.startsWith("hand-play-target-")) {
         const targetIndex = getHandPlayTargetIndexFromPreset(animationPreset) ?? 0;
-        const fieldRect = getBattleElementSceneRect("playerField", layout);
-        anchorRect = {
-          ...fieldRect,
-          x: fieldRect.x + (fieldRect.width / 2) * (targetIndex % 2) + fieldRect.width / 4,
-          y: fieldRect.y + fieldRect.height / 2,
-          width: 0,
-          height: 0,
-        };
+        anchorRect = getFieldSlotRect("player", targetIndex);
       } else if (anchorTool.startsWith("mulligan-hand-draw-")) {
         anchorRect = getBattleElementSceneRect("playerDeck", layout);
       } else if (anchorTool.startsWith("mulligan-hand-return-")) {
         anchorRect = getBattleElementSceneRect("playerDeck", layout);
       } else if (anchorTool.includes("-impact")) {
         const attackIndex = getTargetAttackIndexFromPreset(animationPreset) ?? 0;
-        const side = attackIndex >= 2 ? ENEMY : PLAYER;
+        const side = attackIndex >= 2 ? "enemy" : "player";
         const slotIndex = attackIndex % 2;
-        const fieldRect = getBattleElementSceneRect(
-          side === PLAYER ? "playerField" : "enemyField",
-          layout,
-        );
-        const laneWidth = fieldRect.width;
-        const slotWidth = laneWidth / 2;
-        anchorRect = {
-          x: fieldRect.x + slotWidth * slotIndex,
-          y: fieldRect.y,
-          width: slotWidth,
-          height: fieldRect.height,
-        };
+        anchorRect = getFieldSlotRect(side, slotIndex);
       } else if (anchorTool.includes("-destination")) {
         const attackIndex = getTargetAttackIndexFromPreset(animationPreset) ?? 0;
         anchorRect = getBattleElementSceneRect(
@@ -1870,7 +1866,7 @@ export const BattleLayoutEditor: React.FC = () => {
         [anchorStateKey]: nextPoint,
       };
     });
-  }, [animationPreset, fixtureKey, layout]);
+  }, [animationPreset, fixtureKey, getFieldSlotRect, layout]);
   const isAnimationFeatureDisabled = animationPreset === "none";
   const animationPresetOptions = animationPresetOptionsBySet[animationSet];
   const selectedAnimationOriginAnchorTool = getSelectedAnimationOriginAnchorTool();
@@ -2006,27 +2002,17 @@ export const BattleLayoutEditor: React.FC = () => {
       anchorRect = getBattleElementSceneRect("playerDeck", layout);
     } else if (anchorTool.startsWith("hand-play-target-")) {
       const index = Number(anchorTool.match(/^hand-play-target-(\d)-destination$/)?.[1] ?? 0);
-      const fieldRect = getBattleElementSceneRect("playerField", layout);
-      anchorRect = {
-        ...fieldRect,
-        x: fieldRect.x + (fieldRect.width / 2) * index,
-        width: fieldRect.width / 2,
-      };
+      anchorRect = getFieldSlotRect("player", index);
     } else if (anchorTool.startsWith("mulligan-hand-draw-")) {
       anchorRect = getBattleElementSceneRect("playerDeck", layout);
     } else if (anchorTool.startsWith("mulligan-hand-return-")) {
       anchorRect = getBattleElementSceneRect("playerDeck", layout);
     } else if (anchorTool.includes("-impact")) {
       const targetIndex = Number(anchorTool.match(/^target-attack-(\d)-impact$/)?.[1] ?? 0);
-      const fieldRect = getBattleElementSceneRect(
-        targetIndex >= 2 ? "enemyField" : "playerField",
-        layout,
+      anchorRect = getFieldSlotRect(
+        targetIndex >= 2 ? "enemy" : "player",
+        targetIndex % 2,
       );
-      anchorRect = {
-        ...fieldRect,
-        x: fieldRect.x + (fieldRect.width / 2) * (targetIndex % 2),
-        width: fieldRect.width / 2,
-      };
     } else if (anchorTool.includes("-destination")) {
       anchorRect = getBattleElementSceneRect(
         anchorTool.includes("target-attack-0") || anchorTool.includes("target-attack-1")
@@ -2040,7 +2026,7 @@ export const BattleLayoutEditor: React.FC = () => {
       x: Math.round(anchorRect.x + anchorRect.width / 2),
       y: Math.round(anchorRect.y + anchorRect.height / 2),
     };
-  }, [fixtureKey, layout]);
+  }, [fixtureKey, getFieldSlotRect, layout]);
 
   const commitAnimationAnchorPoint = useCallback((
     anchorTool: BattleLayoutPreviewAnimationAnchorKey,
@@ -3400,25 +3386,67 @@ export const BattleLayoutEditor: React.FC = () => {
     },
     {
       key: "enemyField",
-      title: "Linha inimiga",
+      title: "Container do campo inimigo",
       description:
-        "Controla apenas a faixa superior dos alvos inimigos dentro do campo.",
+        "Mantem a area agregada do campo inimigo. A autoria principal dos alvos agora acontece pelos slots reais.",
       focusArea: "enemyField",
       controls: [],
-      elementKey: "enemyField",
-      typeLabel: "Faixa",
-      tags: ["board", "inimigo", "alvos"],
+      typeLabel: "Container",
+      tags: ["board", "inimigo", "container"],
+    },
+    {
+      key: "enemyFieldSlot0",
+      title: "Slot inimigo 0",
+      description:
+        "Controla a posicao authored do primeiro slot real de alvo do inimigo.",
+      focusArea: "enemyFieldSlot0",
+      controls: [],
+      elementKey: "enemyFieldSlot0",
+      typeLabel: "Slot",
+      tags: ["board", "inimigo", "slot", "alvo"],
+    },
+    {
+      key: "enemyFieldSlot1",
+      title: "Slot inimigo 1",
+      description:
+        "Controla a posicao authored do segundo slot real de alvo do inimigo.",
+      focusArea: "enemyFieldSlot1",
+      controls: [],
+      elementKey: "enemyFieldSlot1",
+      typeLabel: "Slot",
+      tags: ["board", "inimigo", "slot", "alvo"],
     },
     {
       key: "playerField",
-      title: "Linha do jogador",
+      title: "Container do campo do jogador",
       description:
-        "Controla apenas a faixa inferior dos alvos do jogador dentro do campo.",
+        "Mantem a area agregada do campo do jogador. A autoria principal dos alvos agora acontece pelos slots reais.",
       focusArea: "playerField",
       controls: [],
-      elementKey: "playerField",
-      typeLabel: "Faixa",
-      tags: ["board", "jogador", "alvos"],
+      typeLabel: "Container",
+      tags: ["board", "jogador", "container"],
+    },
+    {
+      key: "playerFieldSlot0",
+      title: "Slot do jogador 0",
+      description:
+        "Controla a posicao authored do primeiro slot real de alvo do jogador.",
+      focusArea: "playerFieldSlot0",
+      controls: [],
+      elementKey: "playerFieldSlot0",
+      typeLabel: "Slot",
+      tags: ["board", "jogador", "slot", "alvo"],
+    },
+    {
+      key: "playerFieldSlot1",
+      title: "Slot do jogador 1",
+      description:
+        "Controla a posicao authored do segundo slot real de alvo do jogador.",
+      focusArea: "playerFieldSlot1",
+      controls: [],
+      elementKey: "playerFieldSlot1",
+      typeLabel: "Slot",
+      tags: ["board", "jogador", "slot", "alvo"],
     },
     {
       key: "boardMessage",

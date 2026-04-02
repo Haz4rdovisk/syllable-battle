@@ -2,13 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import {
+  getBattleTargetFieldSlotElementKey,
+  createBattleLayoutConfig,
+} from "./BattleLayoutConfig";
+import {
   battleEditorFrameToScenePosition,
   battleGlobalFrameToScenePosition,
   BATTLE_STAGE_HEIGHT,
   BATTLE_STAGE_WIDTH,
   getBattleDesktopShellSlots,
   getBattleEditorFrame,
+  getBattleFieldContainerSceneRect,
   getBattleElementParentBase,
+  getBattleElementSceneRect,
+  getBattleTargetFieldSlotLocalRect,
+  getBattleTargetFieldSlotSceneRect,
   resolveBattleRuntimeLayoutDevice,
   shouldUseBattleMobileShell,
   getBattleStageMetrics,
@@ -209,4 +217,39 @@ test("getBattleElementParentBase usa os slots corretos do shell para cada grupo 
       y: shellSlots.rightSidebar.y,
     },
   );
+  assert.deepEqual(
+    getBattleElementParentBase("playerFieldSlot0", battleActiveLayoutConfig),
+    {
+      x: 0,
+      y: 0,
+    },
+  );
+});
+
+test("layout de slot authored nasce separado do container e usa chaves compativeis com slotId", () => {
+  const layout = createBattleLayoutConfig();
+  const playerFieldRect = getBattleElementSceneRect("playerField", layout);
+  const playerSlot0Rect = getBattleTargetFieldSlotSceneRect("player", 0, layout);
+  const playerSlot1Rect = getBattleTargetFieldSlotSceneRect("player", 1, layout);
+
+  assert.equal(getBattleTargetFieldSlotElementKey("player", 0), "playerFieldSlot0");
+  assert.equal(getBattleTargetFieldSlotElementKey("enemy", 1), "enemyFieldSlot1");
+  assert.ok(playerSlot0Rect.width > 0);
+  assert.ok(playerSlot1Rect.width > 0);
+  assert.ok(playerSlot0Rect.x >= playerFieldRect.x);
+  assert.ok(playerSlot1Rect.x + playerSlot1Rect.width <= playerFieldRect.x + playerFieldRect.width);
+  assert.equal(playerSlot0Rect.y, playerFieldRect.y);
+  assert.equal(playerSlot1Rect.y, playerFieldRect.y);
+});
+
+test("retangulo local do slot authored fecha a geometria dentro do field container", () => {
+  const layout = createBattleLayoutConfig();
+  const enemyFieldRect = getBattleFieldContainerSceneRect("enemy", layout);
+  const enemySlot1SceneRect = getBattleTargetFieldSlotSceneRect("enemy", 1, layout);
+  const enemySlot1LocalRect = getBattleTargetFieldSlotLocalRect("enemy", 1, layout);
+
+  assert.equal(enemySlot1LocalRect.x, enemySlot1SceneRect.x - enemyFieldRect.x);
+  assert.equal(enemySlot1LocalRect.y, enemySlot1SceneRect.y - enemyFieldRect.y);
+  assert.equal(enemySlot1LocalRect.width, enemySlot1SceneRect.width);
+  assert.equal(enemySlot1LocalRect.height, enemySlot1SceneRect.height);
 });

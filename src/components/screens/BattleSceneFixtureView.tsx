@@ -12,10 +12,13 @@ import {
 } from "./BattleHandLane";
 import { BattleSceneHost } from "./BattleSceneHost";
 import {
+  battleTargetFieldSlotElementKeys,
+  getBattleTargetFieldSlotElementKey,
   BattleEditableElementKey,
   BattleLayoutConfig,
   BattleLayoutDeviceKey,
 } from "./BattleLayoutConfig";
+import { BattleEditableElement } from "./BattleEditableElement";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import {
   BoardZoneId,
@@ -315,7 +318,11 @@ export type BattleScenePreviewFocusArea =
   | "shell"
   | "board"
   | "enemyField"
+  | "enemyFieldSlot0"
+  | "enemyFieldSlot1"
   | "playerField"
+  | "playerFieldSlot0"
+  | "playerFieldSlot1"
   | "boardMessage"
   | "chronicles"
   | "enemyTargetDeck"
@@ -462,6 +469,17 @@ export const BattleSceneFixtureView: React.FC<{
         : 0;
     },
     [localMotionPreviewElement, localMotionPreviewRunId],
+  );
+  const getFieldSlotSceneRect = useCallback(
+    (side: typeof PLAYER | typeof ENEMY, slotIndex: number) =>
+      getBattleElementSceneRect(
+        getBattleTargetFieldSlotElementKey(
+          side === PLAYER ? "player" : "enemy",
+          slotIndex,
+        ),
+        layout,
+      ),
+    [layout],
   );
   const zoneNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
   const slotNodesRef = useRef<Record<typeof PLAYER | typeof ENEMY, Array<HTMLDivElement | null>>>({
@@ -1083,13 +1101,9 @@ export const BattleSceneFixtureView: React.FC<{
             y: slotRect.top + slotRect.height / 2,
           });
         }
-        const fieldRect = getBattleElementSceneRect(
-          side === PLAYER ? "playerField" : "enemyField",
-          layout,
-        );
-        const slotWidth = fieldRect.width / 2;
+        const fieldRect = getFieldSlotSceneRect(side, slotIndex);
         return {
-          x: Math.round(fieldRect.x + slotWidth * slotIndex + slotWidth / 2),
+          x: Math.round(fieldRect.x + fieldRect.width / 2),
           y: Math.round(fieldRect.y + fieldRect.height / 2),
         };
       };
@@ -1145,8 +1159,8 @@ export const BattleSceneFixtureView: React.FC<{
     [
       fixture.scene.board.enemyFieldSlots,
       fixture.scene.board.playerFieldSlots,
+      getFieldSlotSceneRect,
       getScenePointFromScreenPoint,
-      layout,
       readElementSnapshot,
     ],
   );
@@ -2015,18 +2029,25 @@ export const BattleSceneFixtureView: React.FC<{
           `hand-play-target-${targetIndex}` as const
         ] ?? null;
       const destination = buildAnimationAnchorSnapshot(destinationAnchor) ?? (() => {
-              const slotRect =
-                slotNodesRef.current[PLAYER][targetIndex]?.getBoundingClientRect() ??
-                null;
-              return slotRect
-                ? {
-                    left: slotRect.left,
-                    top: slotRect.top,
-                    width: slotRect.width,
-                    height: slotRect.height,
-                  }
-                : null;
-            })();
+        const slotRect =
+          slotNodesRef.current[PLAYER][targetIndex]?.getBoundingClientRect() ??
+          null;
+        if (slotRect) {
+          return {
+            left: slotRect.left,
+            top: slotRect.top,
+            width: slotRect.width,
+            height: slotRect.height,
+          };
+        }
+        const sceneRect = getFieldSlotSceneRect(PLAYER, targetIndex);
+        return {
+          left: sceneRect.x * stageMetrics.scale + stageMetrics.offsetX,
+          top: sceneRect.y * stageMetrics.scale + stageMetrics.offsetY,
+          width: sceneRect.width * stageMetrics.scale,
+          height: sceneRect.height * stageMetrics.scale,
+        };
+      })();
       if (!destination) return null;
       return {
         removedIndex,
@@ -3241,6 +3262,8 @@ export const BattleSceneFixtureView: React.FC<{
             selectedElements: hostSelectedSceneElements,
             previewSelectableByElement: {
               shell: false,
+              enemyField: false,
+              playerField: false,
               bottomHand: !isHandPlayTargetEditorSet,
             },
             motionReplayNonceByElement: {
@@ -3292,6 +3315,30 @@ export const BattleSceneFixtureView: React.FC<{
             snapTargets,
           }}
         />
+        {editorMode
+          ? battleTargetFieldSlotElementKeys.map((slotKey) => (
+              <BattleEditableElement
+                key={slotKey}
+                element={slotKey}
+                motionReplayNonce={getMotionReplayNonce(slotKey)}
+                layout={layout}
+                viewportWidth={viewportWidth}
+                viewportHeight={viewportHeight}
+                gridSize={gridSize}
+                snapThreshold={snapThreshold}
+                previewAnimations
+                editorMode
+                selected={selectedElements.includes(slotKey)}
+                snapTargets={snapTargets}
+                className={cn(
+                  "absolute left-0 top-0 z-[16]",
+                  getPreviewAreaClass(focusArea, [slotKey]),
+                )}
+              >
+                <div className="h-full w-full rounded-[1.4rem] border border-dashed border-amber-300/45 bg-amber-200/5 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.08)]" />
+              </BattleEditableElement>
+            ))
+          : null}
       </main>
     </BattleSceneView>
   );

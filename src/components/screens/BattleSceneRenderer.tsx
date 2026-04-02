@@ -11,6 +11,10 @@ import { BattlePillOverlay } from "./BattlePillOverlay";
 import { getBattleBoardSurfaceVars } from "./BattleBoardSurface";
 import { BATTLE_SCENE_LAYER_ORDER, getBattleSceneElementLayer } from "./BattleSceneLayerPolicy";
 import { BattleSceneModel } from "./BattleSceneViewModel";
+import {
+  getBattleFieldContainerSceneRect,
+  getBattleTargetFieldSlotSceneRect,
+} from "./BattleSceneSpace";
 import { BattleTravelLayerContext } from "./BattleTravelLayer";
 
 type BattleSceneSnapTargets = NonNullable<BattleEditableElementProps["snapTargets"]>;
@@ -81,6 +85,24 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
   const motionReplayNonceByElement = elementConfig?.motionReplayNonceByElement ?? {};
   const previewSelectableByElement = elementConfig?.previewSelectableByElement ?? {};
   const zIndexOverrides = elementConfig?.zIndexOverrides ?? {};
+  const enemyFieldSceneRect = getBattleFieldContainerSceneRect("enemy", layout);
+  const playerFieldSceneRect = getBattleFieldContainerSceneRect("player", layout);
+  const enemyFieldSlots = React.useMemo(
+    () =>
+      model.board.enemyFieldSlots.map((slot, slotIndex) => ({
+        ...slot,
+        authoredSceneRect: getBattleTargetFieldSlotSceneRect("enemy", slotIndex, layout),
+      })),
+    [layout, model.board.enemyFieldSlots],
+  );
+  const playerFieldSlots = React.useMemo(
+    () =>
+      model.board.playerFieldSlots.map((slot, slotIndex) => ({
+        ...slot,
+        authoredSceneRect: getBattleTargetFieldSlotSceneRect("player", slotIndex, layout),
+      })),
+    [layout, model.board.playerFieldSlots],
+  );
 
   const renderEditableElement = (
     element: BattleEditableElementKey,
@@ -135,7 +157,8 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
             <BattleFieldLane
               presentation="enemy"
               sectionClassName="flex min-h-0 items-end justify-center overflow-visible pb-1"
-              slots={model.board.enemyFieldSlots}
+              fieldSceneRect={enemyFieldSceneRect}
+              slots={enemyFieldSlots}
               onDebugSnapshot={onEnemyFieldDebugSnapshot}
             />
           </div>,
@@ -146,7 +169,8 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
             <BattleFieldLane
               presentation="player"
               sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1"
-              slots={model.board.playerFieldSlots}
+              fieldSceneRect={playerFieldSceneRect}
+              slots={playerFieldSlots}
               onDebugSnapshot={onPlayerFieldDebugSnapshot}
             />
           </div>,

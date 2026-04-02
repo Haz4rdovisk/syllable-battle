@@ -62,7 +62,11 @@ export type BattleEditableElementKey =
   | "shell"
   | "board"
   | "enemyField"
+  | "enemyFieldSlot0"
+  | "enemyFieldSlot1"
   | "playerField"
+  | "playerFieldSlot0"
+  | "playerFieldSlot1"
   | "boardMessage"
   | "chronicles"
   | "enemyTargetDeck"
@@ -186,6 +190,27 @@ export interface BattleLayoutConfig {
   text: BattleTextLayoutConfig;
   animations: BattleAnimationLayoutConfig;
 }
+
+export const BATTLE_TARGET_FIELD_SLOT_COUNT = 2 as const;
+
+export type BattleTargetFieldSlotElementKey =
+  | "enemyFieldSlot0"
+  | "enemyFieldSlot1"
+  | "playerFieldSlot0"
+  | "playerFieldSlot1";
+
+export const getBattleTargetFieldSlotElementKey = (
+  side: "player" | "enemy",
+  slotIndex: number,
+): BattleTargetFieldSlotElementKey =>
+  `${side}FieldSlot${slotIndex}` as BattleTargetFieldSlotElementKey;
+
+export const battleTargetFieldSlotElementKeys: BattleTargetFieldSlotElementKey[] = [
+  "enemyFieldSlot0",
+  "enemyFieldSlot1",
+  "playerFieldSlot0",
+  "playerFieldSlot1",
+];
 
 export type BattleLayoutOverrides = Partial<{
   shell: Partial<BattleShellLayoutConfig>;
@@ -320,6 +345,11 @@ const getBattleFieldFrame = (board: BattleBoardLayoutConfig) => ({
   height: board.targetCardMaxHeight,
 });
 
+const getBattleFieldSlotFrame = (board: BattleBoardLayoutConfig) => ({
+  width: board.targetCardMaxWidth,
+  height: board.targetCardMaxHeight,
+});
+
 const getBattleBoardMessageFrame = () => ({
   width: 320,
   height: 92,
@@ -363,6 +393,7 @@ const getDefaultBattleElementPositions = (
 ) => {
   const boardFrame = getBattleBoardFrame(board);
   const fieldFrame = getBattleFieldFrame(board);
+  const fieldSlotFrame = getBattleFieldSlotFrame(board);
   const boardMessageFrame = getBattleBoardMessageFrame();
   const pileFrame = getBattlePileFrame();
   const chroniclesFrame = getBattleChroniclesFrame(sidebars);
@@ -436,25 +467,54 @@ const getDefaultBattleElementPositions = (
     height: defaultPlayerHandFrame.height,
   };
 
+  const enemyFieldRect = {
+    x: boardRect.x + Math.round((boardRect.width - fieldFrame.width) / 2),
+    y: boardRect.y + board.desktopPaddingTop,
+    width: fieldFrame.width,
+    height: fieldFrame.height,
+  };
+  const playerFieldRect = {
+    x: boardRect.x + Math.round((boardRect.width - fieldFrame.width) / 2),
+    y:
+      boardRect.y +
+      board.desktopPaddingTop +
+      fieldFrame.height +
+      board.desktopGap,
+    width: fieldFrame.width,
+    height: fieldFrame.height,
+  };
+  const enemyFieldSlotRects = Array.from(
+    { length: BATTLE_TARGET_FIELD_SLOT_COUNT },
+    (_, slotIndex) => ({
+      x:
+        enemyFieldRect.x +
+        slotIndex * (fieldSlotFrame.width + board.desktopGap),
+      y: enemyFieldRect.y,
+      width: fieldSlotFrame.width,
+      height: fieldSlotFrame.height,
+    }),
+  );
+  const playerFieldSlotRects = Array.from(
+    { length: BATTLE_TARGET_FIELD_SLOT_COUNT },
+    (_, slotIndex) => ({
+      x:
+        playerFieldRect.x +
+        slotIndex * (fieldSlotFrame.width + board.desktopGap),
+      y: playerFieldRect.y,
+      width: fieldSlotFrame.width,
+      height: fieldSlotFrame.height,
+    }),
+  );
+
   return {
     shell: { x: 0, y: 0 },
     board: toCenteredPosition(boardRect),
-    enemyField: toCenteredPosition({
-      x: boardRect.x + Math.round((boardRect.width - fieldFrame.width) / 2),
-      y: boardRect.y + board.desktopPaddingTop,
-      width: fieldFrame.width,
-      height: fieldFrame.height,
-    }),
-    playerField: toCenteredPosition({
-      x: boardRect.x + Math.round((boardRect.width - fieldFrame.width) / 2),
-      y:
-        boardRect.y +
-        board.desktopPaddingTop +
-        fieldFrame.height +
-        board.desktopGap,
-      width: fieldFrame.width,
-      height: fieldFrame.height,
-    }),
+    enemyField: toCenteredPosition(enemyFieldRect),
+    enemyFieldSlot0: toCenteredPosition(enemyFieldSlotRects[0]),
+    enemyFieldSlot1: toCenteredPosition(enemyFieldSlotRects[1]),
+    playerField: toCenteredPosition(playerFieldRect),
+    playerFieldSlot0: toCenteredPosition(playerFieldSlotRects[0]),
+    playerFieldSlot1: toCenteredPosition(playerFieldSlotRects[1]),
     boardMessage: toCenteredPosition({
       x: boardRect.x + Math.round((boardRect.width - boardMessageFrame.width) / 2),
       y: boardRect.y + Math.round((boardRect.height - boardMessageFrame.height) / 2),
@@ -514,6 +574,7 @@ const defaultEnemyHandFrame = getBattleHandFrame("remote", 5, true);
 const defaultPlayerHandFrame = getBattleHandFrame("local", 5, true);
 const defaultBoardFrame = getBattleBoardFrame(defaultBoardLayout);
 const defaultFieldFrame = getBattleFieldFrame(defaultBoardLayout);
+const defaultFieldSlotFrame = getBattleFieldSlotFrame(defaultBoardLayout);
 const defaultBoardMessageFrame = getBattleBoardMessageFrame();
 const defaultPileFrame = getBattlePileFrame();
 const defaultChroniclesFrame = getBattleChroniclesFrame(defaultSidebarLayout);
@@ -551,11 +612,35 @@ export const defaultBattleLayoutConfig: BattleLayoutConfig = {
       width: defaultFieldFrame.width,
       height: defaultFieldFrame.height,
     },
+    enemyFieldSlot0: {
+      ...createDefaultElementConfig(),
+      ...defaultElementPositions.enemyFieldSlot0,
+      width: defaultFieldSlotFrame.width,
+      height: defaultFieldSlotFrame.height,
+    },
+    enemyFieldSlot1: {
+      ...createDefaultElementConfig(),
+      ...defaultElementPositions.enemyFieldSlot1,
+      width: defaultFieldSlotFrame.width,
+      height: defaultFieldSlotFrame.height,
+    },
     playerField: {
       ...createDefaultElementConfig(),
       ...defaultElementPositions.playerField,
       width: defaultFieldFrame.width,
       height: defaultFieldFrame.height,
+    },
+    playerFieldSlot0: {
+      ...createDefaultElementConfig(),
+      ...defaultElementPositions.playerFieldSlot0,
+      width: defaultFieldSlotFrame.width,
+      height: defaultFieldSlotFrame.height,
+    },
+    playerFieldSlot1: {
+      ...createDefaultElementConfig(),
+      ...defaultElementPositions.playerFieldSlot1,
+      width: defaultFieldSlotFrame.width,
+      height: defaultFieldSlotFrame.height,
     },
     boardMessage: {
       ...createDefaultElementConfig(),
@@ -720,9 +805,25 @@ export function createBattleLayoutConfig(
         ...defaultBattleLayoutConfig.elements.enemyField,
         ...overrides.elements?.enemyField,
       },
+      enemyFieldSlot0: {
+        ...defaultBattleLayoutConfig.elements.enemyFieldSlot0,
+        ...overrides.elements?.enemyFieldSlot0,
+      },
+      enemyFieldSlot1: {
+        ...defaultBattleLayoutConfig.elements.enemyFieldSlot1,
+        ...overrides.elements?.enemyFieldSlot1,
+      },
       playerField: {
         ...defaultBattleLayoutConfig.elements.playerField,
         ...overrides.elements?.playerField,
+      },
+      playerFieldSlot0: {
+        ...defaultBattleLayoutConfig.elements.playerFieldSlot0,
+        ...overrides.elements?.playerFieldSlot0,
+      },
+      playerFieldSlot1: {
+        ...defaultBattleLayoutConfig.elements.playerFieldSlot1,
+        ...overrides.elements?.playerFieldSlot1,
       },
       boardMessage: {
         ...defaultBattleLayoutConfig.elements.boardMessage,
