@@ -6,8 +6,6 @@ import { cn } from "../../lib/utils";
 import { BattleSceneHost } from "./BattleSceneHost";
 import { BattleSceneView } from "./BattleSceneView";
 import { BattleControllerProps, useBattleController } from "./BattleController";
-import { createBattleSceneRenderModel } from "./BattleSceneViewModel";
-import { resolveBattleRuntimeLayoutDevice } from "./BattleSceneSpace";
 
 const INTRO = {
   coinDropMs: 1920,
@@ -34,8 +32,6 @@ export const Battle: React.FC<BattleControllerProps> = ({
   const {
     runtimeState,
     sceneModel,
-    viewportWidth,
-    viewportHeight,
     usesMobileShell,
     isCompactTightViewport,
     activeBattleLayout,
@@ -80,22 +76,6 @@ export const Battle: React.FC<BattleControllerProps> = ({
   const localPlayerIndex = localSide === "player" ? 0 : 1;
   const didLocalPlayerWin = game.winner === localPlayerIndex;
   const openingStarterSubject = openingStarterMessage.replace(/ COMECA O DUELO!$/, "");
-  const sceneRenderModel = React.useMemo(
-    () =>
-      createBattleSceneRenderModel({
-        scene: sceneModel,
-        layout: activeBattleLayout,
-        layoutDevice: resolveBattleRuntimeLayoutDevice(viewportWidth),
-        viewportWidth,
-        viewportHeight,
-      }),
-    [
-      activeBattleLayout,
-      sceneModel,
-      viewportHeight,
-      viewportWidth,
-    ],
-  );
 
   return (
     <BattleSceneView
@@ -118,8 +98,6 @@ export const Battle: React.FC<BattleControllerProps> = ({
       <main className="relative z-10 flex h-full min-h-0 flex-col">
         <BattleSceneHost
           model={sceneModel}
-          sceneRenderModel={sceneRenderModel}
-          enablePixiPilot
           compact={usesMobileShell}
           tight={isCompactTightViewport}
           layout={activeBattleLayout}

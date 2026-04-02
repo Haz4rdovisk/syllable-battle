@@ -1,5 +1,4 @@
 import { ChronicleEntry, GameMessage, GameState } from "../../types/game";
-import type { BattleLayoutConfig, BattleLayoutDeviceKey } from "./BattleLayoutConfig";
 import { BattleFieldLaneSlot } from "./BattleFieldLane";
 import {
   BattleTargetFieldSlotState,
@@ -11,13 +10,6 @@ import {
   BattleHandLaneIncomingCard,
   BattleHandLaneOutgoingCard,
 } from "./BattleHandLane";
-import type { BattleSceneLayoutBridge } from "./BattleSceneLayoutBridge";
-import { buildBattleSceneLayoutBridge } from "./BattleSceneLayoutBridge";
-import type { BattleResolvedMotionAnchor } from "./BattleAnchorResolver";
-import {
-  createBattleAuthoredAnimationAnchorSet,
-  resolveBattleMotionAnchor,
-} from "./BattleAnchorResolver";
 
 export interface BattlePortraitViewModel {
   label: string;
@@ -124,61 +116,7 @@ export interface BattleSceneModel {
   hands: BattleSceneHandsModel;
 }
 
-export interface BattleSceneRenderModel {
-  scene: BattleSceneModel;
-  layout: BattleLayoutConfig;
-  layoutDevice: BattleLayoutDeviceKey;
-  layoutBridge: BattleSceneLayoutBridge;
-  motionAnchors: BattleResolvedMotionAnchor[];
-}
-
 export type BattleBoardSurfaceViewModel = BattleSceneBoardModel;
 export type BattleSceneViewModel = BattleSceneModel;
 
 export const createBattleBoardSurfaceViewModel = createBattleSceneBoardModel;
-
-export const createBattleSceneRenderModel = ({
-  scene,
-  layout,
-  layoutDevice,
-  viewportWidth,
-  viewportHeight,
-}: {
-  scene: BattleSceneModel;
-  layout: BattleLayoutConfig;
-  layoutDevice: BattleLayoutDeviceKey;
-  viewportWidth: number;
-  viewportHeight: number;
-}): BattleSceneRenderModel => {
-  const layoutBridge = buildBattleSceneLayoutBridge({
-    layout,
-    layoutDevice,
-    viewportWidth,
-    viewportHeight,
-  });
-  const authoredAnchors = createBattleAuthoredAnimationAnchorSet(layout.animations);
-  const targetsInPlay = Math.max(
-    scene.board.playerFieldSlots.length,
-    scene.board.enemyFieldSlots.length,
-  );
-  const motionAnchors = (
-    Object.keys(authoredAnchors) as Array<keyof typeof authoredAnchors>
-  )
-    .map((anchorKey) =>
-      resolveBattleMotionAnchor({
-        anchors: layout.animations,
-        anchor: anchorKey,
-        targetsInPlay,
-        layoutBridge,
-      }),
-    )
-    .filter((anchor): anchor is BattleResolvedMotionAnchor => Boolean(anchor));
-
-  return {
-    scene,
-    layout,
-    layoutDevice,
-    layoutBridge,
-    motionAnchors,
-  };
-};

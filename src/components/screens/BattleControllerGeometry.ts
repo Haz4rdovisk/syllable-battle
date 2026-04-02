@@ -4,11 +4,6 @@ import { BoardZoneId, ZoneAnchorSnapshot } from "../game/GameComponents";
 import type { BattleAnimationAnchorPoint } from "./BattleLayoutConfig";
 import { BATTLE_STAGE_HEIGHT, BATTLE_STAGE_WIDTH } from "./BattleSceneSpace";
 import {
-  createBattleAuthoredAnimationAnchorSetFromPartial,
-  resolveBattleMotionAnchor,
-  type BattleSceneAnimationAnchorKey,
-} from "./BattleAnchorResolver";
-import {
   AnimationFallbackEvent,
   BattleRuntimeSide,
   PLAYER,
@@ -243,114 +238,141 @@ export const useBattleControllerGeometry = ({
     [getSceneAnimationOriginFailureReason, pushAnimationFallbackEvent, snapshotSceneAnimationOrigin],
   );
 
-  const authoredAnchorSet = useMemo(
-    () => createBattleAuthoredAnimationAnchorSetFromPartial(animations),
-    [animations],
+  const handPlayTargetPointsByIndex = useMemo(
+    () => ({
+      0: animations.handPlayTarget0Destination,
+      1: animations.handPlayTarget1Destination,
+    }),
+    [animations.handPlayTarget0Destination, animations.handPlayTarget1Destination],
   );
 
-  const getMotionAnchorSnapshot = useCallback(
+  const replacementTargetEntryPointsByIndex = useMemo(
+    () => ({
+      0: animations.replacementTargetEntry0Origin,
+      1: animations.replacementTargetEntry1Origin,
+      2: animations.replacementTargetEntry2Origin,
+      3: animations.replacementTargetEntry3Origin,
+    }),
+    [
+      animations.replacementTargetEntry0Origin,
+      animations.replacementTargetEntry1Origin,
+      animations.replacementTargetEntry2Origin,
+      animations.replacementTargetEntry3Origin,
+    ],
+  );
+
+  const mulliganReturnPointsByCount = useMemo(
+    () => ({
+      1: animations.mulliganReturn1Destination,
+      2: animations.mulliganReturn2Destination,
+      3: animations.mulliganReturn3Destination,
+    }),
+    [
+      animations.mulliganReturn1Destination,
+      animations.mulliganReturn2Destination,
+      animations.mulliganReturn3Destination,
+    ],
+  );
+
+  const mulliganDrawPointsByCount = useMemo(
+    () => ({
+      1: animations.mulliganDraw1Origin,
+      2: animations.mulliganDraw2Origin,
+      3: animations.mulliganDraw3Origin,
+    }),
+    [
+      animations.mulliganDraw1Origin,
+      animations.mulliganDraw2Origin,
+      animations.mulliganDraw3Origin,
+    ],
+  );
+
+  const getMulliganAnimationPointByCount = useCallback(
     (
-      label: string,
-      anchorKey: BattleSceneAnimationAnchorKey,
-      fallbackOverride?: string,
+      count: number,
+      pointsByCount: {
+        1: BattleAnimationAnchorPoint | null;
+        2: BattleAnimationAnchorPoint | null;
+        3: BattleAnimationAnchorPoint | null;
+      },
     ) => {
-      const resolved = resolveBattleMotionAnchor({
-        anchors: authoredAnchorSet,
-        anchor: anchorKey,
-        targetsInPlay: CONFIG.targetsInPlay,
-      });
-      if (!resolved) return null;
-      return snapshotSceneAnimationOriginWithFallback(
-        label,
-        resolved.authored.point,
-        fallbackOverride ?? resolved.fallbackTag,
-      );
+      if (count === 1 || count === 2 || count === 3) {
+        return pointsByCount[count];
+      }
+      return null;
     },
-    [authoredAnchorSet, snapshotSceneAnimationOriginWithFallback],
+    [],
   );
 
   const getPostPlayHandDrawOriginSnapshot = useCallback(
     (side: BattleRuntimeSide) => {
       if (side !== localPlayerIndex) return null;
-      return getMotionAnchorSnapshot(
+      return snapshotSceneAnimationOriginWithFallback(
         "post-play-hand-draw",
-        "postPlayHandDrawOrigin",
+        animations.postPlayHandDrawOrigin,
         "deck",
       );
     },
-    [getMotionAnchorSnapshot, localPlayerIndex],
+    [animations.postPlayHandDrawOrigin, localPlayerIndex, snapshotSceneAnimationOriginWithFallback],
   );
 
   const getHandPlayTargetDestinationSnapshot = useCallback(
     (side: BattleRuntimeSide, targetIndex: number) => {
       if (side !== localPlayerIndex) return null;
       if (targetIndex !== 0 && targetIndex !== 1) return null;
-      return getMotionAnchorSnapshot(
+      return snapshotSceneAnimationOriginWithFallback(
         `hand-play-target-${targetIndex}`,
-        targetIndex === 0
-          ? "handPlayTarget0Destination"
-          : "handPlayTarget1Destination",
+        handPlayTargetPointsByIndex[targetIndex],
         `player-field-slot-${targetIndex}`,
       );
     },
-    [getMotionAnchorSnapshot, localPlayerIndex],
+    [handPlayTargetPointsByIndex, localPlayerIndex, snapshotSceneAnimationOriginWithFallback],
   );
 
   const getReplacementTargetEntryOriginSnapshot = useCallback(
     (side: BattleRuntimeSide, slotIndex: number) => {
       if (slotIndex !== 0 && slotIndex !== 1) return null;
       const replacementIndex = side * CONFIG.targetsInPlay + slotIndex;
-      const anchorKey = (
-        `replacementTargetEntry${replacementIndex}Origin`
-      ) as BattleSceneAnimationAnchorKey;
-      return getMotionAnchorSnapshot(
+      return snapshotSceneAnimationOriginWithFallback(
         `replacement-target-entry-${replacementIndex}`,
-        anchorKey,
+        replacementTargetEntryPointsByIndex[replacementIndex],
         `${side === PLAYER ? "player" : "enemy"}-target-deck`,
       );
     },
-    [getMotionAnchorSnapshot],
+    [replacementTargetEntryPointsByIndex, snapshotSceneAnimationOriginWithFallback],
   );
 
   const getMulliganHandReturnDestinationSnapshot = useCallback(
     (side: BattleRuntimeSide, count: number) => {
       if (side !== localPlayerIndex) return null;
-      const anchorKey =
-        count === 1
-          ? "mulliganReturn1Destination"
-          : count === 2
-            ? "mulliganReturn2Destination"
-            : count === 3
-              ? "mulliganReturn3Destination"
-              : null;
-      return anchorKey
-        ? getMotionAnchorSnapshot(`mulligan-return-${count}`, anchorKey, "deck")
-        : null;
+      return snapshotSceneAnimationOriginWithFallback(
+        `mulligan-return-${count}`,
+        getMulliganAnimationPointByCount(count, mulliganReturnPointsByCount),
+        "deck",
+      );
     },
     [
-      getMotionAnchorSnapshot,
+      getMulliganAnimationPointByCount,
       localPlayerIndex,
+      mulliganReturnPointsByCount,
+      snapshotSceneAnimationOriginWithFallback,
     ],
   );
 
   const getMulliganHandDrawOriginSnapshot = useCallback(
     (side: BattleRuntimeSide, count: number) => {
       if (side !== localPlayerIndex) return null;
-      const anchorKey =
-        count === 1
-          ? "mulliganDraw1Origin"
-          : count === 2
-            ? "mulliganDraw2Origin"
-            : count === 3
-              ? "mulliganDraw3Origin"
-              : null;
-      return anchorKey
-        ? getMotionAnchorSnapshot(`mulligan-draw-${count}`, anchorKey, "deck")
-        : null;
+      return snapshotSceneAnimationOriginWithFallback(
+        `mulligan-draw-${count}`,
+        getMulliganAnimationPointByCount(count, mulliganDrawPointsByCount),
+        "deck",
+      );
     },
     [
-      getMotionAnchorSnapshot,
+      getMulliganAnimationPointByCount,
       localPlayerIndex,
+      mulliganDrawPointsByCount,
+      snapshotSceneAnimationOriginWithFallback,
     ],
   );
 

@@ -59,28 +59,6 @@ test("createSimplePlayVisualPlan cria contrato minimo para play sem dano", () =>
     finish: {
       atMs: 2260,
     },
-    timeline: {
-      id: "simple-play:1:1:VA",
-      durationMs: 2260,
-      cues: [
-        {
-          id: "hand-exit",
-          atMs: 0,
-        },
-        {
-          id: "target-progress-commit",
-          atMs: 840,
-        },
-        {
-          id: "post-play-draw",
-          atMs: 1060,
-        },
-        {
-          id: "finish",
-          atMs: 2260,
-        },
-      ],
-    },
   });
 });
 
@@ -123,22 +101,4 @@ test("createSimplePlayVisualPlan tolera play simples sem draw disponivel", () =>
   assert.equal(plan?.postPlayDraw, null);
   assert.equal(plan?.stableHandCountAfterPlay, 2);
   assert.equal(plan?.finish.atMs, 2260);
-  assert.deepEqual(plan?.timeline, {
-    id: "simple-play:0:0:BA",
-    durationMs: 2260,
-    cues: [
-      {
-        id: "hand-exit",
-        atMs: 0,
-      },
-      {
-        id: "target-progress-commit",
-        atMs: 840,
-      },
-      {
-        id: "finish",
-        atMs: 2260,
-      },
-    ],
-  });
 });

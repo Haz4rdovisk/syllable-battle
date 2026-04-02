@@ -89,7 +89,6 @@ export interface BattleHandLaneProps {
   freshCardIds?: string[];
   bindCardRef?: (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => void;
   onDebugSnapshot?: (snapshot: BattleHandLaneDebugSnapshot) => void;
-  suppressZoneCenterTravel?: boolean;
 }
 
 export interface BattleHandLaneDebugSnapshot {
@@ -202,7 +201,6 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   freshCardIds = [],
   bindCardRef,
   onDebugSnapshot,
-  suppressZoneCenterTravel = false,
 }) => {
   void side;
   const isLocalPresentation = presentation === "local";
@@ -643,12 +641,6 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
 
   const outgoingTravelCards = hostRef.current
     ? outgoingCards.map((outgoingCard) => {
-        if (
-          suppressZoneCenterTravel &&
-          (outgoingCard.destinationMode ?? "deck-bottom") === "zone-center"
-        ) {
-          return null;
-        }
         const destinationRect = getStageLocalRect(outgoingCard.destination);
         if (!sceneVisualRect || !destinationRect) return null;
         const cardSize = { width: cardWidth, height: cardBaseHeight };

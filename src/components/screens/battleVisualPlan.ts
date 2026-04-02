@@ -6,7 +6,6 @@ import {
   getPlayedCardCommitDelayMs,
 } from "./battleFlow";
 import type { ResolvedBattlePlayAction } from "./battleResolution";
-import type { BattlePlaybackClipDefinition } from "./battlePlaybackTimeline";
 
 export type BattleSimplePlayVisualResult = Pick<
   ResolvedBattlePlayAction,
@@ -42,7 +41,6 @@ export interface BattleSimplePlayVisualPlan {
   finish: {
     atMs: number;
   };
-  timeline: BattlePlaybackClipDefinition;
 }
 
 export const createSimplePlayVisualPlan = (args: {
@@ -107,32 +105,6 @@ export const createSimplePlayVisualPlan = (args: {
         : null,
     finish: {
       atMs: getPlayFinishDelayMs(flow),
-    },
-    timeline: {
-      id: `simple-play:${result.actorIndex}:${targetIndex}:${result.playedCard}`,
-      durationMs: getPlayFinishDelayMs(flow),
-      cues: [
-        {
-          id: "hand-exit",
-          atMs: 0,
-        },
-        {
-          id: "target-progress-commit",
-          atMs: getPlayedCardCommitDelayMs(flow),
-        },
-        ...(drawCount > 0
-          ? [
-              {
-                id: "post-play-draw",
-                atMs: getPlayDrawStartDelayMs(flow),
-              },
-            ]
-          : []),
-        {
-          id: "finish",
-          atMs: getPlayFinishDelayMs(flow),
-        },
-      ],
     },
   };
 };

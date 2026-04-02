@@ -8,13 +8,9 @@ import { BattleFieldLane, BattleFieldLaneDebugSnapshot } from "./BattleFieldLane
 import { BattleLayoutConfig, BattleEditableElementKey } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattlePillOverlay } from "./BattlePillOverlay";
-import { BattlePixiSceneView } from "./BattlePixiSceneView";
 import { getBattleBoardSurfaceVars } from "./BattleBoardSurface";
 import { BATTLE_SCENE_LAYER_ORDER, getBattleSceneElementLayer } from "./BattleSceneLayerPolicy";
-import {
-  BattleSceneModel,
-  BattleSceneRenderModel,
-} from "./BattleSceneViewModel";
+import { BattleSceneModel } from "./BattleSceneViewModel";
 import {
   battleGlobalFrameToScenePosition,
   getBattleFieldContainerSceneRect,
@@ -22,7 +18,6 @@ import {
 } from "./BattleSceneSpace";
 import type { BattleElementPropertyConfig } from "./BattleLayoutConfig";
 import { BattleTravelLayerContext } from "./BattleTravelLayer";
-import type { BattlePreviewPlaybackSelection } from "./battlePlaybackTimeline";
 
 type BattleSceneSnapTargets = NonNullable<BattleEditableElementProps["snapTargets"]>;
 
@@ -61,9 +56,6 @@ export interface BattleSceneRendererDebugBindings {
 
 export interface BattleSceneRendererProps extends BattleSceneRendererDebugBindings {
   model: BattleSceneModel;
-  sceneRenderModel?: BattleSceneRenderModel;
-  previewPlayback?: BattlePreviewPlaybackSelection | null;
-  enablePixiPilot?: boolean;
   shellSlots: BattleSceneRendererShellSlots;
   compact: boolean;
   tight?: boolean;
@@ -74,9 +66,6 @@ export interface BattleSceneRendererProps extends BattleSceneRendererDebugBindin
 
 export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
   model,
-  sceneRenderModel,
-  previewPlayback = null,
-  enablePixiPilot = false,
   shellSlots,
   compact,
   tight = false,
@@ -213,7 +202,6 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               fieldSceneRect={enemyFieldSceneRect}
               slots={enemyFieldSlots}
               onDebugSnapshot={onEnemyFieldDebugSnapshot}
-              visualRuntime={enablePixiPilot ? "pixi" : "dom"}
             />
           </div>,
           { configOverride: enemyFieldConfig },
@@ -227,25 +215,10 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               fieldSceneRect={playerFieldSceneRect}
               slots={playerFieldSlots}
               onDebugSnapshot={onPlayerFieldDebugSnapshot}
-              visualRuntime={enablePixiPilot ? "pixi" : "dom"}
             />
           </div>,
           { configOverride: playerFieldConfig },
         )}
-        {enablePixiPilot && sceneRenderModel ? (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 overflow-visible"
-            style={{ zIndex: BATTLE_SCENE_LAYER_ORDER.travel - 1 }}
-          >
-            <BattlePixiSceneView
-              renderModel={sceneRenderModel}
-              previewPlayback={previewPlayback}
-              allowKeyboardPlaybackControls={Boolean(previewPlayback)}
-              className="h-full w-full"
-            />
-          </div>
-        ) : null}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 overflow-visible"

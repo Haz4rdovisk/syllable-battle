@@ -14,22 +14,14 @@ import { BattleSceneRenderer, BattleSceneRendererDebugBindings, BattleSceneRende
 import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleStatusPanel } from "./BattleStatusPanel";
-import {
-  BattleSceneHandModel,
-  BattleSceneModel,
-  BattleSceneRenderModel,
-} from "./BattleSceneViewModel";
+import { BattleSceneHandModel, BattleSceneModel } from "./BattleSceneViewModel";
 import { getBattleCompactShellSlots } from "./BattleSceneSpace";
-import type { BattlePreviewPlaybackSelection } from "./battlePlaybackTimeline";
 
 const DEFAULT_ACTION_CLASS_NAME =
   "border-4 border-[#c89b35]/90 bg-[#4a1d24] text-amber-50 shadow-[0_12px_26px_rgba(0,0,0,0.28)]";
 
 export interface BattleSceneHostProps extends BattleSceneRendererDebugBindings {
   model: BattleSceneModel;
-  sceneRenderModel?: BattleSceneRenderModel;
-  previewPlayback?: BattlePreviewPlaybackSelection | null;
-  enablePixiPilot?: boolean;
   compact: boolean;
   tight?: boolean;
   layout?: BattleLayoutConfig;
@@ -52,9 +44,6 @@ const getHandZoneId = (hand: BattleSceneHandModel): BoardZoneId =>
 
 export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
   model,
-  sceneRenderModel,
-  previewPlayback = null,
-  enablePixiPilot = false,
   compact,
   tight = false,
   layout = battleActiveLayoutConfig,
@@ -112,7 +101,6 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
       freshCardIds={hand.freshCardIds}
       bindCardRef={hand.bindCardRef}
       onDebugSnapshot={hand.onDebugSnapshotByScale?.[scale]}
-      suppressZoneCenterTravel={enablePixiPilot}
     />
   );
 
@@ -431,9 +419,6 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
   return (
     <BattleSceneRenderer
       model={model}
-      sceneRenderModel={sceneRenderModel}
-      previewPlayback={previewPlayback}
-      enablePixiPilot={enablePixiPilot}
       shellSlots={sceneShellSlots}
       compact={compact}
       tight={tight}
