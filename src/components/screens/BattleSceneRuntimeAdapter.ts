@@ -80,6 +80,16 @@ export const buildBattleSceneModelFromRuntime = ({
   const mulliganSelectionInvalid =
     game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan;
   const mulliganDisabled = !canSwap || mulliganSelectionInvalid;
+  const getPendingCardMotion = (slotIndex: number) => {
+    const outgoingCard = visualQueue.outgoingHands[localPlayerIndex].find(
+      (card) =>
+        card.destinationMode === "zone-center" &&
+        card.targetSlotIndex === slotIndex,
+    );
+    return outgoingCard
+      ? { delayMs: outgoingCard.pendingCardRevealDelayMs ?? outgoingCard.durationMs }
+      : null;
+  };
 
   const enemyFieldSlots = buildBattleFieldLaneSlotsFromTargetField({
     fieldSlots: runtime.targetField.enemySlots,
@@ -99,6 +109,7 @@ export const buildBattleSceneModelFromRuntime = ({
     getSelectedCard: () => selectedCard,
     getPendingCard: (slotIndex) =>
       visualQueue.pendingTargetPlacements[localPlayerIndex][slotIndex] ?? null,
+    getPendingCardMotion,
     getCanClick: (slotIndex, displayedTarget, incomingTarget) =>
       Boolean(
         displayedTarget &&

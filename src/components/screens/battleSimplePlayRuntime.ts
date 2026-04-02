@@ -95,6 +95,8 @@ export const applyBattleSimplePlayRuntime = ({
       destinationMode: "zone-center",
       endRotate: side === localPlayerIndex ? 8 : -8,
       endScale: 1,
+      targetSlotIndex: visualPlan.targetIndex,
+      pendingCardRevealDelayMs: flow.cardToFieldMs,
     });
   } else if (playedStableCard && fallbackHandPlayDestination) {
     appendOutgoingCard(side, {
@@ -109,6 +111,8 @@ export const applyBattleSimplePlayRuntime = ({
       destinationMode: "zone-center",
       endRotate: side === localPlayerIndex ? 8 : -8,
       endScale: 1,
+      targetSlotIndex: targetIndex,
+      pendingCardRevealDelayMs: flow.cardToFieldMs,
     });
   }
 

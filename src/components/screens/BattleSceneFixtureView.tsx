@@ -2181,6 +2181,8 @@ export const BattleSceneFixtureView: React.FC<{
             destinationMode: "zone-center",
             endRotate: 8,
             endScale: 1,
+            targetSlotIndex: targetIndex,
+            pendingCardRevealDelayMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
           },
         ],
         [ENEMY]: [],
@@ -2287,6 +2289,8 @@ export const BattleSceneFixtureView: React.FC<{
             destinationMode: "zone-center",
             endRotate: 8,
             endScale: 1,
+            targetSlotIndex: targetIndex,
+            pendingCardRevealDelayMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
           },
         ],
         [ENEMY]: [],
@@ -2888,6 +2892,16 @@ export const BattleSceneFixtureView: React.FC<{
           rawEnemyFieldSlots[slotIndex]?.selectedCard ?? null,
         getPendingCard: (slotIndex) =>
           previewPendingTargetPlacements[ENEMY]?.[slotIndex] ?? null,
+        getPendingCardMotion: (slotIndex) => {
+          const outgoingCard = outgoingPreviewHands[ENEMY].find(
+            (card) =>
+              card.destinationMode === "zone-center" &&
+              card.targetSlotIndex === slotIndex,
+          );
+          return outgoingCard
+            ? { delayMs: outgoingCard.pendingCardRevealDelayMs ?? outgoingCard.durationMs }
+            : null;
+        },
         getCanClick: () => false,
         onClick: () => {},
         onIncomingTargetComplete: handleIncomingPreviewTargetComplete,
@@ -2899,6 +2913,7 @@ export const BattleSceneFixtureView: React.FC<{
       createSlotRef,
       handleIncomingPreviewTargetComplete,
       handleOutgoingPreviewTargetComplete,
+      outgoingPreviewHands,
       previewPendingTargetPlacements,
       previewTargetField.enemySlots,
       rawEnemyFieldSlots,
@@ -2915,6 +2930,16 @@ export const BattleSceneFixtureView: React.FC<{
           rawPlayerFieldSlots[slotIndex]?.selectedCard ?? null,
         getPendingCard: (slotIndex) =>
           previewPendingTargetPlacements[PLAYER]?.[slotIndex] ?? null,
+        getPendingCardMotion: (slotIndex) => {
+          const outgoingCard = outgoingPreviewHands[PLAYER].find(
+            (card) =>
+              card.destinationMode === "zone-center" &&
+              card.targetSlotIndex === slotIndex,
+          );
+          return outgoingCard
+            ? { delayMs: outgoingCard.pendingCardRevealDelayMs ?? outgoingCard.durationMs }
+            : null;
+        },
         getCanClick: () => false,
         onClick: () => {},
         onIncomingTargetComplete: handleIncomingPreviewTargetComplete,
@@ -2926,6 +2951,7 @@ export const BattleSceneFixtureView: React.FC<{
       createSlotRef,
       handleIncomingPreviewTargetComplete,
       handleOutgoingPreviewTargetComplete,
+      outgoingPreviewHands,
       previewPendingTargetPlacements,
       previewTargetField.playerSlots,
       rawPlayerFieldSlots,

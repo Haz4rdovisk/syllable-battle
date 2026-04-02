@@ -133,6 +133,8 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
     destinationMode: "zone-center",
     endRotate: 8,
     endScale: 1,
+    targetSlotIndex: 1,
+    pendingCardRevealDelayMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
   });
   assert.deepEqual(drawCalls, [
     {
@@ -220,6 +222,11 @@ test("applyBattleSimplePlayRuntime preserva fallback simples sem mover geometria
   assert.equal(outgoingCards[0].initialIndex, 1);
   assert.equal(outgoingCards[0].initialTotal, 4);
   assert.equal(outgoingCards[0].endRotate, -8);
+  assert.equal(outgoingCards[0].targetSlotIndex, 0);
+  assert.equal(
+    outgoingCards[0].pendingCardRevealDelayMs,
+    BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
+  );
   assert.deepEqual(drawCalls, [
     {
       cards: ["BO"],

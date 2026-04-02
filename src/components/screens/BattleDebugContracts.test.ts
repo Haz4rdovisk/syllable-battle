@@ -28,6 +28,10 @@ import {
   buildBattleTargetFieldStateFromSceneSlots,
   type BattleTargetSceneNode,
 } from "./BattleTargetField";
+import {
+  BATTLE_SCENE_LAYER_ORDER,
+  getBattleSceneElementLayer,
+} from "./BattleSceneLayerPolicy";
 import { createBattleSceneBoardModel } from "./BattleSceneViewModel";
 import type { UITarget } from "../../types/game";
 import type { VisualTargetEntity } from "../game/GameComponents";
@@ -552,6 +556,7 @@ test("buildBattleFieldLaneSlotsFromTargetField reutiliza a mesma pipeline de mot
     getSlotRect: () => null,
     getSelectedCard: () => "CA",
     getPendingCard: () => "CA",
+    getPendingCardMotion: () => ({ delayMs: 520 }),
     getCanClick: () => false,
     onClick: () => {},
   });
@@ -574,8 +579,33 @@ test("buildBattleFieldLaneSlotsFromTargetField reutiliza a mesma pipeline de mot
     "CA",
   );
   assert.equal(
+    laneSlots[0]?.renderNodes?.find((node) => node.phase === "replacement")?.pendingCardRevealDelayMs,
+    520,
+  );
+  assert.equal(
     laneSlots[0]?.renderNodes?.find((node) => node.phase === "attack")?.pendingCard,
     null,
+  );
+});
+
+test("getBattleSceneElementLayer preserva a policy entre shell field travel e mensagens", () => {
+  assert.equal(getBattleSceneElementLayer("shell"), BATTLE_SCENE_LAYER_ORDER.shell);
+  assert.equal(
+    getBattleSceneElementLayer("enemyField"),
+    BATTLE_SCENE_LAYER_ORDER.field,
+  );
+  assert.equal(
+    getBattleSceneElementLayer("playerField", 90),
+    90,
+  );
+  assert.equal(
+    getBattleSceneElementLayer("boardMessage"),
+    BATTLE_SCENE_LAYER_ORDER.boardMessage,
+  );
+  assert.equal(BATTLE_SCENE_LAYER_ORDER.travel > BATTLE_SCENE_LAYER_ORDER.field, true);
+  assert.equal(
+    BATTLE_SCENE_LAYER_ORDER.boardMessage > BATTLE_SCENE_LAYER_ORDER.travel,
+    true,
   );
 });
 

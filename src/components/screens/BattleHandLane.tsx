@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { GameState, Syllable } from "../../types/game";
 import { canPlace } from "../../logic/gameLogic";
@@ -10,6 +11,7 @@ import {
 import { cn } from "../../lib/utils";
 import { getBattleHandFrame, getBattleHandLayout } from "./battleFlow";
 import { getBattleStageDomMetrics, toBattleStageLocalRect } from "./BattleSceneSpace";
+import { BattleTravelLayerContext } from "./BattleTravelLayer";
 
 const HAND_LAYOUT_SLOT_COUNT = 5;
 const clampScale = (value: number, min = 0.72, max = 1.24) =>
@@ -59,6 +61,8 @@ export interface BattleHandLaneOutgoingCard {
   destinationMode?: "deck-bottom" | "zone-center";
   endRotate?: number;
   endScale?: number;
+  targetSlotIndex?: number;
+  pendingCardRevealDelayMs?: number;
 }
 
 export interface BattleHandLaneProps {
@@ -201,6 +205,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   void side;
   const isLocalPresentation = presentation === "local";
   const isDesktop = scale === "desktop";
+  const travelLayerNode = useContext(BattleTravelLayerContext);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [laneWidth, setLaneWidth] = useState<number | null>(null);
   const [laneHeight, setLaneHeight] = useState<number | null>(null);
@@ -546,6 +551,207 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
     onDebugSnapshot?.(handLaneDebugSnapshot);
   }, [handLaneDebugSnapshot, onDebugSnapshot]);
 
+  const incomingTravelCards = hostRef.current
+    ? incomingCards.map((incomingCard) => {
+        const originRect = getStageLocalRect(incomingCard.origin);
+        if (!sceneVisualRect || !originRect) return null;
+        const cardSize = { width: cardWidth, height: cardBaseHeight };
+        const layout = getLayout(
+          incomingCard.finalTotal,
+          incomingCard.finalIndex,
+          isDesktop,
+          sceneLayoutWidth,
+        );
+        const deckExitX =
+          originRect.left +
+          originRect.width / 2 -
+          sceneVisualRect.sceneLeft -
+          (cardSize.width * handSceneScale) / 2;
+        const deckExitY =
+          originRect.top +
+          Math.max(8, originRect.height * 0.14) -
+          sceneVisualRect.sceneTop -
+          cardSize.height * handSceneScale * 0.18;
+        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
+        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
+        const startX = deckExitX / handSceneScale - baseLeft;
+        const startY = deckExitY / handSceneScale - baseTop;
+        const startScale =
+          cardSize.width > 0 && cardSize.height > 0
+            ? clampScale(
+                Math.min(
+                  originRect.width / (cardSize.width * handSceneScale),
+                  originRect.height / (cardSize.height * handSceneScale),
+                ),
+              )
+            : 0.92;
+        const startRotate = isLocalPresentation ? 3 : -3;
+        return (
+          <motion.div
+            key={incomingCard.id}
+            className="pointer-events-none absolute left-0 top-0 z-[120]"
+            style={{
+              left: `calc(50% - ${cardSize.width / 2}px)`,
+              top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
+            }}
+            initial={{
+              x: startX,
+              y: startY,
+              rotate: startRotate,
+              scale: startScale,
+              opacity: 0,
+            }}
+            animate={{
+              x: layout.x,
+              y: layout.y,
+              rotate: layout.rotate,
+              scale: 1,
+              opacity: 1,
+            }}
+            transition={{
+              delay: incomingCard.delayMs / 1000,
+              duration: incomingCard.durationMs / 1000,
+              ease: [0.18, 0.9, 0.22, 1],
+            }}
+            onAnimationComplete={() => onIncomingCardComplete?.(incomingCard)}
+          >
+            {isLocalPresentation ? (
+              <SyllableCard
+                syllable={incomingCard.card.syllable}
+                selected={false}
+                playable={showPlayableHints}
+                newlyDrawn={showTurnHighlights}
+                attentionPulse={false}
+                floating={true}
+                disabled={true}
+                onClick={() => {}}
+                sizePreset={sizePreset}
+              />
+            ) : (
+              <CardBackCard
+                floating={true}
+                sizePreset={sizePreset}
+                visualPresetId={cardBackPresetId}
+              />
+            )}
+          </motion.div>
+        );
+      })
+    : [];
+
+  const outgoingTravelCards = hostRef.current
+    ? outgoingCards.map((outgoingCard) => {
+        const destinationRect = getStageLocalRect(outgoingCard.destination);
+        if (!sceneVisualRect || !destinationRect) return null;
+        const cardSize = { width: cardWidth, height: cardBaseHeight };
+        const layout = getLayout(
+          outgoingCard.initialTotal,
+          outgoingCard.initialIndex,
+          isDesktop,
+          sceneLayoutWidth,
+        );
+        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
+        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
+        const destinationCenterX =
+          destinationRect.left +
+          destinationRect.width / 2 -
+          sceneVisualRect.sceneLeft -
+          (cardSize.width * handSceneScale) / 2;
+        const destinationCenterY =
+          destinationRect.top +
+          destinationRect.height / 2 -
+          sceneVisualRect.sceneTop -
+          (cardSize.height * handSceneScale) / 2;
+        const deckBottomX = destinationCenterX;
+        const deckBottomY =
+          destinationRect.top +
+          destinationRect.height -
+          Math.max(10, destinationRect.height * 0.16) -
+          sceneVisualRect.sceneTop -
+          cardSize.height * handSceneScale * 0.82;
+        const endX =
+          (outgoingCard.destinationMode === "zone-center"
+            ? destinationCenterX
+            : deckBottomX) /
+            handSceneScale -
+          baseLeft;
+        const endY =
+          (outgoingCard.destinationMode === "zone-center"
+            ? destinationCenterY
+            : deckBottomY) /
+            handSceneScale -
+          baseTop;
+        const endScale =
+          outgoingCard.endScale ??
+          (outgoingCard.destinationMode === "zone-center"
+            ? 1
+            : clampScale(
+                Math.min(
+                  destinationRect.width / (cardSize.width * handSceneScale),
+                  destinationRect.height / (cardSize.height * handSceneScale),
+                ),
+              ));
+        return (
+          <motion.div
+            key={outgoingCard.id}
+            className="pointer-events-none absolute left-0 top-0 z-[118]"
+            style={{
+              left: `calc(50% - ${cardSize.width / 2}px)`,
+              top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
+            }}
+            initial={{
+              x: layout.x,
+              y: layout.y,
+              rotate: layout.rotate,
+              scale: 1,
+              opacity: 1,
+            }}
+            animate={{
+              x: endX,
+              y: endY,
+              rotate:
+                outgoingCard.endRotate ?? (isLocalPresentation ? 4 : -4),
+              scale: endScale,
+              opacity: 1,
+            }}
+            transition={{
+              delay: outgoingCard.delayMs / 1000,
+              duration: outgoingCard.durationMs / 1000,
+              ease: [0.18, 0.9, 0.22, 1],
+            }}
+            onAnimationComplete={() => onOutgoingCardComplete?.(outgoingCard)}
+          >
+            {isLocalPresentation ? (
+              <SyllableCard
+                syllable={outgoingCard.card.syllable}
+                selected={false}
+                playable={false}
+                newlyDrawn={false}
+                attentionPulse={false}
+                floating={true}
+                disabled={true}
+                onClick={() => {}}
+                sizePreset={sizePreset}
+              />
+            ) : (
+              <CardBackCard
+                floating={true}
+                sizePreset={sizePreset}
+                visualPresetId={cardBackPresetId}
+              />
+            )}
+          </motion.div>
+        );
+      })
+    : [];
+
+  const travelCards = (
+    <>
+      {incomingTravelCards}
+      {outgoingTravelCards}
+    </>
+  );
+
   return (
     <motion.div
       data-battle-visual-root="true"
@@ -630,191 +836,9 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             );
           })}
         </AnimatePresence>
-
-        {hostRef.current &&
-          incomingCards.map((incomingCard) => {
-            const originRect = getStageLocalRect(incomingCard.origin);
-            if (!sceneVisualRect || !originRect) return null;
-            const cardSize = { width: cardWidth, height: cardBaseHeight };
-            const layout = getLayout(
-              incomingCard.finalTotal,
-              incomingCard.finalIndex,
-              isDesktop,
-              sceneLayoutWidth,
-            );
-            const deckExitX =
-              originRect.left +
-              originRect.width / 2 -
-              sceneVisualRect.sceneLeft -
-              (cardSize.width * handSceneScale) / 2;
-            const deckExitY =
-              originRect.top +
-              Math.max(8, originRect.height * 0.14) -
-              sceneVisualRect.sceneTop -
-              cardSize.height * handSceneScale * 0.18;
-            const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
-            const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
-            const startX = deckExitX / handSceneScale - baseLeft;
-            const startY = deckExitY / handSceneScale - baseTop;
-            const startScale =
-              cardSize.width > 0 && cardSize.height > 0
-                ? clampScale(
-                    Math.min(
-                      originRect.width / (cardSize.width * handSceneScale),
-                      originRect.height / (cardSize.height * handSceneScale),
-                    ),
-                  )
-                : 0.92;
-            const startRotate = isLocalPresentation ? 3 : -3;
-            return (
-              <motion.div
-                key={incomingCard.id}
-                className="pointer-events-none absolute left-0 top-0 z-[120]"
-                style={{
-                  left: `calc(50% - ${cardSize.width / 2}px)`,
-                  top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
-                }}
-                initial={{
-                  x: startX,
-                  y: startY,
-                  rotate: startRotate,
-                  scale: startScale,
-                  opacity: 0,
-                }}
-                animate={{
-                  x: layout.x,
-                  y: layout.y,
-                  rotate: layout.rotate,
-                  scale: 1,
-                  opacity: 1,
-                }}
-                transition={{
-                  delay: incomingCard.delayMs / 1000,
-                  duration: incomingCard.durationMs / 1000,
-                  ease: [0.18, 0.9, 0.22, 1],
-                }}
-                onAnimationComplete={() => onIncomingCardComplete?.(incomingCard)}
-              >
-                {isLocalPresentation ? (
-                  <SyllableCard
-                    syllable={incomingCard.card.syllable}
-                    selected={false}
-                    playable={showPlayableHints}
-                    newlyDrawn={showTurnHighlights}
-                    attentionPulse={false}
-                    floating={true}
-                    disabled={true}
-                    onClick={() => {}}
-                    sizePreset={sizePreset}
-                  />
-                ) : (
-                  <CardBackCard
-                    floating={true}
-                    sizePreset={sizePreset}
-                    visualPresetId={cardBackPresetId}
-                  />
-                )}
-              </motion.div>
-            );
-          })}
-
-        {hostRef.current &&
-          outgoingCards.map((outgoingCard) => {
-            const destinationRect = getStageLocalRect(outgoingCard.destination);
-            if (!sceneVisualRect || !destinationRect) return null;
-            const cardSize = { width: cardWidth, height: cardBaseHeight };
-            const layout = getLayout(
-              outgoingCard.initialTotal,
-              outgoingCard.initialIndex,
-              isDesktop,
-              sceneLayoutWidth,
-            );
-            const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
-            const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
-            const destinationCenterX =
-              destinationRect.left +
-              destinationRect.width / 2 -
-              sceneVisualRect.sceneLeft -
-              (cardSize.width * handSceneScale) / 2;
-            const destinationCenterY =
-              destinationRect.top +
-              destinationRect.height / 2 -
-              sceneVisualRect.sceneTop -
-              (cardSize.height * handSceneScale) / 2;
-            const deckBottomX = destinationCenterX;
-            const deckBottomY =
-              destinationRect.top +
-              destinationRect.height -
-              Math.max(10, destinationRect.height * 0.16) -
-              sceneVisualRect.sceneTop -
-              cardSize.height * handSceneScale * 0.82;
-            const endX =
-              (outgoingCard.destinationMode === "zone-center" ? destinationCenterX : deckBottomX) / handSceneScale - baseLeft;
-            const endY =
-              (outgoingCard.destinationMode === "zone-center" ? destinationCenterY : deckBottomY) / handSceneScale - baseTop;
-            const endScale =
-              outgoingCard.endScale ??
-              (outgoingCard.destinationMode === "zone-center"
-                ? 1
-                : clampScale(
-                    Math.min(
-                      destinationRect.width / (cardSize.width * handSceneScale),
-                      destinationRect.height / (cardSize.height * handSceneScale),
-                    ),
-                  ));
-            return (
-              <motion.div
-                key={outgoingCard.id}
-                className="pointer-events-none absolute left-0 top-0 z-[118]"
-                style={{
-                  left: `calc(50% - ${cardSize.width / 2}px)`,
-                  top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
-                }}
-                initial={{
-                  x: layout.x,
-                  y: layout.y,
-                  rotate: layout.rotate,
-                  scale: 1,
-                  opacity: 1,
-                }}
-                animate={{
-                  x: endX,
-                  y: endY,
-                  rotate: outgoingCard.endRotate ?? (isLocalPresentation ? 4 : -4),
-                  scale: endScale,
-                  opacity: 1,
-                }}
-                transition={{
-                  delay: outgoingCard.delayMs / 1000,
-                  duration: outgoingCard.durationMs / 1000,
-                  ease: [0.18, 0.9, 0.22, 1],
-                }}
-                onAnimationComplete={() => onOutgoingCardComplete?.(outgoingCard)}
-              >
-                {isLocalPresentation ? (
-                  <SyllableCard
-                    syllable={outgoingCard.card.syllable}
-                    selected={false}
-                    playable={false}
-                    newlyDrawn={false}
-                    attentionPulse={false}
-                    floating={true}
-                    disabled={true}
-                    onClick={() => {}}
-                    sizePreset={sizePreset}
-                  />
-                ) : (
-                  <CardBackCard
-                    floating={true}
-                    sizePreset={sizePreset}
-                    visualPresetId={cardBackPresetId}
-                  />
-                )}
-              </motion.div>
-            );
-          })}
         </div>
       </div>
+      {travelLayerNode ? createPortal(travelCards, travelLayerNode) : travelCards}
     </motion.div>
   );
 };

@@ -55,6 +55,7 @@ export interface BattleFieldLaneRenderNode {
   canClick: boolean;
   selectedCard: Syllable | null;
   pendingCard?: Syllable | null;
+  pendingCardRevealDelayMs?: number;
   playerHand?: Syllable[];
 }
 
@@ -64,6 +65,24 @@ interface BattleFieldLaneProps {
   sectionClassName?: string;
   slots: BattleFieldLaneSlot[];
   onDebugSnapshot?: (snapshot: BattleFieldLaneDebugSnapshot) => void;
+}
+
+interface BattleFieldLaneNodeProps {
+  node: BattleFieldLaneRenderNode;
+  slot: BattleFieldLaneSlot;
+  slotRect: ReturnType<typeof toBattleStageLocalRect>;
+  presentation: "player" | "enemy";
+  incomingRotate: number;
+  travelTargetSize: ReturnType<typeof getTravelTargetCardSize>;
+  clampMotionScale: (value: number) => number;
+  getStageLocalRect: <T extends {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }>(
+    rect: T | null | undefined,
+  ) => ReturnType<typeof toBattleStageLocalRect>;
 }
 
 export interface BattleFieldLaneDebugSnapshot {
@@ -117,6 +136,216 @@ export interface BattleFieldLaneDebugSnapshot {
   }>;
 }
 
+const BattleFieldLaneNode: React.FC<BattleFieldLaneNodeProps> = ({
+  node,
+  slot,
+  slotRect,
+  presentation,
+  incomingRotate,
+  travelTargetSize,
+  clampMotionScale,
+  getStageLocalRect,
+}) => {
+  const [pendingCardVisible, setPendingCardVisible] = React.useState(
+    Boolean(node.pendingCard) &&
+      (node.pendingCardRevealDelayMs ?? 0) <= 0,
+  );
+
+  React.useEffect(() => {
+    if (!node.pendingCard) {
+      setPendingCardVisible(false);
+      return;
+    }
+
+    const revealDelayMs = node.pendingCardRevealDelayMs ?? 0;
+    if (revealDelayMs <= 0) {
+      setPendingCardVisible(true);
+      return;
+    }
+
+    setPendingCardVisible(false);
+    const timer = window.setTimeout(() => {
+      setPendingCardVisible(true);
+    }, revealDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [node.pendingCard, node.pendingCardRevealDelayMs, node.key]);
+
+  const outgoingDestination = getStageLocalRect(node.outgoingTarget?.destination);
+  const outgoingImpact = getStageLocalRect(node.outgoingTarget?.impactDestination);
+  const incomingOrigin = getStageLocalRect(node.incomingTarget?.origin);
+  const startX =
+    incomingOrigin && slotRect
+      ? incomingOrigin.left + incomingOrigin.width / 2 - slotRect.left - travelTargetSize.width / 2
+      : 0;
+  const startY =
+    incomingOrigin && slotRect
+      ? incomingOrigin.top + incomingOrigin.height / 2 - slotRect.top - travelTargetSize.height / 2
+      : 0;
+  const outgoingEndX =
+    outgoingDestination && slotRect
+      ? outgoingDestination.left +
+        outgoingDestination.width / 2 -
+        slotRect.left -
+        slotRect.width / 2
+      : 0;
+  const outgoingEndY =
+    outgoingDestination && slotRect
+      ? outgoingDestination.top +
+        outgoingDestination.height / 2 -
+        slotRect.top -
+        slotRect.height / 2
+      : 0;
+  const outgoingEndScale =
+    outgoingDestination && slotRect
+      ? clampMotionScale(
+          Math.min(
+            outgoingDestination.width / Math.max(1, slotRect.width),
+            outgoingDestination.height / Math.max(1, slotRect.height),
+          ),
+        )
+      : 0.88;
+  const outgoingImpactX =
+    outgoingImpact && slotRect
+      ? outgoingImpact.left +
+        outgoingImpact.width / 2 -
+        slotRect.left -
+        slotRect.width / 2
+      : 0;
+  const outgoingImpactY =
+    outgoingImpact && slotRect
+      ? outgoingImpact.top +
+        outgoingImpact.height / 2 -
+        slotRect.top -
+        slotRect.height / 2
+      : presentation === "player"
+        ? -118
+        : 118;
+  const outgoingImpactRotate = presentation === "player" ? -8 : 8;
+  const outgoingEndRotate = presentation === "player" ? 10 : -10;
+  const outgoingTotalMs = node.outgoingTarget
+    ? node.outgoingTarget.windupMs +
+      node.outgoingTarget.attackMs +
+      node.outgoingTarget.pauseMs +
+      node.outgoingTarget.exitMs
+    : 0;
+  const resolvedPendingCard =
+    presentation === "player" && pendingCardVisible ? node.pendingCard ?? null : null;
+
+  if (node.outgoingTarget && slotRect) {
+    return (
+      <motion.div
+        key={node.key}
+        initial={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
+        animate={{
+          opacity: [1, 1, 1, 1, 1],
+          x: [0, 0, outgoingImpactX, outgoingImpactX, outgoingEndX],
+          y: [0, 0, outgoingImpactY, outgoingImpactY, outgoingEndY],
+          rotate: [0, 0, outgoingImpactRotate, outgoingImpactRotate, outgoingEndRotate],
+          scale: [1, 1, 1.02, 1.02, outgoingEndScale],
+        }}
+        transition={{
+          duration: outgoingTotalMs / 1000,
+          delay: node.outgoingTarget.delayMs / 1000,
+          ease: [0.22, 1, 0.36, 1],
+          times: [
+            0,
+            node.outgoingTarget.windupMs / outgoingTotalMs,
+            (node.outgoingTarget.windupMs + node.outgoingTarget.attackMs) / outgoingTotalMs,
+            (node.outgoingTarget.windupMs + node.outgoingTarget.attackMs + node.outgoingTarget.pauseMs) / outgoingTotalMs,
+            1,
+          ],
+        }}
+        onAnimationComplete={() => slot.onOutgoingTargetComplete?.(node.outgoingTarget!)}
+        className="absolute inset-0 origin-center"
+        style={{ zIndex: node.zIndex }}
+      >
+        <TargetCard
+          target={node.entity.target}
+          selectedCard={presentation === "player" ? node.selectedCard : null}
+          pendingCard={resolvedPendingCard}
+          isPlayerSide={presentation === "player"}
+          canClick={false}
+          onClick={() => {}}
+          playerHand={presentation === "player" ? node.playerHand ?? [] : []}
+          fitParent
+        />
+      </motion.div>
+    );
+  }
+
+  const initialIncoming =
+    node.incomingTarget && slotRect
+      ? { opacity: 1, x: startX, y: startY, rotate: incomingRotate, scale: 0.88 }
+      : false;
+  const transition =
+    node.incomingTarget
+      ? {
+          duration: node.incomingTarget.durationMs / 1000,
+          delay: node.incomingTarget.delayMs / 1000,
+          ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+        }
+      : { type: "spring" as const, stiffness: 80, damping: 18 };
+
+  return (
+    <motion.div
+      key={node.key}
+      initial={initialIncoming}
+      animate={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
+      transition={transition}
+      onAnimationComplete={() =>
+        node.incomingTarget
+          ? slot.onIncomingTargetComplete?.(node.incomingTarget)
+          : undefined
+      }
+      className="absolute inset-0 origin-center"
+      style={{ zIndex: node.zIndex }}
+    >
+      <TargetCard
+        target={node.entity.target}
+        selectedCard={presentation === "player" ? node.selectedCard : null}
+        pendingCard={resolvedPendingCard}
+        isPlayerSide={presentation === "player"}
+        canClick={node.canClick}
+        onClick={node.canClick ? slot.onClick : () => {}}
+        playerHand={presentation === "player" ? node.playerHand ?? [] : []}
+        fitParent
+      />
+    </motion.div>
+  );
+};
+
+const buildBattleFieldLaneRenderNodesFromCompatSlot = (
+  slot: BattleFieldLaneSlot,
+): BattleFieldLaneRenderNode[] => {
+  if (!slot.displayedTarget) return [];
+
+  return [
+    {
+      key: slot.outgoingTarget
+        ? `${slot.outgoingTarget.id}-outgoing`
+        : slot.incomingTarget
+          ? `${slot.displayedTarget.id}-${slot.incomingTarget.id}`
+          : slot.displayedTarget.id,
+      phase: slot.outgoingTarget
+        ? slot.outgoingTarget.impactDestination
+          ? "attack"
+          : "exit"
+        : slot.incomingTarget
+          ? "spawn"
+          : "idle",
+      entity: slot.displayedTarget,
+      incomingTarget: slot.incomingTarget,
+      outgoingTarget: slot.outgoingTarget ?? null,
+      zIndex: slot.outgoingTarget ? 40 : slot.incomingTarget ? 30 : 20,
+      canClick: slot.canClick && !slot.outgoingTarget,
+      selectedCard: slot.selectedCard,
+      pendingCard: slot.pendingCard ?? null,
+      pendingCardRevealDelayMs: 0,
+      playerHand: slot.playerHand ?? [],
+    },
+  ];
+};
+
 export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
   presentation,
   containerRef = noopDivRef,
@@ -144,11 +373,19 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
         : null,
       travelTargetSize,
       slots: slots.map((slot) => {
+        const renderNodes =
+          slot.renderNodes && slot.renderNodes.length > 0
+            ? slot.renderNodes
+            : buildBattleFieldLaneRenderNodesFromCompatSlot(slot);
         const slotRect = getStageLocalRect(slot.slotRect);
-        const incomingOrigin = getStageLocalRect(slot.incomingTarget?.origin);
-        const outgoingDestination = getStageLocalRect(slot.outgoingTarget?.destination);
-        const outgoingImpact = getStageLocalRect(slot.outgoingTarget?.impactDestination);
-        const renderNodePhases = slot.renderNodes?.map((node) => node.phase) ?? [];
+        const leadingIncomingNode =
+          renderNodes.find((node) => node.incomingTarget) ?? null;
+        const leadingOutgoingNode =
+          [...renderNodes].reverse().find((node) => node.outgoingTarget) ?? null;
+        const incomingOrigin = getStageLocalRect(leadingIncomingNode?.incomingTarget?.origin);
+        const outgoingDestination = getStageLocalRect(leadingOutgoingNode?.outgoingTarget?.destination);
+        const outgoingImpact = getStageLocalRect(leadingOutgoingNode?.outgoingTarget?.impactDestination);
+        const renderNodePhases = renderNodes.map((node) => node.phase);
         const startX =
           incomingOrigin && slotRect
             ? incomingOrigin.left +
@@ -204,7 +441,10 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
               : 118;
         return {
           key: slot.key,
-          displayedTargetName: slot.displayedTarget?.target.name ?? null,
+          displayedTargetName:
+            renderNodes[renderNodes.length - 1]?.entity.target.name ??
+            slot.displayedTarget?.target.name ??
+            null,
           renderNodePhases,
           slotRect: slot.slotRect
             ? {
@@ -215,28 +455,29 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
               }
             : null,
           selectedCard: slot.selectedCard,
-          pendingCard: slot.pendingCard,
-          incoming: slot.incomingTarget
+          pendingCard:
+            renderNodes.find((node) => node.pendingCard)?.pendingCard ?? slot.pendingCard,
+          incoming: leadingIncomingNode?.incomingTarget
             ? {
-                id: slot.incomingTarget.id,
-                origin: slot.incomingTarget.origin,
-                delayMs: slot.incomingTarget.delayMs,
-                durationMs: slot.incomingTarget.durationMs,
+                id: leadingIncomingNode.incomingTarget.id,
+                origin: leadingIncomingNode.incomingTarget.origin,
+                delayMs: leadingIncomingNode.incomingTarget.delayMs,
+                durationMs: leadingIncomingNode.incomingTarget.durationMs,
                 startX,
                 startY,
                 rotate: incomingRotate,
               }
             : null,
-          outgoing: slot.outgoingTarget
+          outgoing: leadingOutgoingNode?.outgoingTarget
             ? {
-                id: slot.outgoingTarget.id,
-                destination: slot.outgoingTarget.destination,
-                impactDestination: slot.outgoingTarget.impactDestination,
-                delayMs: slot.outgoingTarget.delayMs,
-                windupMs: slot.outgoingTarget.windupMs,
-                attackMs: slot.outgoingTarget.attackMs,
-                pauseMs: slot.outgoingTarget.pauseMs,
-                exitMs: slot.outgoingTarget.exitMs,
+                id: leadingOutgoingNode.outgoingTarget.id,
+                destination: leadingOutgoingNode.outgoingTarget.destination,
+                impactDestination: leadingOutgoingNode.outgoingTarget.impactDestination,
+                delayMs: leadingOutgoingNode.outgoingTarget.delayMs,
+                windupMs: leadingOutgoingNode.outgoingTarget.windupMs,
+                attackMs: leadingOutgoingNode.outgoingTarget.attackMs,
+                pauseMs: leadingOutgoingNode.outgoingTarget.pauseMs,
+                exitMs: leadingOutgoingNode.outgoingTarget.exitMs,
                 impactX,
                 impactY,
                 endX,
@@ -268,28 +509,10 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
       >
         {slots.map((slot) => {
           const slotRect = getStageLocalRect(slot.slotRect);
-          const renderNodes = slot.renderNodes ?? (slot.displayedTarget
-            ? [{
-                key: slot.outgoingTarget
-                  ? `${slot.outgoingTarget.id}-outgoing`
-                  : slot.incomingTarget
-                    ? `${slot.displayedTarget.id}-${slot.incomingTarget.id}`
-                    : slot.displayedTarget.id,
-                phase: slot.outgoingTarget
-                  ? (slot.outgoingTarget.impactDestination ? "attack" : "exit")
-                  : slot.incomingTarget
-                    ? "spawn"
-                    : "idle",
-                entity: slot.displayedTarget,
-                incomingTarget: slot.incomingTarget,
-                outgoingTarget: slot.outgoingTarget ?? null,
-                zIndex: slot.outgoingTarget ? 40 : slot.incomingTarget ? 30 : 20,
-                canClick: slot.canClick && !slot.outgoingTarget,
-                selectedCard: slot.selectedCard,
-                pendingCard: slot.pendingCard ?? null,
-                playerHand: slot.playerHand ?? [],
-              }]
-            : []);
+          const renderNodes =
+            slot.renderNodes && slot.renderNodes.length > 0
+              ? slot.renderNodes
+              : buildBattleFieldLaneRenderNodesFromCompatSlot(slot);
 
           return (
             <div
@@ -298,145 +521,18 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
               className="relative flex h-full w-full items-start justify-center overflow-visible"
             >
               {renderNodes.map((node) => {
-                const incomingOrigin = getStageLocalRect(node.incomingTarget?.origin);
-                const outgoingDestination = getStageLocalRect(node.outgoingTarget?.destination);
-                const outgoingImpact = getStageLocalRect(node.outgoingTarget?.impactDestination);
-                const startX =
-                  incomingOrigin && slotRect
-                    ? incomingOrigin.left + incomingOrigin.width / 2 - slotRect.left - travelTargetSize.width / 2
-                    : 0;
-                const startY =
-                  incomingOrigin && slotRect
-                    ? incomingOrigin.top + incomingOrigin.height / 2 - slotRect.top - travelTargetSize.height / 2
-                    : 0;
-                const outgoingEndX =
-                  outgoingDestination && slotRect
-                    ? outgoingDestination.left +
-                      outgoingDestination.width / 2 -
-                      slotRect.left -
-                      slotRect.width / 2
-                    : 0;
-                const outgoingEndY =
-                  outgoingDestination && slotRect
-                    ? outgoingDestination.top +
-                      outgoingDestination.height / 2 -
-                      slotRect.top -
-                      slotRect.height / 2
-                    : 0;
-                const outgoingEndScale =
-                  outgoingDestination && slotRect
-                    ? clampMotionScale(
-                        Math.min(
-                          outgoingDestination.width / Math.max(1, slotRect.width),
-                          outgoingDestination.height / Math.max(1, slotRect.height),
-                        ),
-                      )
-                    : 0.88;
-                const outgoingImpactX =
-                  outgoingImpact && slotRect
-                    ? outgoingImpact.left +
-                      outgoingImpact.width / 2 -
-                      slotRect.left -
-                      slotRect.width / 2
-                    : 0;
-                const outgoingImpactY =
-                  outgoingImpact && slotRect
-                    ? outgoingImpact.top +
-                      outgoingImpact.height / 2 -
-                      slotRect.top -
-                      slotRect.height / 2
-                    : presentation === "player"
-                      ? -118
-                      : 118;
-                const outgoingImpactRotate = presentation === "player" ? -8 : 8;
-                const outgoingEndRotate = presentation === "player" ? 10 : -10;
-                const outgoingTotalMs = node.outgoingTarget
-                  ? node.outgoingTarget.windupMs +
-                    node.outgoingTarget.attackMs +
-                    node.outgoingTarget.pauseMs +
-                    node.outgoingTarget.exitMs
-                  : 0;
-
-                if (node.outgoingTarget && slotRect) {
-                  return (
-                    <motion.div
-                      key={node.key}
-                      initial={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-                      animate={{
-                        opacity: [1, 1, 1, 1, 1],
-                        x: [0, 0, outgoingImpactX, outgoingImpactX, outgoingEndX],
-                        y: [0, 0, outgoingImpactY, outgoingImpactY, outgoingEndY],
-                        rotate: [0, 0, outgoingImpactRotate, outgoingImpactRotate, outgoingEndRotate],
-                        scale: [1, 1, 1.02, 1.02, outgoingEndScale],
-                      }}
-                      transition={{
-                        duration: outgoingTotalMs / 1000,
-                        delay: node.outgoingTarget.delayMs / 1000,
-                        ease: [0.22, 1, 0.36, 1],
-                        times: [
-                          0,
-                          node.outgoingTarget.windupMs / outgoingTotalMs,
-                          (node.outgoingTarget.windupMs + node.outgoingTarget.attackMs) / outgoingTotalMs,
-                          (node.outgoingTarget.windupMs + node.outgoingTarget.attackMs + node.outgoingTarget.pauseMs) / outgoingTotalMs,
-                          1,
-                        ],
-                      }}
-                      onAnimationComplete={() => slot.onOutgoingTargetComplete?.(node.outgoingTarget!)}
-                      className="absolute inset-0 origin-center"
-                      style={{ zIndex: node.zIndex }}
-                    >
-                      <TargetCard
-                        target={node.entity.target}
-                        selectedCard={presentation === "player" ? node.selectedCard : null}
-                        pendingCard={presentation === "player" ? node.pendingCard ?? null : null}
-                        isPlayerSide={presentation === "player"}
-                        canClick={false}
-                        onClick={() => {}}
-                        playerHand={presentation === "player" ? node.playerHand ?? [] : []}
-                        fitParent
-                      />
-                    </motion.div>
-                  );
-                }
-
-                const initialIncoming =
-                  node.incomingTarget && slotRect
-                    ? { opacity: 1, x: startX, y: startY, rotate: incomingRotate, scale: 0.88 }
-                    : false;
-                const transition =
-                  node.incomingTarget
-                    ? {
-                        duration: node.incomingTarget.durationMs / 1000,
-                        delay: node.incomingTarget.delayMs / 1000,
-                        ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
-                      }
-                    : { type: "spring" as const, stiffness: 80, damping: 18 };
-
                 return (
-                  <motion.div
+                  <BattleFieldLaneNode
                     key={node.key}
-                    initial={initialIncoming}
-                    animate={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-                    transition={transition}
-                    onAnimationComplete={() =>
-                      node.incomingTarget
-                        ? slot.onIncomingTargetComplete?.(node.incomingTarget)
-                        : undefined
-                    }
-                    className="absolute inset-0 origin-center"
-                    style={{ zIndex: node.zIndex }}
-                  >
-                    <TargetCard
-                      target={node.entity.target}
-                      selectedCard={presentation === "player" ? node.selectedCard : null}
-                      pendingCard={presentation === "player" ? node.pendingCard ?? null : null}
-                      isPlayerSide={presentation === "player"}
-                      canClick={node.canClick}
-                      onClick={node.canClick ? slot.onClick : () => {}}
-                      playerHand={presentation === "player" ? node.playerHand ?? [] : []}
-                      fitParent
-                    />
-                  </motion.div>
+                    node={node}
+                    slot={slot}
+                    slotRect={slotRect}
+                    presentation={presentation}
+                    incomingRotate={incomingRotate}
+                    travelTargetSize={travelTargetSize}
+                    clampMotionScale={clampMotionScale}
+                    getStageLocalRect={getStageLocalRect}
+                  />
                 );
               })}
             </div>

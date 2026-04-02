@@ -41,6 +41,7 @@ export interface BattleTargetOutgoingMotion {
 export interface BattleTargetReceiveCardMotion {
   kind: "receive-card";
   pendingCard: Syllable;
+  delayMs: number;
 }
 
 export type BattleTargetSceneMotion =
@@ -358,6 +359,7 @@ const buildBattleTargetFieldSlots = ({
         motion: {
           kind: "receive-card",
           pendingCard,
+          delayMs: 0,
         },
       });
     }
@@ -502,6 +504,7 @@ const createLaneSlotFieldState = ({
         motion: {
           kind: "receive-card",
           pendingCard: laneSlot.pendingCard,
+          delayMs: 0,
         },
       });
     }

@@ -9,7 +9,9 @@ import { BattleLayoutConfig, BattleEditableElementKey } from "./BattleLayoutConf
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BattlePillOverlay } from "./BattlePillOverlay";
 import { getBattleBoardSurfaceVars } from "./BattleBoardSurface";
+import { BATTLE_SCENE_LAYER_ORDER, getBattleSceneElementLayer } from "./BattleSceneLayerPolicy";
 import { BattleSceneModel } from "./BattleSceneViewModel";
+import { BattleTravelLayerContext } from "./BattleTravelLayer";
 
 type BattleSceneSnapTargets = NonNullable<BattleEditableElementProps["snapTargets"]>;
 
@@ -67,6 +69,8 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
   onPlayerFieldDebugSnapshot,
 }) => {
   const boardVars = getBattleBoardSurfaceVars(layout);
+  const [travelLayerNode, setTravelLayerNode] =
+    React.useState<HTMLDivElement | null>(null);
   const selectedElements = elementConfig?.selectedElements ?? [];
   const selectedSet = React.useMemo(
     () => new Set<BattleEditableElementKey>(selectedElements),
@@ -96,112 +100,124 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
       previewSelectable={previewSelectableByElement[element]}
       snapTargets={snapTargets}
       className={classNameByElement[element]}
-      zIndexOverride={zIndexOverrides[element]}
+      zIndexOverride={getBattleSceneElementLayer(element, zIndexOverrides[element])}
     >
       {children}
     </BattleEditableElement>
   );
 
   return (
-    <>
-      {renderEditableElement(
-        "shell",
-        <>
-          {shellOverlay}
-          <BattleBoardShell
-            layout={layout}
-            compact={compact}
-            tight={tight}
-            leftSidebar={shellSlots.leftSidebar}
-            centerTopMobile={shellSlots.centerTopMobile}
-            centerTopDesktop={shellSlots.centerTopDesktop}
-            boardSurface={shellSlots.boardSurface}
-            centerBottomDesktop={shellSlots.centerBottomDesktop}
-            centerBottomMobile={shellSlots.centerBottomMobile}
-            centerControlMobile={shellSlots.centerControlMobile}
-            rightSidebar={shellSlots.rightSidebar}
-            footerMobileHand={shellSlots.footerMobileHand}
+    <BattleTravelLayerContext.Provider value={travelLayerNode}>
+      <>
+        {renderEditableElement(
+          "shell",
+          <>
+            {shellOverlay}
+            <BattleBoardShell
+              layout={layout}
+              compact={compact}
+              tight={tight}
+              leftSidebar={shellSlots.leftSidebar}
+              centerTopMobile={shellSlots.centerTopMobile}
+              centerTopDesktop={shellSlots.centerTopDesktop}
+              boardSurface={shellSlots.boardSurface}
+              centerBottomDesktop={shellSlots.centerBottomDesktop}
+              centerBottomMobile={shellSlots.centerBottomMobile}
+              centerControlMobile={shellSlots.centerControlMobile}
+              rightSidebar={shellSlots.rightSidebar}
+              footerMobileHand={shellSlots.footerMobileHand}
+            />
+          </>,
+        )}
+        {renderEditableElement(
+          "enemyField",
+          <div style={boardVars}>
+            <BattleFieldLane
+              presentation="enemy"
+              sectionClassName="flex min-h-0 items-end justify-center overflow-visible pb-1"
+              slots={model.board.enemyFieldSlots}
+              onDebugSnapshot={onEnemyFieldDebugSnapshot}
+            />
+          </div>,
+        )}
+        {renderEditableElement(
+          "playerField",
+          <div style={boardVars}>
+            <BattleFieldLane
+              presentation="player"
+              sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1"
+              slots={model.board.playerFieldSlots}
+              onDebugSnapshot={onPlayerFieldDebugSnapshot}
+            />
+          </div>,
+        )}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-visible"
+          style={{ zIndex: BATTLE_SCENE_LAYER_ORDER.travel }}
+        >
+          <div
+            ref={setTravelLayerNode}
+            className="relative h-full w-full overflow-visible"
           />
-        </>,
-      )}
-      {renderEditableElement(
-        "enemyField",
-        <div style={boardVars}>
-          <BattleFieldLane
-            presentation="enemy"
-            sectionClassName="flex min-h-0 items-end justify-center overflow-visible pb-1"
-            slots={model.board.enemyFieldSlots}
-            onDebugSnapshot={onEnemyFieldDebugSnapshot}
-          />
-        </div>,
-      )}
-      {renderEditableElement(
-        "playerField",
-        <div style={boardVars}>
-          <BattleFieldLane
-            presentation="player"
-            sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1"
-            slots={model.board.playerFieldSlots}
-            onDebugSnapshot={onPlayerFieldDebugSnapshot}
-          />
-        </div>,
-      )}
-      {renderEditableElement(
-        "boardMessage",
-        <div className="flex h-full w-full items-center justify-center">
-          <AnimatePresence mode="wait">
-            {model.board.currentMessage ? (
-              <BattleBoardMessage message={model.board.currentMessage} />
-            ) : null}
-          </AnimatePresence>
-        </div>,
-      )}
-      <BattlePillOverlay
-        side="enemy"
-        portrait={
-          <PlayerPortrait
-            label={model.board.enemyPortrait.label}
-            avatar={model.board.enemyPortrait.avatar}
-            isLocal={model.board.enemyPortrait.isLocal}
-            life={model.board.enemyPortrait.life}
-            active={model.board.enemyPortrait.active}
-            flashDamage={model.board.enemyPortrait.flashDamage}
-          />
-        }
-        layout={layout}
-        viewportWidth={elementConfig?.viewportWidth}
-        gridSize={elementConfig?.gridSize}
-        snapThreshold={elementConfig?.snapThreshold}
-        previewAnimations={elementConfig?.previewAnimations}
-        editorMode={elementConfig?.editorMode}
-        selected={selectedSet.has("enemyPill")}
-        motionReplayNonce={motionReplayNonceByElement.enemyPill ?? 0}
-        snapTargets={snapTargets}
-        className={classNameByElement.enemyPill}
-      />
-      <BattlePillOverlay
-        side="player"
-        portrait={
-          <PlayerPortrait
-            label={model.board.playerPortrait.label}
-            avatar={model.board.playerPortrait.avatar}
-            isLocal={model.board.playerPortrait.isLocal}
-            life={model.board.playerPortrait.life}
-            active={model.board.playerPortrait.active}
-            flashDamage={model.board.playerPortrait.flashDamage}
-          />
-        }
-        layout={layout}
-        viewportWidth={elementConfig?.viewportWidth}
-        gridSize={elementConfig?.gridSize}
-        snapThreshold={elementConfig?.snapThreshold}
-        previewAnimations={elementConfig?.previewAnimations}
-        editorMode={elementConfig?.editorMode}
-        selected={selectedSet.has("playerPill")}
-        motionReplayNonce={motionReplayNonceByElement.playerPill ?? 0}
-        snapTargets={snapTargets}
-        className={classNameByElement.playerPill}
-      />
-    </>
+        </div>
+        {renderEditableElement(
+          "boardMessage",
+          <div className="flex h-full w-full items-center justify-center">
+            <AnimatePresence mode="wait">
+              {model.board.currentMessage ? (
+                <BattleBoardMessage message={model.board.currentMessage} />
+              ) : null}
+            </AnimatePresence>
+          </div>,
+        )}
+        <BattlePillOverlay
+          side="enemy"
+          portrait={
+            <PlayerPortrait
+              label={model.board.enemyPortrait.label}
+              avatar={model.board.enemyPortrait.avatar}
+              isLocal={model.board.enemyPortrait.isLocal}
+              life={model.board.enemyPortrait.life}
+              active={model.board.enemyPortrait.active}
+              flashDamage={model.board.enemyPortrait.flashDamage}
+            />
+          }
+          layout={layout}
+          viewportWidth={elementConfig?.viewportWidth}
+          gridSize={elementConfig?.gridSize}
+          snapThreshold={elementConfig?.snapThreshold}
+          previewAnimations={elementConfig?.previewAnimations}
+          editorMode={elementConfig?.editorMode}
+          selected={selectedSet.has("enemyPill")}
+          motionReplayNonce={motionReplayNonceByElement.enemyPill ?? 0}
+          snapTargets={snapTargets}
+          className={classNameByElement.enemyPill}
+        />
+        <BattlePillOverlay
+          side="player"
+          portrait={
+            <PlayerPortrait
+              label={model.board.playerPortrait.label}
+              avatar={model.board.playerPortrait.avatar}
+              isLocal={model.board.playerPortrait.isLocal}
+              life={model.board.playerPortrait.life}
+              active={model.board.playerPortrait.active}
+              flashDamage={model.board.playerPortrait.flashDamage}
+            />
+          }
+          layout={layout}
+          viewportWidth={elementConfig?.viewportWidth}
+          gridSize={elementConfig?.gridSize}
+          snapThreshold={elementConfig?.snapThreshold}
+          previewAnimations={elementConfig?.previewAnimations}
+          editorMode={elementConfig?.editorMode}
+          selected={selectedSet.has("playerPill")}
+          motionReplayNonce={motionReplayNonceByElement.playerPill ?? 0}
+          snapTargets={snapTargets}
+          className={classNameByElement.playerPill}
+        />
+      </>
+    </BattleTravelLayerContext.Provider>
   );
 };

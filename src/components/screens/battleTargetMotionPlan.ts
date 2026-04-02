@@ -61,6 +61,11 @@ export interface BuildBattleFieldLaneSlotsFromTargetFieldParams {
   getSlotRect: (slotIndex: number) => DOMRect | null;
   getSelectedCard: (slotIndex: number) => Syllable | null;
   getPendingCard?: (slotIndex: number) => Syllable | null;
+  getPendingCardMotion?: (
+    slotIndex: number,
+  ) => {
+    delayMs: number;
+  } | null;
   getCanClick: (slotIndex: number, displayedTarget: NonNullable<BattleFieldLaneSlot["displayedTarget"]> | null, incomingTarget: BattleFieldIncomingTarget | null) => boolean;
   onClick: (slotIndex: number) => void;
   onIncomingTargetComplete?: (
@@ -78,6 +83,7 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
   getSlotRect,
   getSelectedCard,
   getPendingCard,
+  getPendingCardMotion,
   getCanClick,
   onClick,
   onIncomingTargetComplete,
@@ -104,6 +110,12 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
       getPendingCard?.(fieldSlot.slot.slotIndex) ??
       fieldSlot.pendingCard ??
       null;
+    const pendingCardMotion = pendingCard
+      ? getPendingCardMotion?.(fieldSlot.slot.slotIndex) ??
+        (receiveCardNode?.motion?.kind === "receive-card"
+          ? receiveCardNode.motion
+          : null)
+      : null;
     const pendingCardOwnerKey =
       [...sortedVisualNodes]
         .reverse()
@@ -164,6 +176,10 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
             : null,
         pendingCard:
           pendingCardOwnerKey === node.sceneNodeId ? pendingCard : null,
+        pendingCardRevealDelayMs:
+          pendingCardOwnerKey === node.sceneNodeId
+            ? pendingCardMotion?.delayMs ?? 0
+            : undefined,
         playerHand:
           interactiveNodeKey === node.sceneNodeId
             ? getPlayerHand?.(fieldSlot.slot.slotIndex) ?? []
