@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import {
-  getBattleTargetFieldSlotElementKey,
   BattleEditableElementKey,
   BattleElementAnchor,
   BattleElementPropertyConfig,
@@ -11,7 +10,6 @@ import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
 import { BATTLE_LAYOUT_EDITOR_MESSAGE_TYPE } from "./BattleLayoutEditorState";
 import {
   battleGlobalFrameToScenePosition,
-  getBattleElementSceneRect,
   getBattleElementParentBase,
   getBattleStageMetrics,
   getBattleEditorFrame,
@@ -75,6 +73,7 @@ const useViewportMetrics = (
 export interface BattleEditableElementProps {
   element: BattleEditableElementKey;
   layout?: BattleLayoutConfig;
+  configOverride?: BattleElementPropertyConfig;
   viewportWidth?: number;
   viewportHeight?: number;
   gridSize?: number;
@@ -84,6 +83,7 @@ export interface BattleEditableElementProps {
   previewAnimations?: boolean;
   editorMode?: boolean;
   selected?: boolean;
+  selectionReadOnly?: boolean;
   previewSelectable?: boolean;
   passthrough?: boolean;
   motionReplayNonce?: number;
@@ -102,6 +102,7 @@ export interface BattleEditableElementProps {
 export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   element,
   layout = battleActiveLayoutConfig,
+  configOverride,
   viewportWidth,
   viewportHeight,
   gridSize = 8,
@@ -111,6 +112,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   previewAnimations = false,
   editorMode = false,
   selected = false,
+  selectionReadOnly = false,
   previewSelectable = true,
   passthrough = false,
   motionReplayNonce = 0,
@@ -119,7 +121,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   zIndexOverride,
   children,
 }) => {
-  const config = layout.elements[element];
+  const config = configOverride ?? layout.elements[element];
   const parentBase = getBattleElementParentBase(element, layout);
   const resolvedBaseX = baseX ?? parentBase.x;
   const resolvedBaseY = baseY ?? parentBase.y;
@@ -158,53 +160,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
     setLiveConfig(config);
   }, [config]);
 
-  const deriveFieldContainerConfig = (
-    elementKey: BattleEditableElementKey,
-    sourceConfig: BattleElementPropertyConfig,
-  ) => {
-    if (elementKey !== "enemyField" && elementKey !== "playerField") {
-      return sourceConfig;
-    }
-
-    const side = elementKey === "enemyField" ? "enemy" : "player";
-    const slotRects = [0, 1].map((slotIndex) =>
-      getBattleElementSceneRect(
-        getBattleTargetFieldSlotElementKey(side, slotIndex),
-        layout,
-      ),
-    );
-
-    if (slotRects.some((rect) => rect.width <= 0 || rect.height <= 0)) {
-      return sourceConfig;
-    }
-
-    const left = Math.min(...slotRects.map((rect) => rect.x));
-    const top = Math.min(...slotRects.map((rect) => rect.y));
-    const right = Math.max(...slotRects.map((rect) => rect.x + rect.width));
-    const bottom = Math.max(...slotRects.map((rect) => rect.y + rect.height));
-    const nextPosition = battleGlobalFrameToScenePosition(
-      {
-        x: left,
-        y: top,
-        width: right - left,
-        height: bottom - top,
-      },
-      sourceConfig.anchor,
-    );
-
-    return {
-      ...sourceConfig,
-      x: nextPosition.x,
-      y: nextPosition.y,
-      width: right - left,
-      height: bottom - top,
-    };
-  };
-
-  const resolvedConfig = deriveFieldContainerConfig(
-    element,
-    editorMode ? liveConfig : config,
-  );
+  const resolvedConfig = editorMode ? liveConfig : config;
 
   const sharedStyle: React.CSSProperties = {
     width:
@@ -234,11 +190,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
     resolvedBaseX,
     resolvedBaseY,
   );
-  const savedFrame = getBattleEditorFrame(
-    deriveFieldContainerConfig(element, config),
-    resolvedBaseX,
-    resolvedBaseY,
-  );
+  const savedFrame = getBattleEditorFrame(config, resolvedBaseX, resolvedBaseY);
   const resolvedPositionStyle =
     className && /\babsolute\b/.test(className) ? undefined : "relative";
   const replayKey =
@@ -436,7 +388,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
   };
 
   useEffect(() => {
-    if (!editorMode || !selected) return;
+    if (!editorMode || !selected || selectionReadOnly) return;
 
     const handlePointerMove = (event: PointerEvent) => {
       const session = dragRef.current;
@@ -607,6 +559,7 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
     resolvedConfig.lockAspectRatio,
     resolvedConfig.snapToGrid,
     selected,
+    selectionReadOnly,
     snapThreshold,
     stageScale,
   ]);
@@ -724,100 +677,106 @@ export const BattleEditableElement: React.FC<BattleEditableElementProps> = ({
       {children}
       {editorMode && selected ? (
         <>
-          <button
-            type="button"
-            aria-label={`Mover ${element}`}
-            className="absolute inset-0 z-[200] cursor-move rounded-2xl border-2 border-amber-300/85 shadow-[0_0_0_1px_rgba(120,53,15,0.35)]"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (event.ctrlKey || event.metaKey || event.shiftKey) {
-                selectElementFromPointer(event);
-                return;
-              }
-              startInteraction("move", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar largura ${element}`}
-            className="absolute -right-2 top-1/2 z-[210] h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-right", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar esquerda ${element}`}
-            className="absolute -left-2 top-1/2 z-[210] h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-left", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar altura ${element}`}
-            className="absolute -bottom-2 left-1/2 z-[210] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-bottom", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar topo ${element}`}
-            className="absolute -top-2 left-1/2 z-[210] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-top", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar base direita ${element}`}
-            className="absolute -bottom-2 -right-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-bottom-right", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar base esquerda ${element}`}
-            className="absolute -bottom-2 -left-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-bottom-left", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar topo direita ${element}`}
-            className="absolute -top-2 -right-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-top-right", event.clientX, event.clientY);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Redimensionar topo esquerda ${element}`}
-            className="absolute -top-2 -left-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startInteraction("resize-top-left", event.clientX, event.clientY);
-            }}
-          />
+          {selectionReadOnly ? (
+            <div className="pointer-events-none absolute inset-0 rounded-2xl border-2 border-dashed border-amber-300/85 shadow-[0_0_0_1px_rgba(120,53,15,0.35)]" />
+          ) : (
+            <>
+              <button
+                type="button"
+                aria-label={`Mover ${element}`}
+                className="absolute inset-0 z-[200] cursor-move rounded-2xl border-2 border-amber-300/85 shadow-[0_0_0_1px_rgba(120,53,15,0.35)]"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                    selectElementFromPointer(event);
+                    return;
+                  }
+                  startInteraction("move", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar largura ${element}`}
+                className="absolute -right-2 top-1/2 z-[210] h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-right", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar esquerda ${element}`}
+                className="absolute -left-2 top-1/2 z-[210] h-5 w-5 -translate-y-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-left", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar altura ${element}`}
+                className="absolute -bottom-2 left-1/2 z-[210] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-bottom", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar topo ${element}`}
+                className="absolute -top-2 left-1/2 z-[210] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-amber-950 bg-amber-300"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-top", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar base direita ${element}`}
+                className="absolute -bottom-2 -right-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-bottom-right", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar base esquerda ${element}`}
+                className="absolute -bottom-2 -left-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-bottom-left", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar topo direita ${element}`}
+                className="absolute -top-2 -right-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-top-right", event.clientX, event.clientY);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Redimensionar topo esquerda ${element}`}
+                className="absolute -top-2 -left-2 z-[210] h-5 w-5 rounded-full border-2 border-amber-950 bg-amber-400 shadow-md"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startInteraction("resize-top-left", event.clientX, event.clientY);
+                }}
+              />
+            </>
+          )}
           {resolvedConfig.snapToGrid ? (
             <>
               <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-amber-300/40" />

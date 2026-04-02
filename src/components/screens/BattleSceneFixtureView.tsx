@@ -3262,9 +3262,11 @@ export const BattleSceneFixtureView: React.FC<{
             selectedElements: hostSelectedSceneElements,
             previewSelectableByElement: {
               shell: false,
-              enemyField: false,
-              playerField: false,
               bottomHand: !isHandPlayTargetEditorSet,
+            },
+            selectionReadOnlyByElement: {
+              enemyField: true,
+              playerField: true,
             },
             motionReplayNonceByElement: {
               topHand: getMotionReplayNonce("topHand"),

@@ -12,9 +12,11 @@ import { getBattleBoardSurfaceVars } from "./BattleBoardSurface";
 import { BATTLE_SCENE_LAYER_ORDER, getBattleSceneElementLayer } from "./BattleSceneLayerPolicy";
 import { BattleSceneModel } from "./BattleSceneViewModel";
 import {
+  battleGlobalFrameToScenePosition,
   getBattleFieldContainerSceneRect,
   getBattleTargetFieldSlotSceneRect,
 } from "./BattleSceneSpace";
+import type { BattleElementPropertyConfig } from "./BattleLayoutConfig";
 import { BattleTravelLayerContext } from "./BattleTravelLayer";
 
 type BattleSceneSnapTargets = NonNullable<BattleEditableElementProps["snapTargets"]>;
@@ -40,6 +42,7 @@ export interface BattleSceneRendererElementConfig {
   editorMode?: boolean;
   selectedElements?: BattleEditableElementKey[];
   previewSelectableByElement?: Partial<Record<BattleEditableElementKey, boolean>>;
+  selectionReadOnlyByElement?: Partial<Record<BattleEditableElementKey, boolean>>;
   motionReplayNonceByElement?: Partial<Record<BattleEditableElementKey, number>>;
   classNameByElement?: Partial<Record<BattleEditableElementKey, string>>;
   zIndexOverrides?: Partial<Record<BattleEditableElementKey, number>>;
@@ -84,6 +87,8 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
   const classNameByElement = elementConfig?.classNameByElement ?? {};
   const motionReplayNonceByElement = elementConfig?.motionReplayNonceByElement ?? {};
   const previewSelectableByElement = elementConfig?.previewSelectableByElement ?? {};
+  const selectionReadOnlyByElement =
+    elementConfig?.selectionReadOnlyByElement ?? {};
   const zIndexOverrides = elementConfig?.zIndexOverrides ?? {};
   const enemyFieldSceneRect = getBattleFieldContainerSceneRect("enemy", layout);
   const playerFieldSceneRect = getBattleFieldContainerSceneRect("player", layout);
@@ -104,12 +109,48 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
     [layout, model.board.playerFieldSlots],
   );
 
+  const createDerivedFieldConfig = React.useCallback(
+    (
+      element: "enemyField" | "playerField",
+      rect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      },
+    ): BattleElementPropertyConfig => {
+      const base = layout.elements[element];
+      const nextPosition = battleGlobalFrameToScenePosition(rect, "center");
+      return {
+        ...base,
+        anchor: "center",
+        x: nextPosition.x,
+        y: nextPosition.y,
+        width: rect.width,
+        height: rect.height,
+      };
+    },
+    [layout],
+  );
+  const enemyFieldConfig = React.useMemo(
+    () => createDerivedFieldConfig("enemyField", enemyFieldSceneRect),
+    [createDerivedFieldConfig, enemyFieldSceneRect],
+  );
+  const playerFieldConfig = React.useMemo(
+    () => createDerivedFieldConfig("playerField", playerFieldSceneRect),
+    [createDerivedFieldConfig, playerFieldSceneRect],
+  );
+
   const renderEditableElement = (
     element: BattleEditableElementKey,
     children: React.ReactNode,
+    options?: {
+      configOverride?: BattleElementPropertyConfig;
+    },
   ) => (
     <BattleEditableElement
       element={element}
+      configOverride={options?.configOverride}
       motionReplayNonce={motionReplayNonceByElement[element] ?? 0}
       layout={layout}
       viewportWidth={elementConfig?.viewportWidth}
@@ -119,6 +160,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
       previewAnimations={elementConfig?.previewAnimations}
       editorMode={elementConfig?.editorMode}
       selected={selectedSet.has(element)}
+      selectionReadOnly={selectionReadOnlyByElement[element]}
       previewSelectable={previewSelectableByElement[element]}
       snapTargets={snapTargets}
       className={classNameByElement[element]}
@@ -162,6 +204,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               onDebugSnapshot={onEnemyFieldDebugSnapshot}
             />
           </div>,
+          { configOverride: enemyFieldConfig },
         )}
         {renderEditableElement(
           "playerField",
@@ -174,6 +217,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               onDebugSnapshot={onPlayerFieldDebugSnapshot}
             />
           </div>,
+          { configOverride: playerFieldConfig },
         )}
         <div
           aria-hidden="true"

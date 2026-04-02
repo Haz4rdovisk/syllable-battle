@@ -127,6 +127,7 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
       previewAnimations={elementConfig?.previewAnimations}
       editorMode={elementConfig?.editorMode}
       selected={selectedSet.has(element)}
+      selectionReadOnly={elementConfig?.selectionReadOnlyByElement?.[element]}
       previewSelectable={options?.previewSelectable ?? previewSelectableByElement[element]}
       snapTargets={snapTargets}
       className={cn(options?.className, classNameByElement[element])}

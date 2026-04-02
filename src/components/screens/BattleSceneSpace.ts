@@ -2,12 +2,15 @@ import type {
   BattleElementAnchor,
   BattleEditableElementKey,
   BattleElementPropertyConfig,
+  BattleFieldContainerElementKey,
   BattleLayoutConfig,
   BattleLayoutDeviceKey,
 } from "./BattleLayoutConfig";
 import {
+  BATTLE_TARGET_FIELD_SLOT_COUNT,
   battleTargetFieldSlotElementKeys,
   getBattleTargetFieldSlotElementKey,
+  isBattleFieldContainerElementKey,
 } from "./BattleLayoutConfig";
 
 export interface BattleSceneRect {
@@ -289,6 +292,40 @@ export const isBattleTargetFieldSlotElementKey = (
   key as (typeof battleTargetFieldSlotElementKeys)[number],
 );
 
+const BATTLE_DERIVED_FIELD_SLOT_MARGIN_X = 0;
+const BATTLE_DERIVED_FIELD_SLOT_MARGIN_Y = 0;
+
+const deriveBattleSceneRectFromRects = (
+  rects: BattleSceneRect[],
+  marginX = 0,
+  marginY = 0,
+): BattleSceneRect => {
+  const left = Math.min(...rects.map((rect) => rect.x)) - marginX;
+  const top = Math.min(...rects.map((rect) => rect.y)) - marginY;
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width)) + marginX;
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height)) + marginY;
+
+  return {
+    x: left,
+    y: top,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+};
+
+export const getBattleFieldContainerElementKey = (
+  side: "player" | "enemy",
+): BattleFieldContainerElementKey =>
+  side === "player" ? "playerField" : "enemyField";
+
+export const getBattleTargetFieldSlotSceneRects = (
+  side: "player" | "enemy",
+  layout: BattleLayoutConfig,
+): BattleSceneRect[] =>
+  Array.from({ length: BATTLE_TARGET_FIELD_SLOT_COUNT }, (_, slotIndex) =>
+    getBattleTargetFieldSlotSceneRect(side, slotIndex, layout),
+  );
+
 export const getBattleTargetFieldSlotSceneRect = (
   side: "player" | "enemy",
   slotIndex: number,
@@ -303,7 +340,11 @@ export const getBattleFieldContainerSceneRect = (
   side: "player" | "enemy",
   layout: BattleLayoutConfig,
 ): BattleSceneRect =>
-  getBattleElementSceneRect(side === "player" ? "playerField" : "enemyField", layout);
+  deriveBattleSceneRectFromRects(
+    getBattleTargetFieldSlotSceneRects(side, layout),
+    BATTLE_DERIVED_FIELD_SLOT_MARGIN_X,
+    BATTLE_DERIVED_FIELD_SLOT_MARGIN_Y,
+  );
 
 export const getBattleTargetFieldSlotLocalRect = (
   side: "player" | "enemy",
@@ -325,6 +366,13 @@ export const getBattleElementSceneRect = (
   key: BattleEditableElementKey,
   layout: BattleLayoutConfig,
 ): BattleSceneRect => {
+  if (isBattleFieldContainerElementKey(key)) {
+    return getBattleFieldContainerSceneRect(
+      key === "playerField" ? "player" : "enemy",
+      layout,
+    );
+  }
+
   const config = layout.elements[key];
   const parentBase = getBattleElementParentBase(key, layout);
   const frame = getBattleEditorFrame(config, parentBase.x, parentBase.y);

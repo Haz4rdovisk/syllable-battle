@@ -8,6 +8,7 @@ import {
   BattleSceneFixtureKey,
 } from "./BattleSceneFixtures";
 import {
+  isBattleFieldContainerElementKey,
   battleTargetFieldSlotElementKeys,
   BattleAnimationAnchorPoint,
   BattleEditableElementKey,
@@ -934,7 +935,7 @@ const focusAreaToElementKey = (
   focusArea: BattleScenePreviewFocusArea,
 ): BattleEditableElementKey | null => {
   if (focusArea === "overview") return null;
-  if (focusArea === "enemyField" || focusArea === "playerField") return null;
+  if (isBattleFieldContainerElementKey(focusArea)) return null;
   return focusArea;
 };
 
@@ -1537,6 +1538,7 @@ export const BattleLayoutEditor: React.FC = () => {
   const [snapThreshold, setSnapThreshold] = useState(initialPreviewState.snapThreshold);
   const [undoStack, setUndoStack] = useState<BattleLayoutOverrides[]>([]);
   const [redoStack, setRedoStack] = useState<BattleLayoutOverrides[]>([]);
+
   const [previewScale, setPreviewScale] = useState(65);
   const [viewportWidth, setViewportWidth] = useState(
     initialPreviewState.viewportWidth,
@@ -3388,7 +3390,7 @@ export const BattleLayoutEditor: React.FC = () => {
       key: "enemyField",
       title: "Container do campo inimigo",
       description:
-        "Mantem a area agregada do campo inimigo. A autoria principal dos alvos agora acontece pelos slots reais.",
+        "Mostra a area derivada do campo inimigo a partir dos slots reais. Nao e mais uma autoria geometrica primaria.",
       focusArea: "enemyField",
       controls: [],
       typeLabel: "Container",
@@ -3420,7 +3422,7 @@ export const BattleLayoutEditor: React.FC = () => {
       key: "playerField",
       title: "Container do campo do jogador",
       description:
-        "Mantem a area agregada do campo do jogador. A autoria principal dos alvos agora acontece pelos slots reais.",
+        "Mostra a area derivada do campo do jogador a partir dos slots reais. Nao e mais uma autoria geometrica primaria.",
       focusArea: "playerField",
       controls: [],
       typeLabel: "Container",
@@ -4258,20 +4260,22 @@ export const BattleLayoutEditor: React.FC = () => {
                     className="h-7 rounded-lg bg-amber-950 px-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-50 hover:bg-amber-900"
                   >
                     {group.elements.some((element) =>
-                      selectedElementKeys.includes(element),
+                      selectedElements.includes(element),
                     )
                       ? "Desmarcar"
                       : "Selecionar"}
                   </Button>
                 </div>
-                <div className="space-y-2">
-                  {group.elements.map((elementKey) => {
-                    const normalizedKey = focusAreaToElementKey(elementKey);
-                    const section = sections.find((item) => item.elementKey === normalizedKey);
-                    const checked = selectedElements.includes(elementKey);
-                    const isFocused = focusArea === elementKey;
-                    const changedLabels = elementDiffLabelsByKey[elementKey] ?? [];
-                    const isChanged = changedLabels.length > 0;
+              <div className="space-y-2">
+                {group.elements.map((elementKey) => {
+                  const normalizedKey = focusAreaToElementKey(elementKey);
+                  const section = sections.find((item) => item.elementKey === normalizedKey);
+                  const checked = selectedElements.includes(elementKey);
+                  const isFocused = focusArea === elementKey;
+                  const isDerivedFieldContainer =
+                    isBattleFieldContainerElementKey(elementKey);
+                  const changedLabels = elementDiffLabelsByKey[elementKey] ?? [];
+                  const isChanged = changedLabels.length > 0;
                     return (
                       <div
                         key={elementKey}
@@ -4280,7 +4284,8 @@ export const BattleLayoutEditor: React.FC = () => {
                         }}
                         onClick={() => selectElements(elementKey, [elementKey])}
                         className={cn(
-                          "flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-colors",
+                          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-colors",
+                          "cursor-pointer",
                           isFocused
                             ? "border-sky-900/45 bg-sky-100/70 ring-1 ring-sky-900/15"
                             : checked
@@ -4311,6 +4316,10 @@ export const BattleLayoutEditor: React.FC = () => {
                         {isFocused ? (
                           <span className="rounded-full bg-sky-900 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50">
                             Foco
+                          </span>
+                        ) : isDerivedFieldContainer ? (
+                          <span className="rounded-full bg-stone-700 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-stone-50">
+                            Deriv.
                           </span>
                         ) : isChanged ? (
                           <span className="rounded-full bg-emerald-900 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50">

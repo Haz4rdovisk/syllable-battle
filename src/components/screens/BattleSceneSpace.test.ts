@@ -253,3 +253,38 @@ test("retangulo local do slot authored fecha a geometria dentro do field contain
   assert.equal(enemySlot1LocalRect.width, enemySlot1SceneRect.width);
   assert.equal(enemySlot1LocalRect.height, enemySlot1SceneRect.height);
 });
+
+test("field container ignora overrides authored legados e deriva bounding box dos slots", () => {
+  const baseLayout = createBattleLayoutConfig();
+  const overriddenLayout = createBattleLayoutConfig({
+    elements: {
+      enemyField: {
+        x: 420,
+        y: -310,
+        width: 999,
+        height: 777,
+      },
+    },
+  });
+
+  const baseEnemyFieldRect = getBattleFieldContainerSceneRect("enemy", baseLayout);
+  const overriddenEnemyFieldRect = getBattleFieldContainerSceneRect(
+    "enemy",
+    overriddenLayout,
+  );
+  const enemySlot0Rect = getBattleTargetFieldSlotSceneRect("enemy", 0, overriddenLayout);
+  const enemySlot1Rect = getBattleTargetFieldSlotSceneRect("enemy", 1, overriddenLayout);
+
+  assert.deepEqual(overriddenEnemyFieldRect, baseEnemyFieldRect);
+  assert.equal(
+    overriddenEnemyFieldRect.x,
+    Math.min(enemySlot0Rect.x, enemySlot1Rect.x),
+  );
+  assert.equal(
+    overriddenEnemyFieldRect.width,
+    Math.max(
+      enemySlot0Rect.x + enemySlot0Rect.width,
+      enemySlot1Rect.x + enemySlot1Rect.width,
+    ) - overriddenEnemyFieldRect.x,
+  );
+});

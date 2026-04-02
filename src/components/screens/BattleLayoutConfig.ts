@@ -80,6 +80,18 @@ export type BattleEditableElementKey =
   | "enemyPill"
   | "playerPill";
 
+export type BattleFieldContainerElementKey = "enemyField" | "playerField";
+
+export const battleFieldContainerElementKeys: BattleFieldContainerElementKey[] = [
+  "enemyField",
+  "playerField",
+];
+
+export const isBattleFieldContainerElementKey = (
+  key: BattleEditableElementKey | string,
+): key is BattleFieldContainerElementKey =>
+  battleFieldContainerElementKeys.includes(key as BattleFieldContainerElementKey);
+
 export type BattleElementAnchor =
   | "center"
   | "top-left"
