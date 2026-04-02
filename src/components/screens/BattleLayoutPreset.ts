@@ -31,11 +31,11 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
         "y": 126
       },
       "topHand": {
-        "x": -155,
+        "x": -151,
         "y": -350
       },
       "bottomHand": {
-        "x": 150,
+        "x": 155,
         "y": 350
       },
       "playerPill": {
@@ -88,20 +88,20 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
     },
     "animations": {
       "openingTargetEntry0Origin": {
-        "x": 1482,
-        "y": 745
+        "x": 1500,
+        "y": 743
       },
       "openingTargetEntry1Origin": {
-        "x": 1517,
-        "y": 744
+        "x": 1500,
+        "y": 743
       },
       "openingTargetEntry2Origin": {
-        "x": 85,
-        "y": 103
+        "x": 100,
+        "y": 104
       },
       "openingTargetEntry3Origin": {
-        "x": 118,
-        "y": 103
+        "x": 100,
+        "y": 104
       },
       "postPlayHandDrawOrigin": {
         "x": 1444,
@@ -113,7 +113,7 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
       },
       "targetAttack0Destination": {
         "x": 1500,
-        "y": 770
+        "y": 745
       },
       "targetAttack1Impact": {
         "x": 886,
@@ -121,55 +121,55 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
       },
       "targetAttack1Destination": {
         "x": 1500,
-        "y": 770
+        "y": 745
       },
       "targetAttack2Impact": {
         "x": 717,
         "y": 574
       },
       "targetAttack2Destination": {
-        "x": 98,
-        "y": 104
+        "x": 100,
+        "y": 105
       },
       "targetAttack3Impact": {
         "x": 886,
         "y": 587
       },
       "targetAttack3Destination": {
-        "x": 99,
-        "y": 103
+        "x": 100,
+        "y": 105
       },
       "mulliganReturn1Destination": {
-        "x": 1380,
-        "y": 770
+        "x": 1381,
+        "y": 746
       },
       "mulliganReturn2Destination": {
-        "x": 1380,
-        "y": 770
+        "x": 1381,
+        "y": 746
       },
       "mulliganReturn3Destination": {
-        "x": 1380,
-        "y": 774
+        "x": 1381,
+        "y": 746
       },
       "mulliganDraw1Origin": {
         "x": 1380,
-        "y": 770
+        "y": 745
       },
       "mulliganDraw2Origin": {
         "x": 1380,
-        "y": 770
+        "y": 745
       },
       "mulliganDraw3Origin": {
         "x": 1380,
-        "y": 770
+        "y": 745
       },
       "handPlayTarget0Destination": {
-        "x": 717,
-        "y": 576
+        "x": 711,
+        "y": 573
       },
       "handPlayTarget1Destination": {
-        "x": 883,
-        "y": 576
+        "x": 895,
+        "y": 574
       },
       "replacementTargetEntry0Origin": {
         "x": 1500,
@@ -220,11 +220,11 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
         "y": 126
       },
       "topHand": {
-        "x": -155,
+        "x": -151,
         "y": -350
       },
       "bottomHand": {
-        "x": 150,
+        "x": 155,
         "y": 350
       },
       "playerPill": {
@@ -404,11 +404,11 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
         "y": 126
       },
       "topHand": {
-        "x": -155,
+        "x": -151,
         "y": -350
       },
       "bottomHand": {
-        "x": 150,
+        "x": 155,
         "y": 350
       },
       "playerPill": {
