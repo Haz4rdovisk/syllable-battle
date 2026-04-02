@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import { CONFIG, replaceTargetInSlot } from "../../logic/gameLogic";
+import { CONFIG } from "../../logic/gameLogic";
+import type { BattleDeckSpec } from "../../data/content";
 import { BattleTurnAction, GameState, Syllable } from "../../types/game";
 import { BattleFieldOutgoingTarget } from "./BattleFieldLane";
 import { BattleHandLaneOutgoingCard } from "./BattleHandLane";
@@ -9,12 +10,13 @@ import { applyBattleSimplePlayRuntime } from "./battleSimplePlayRuntime";
 import { prepareBattleSimplePlayStep } from "./battleSimplePlayStep";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
 import { BattleRuntimeSide, PLAYER, ENEMY } from "./BattleRuntimeState";
+import { replaceBattleRuntimeTargetInSlot } from "./BattleRuntimeSetup";
 
 interface UseBattleCombatFlowParams<TVisualHandCard, TVisualTarget> {
   flow: any;
   localPlayerIndex: BattleRuntimeSide;
-  playerDeck: any;
-  enemyDeck: any;
+  playerDeck: BattleDeckSpec;
+  enemyDeck: BattleDeckSpec;
   handLayoutSlotCount: number;
   game: GameState;
   gameRef: React.MutableRefObject<GameState>;
@@ -311,7 +313,11 @@ export const useBattleCombatFlow = <
       const playerIndex = result.actorIndex;
       const deck = playerIndex === PLAYER ? playerDeck : enemyDeck;
       const previousTargetName = gameRef.current.players[playerIndex].targets[result.completedSlot]?.name ?? "";
-      const nextPlayer = replaceTargetInSlot(gameRef.current.players[playerIndex], result.completedSlot, deck);
+      const nextPlayer = replaceBattleRuntimeTargetInSlot(
+        gameRef.current.players[playerIndex],
+        result.completedSlot,
+        deck,
+      );
       const nextTarget = nextPlayer.targets[result.completedSlot];
 
       emitTargetReplacedEvent(gameRef.current.turn, result.actorIndex, result.completedSlot, previousTargetName, nextTarget?.name ?? "");

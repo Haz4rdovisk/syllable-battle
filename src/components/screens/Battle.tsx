@@ -16,7 +16,6 @@ const MULLIGAN_BUTTON_CLASS =
   "group relative overflow-hidden rounded-[1.6rem] border-4 border-[#d4af37] bg-[#4a1d24] text-amber-50 shadow-[0_18px_38px_rgba(0,0,0,0.42)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_46px_rgba(0,0,0,0.5)] before:absolute before:inset-0 before:bg-[url('https://www.transparenttextures.com/patterns/leather.png')] before:opacity-35 disabled:border-[#8a6a25] disabled:bg-[#3f2327] disabled:text-amber-100/45 disabled:shadow-none disabled:hover:translate-y-0";
 
 export const Battle: React.FC<BattleControllerProps> = ({
-  mode,
   localSide = "player",
   onExit,
   onReturnToLobby,
@@ -24,7 +23,6 @@ export const Battle: React.FC<BattleControllerProps> = ({
   ...controllerProps
 }) => {
   const controller = useBattleController({
-    mode,
     localSide,
     onExit,
     onReturnToLobby,
@@ -74,6 +72,7 @@ export const Battle: React.FC<BattleControllerProps> = ({
     plannedCoinFace,
     showResultOverlay,
   } = runtimeState;
+  const mode = controllerProps.setup.mode;
   const localPlayerIndex = localSide === "player" ? 0 : 1;
   const didLocalPlayerWin = game.winner === localPlayerIndex;
   const openingStarterSubject = openingStarterMessage.replace(/ COMECA O DUELO!$/, "");

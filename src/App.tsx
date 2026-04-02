@@ -21,7 +21,7 @@ import {
 import { RoomProfilesCache, useAppRoomLifecycle } from "./app/useAppRoomLifecycle";
 import {
   resolveAppDeck,
-  resolveAppBattleDeckSelection,
+  resolveAppBattleSetupSelection,
 } from "./app/appDeckResolver";
 
 type Screen = "menu" | "deck-selection" | "lobby" | "battle";
@@ -239,8 +239,15 @@ export default function App() {
   const deckSelectionIdleStatusTitle =
     mode === "bot" && soloDeckStep === "enemy" ? "DEFINA O DECK DO ADVERSARIO" : "ESCOLHA SEU DECK";
   const battleDeckSelection = useMemo(
-    () => resolveAppBattleDeckSelection(mode, playerDeckId, enemyBattleDeckId),
-    [enemyBattleDeckId, mode, playerDeckId],
+    () =>
+      resolveAppBattleSetupSelection({
+        mode,
+        localDeckId: playerDeckId,
+        remoteDeckId: enemyBattleDeckId,
+        localSide: roomLocalSide,
+        roomId,
+      }),
+    [enemyBattleDeckId, mode, playerDeckId, roomId, roomLocalSide],
   );
 
   const handleDeckSelectionBack = () => {
@@ -322,8 +329,8 @@ export default function App() {
                 onBack={handleDeckSelectionBack}
                 selectedDeckId={
                   mode === "bot" && soloDeckStep === "enemy"
-                    ? battleDeckSelection.enemyDeck?.deckId
-                    : battleDeckSelection.playerDeck?.deckId
+                    ? battleDeckSelection.remoteDeck?.deckId
+                    : battleDeckSelection.localDeck?.deckId
                 }
                 isPreparingBattle={isPreparingBattle}
                 title={deckSelectionTitle}
@@ -362,7 +369,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {screen === "battle" && battleDeckSelection.playerDeck?.runtimeDeck && (
+          {screen === "battle" && battleDeckSelection.battleSetup && (
             <motion.div
               key="battle"
               className="h-full w-full"
@@ -372,19 +379,10 @@ export default function App() {
               transition={{ duration: 0.5 }}
             >
               <Battle 
-                mode={mode}
-                playerDeck={battleDeckSelection.playerDeck.runtimeDeck}
-                enemyDeck={
-                  (
-                    battleDeckSelection.enemyDeck ??
-                    battleDeckSelection.fallbackEnemyDeck ??
-                    battleDeckSelection.playerDeck
-                  ).runtimeDeck
-                }
+                setup={battleDeckSelection.battleSetup}
                 roomTransportKind={battleRoomServiceRef.current.kind}
                 initialGameState={sharedInitialGame ?? undefined}
                 authoritativeBattleSnapshot={sharedBattleSnapshot ?? undefined}
-                roomId={roomId}
                 localSide={roomLocalSide}
                 localPlayerName={localBattleName}
                 remotePlayerName={remoteBattleName}

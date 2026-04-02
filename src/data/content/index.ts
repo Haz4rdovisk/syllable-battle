@@ -554,6 +554,7 @@ export function loadDeckCatalog(rawDecks: RawDeckDefinition[], rawTargets: RawTa
 export { rawDeckCatalog };
 export { rawTargetCatalog };
 export * from "./selectors";
+export * from "./battleSetup";
 
 export const CONTENT_PIPELINE = buildContentPipeline(rawDeckCatalog, rawTargetCatalog);
 export const CONTENT_CATALOG = CONTENT_PIPELINE.catalog;

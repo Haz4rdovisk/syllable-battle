@@ -1,5 +1,6 @@
-import { CONTENT_PIPELINE } from "../data/content";
-import { Deck, GameMode } from "../types/game";
+import { CONTENT_PIPELINE, createBattleDeckSpec, createBattleSetupSpec } from "../data/content";
+import type { BattleDeckSpec, BattleSetupSpec } from "../data/content";
+import type { GameMode, BattleSide } from "../types/game";
 import {
   DeckDefinition,
   DeckModel,
@@ -9,13 +10,12 @@ import {
 export interface AppResolvedDeck {
   deckId: string;
   deckModel: DeckModel;
-  runtimeDeck: Deck;
+  battleDeck: BattleDeckSpec;
   definition: DeckDefinition;
   name: string;
   description: string;
   emoji: string;
   visualTheme: DeckDefinition["visualTheme"];
-  runtimeColorClass: string;
   targetCardCount: number;
   syllableReserveCount: number;
   previewTargets: DeckModelTargetInstance[];
@@ -26,33 +26,35 @@ export interface AppResolvedDeckPair {
   remoteDeck: AppResolvedDeck;
 }
 
-export interface AppBattleDeckSelection {
-  playerDeck: AppResolvedDeck | null;
-  enemyDeck: AppResolvedDeck | null;
-  fallbackEnemyDeck: AppResolvedDeck | null;
+export interface ResolveAppBattleSetupParams {
+  mode: GameMode;
+  localDeckId: string | null | undefined;
+  remoteDeckId: string | null | undefined;
+  localSide?: BattleSide;
+  roomId?: string;
+  allowFallbackRemoteDeck?: boolean;
 }
 
-export const APP_RESOLVED_DECKS: AppResolvedDeck[] = CONTENT_PIPELINE.deckModels
-  .map((deckModel) => {
-    const runtimeDeck = CONTENT_PIPELINE.runtimeDecksById[deckModel.id] ?? null;
-    if (!runtimeDeck) return null;
+export interface AppBattleSetupSelection {
+  localDeck: AppResolvedDeck | null;
+  remoteDeck: AppResolvedDeck | null;
+  fallbackRemoteDeck: AppResolvedDeck | null;
+  battleSetup: BattleSetupSpec | null;
+}
 
-    return {
-      deckId: deckModel.id,
-      deckModel,
-      runtimeDeck,
-      definition: deckModel.definition,
-      name: deckModel.definition.name,
-      description: deckModel.definition.description,
-      emoji: deckModel.definition.emoji,
-      visualTheme: deckModel.definition.visualTheme,
-      runtimeColorClass: runtimeDeck.color,
-      targetCardCount: deckModel.targetInstances.length,
-      syllableReserveCount: deckModel.cards.reduce((total, entry) => total + entry.copiesInDeck, 0),
-      previewTargets: deckModel.targetInstances.slice(0, 4),
-    };
-  })
-  .filter((entry): entry is AppResolvedDeck => !!entry);
+export const APP_RESOLVED_DECKS: AppResolvedDeck[] = CONTENT_PIPELINE.deckModels.map((deckModel) => ({
+  deckId: deckModel.id,
+  deckModel,
+  battleDeck: createBattleDeckSpec(deckModel),
+  definition: deckModel.definition,
+  name: deckModel.definition.name,
+  description: deckModel.definition.description,
+  emoji: deckModel.definition.emoji,
+  visualTheme: deckModel.definition.visualTheme,
+  targetCardCount: deckModel.targetInstances.length,
+  syllableReserveCount: deckModel.cards.reduce((total, entry) => total + entry.copiesInDeck, 0),
+  previewTargets: deckModel.targetInstances.slice(0, 4),
+}));
 
 export const APP_RESOLVED_DECKS_BY_ID = APP_RESOLVED_DECKS.reduce<Record<string, AppResolvedDeck>>(
   (acc, entry) => {
@@ -93,14 +95,75 @@ export function getFallbackResolvedEnemyDeck(mode: GameMode) {
   return mode === "multiplayer" ? getFirstResolvedDeck() : getRandomResolvedDeck();
 }
 
-export function resolveAppBattleDeckSelection(
-  mode: GameMode,
-  playerDeckId: string | null | undefined,
-  enemyDeckId: string | null | undefined,
-): AppBattleDeckSelection {
+function createBattleSetupFromResolvedDecks({
+  mode,
+  localDeck,
+  remoteDeck,
+  localSide = "player",
+  roomId,
+}: {
+  mode: GameMode;
+  localDeck: AppResolvedDeck;
+  remoteDeck: AppResolvedDeck;
+  localSide?: BattleSide;
+  roomId?: string;
+}): BattleSetupSpec {
+  return createBattleSetupSpec({
+    mode,
+    roomId,
+    playerDeck: localSide === "player" ? localDeck.deckModel : remoteDeck.deckModel,
+    enemyDeck: localSide === "player" ? remoteDeck.deckModel : localDeck.deckModel,
+  });
+}
+
+export function resolveAppBattleSetup({
+  mode,
+  localDeckId,
+  remoteDeckId,
+  localSide = "player",
+  roomId,
+  allowFallbackRemoteDeck = false,
+}: ResolveAppBattleSetupParams): BattleSetupSpec | null {
+  const localDeck = resolveAppDeck(localDeckId);
+  if (!localDeck) return null;
+
+  const remoteDeck =
+    resolveAppDeck(remoteDeckId) ??
+    (allowFallbackRemoteDeck ? getFallbackResolvedEnemyDeck(mode) : null) ??
+    (allowFallbackRemoteDeck ? localDeck : null);
+  if (!remoteDeck) return null;
+
+  return createBattleSetupFromResolvedDecks({
+    mode,
+    localDeck,
+    remoteDeck,
+    localSide,
+    roomId,
+  });
+}
+
+export function resolveAppBattleSetupSelection({
+  mode,
+  localDeckId,
+  remoteDeckId,
+  localSide = "player",
+  roomId,
+}: ResolveAppBattleSetupParams): AppBattleSetupSelection {
+  const localDeck = resolveAppDeck(localDeckId);
+  const remoteDeck = resolveAppDeck(remoteDeckId);
+  const fallbackRemoteDeck = getFallbackResolvedEnemyDeck(mode);
+
   return {
-    playerDeck: resolveAppDeck(playerDeckId),
-    enemyDeck: resolveAppDeck(enemyDeckId),
-    fallbackEnemyDeck: getFallbackResolvedEnemyDeck(mode),
+    localDeck,
+    remoteDeck,
+    fallbackRemoteDeck,
+    battleSetup: resolveAppBattleSetup({
+      mode,
+      localDeckId,
+      remoteDeckId,
+      localSide,
+      roomId,
+      allowFallbackRemoteDeck: true,
+    }),
   };
 }

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/button";
 import { Deck, normalizeRarity } from "../../types/game";
 import { CONTENT_PIPELINE } from "../../data/content";
+import type { DeckVisualThemeId } from "../../data/content/types";
+import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { APP_RESOLVED_DECKS } from "../../app/appDeckResolver";
 import { AnimatePresence, motion, Variants } from "motion/react";
 import { ChevronLeft, Info, BookOpen, X, Swords } from "lucide-react";
@@ -41,6 +43,9 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
     () => deckEntries.find((entry) => entry.deckId === openedDeckId) ?? null,
     [deckEntries, openedDeckId],
   );
+
+  const getDeckThemeClassName = (visualTheme: DeckVisualThemeId) =>
+    DECK_VISUAL_THEME_CLASSES[visualTheme] ?? DECK_VISUAL_THEME_CLASSES.harvest;
 
   const statusTitle = isPreparingBattle
     ? "AMBOS OS DECKS FORAM ESCOLHIDOS - PARTIDA INICIANDO..."
@@ -229,7 +234,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                 <div
                   className={cn(
                     "relative z-10 flex h-[292px] flex-col rounded-[36px] border-2 border-[#d4af37]/40 bg-gradient-to-br p-5 sm:h-[340px] sm:p-6",
-                    deckEntry.runtimeColorClass,
+                    getDeckThemeClassName(deckEntry.visualTheme),
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -323,7 +328,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                 className={cn(
                   "relative overflow-hidden px-8 py-7 text-amber-50",
                   "bg-gradient-to-br",
-                  openedDeck.runtimeColorClass,
+                  getDeckThemeClassName(openedDeck.visualTheme),
                 )}
               >
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.18),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(0,0,0,0.18),transparent_42%)]" />

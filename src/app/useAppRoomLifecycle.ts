@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { resolveAppDeckPair } from "./appDeckResolver";
-import { makeInitialGame } from "../logic/gameLogic";
+import { resolveAppBattleSetup } from "./appDeckResolver";
+import { createBattleRuntimeInitialGameState } from "../components/screens/BattleRuntimeSetup";
 import type { BattleRoomSession, BattleRoomState } from "../lib/battleRoomSession";
 import type {
   BattleSide,
@@ -142,17 +142,16 @@ export function useAppRoomLifecycle({
       setPendingBattleActions([]);
 
       if (bothDecksSelected && !activeRoomState.initialGame && roomLocalSide === "player") {
-        const battleDeckPair = resolveAppDeckPair(localDeckId, remoteDeckId);
+        const battleSetup = resolveAppBattleSetup({
+          mode: "multiplayer",
+          localDeckId,
+          remoteDeckId,
+          localSide: roomLocalSide,
+          roomId,
+        });
 
-        if (battleDeckPair) {
-          activeRoomSession.publishBattleSetup(
-            makeInitialGame(
-              "multiplayer",
-              battleDeckPair.localDeck.runtimeDeck,
-              battleDeckPair.remoteDeck.runtimeDeck,
-              roomId,
-            ),
-          );
+        if (battleSetup) {
+          activeRoomSession.publishBattleSetup(createBattleRuntimeInitialGameState(battleSetup));
         }
       }
 
@@ -162,18 +161,17 @@ export function useAppRoomLifecycle({
 
     if (!localDeckId || !remoteDeckId) return;
 
-    const battleDeckPair = resolveAppDeckPair(localDeckId, remoteDeckId);
-    if (!battleDeckPair) return;
+    const battleSetup = resolveAppBattleSetup({
+      mode: "multiplayer",
+      localDeckId,
+      remoteDeckId,
+      localSide: roomLocalSide,
+      roomId,
+    });
+    if (!battleSetup) return;
 
     if (!activeRoomState.initialGame && roomLocalSide === "player") {
-      activeRoomSession.publishBattleSetup(
-        makeInitialGame(
-          "multiplayer",
-          battleDeckPair.localDeck.runtimeDeck,
-          battleDeckPair.remoteDeck.runtimeDeck,
-          roomId,
-        ),
-      );
+      activeRoomSession.publishBattleSetup(createBattleRuntimeInitialGameState(battleSetup));
       return;
     }
 

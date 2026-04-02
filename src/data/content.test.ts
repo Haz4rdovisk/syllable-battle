@@ -5,17 +5,27 @@ import {
   APP_RESOLVED_DECKS_BY_ID,
   getFirstResolvedDeck,
   getFallbackResolvedEnemyDeck,
-  resolveAppBattleDeckSelection,
+  resolveAppBattleSetup,
+  resolveAppBattleSetupSelection,
   resolveAppDeckPair,
   resolveAppDeck,
 } from "../app/appDeckResolver";
 import { CONFIG } from "../logic/gameLogic";
+import { resolveBattleMulliganAction } from "../components/screens/battleResolution";
+import {
+  createBattleRuntimeInitialGameState,
+  createBattleRuntimeSetup,
+  replaceBattleRuntimeTargetInSlot,
+  resolveBattleRuntimeDeckThemeClass,
+} from "../components/screens/BattleRuntimeSetup";
 import {
   CARD_CATALOG,
   CARD_CATALOG_BY_ID,
   CONTENT_CATALOG,
   CONTENT_PIPELINE,
   DeckContentError,
+  createBattleDeckSpec,
+  createBattleSetupSpec,
   DECKS,
   DECK_MODELS,
   DECK_MODELS_BY_ID,
@@ -289,26 +299,26 @@ test("loadDeckCatalog rejeita deck com poucos targets para o board atual", () =>
   );
 });
 
-test("app deck resolver explicita a ultima ponte entre deck model e runtime legado", () => {
+test("app deck resolver usa BattleSetupSpec como fronteira central sem expor runtimeDeck", () => {
   assert.equal(APP_RESOLVED_DECKS.length, DECK_MODELS.length);
 
   APP_RESOLVED_DECKS.forEach((entry) => {
     assert.equal(APP_RESOLVED_DECKS_BY_ID[entry.deckId], entry);
     assert.equal(resolveAppDeck(entry.deckId), entry);
     assert.equal(entry.deckModel, DECK_MODELS_BY_ID[entry.deckId]);
-    assert.equal(entry.runtimeDeck, RUNTIME_DECKS_BY_ID[entry.deckId]);
+    assert.equal(entry.battleDeck.deckId, entry.deckId);
     assert.equal(entry.definition, entry.deckModel.definition);
     assert.equal(entry.name, entry.deckModel.definition.name);
     assert.equal(entry.description, entry.deckModel.definition.description);
     assert.equal(entry.emoji, entry.deckModel.definition.emoji);
     assert.equal(entry.visualTheme, entry.deckModel.definition.visualTheme);
-    assert.equal(entry.runtimeColorClass, entry.runtimeDeck.color);
     assert.equal(entry.targetCardCount, entry.deckModel.targetInstances.length);
     assert.equal(
       entry.syllableReserveCount,
       entry.deckModel.cards.reduce((total, cardEntry) => total + cardEntry.copiesInDeck, 0),
     );
     assert.deepEqual(entry.previewTargets, entry.deckModel.targetInstances.slice(0, 4));
+    assert.equal("runtimeDeck" in entry, false);
   });
 
   const firstResolvedDeck = getFirstResolvedDeck();
@@ -323,9 +333,229 @@ test("app deck resolver explicita a ultima ponte entre deck model e runtime lega
       : null,
   );
   assert.equal(getFallbackResolvedEnemyDeck("multiplayer")?.deckId, getFirstResolvedDeck()?.deckId);
+  const selection = resolveAppBattleSetupSelection({
+    mode: "multiplayer",
+    localDeckId: APP_RESOLVED_DECKS[0]?.deckId,
+    remoteDeckId: APP_RESOLVED_DECKS[1]?.deckId,
+    localSide: "player",
+    roomId: "ROOM-APP",
+  });
+  assert.equal(selection.localDeck?.deckId, APP_RESOLVED_DECKS[0]?.deckId);
+  assert.equal(selection.remoteDeck?.deckId, APP_RESOLVED_DECKS[1]?.deckId);
+  assert.equal(selection.battleSetup?.participants.player.deck.deckId, APP_RESOLVED_DECKS[0]?.deckId);
+  assert.equal(selection.battleSetup?.participants.enemy.deck.deckId, APP_RESOLVED_DECKS[1]?.deckId);
+});
+
+test("createBattleDeckSpec preserva ids canonicos, instancias de target e tema visual sem depender do runtime legado", () => {
+  const deckModel = DECK_MODELS_BY_ID.fazenda ?? DECK_MODELS[0];
+  assert.ok(deckModel);
+
+  const spec = createBattleDeckSpec(deckModel);
+
+  assert.equal(spec.deckId, deckModel.id);
+  assert.equal(spec.presentation.visualTheme, deckModel.definition.visualTheme);
+  assert.equal(spec.presentation.name, deckModel.definition.name);
+  assert.equal(spec.taxonomy.superclass, deckModel.definition.superclass);
+  assert.deepEqual(spec.gameplay.cardPool, deckModel.definition.cardPool);
+  assert.deepEqual(
+    spec.cards.map((card) => card.cardId),
+    deckModel.cards.map((entry) => entry.cardId),
+  );
+  assert.deepEqual(
+    spec.cards.map((card) => card.copiesInDeck),
+    deckModel.cards.map((entry) => entry.copiesInDeck),
+  );
+  assert.deepEqual(
+    spec.targetPool.map((target) => target.targetInstanceId),
+    deckModel.targetInstances.map((entry) => entry.instanceKey),
+  );
+  assert.deepEqual(
+    spec.targetPool.map((target) => target.targetId),
+    deckModel.targetInstances.map((entry) => entry.targetId),
+  );
+  assert.deepEqual(
+    spec.targetPool.map((target) => target.requiredCardIds),
+    deckModel.targetInstances.map((entry) => entry.target.cardIds),
+  );
+  assert.deepEqual(
+    spec.targetPool.map((target) => target.requiredSyllables),
+    deckModel.targetInstances.map((entry) =>
+      entry.target.cardIds.map((cardId) => CONTENT_CATALOG.cardsById[cardId]?.syllable ?? cardId),
+    ),
+  );
+  assert.equal("color" in spec.presentation, false);
+});
+
+test("createBattleSetupSpec monta setup canonico da Battle a partir de DeckModel sem passar por runtimeDeck", () => {
+  const playerDeck = DECK_MODELS_BY_ID.fazenda ?? DECK_MODELS[0];
+  const enemyDeck = DECK_MODELS_BY_ID.oceano ?? DECK_MODELS[1] ?? DECK_MODELS[0];
+  assert.ok(playerDeck);
+  assert.ok(enemyDeck);
+
+  const setup = createBattleSetupSpec({
+    mode: "multiplayer",
+    roomId: "ROOM-123",
+    playerDeck,
+    enemyDeck,
+  });
+
+  assert.equal(setup.mode, "multiplayer");
+  assert.equal(setup.roomId, "ROOM-123");
+  assert.equal(setup.opening.startPolicy, "coin");
+  assert.equal(setup.participants.player.side, "player");
+  assert.equal(setup.participants.enemy.side, "enemy");
+  assert.equal(setup.participants.player.deck.deckId, playerDeck.id);
+  assert.equal(setup.participants.enemy.deck.deckId, enemyDeck.id);
+  assert.deepEqual(
+    setup.participants.player.deck.gameplay.targetOrder,
+    playerDeck.targetInstances.map((entry) => entry.instanceKey),
+  );
+  assert.deepEqual(
+    setup.participants.enemy.deck.gameplay.targetOrder,
+    enemyDeck.targetInstances.map((entry) => entry.instanceKey),
+  );
+});
+
+test("resolveAppBattleSetup preserva ids e tema visual ate a entrada publica da Battle", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  const remoteDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+  assert.ok(remoteDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "local",
+    localDeckId: localDeck.deckId,
+    remoteDeckId: remoteDeck.deckId,
+    localSide: "player",
+  });
+
+  assert.ok(setup);
+  assert.equal(setup?.participants.player.deck.deckId, localDeck.deckId);
+  assert.equal(setup?.participants.enemy.deck.deckId, remoteDeck.deckId);
   assert.equal(
-    resolveAppBattleDeckSelection("multiplayer", APP_RESOLVED_DECKS[0]?.deckId, APP_RESOLVED_DECKS[1]?.deckId)
-      .playerDeck?.deckId,
-    APP_RESOLVED_DECKS[0]?.deckId,
+    setup?.participants.player.deck.presentation.visualTheme,
+    localDeck.visualTheme,
+  );
+  assert.deepEqual(
+    setup?.participants.player.deck.cards.map((card) => card.cardId),
+    localDeck.battleDeck.cards.map((card) => card.cardId),
+  );
+});
+
+test("ponte unica BattleSetupSpec -> runtime atual gera setup local coerente sem tocar gameLogic", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  const remoteDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+  assert.ok(remoteDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "local",
+    localDeckId: localDeck.deckId,
+    remoteDeckId: remoteDeck.deckId,
+    localSide: "player",
+  });
+  assert.ok(setup);
+
+  const runtime = createBattleRuntimeSetup(setup!);
+  const initialGame = createBattleRuntimeInitialGameState(setup!);
+
+  assert.equal(runtime.playerDeckSpec.deckId, localDeck.deckId);
+  assert.equal(runtime.enemyDeckSpec.deckId, remoteDeck.deckId);
+  assert.equal(
+    resolveBattleRuntimeDeckThemeClass(runtime.playerDeckSpec),
+    RUNTIME_DECKS_BY_ID[localDeck.deckId]?.color,
+  );
+  assert.equal(
+    resolveBattleRuntimeDeckThemeClass(runtime.enemyDeckSpec),
+    RUNTIME_DECKS_BY_ID[remoteDeck.deckId]?.color,
+  );
+  assert.equal(initialGame.players[0]?.deckId, localDeck.deckId);
+  assert.equal(initialGame.players[1]?.deckId, remoteDeck.deckId);
+  assert.equal(initialGame.mode, "local");
+  assert.equal(initialGame.players[0]?.hand.length, CONFIG.handSize);
+  assert.equal(initialGame.players[1]?.hand.length, CONFIG.handSize);
+  assert.equal(initialGame.players[0]?.targets.length, CONFIG.targetsInPlay);
+  assert.equal(initialGame.players[1]?.targets.length, CONFIG.targetsInPlay);
+});
+
+test("ponte unica BattleSetupSpec -> runtime atual respeita a ordenacao player/enemy do room lifecycle", () => {
+  const hostDeck = APP_RESOLVED_DECKS[0];
+  const guestDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(hostDeck);
+  assert.ok(guestDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "multiplayer",
+    localDeckId: guestDeck.deckId,
+    remoteDeckId: hostDeck.deckId,
+    localSide: "enemy",
+    roomId: "ROOM-LIFECYCLE",
+  });
+  assert.ok(setup);
+
+  const runtime = createBattleRuntimeSetup(setup!);
+  const initialGame = createBattleRuntimeInitialGameState(setup!);
+
+  assert.equal(setup?.participants.player.deck.deckId, hostDeck.deckId);
+  assert.equal(setup?.participants.enemy.deck.deckId, guestDeck.deckId);
+  assert.equal(runtime.playerDeckSpec.deckId, hostDeck.deckId);
+  assert.equal(runtime.enemyDeckSpec.deckId, guestDeck.deckId);
+  assert.equal(initialGame.players[0]?.deckId, hostDeck.deckId);
+  assert.equal(initialGame.players[1]?.deckId, guestDeck.deckId);
+  assert.equal(initialGame.roomId, "ROOM-LIFECYCLE");
+});
+
+test("runtime interno continua aceitando mulligan sem depender de Deck na borda publica", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  const remoteDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+  assert.ok(remoteDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "local",
+    localDeckId: localDeck.deckId,
+    remoteDeckId: remoteDeck.deckId,
+    localSide: "player",
+  });
+  assert.ok(setup);
+
+  const initialGame = createBattleRuntimeInitialGameState(setup);
+  const mulligan = resolveBattleMulliganAction(initialGame, 0, [0, 1], CONFIG.handSize);
+
+  assert.equal(mulligan.nextPlayers[0]?.hand.length, CONFIG.handSize);
+  assert.equal(mulligan.nextPlayers[0]?.mulliganUsedThisRound, true);
+  assert.equal(mulligan.returnedCards.length, 2);
+  assert.equal(mulligan.drawnCards.length, 2);
+});
+
+test("reposicao de target usa BattleDeckSpec na borda interna sem reintroduzir Deck no flow", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  const remoteDeck = APP_RESOLVED_DECKS[1] ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+  assert.ok(remoteDeck);
+
+  const setup = resolveAppBattleSetup({
+    mode: "local",
+    localDeckId: localDeck.deckId,
+    remoteDeckId: remoteDeck.deckId,
+    localSide: "player",
+  });
+  assert.ok(setup);
+
+  const initialGame = createBattleRuntimeInitialGameState(setup);
+  const replacedPlayer = replaceBattleRuntimeTargetInSlot(
+    initialGame.players[0]!,
+    0,
+    setup.participants.player.deck,
+  );
+
+  assert.equal(replacedPlayer.deckId, setup.participants.player.deck.deckId);
+  assert.equal(replacedPlayer.targets.length, CONFIG.targetsInPlay);
+  assert.ok(replacedPlayer.targets[0]);
+  assert.equal(replacedPlayer.targets[0]?.justArrived, true);
+  assert.ok(
+    setup.participants.player.deck.targetPool.some(
+      (target) => target.targetId === replacedPlayer.targets[0]?.id,
+    ),
   );
 });

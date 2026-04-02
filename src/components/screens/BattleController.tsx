@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   GameState,
-  GameMode,
-  Deck,
   Syllable,
   BattleEvent,
   BattleSide,
@@ -12,8 +10,8 @@ import {
   ChronicleEntry,
   normalizePlayerName,
 } from "../../types/game";
+import type { BattleSetupSpec } from "../../data/content";
 import {
-  makeInitialGame,
   CONFIG,
   isHandStuck,
 } from "../../logic/gameLogic";
@@ -81,6 +79,7 @@ import { useBattleRoomBridge } from "./BattleRoomBridge";
 import { useBattleCombatFlow } from "./BattleCombatFlow";
 import { useBattleControllerGeometry } from "./BattleControllerGeometry";
 import { useBattleControllerDebug } from "./BattleControllerDebug";
+import { createBattleRuntimeInitialGameState, createBattleRuntimeSetup } from "./BattleRuntimeSetup";
 
 const FLOW = BATTLE_SHARED_FLOW_TIMINGS;
 
@@ -114,9 +113,7 @@ type PlayResolution = NonNullable<ReturnType<typeof resolveBattlePlayAction>>;
 
 
 export interface BattleControllerProps {
-  mode: GameMode;
-  playerDeck: Deck;
-  enemyDeck: Deck;
+  setup: BattleSetupSpec;
   localPlayerName?: string;
   remotePlayerName?: string;
   localPlayerAvatar?: string;
@@ -124,7 +121,6 @@ export interface BattleControllerProps {
   roomTransportKind?: "mock" | "broadcast" | "remote";
   initialGameState?: GameState;
   authoritativeBattleSnapshot?: GameState;
-  roomId?: string;
   localSide?: BattleSide;
   pendingExternalAction?: BattleSubmittedAction | null;
   onExternalActionConsumed?: (actionId: string) => void;
@@ -180,9 +176,7 @@ export interface BattleController {
 }
 
 export const useBattleController = ({
-  mode,
-  playerDeck,
-  enemyDeck,
+  setup,
   localPlayerName = "VOCE",
   remotePlayerName = "OPONENTE",
   localPlayerAvatar = "\u{1F9D9}\u200D\u2642\uFE0F",
@@ -190,7 +184,6 @@ export const useBattleController = ({
   roomTransportKind,
   initialGameState,
   authoritativeBattleSnapshot,
-  roomId,
   localSide = "player",
   pendingExternalAction = null,
   onExternalActionConsumed,
@@ -201,6 +194,8 @@ export const useBattleController = ({
   onReturnToLobby,
   onChooseDecksAgain,
 }: BattleControllerProps): BattleController => {
+  const runtimeSetup = useMemo(() => createBattleRuntimeSetup(setup), [setup]);
+  const { mode, roomId, playerDeckSpec, enemyDeckSpec } = runtimeSetup;
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window === "undefined" ? BATTLE_STAGE_WIDTH : window.innerWidth,
   );
@@ -248,7 +243,9 @@ export const useBattleController = ({
     [],
   );
   if (!initialGameRef.current) {
-    initialGameRef.current = initialGameState ? cloneInitialGame(initialGameState) : makeInitialGame(mode, playerDeck, enemyDeck, roomId);
+    initialGameRef.current = initialGameState
+      ? cloneInitialGame(initialGameState)
+      : createBattleRuntimeInitialGameState(setup);
   }
   const shouldRunInitialPresentationRef = useRef(
     isFreshBattleState(initialGameRef.current) && initialGameRef.current.openingIntroStep !== "done",
@@ -1111,7 +1108,9 @@ export const useBattleController = ({
   );
 
   const resetGame = () => {
-    const freshGame = initialGameState ? cloneInitialGame(initialGameState) : makeInitialGame(mode, playerDeck, enemyDeck, roomId);
+    const freshGame = initialGameState
+      ? cloneInitialGame(initialGameState)
+      : createBattleRuntimeInitialGameState(setup);
     hydrateBattleSnapshot(freshGame);
   };
 
@@ -1262,8 +1261,8 @@ export const useBattleController = ({
   } = useBattleCombatFlow<VisualHandCard, VisualTargetEntity>({
     flow: FLOW,
     localPlayerIndex,
-    playerDeck,
-    enemyDeck,
+    playerDeck: playerDeckSpec,
+    enemyDeck: enemyDeckSpec,
     handLayoutSlotCount: HAND_LAYOUT_SLOT_COUNT,
     game,
     gameRef,
