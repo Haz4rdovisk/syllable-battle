@@ -25,11 +25,13 @@ import {
 } from "./BattleLayoutConfig";
 import {
   buildBattleTargetFieldState,
+  buildBattleTargetFieldStateFromSceneSlots,
   type BattleTargetSceneNode,
 } from "./BattleTargetField";
 import { createBattleSceneBoardModel } from "./BattleSceneViewModel";
 import type { UITarget } from "../../types/game";
 import type { VisualTargetEntity } from "../game/GameComponents";
+import { buildBattleFieldLaneSlotsFromTargetField } from "./battleTargetMotionPlan";
 
 const createPreviewState = (): BattleLayoutEditorPreviewState => ({
   fixtureKey: "calm",
@@ -405,11 +407,23 @@ test("buildBattleTargetFieldState separa slot instance e scene nodes ativos por 
   assert.equal(playerSlot0.locked, true);
   assert.deepEqual(
     playerSlot0.sceneNodes.map((node) => node.phase),
-    ["replacement", "attack", "receive-card"],
+    ["idle", "replacement", "attack", "receive-card"],
   );
   assert.equal(
     playerSlot0.sceneNodes.find((node) => node.phase === "attack")?.instanceId,
     "target-instance-completed-1",
+  );
+  assert.equal(
+    playerSlot0.sceneNodes.find((node) => node.phase === "replacement")?.motion?.kind,
+    "incoming",
+  );
+  assert.equal(
+    playerSlot0.sceneNodes.find((node) => node.phase === "attack")?.motion?.kind,
+    "outgoing",
+  );
+  assert.equal(
+    playerSlot0.sceneNodes.find((node) => node.phase === "receive-card")?.motion?.kind,
+    "receive-card",
   );
   assert.equal(
     playerSlot0.sceneNodes.find((node) => node.phase === "replacement")?.instanceId,
@@ -423,6 +437,7 @@ test("buildBattleTargetFieldState separa slot instance e scene nodes ativos por 
     enemySlot0.sceneNodes.map((node) => node.phase),
     ["idle"],
   );
+  assert.equal(enemySlot0.sceneNodes[0]?.motion, null);
 });
 
 test("createBattleSceneBoardModel consegue expressar occupant atual e nodes ativos por slot", () => {
@@ -467,6 +482,100 @@ test("createBattleSceneBoardModel consegue expressar occupant atual e nodes ativ
   assert.deepEqual(
     board.playerFieldObjects[0]?.sceneNodes.map((node: BattleTargetSceneNode) => node.phase),
     ["idle", "receive-card"],
+  );
+});
+
+test("buildBattleFieldLaneSlotsFromTargetField reutiliza a mesma pipeline de motion para preview e runtime", () => {
+  const stableTarget = createTarget({
+    id: "runtime-target-stable",
+    uiId: "runtime-target-stable-ui",
+    targetInstanceId: "runtime-target-stable-instance",
+  });
+  const incomingTargetEntity = createVisualTargetEntity(
+    createTarget({
+      id: "runtime-target-replacement",
+      uiId: "runtime-target-replacement-ui",
+      targetInstanceId: "runtime-target-replacement-instance",
+    }),
+    "player",
+    0,
+  );
+  const outgoingTargetEntity = createVisualTargetEntity(
+    createTarget({
+      id: "runtime-target-outgoing",
+      uiId: "runtime-target-outgoing-ui",
+      targetInstanceId: "runtime-target-outgoing-instance",
+    }),
+    "player",
+    0,
+  );
+  const stableEntity = createVisualTargetEntity(stableTarget, "player", 0);
+  const previewFieldState = buildBattleTargetFieldStateFromSceneSlots({
+    enemyFieldSlots: [],
+    playerFieldSlots: [
+      {
+        key: "player-slot-0",
+        slotRef: () => {},
+        displayedTarget: stableEntity,
+        incomingTarget: {
+          id: "preview-incoming-target",
+          entity: incomingTargetEntity,
+          origin: { left: 10, top: 20, width: 30, height: 40 },
+          delayMs: 80,
+          durationMs: 520,
+        },
+        outgoingTarget: {
+          id: "preview-outgoing-target",
+          side: 0,
+          entity: outgoingTargetEntity,
+          impactDestination: { left: 40, top: 50, width: 20, height: 20 },
+          destination: { left: 100, top: 110, width: 40, height: 50 },
+          delayMs: 0,
+          windupMs: 120,
+          attackMs: 240,
+          pauseMs: 80,
+          exitMs: 300,
+        },
+        slotRect: null,
+        selectedCard: "CA",
+        pendingCard: "CA",
+        canClick: false,
+        onClick: () => {},
+        playerHand: ["CA"],
+      },
+    ],
+  });
+
+  const laneSlots = buildBattleFieldLaneSlotsFromTargetField({
+    fieldSlots: previewFieldState.playerSlots,
+    bindSlotRef: () => () => {},
+    getSlotRect: () => null,
+    getSelectedCard: () => "CA",
+    getPendingCard: () => "CA",
+    getCanClick: () => false,
+    onClick: () => {},
+  });
+
+  assert.equal(laneSlots.length, 1);
+  assert.equal(laneSlots[0]?.incomingTarget?.id, "preview-incoming-target");
+  assert.equal(laneSlots[0]?.outgoingTarget?.id, "preview-outgoing-target");
+  assert.equal(laneSlots[0]?.pendingCard, "CA");
+  assert.equal(laneSlots[0]?.displayedTarget?.id, "runtime-target-outgoing-ui-visual");
+  assert.deepEqual(
+    laneSlots[0]?.renderNodes?.map((node) => node.phase),
+    ["idle", "replacement", "attack"],
+  );
+  assert.deepEqual(
+    laneSlots[0]?.renderNodes?.map((node) => node.zIndex),
+    [20, 35, 50],
+  );
+  assert.equal(
+    laneSlots[0]?.renderNodes?.find((node) => node.phase === "replacement")?.pendingCard,
+    "CA",
+  );
+  assert.equal(
+    laneSlots[0]?.renderNodes?.find((node) => node.phase === "attack")?.pendingCard,
+    null,
   );
 });
 

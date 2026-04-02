@@ -29,6 +29,7 @@ import {
   midTurnBattleFixture,
 } from "./BattleSceneFixtures";
 import { BattleSceneModel } from "./BattleSceneViewModel";
+import { buildBattleTargetFieldStateFromSceneSlots } from "./BattleTargetField";
 import { cn } from "../../lib/utils";
 import {
   BattleActionVisualState,
@@ -68,6 +69,7 @@ import {
   toBattleDebugScreenPoint,
 } from "./BattleDebugGeometry";
 import { createSimplePlayVisualPlan } from "./battleVisualPlan";
+import { buildBattleFieldLaneSlotsFromTargetField } from "./battleTargetMotionPlan";
 
 const noopRef = () => {};
 const PLAYER = 0;
@@ -2814,7 +2816,7 @@ export const BattleSceneFixtureView: React.FC<{
     [],
   );
 
-  const enemyFieldSlots = useMemo(
+  const rawEnemyFieldSlots = useMemo(
     () =>
       fixture.scene.board.enemyFieldSlots.map((slot, slotIndex) => {
         const incomingTarget =
@@ -2841,7 +2843,7 @@ export const BattleSceneFixtureView: React.FC<{
     [createSlotRef, fixture.scene.board.enemyFieldSlots, handleIncomingPreviewTargetComplete, handleOutgoingPreviewTargetComplete, hiddenStableTargets, incomingPreviewTargets, outgoingPreviewTargets, previewPendingTargetPlacements],
   );
 
-  const playerFieldSlots = useMemo(
+  const rawPlayerFieldSlots = useMemo(
     () =>
       fixture.scene.board.playerFieldSlots.map((slot, slotIndex) => {
         const incomingTarget =
@@ -2866,6 +2868,68 @@ export const BattleSceneFixtureView: React.FC<{
         };
       }),
     [createSlotRef, fixture.scene.board.playerFieldSlots, handleIncomingPreviewTargetComplete, handleOutgoingPreviewTargetComplete, hiddenStableTargets, incomingPreviewTargets, outgoingPreviewTargets, previewPendingTargetPlacements],
+  );
+  const previewTargetField = useMemo(
+    () =>
+      buildBattleTargetFieldStateFromSceneSlots({
+        enemyFieldSlots: rawEnemyFieldSlots,
+        playerFieldSlots: rawPlayerFieldSlots,
+      }),
+    [rawEnemyFieldSlots, rawPlayerFieldSlots],
+  );
+  const enemyFieldSlots = useMemo(
+    () =>
+      buildBattleFieldLaneSlotsFromTargetField({
+        fieldSlots: previewTargetField.enemySlots,
+        bindSlotRef: (slotIndex) => createSlotRef(ENEMY, slotIndex),
+        getSlotRect: (slotIndex) =>
+          slotNodesRef.current[ENEMY][slotIndex]?.getBoundingClientRect() ?? null,
+        getSelectedCard: (slotIndex) =>
+          rawEnemyFieldSlots[slotIndex]?.selectedCard ?? null,
+        getPendingCard: (slotIndex) =>
+          previewPendingTargetPlacements[ENEMY]?.[slotIndex] ?? null,
+        getCanClick: () => false,
+        onClick: () => {},
+        onIncomingTargetComplete: handleIncomingPreviewTargetComplete,
+        onOutgoingTargetComplete: handleOutgoingPreviewTargetComplete,
+        getPlayerHand: (slotIndex) =>
+          rawEnemyFieldSlots[slotIndex]?.playerHand ?? [],
+      }),
+    [
+      createSlotRef,
+      handleIncomingPreviewTargetComplete,
+      handleOutgoingPreviewTargetComplete,
+      previewPendingTargetPlacements,
+      previewTargetField.enemySlots,
+      rawEnemyFieldSlots,
+    ],
+  );
+  const playerFieldSlots = useMemo(
+    () =>
+      buildBattleFieldLaneSlotsFromTargetField({
+        fieldSlots: previewTargetField.playerSlots,
+        bindSlotRef: (slotIndex) => createSlotRef(PLAYER, slotIndex),
+        getSlotRect: (slotIndex) =>
+          slotNodesRef.current[PLAYER][slotIndex]?.getBoundingClientRect() ?? null,
+        getSelectedCard: (slotIndex) =>
+          rawPlayerFieldSlots[slotIndex]?.selectedCard ?? null,
+        getPendingCard: (slotIndex) =>
+          previewPendingTargetPlacements[PLAYER]?.[slotIndex] ?? null,
+        getCanClick: () => false,
+        onClick: () => {},
+        onIncomingTargetComplete: handleIncomingPreviewTargetComplete,
+        onOutgoingTargetComplete: handleOutgoingPreviewTargetComplete,
+        getPlayerHand: (slotIndex) =>
+          rawPlayerFieldSlots[slotIndex]?.playerHand ?? [],
+      }),
+    [
+      createSlotRef,
+      handleIncomingPreviewTargetComplete,
+      handleOutgoingPreviewTargetComplete,
+      previewPendingTargetPlacements,
+      previewTargetField.playerSlots,
+      rawPlayerFieldSlots,
+    ],
   );
   const snapTargets = (
     Object.entries(layout.elements) as Array<[BattleEditableElementKey, (typeof layout.elements)[BattleEditableElementKey]]>
@@ -2900,6 +2964,8 @@ export const BattleSceneFixtureView: React.FC<{
         ...fixture.scene.board,
         enemyFieldSlots,
         playerFieldSlots,
+        enemyFieldObjects: previewTargetField.enemySlots,
+        playerFieldObjects: previewTargetField.playerSlots,
         currentMessage: previewBoardMessage,
         enemyPortrait: {
           ...fixture.scene.board.enemyPortrait,
@@ -2961,6 +3027,7 @@ export const BattleSceneFixtureView: React.FC<{
       previewPillFlashDamage,
       previewReservedSlots,
       previewSelectedIndexes,
+      previewTargetField,
       setOutgoingPreviewHands,
       setPreviewSelectedIndexes,
       outgoingPreviewHands,

@@ -20,6 +20,35 @@ export type BattleTargetScenePhase =
   | "exit"
   | "replacement";
 
+export interface BattleTargetIncomingMotion {
+  kind: "incoming";
+  origin: ZoneAnchorSnapshot;
+  delayMs: number;
+  durationMs: number;
+}
+
+export interface BattleTargetOutgoingMotion {
+  kind: "outgoing";
+  impactDestination?: ZoneAnchorSnapshot | null;
+  destination: ZoneAnchorSnapshot;
+  delayMs: number;
+  windupMs: number;
+  attackMs: number;
+  pauseMs: number;
+  exitMs: number;
+}
+
+export interface BattleTargetReceiveCardMotion {
+  kind: "receive-card";
+  pendingCard: Syllable;
+}
+
+export type BattleTargetSceneMotion =
+  | BattleTargetIncomingMotion
+  | BattleTargetOutgoingMotion
+  | BattleTargetReceiveCardMotion
+  | null;
+
 export interface BattleTargetSlot {
   slotId: string;
   side: BattleTargetFieldSide;
@@ -58,8 +87,10 @@ export interface BattleTargetSceneNode {
   slotIndex: number;
   phase: BattleTargetScenePhase;
   visualTargetId?: string;
+  visualEntity?: VisualTargetEntity;
   pendingCard?: Syllable | null;
   sourceKind: "stable" | "incoming" | "outgoing" | "pending-card";
+  motion: BattleTargetSceneMotion;
 }
 
 export interface BattleTargetFieldSlotState {
@@ -175,6 +206,7 @@ const createSceneNodeFromEntity = ({
   phase,
   sourceKind,
   pendingCard = null,
+  motion = null,
 }: {
   sceneNodeId: string;
   slot: BattleTargetSlot;
@@ -182,6 +214,7 @@ const createSceneNodeFromEntity = ({
   phase: BattleTargetScenePhase;
   sourceKind: BattleTargetSceneNode["sourceKind"];
   pendingCard?: Syllable | null;
+  motion?: BattleTargetSceneMotion;
 }): BattleTargetSceneNode => ({
   sceneNodeId,
   slotId: slot.slotId,
@@ -191,8 +224,10 @@ const createSceneNodeFromEntity = ({
   slotIndex: slot.slotIndex,
   phase,
   visualTargetId: entity.id,
+  visualEntity: entity,
   pendingCard,
   sourceKind,
+  motion,
 });
 
 const inferIncomingPhase = (
@@ -204,6 +239,9 @@ const inferOutgoingPhase = (
   outgoing: { impactDestination?: ZoneAnchorSnapshot | null },
 ): Extract<BattleTargetScenePhase, "attack" | "exit"> =>
   outgoing.impactDestination ? "attack" : "exit";
+
+const getVisualInstanceId = (entity: VisualTargetEntity | null | undefined) =>
+  entity?.target.targetInstanceId ?? entity?.target.uiId ?? null;
 
 const buildBattleTargetFieldSlots = ({
   presentationSide,
@@ -244,7 +282,16 @@ const buildBattleTargetFieldSlots = ({
     const pendingCard = pendingTargetPlacements[slotIndex] ?? null;
     const sceneNodes: BattleTargetSceneNode[] = [];
 
-    if (stableTarget && !incomingTarget && !outgoingTarget) {
+    const stableInstanceId = getVisualInstanceId(stableTarget);
+    const incomingInstanceId = getVisualInstanceId(incomingTarget?.entity);
+    const outgoingInstanceId = getVisualInstanceId(outgoingTarget?.entity);
+    const shouldRenderStableNode =
+      Boolean(stableTarget) &&
+      (!incomingTarget && !outgoingTarget ||
+        (stableInstanceId !== incomingInstanceId &&
+          stableInstanceId !== outgoingInstanceId));
+
+    if (stableTarget && shouldRenderStableNode) {
       sceneNodes.push(
         createSceneNodeFromEntity({
           sceneNodeId: `${slot.slotId}:idle:${stableTarget.id}`,
@@ -252,6 +299,7 @@ const buildBattleTargetFieldSlots = ({
           entity: stableTarget,
           phase: "idle",
           sourceKind: "stable",
+          motion: null,
         }),
       );
     }
@@ -264,6 +312,12 @@ const buildBattleTargetFieldSlots = ({
           entity: incomingTarget.entity,
           phase: inferIncomingPhase(incomingTarget.id),
           sourceKind: "incoming",
+          motion: {
+            kind: "incoming",
+            origin: incomingTarget.origin,
+            delayMs: incomingTarget.delayMs,
+            durationMs: incomingTarget.durationMs,
+          },
         }),
       );
     }
@@ -276,6 +330,16 @@ const buildBattleTargetFieldSlots = ({
           entity: outgoingTarget.entity,
           phase: inferOutgoingPhase(outgoingTarget),
           sourceKind: "outgoing",
+          motion: {
+            kind: "outgoing",
+            impactDestination: outgoingTarget.impactDestination,
+            destination: outgoingTarget.destination,
+            delayMs: outgoingTarget.delayMs,
+            windupMs: outgoingTarget.windupMs,
+            attackMs: outgoingTarget.attackMs,
+            pauseMs: outgoingTarget.pauseMs,
+            exitMs: outgoingTarget.exitMs,
+          },
         }),
       );
     }
@@ -291,6 +355,10 @@ const buildBattleTargetFieldSlots = ({
         phase: "receive-card",
         pendingCard,
         sourceKind: "pending-card",
+        motion: {
+          kind: "receive-card",
+          pendingCard,
+        },
       });
     }
 
@@ -358,42 +426,67 @@ const createLaneSlotFieldState = ({
       ? createBattleTargetInstance({ target: displayedTarget.target, slot })
       : null;
   const sceneNodes: BattleTargetSceneNode[] = [];
+  const stableInstanceId = getVisualInstanceId(displayedTarget);
+  const incomingInstanceId = getVisualInstanceId(laneSlot.incomingTarget?.entity);
+  const outgoingInstanceId = getVisualInstanceId(laneSlot.outgoingTarget?.entity);
+  const shouldRenderStableNode =
+    Boolean(displayedTarget) &&
+    (!laneSlot.incomingTarget && !laneSlot.outgoingTarget ||
+      (stableInstanceId !== incomingInstanceId &&
+        stableInstanceId !== outgoingInstanceId));
 
-  if (displayedTarget) {
+  if (displayedTarget && shouldRenderStableNode) {
     sceneNodes.push(
       createSceneNodeFromEntity({
         sceneNodeId: `${slot.slotId}:idle:${displayedTarget.id}`,
-        slot,
-        entity: displayedTarget,
-        phase: "idle",
-        sourceKind: "stable",
-      }),
-    );
-  }
+          slot,
+          entity: displayedTarget,
+          phase: "idle",
+          sourceKind: "stable",
+          motion: null,
+        }),
+      );
+    }
 
-  if (laneSlot.incomingTarget) {
+    if (laneSlot.incomingTarget) {
     sceneNodes.push(
       createSceneNodeFromEntity({
         sceneNodeId: laneSlot.incomingTarget.id,
-        slot,
-        entity: laneSlot.incomingTarget.entity,
-        phase: inferIncomingPhase(laneSlot.incomingTarget.id),
-        sourceKind: "incoming",
-      }),
-    );
-  }
+          slot,
+          entity: laneSlot.incomingTarget.entity,
+          phase: inferIncomingPhase(laneSlot.incomingTarget.id),
+          sourceKind: "incoming",
+          motion: {
+            kind: "incoming",
+            origin: laneSlot.incomingTarget.origin,
+            delayMs: laneSlot.incomingTarget.delayMs,
+            durationMs: laneSlot.incomingTarget.durationMs,
+          },
+        }),
+      );
+    }
 
-  if (laneSlot.outgoingTarget) {
+    if (laneSlot.outgoingTarget) {
     sceneNodes.push(
       createSceneNodeFromEntity({
         sceneNodeId: laneSlot.outgoingTarget.id,
-        slot,
-        entity: laneSlot.outgoingTarget.entity,
-        phase: inferOutgoingPhase(laneSlot.outgoingTarget),
-        sourceKind: "outgoing",
-      }),
-    );
-  }
+          slot,
+          entity: laneSlot.outgoingTarget.entity,
+          phase: inferOutgoingPhase(laneSlot.outgoingTarget),
+          sourceKind: "outgoing",
+          motion: {
+            kind: "outgoing",
+            impactDestination: laneSlot.outgoingTarget.impactDestination,
+            destination: laneSlot.outgoingTarget.destination,
+            delayMs: laneSlot.outgoingTarget.delayMs,
+            windupMs: laneSlot.outgoingTarget.windupMs,
+            attackMs: laneSlot.outgoingTarget.attackMs,
+            pauseMs: laneSlot.outgoingTarget.pauseMs,
+            exitMs: laneSlot.outgoingTarget.exitMs,
+          },
+        }),
+      );
+    }
 
   if (laneSlot.pendingCard && occupant) {
     sceneNodes.push({
@@ -402,12 +495,16 @@ const createLaneSlotFieldState = ({
       instanceId: occupant.instanceId,
       side: slot.side,
       runtimeSide: slot.runtimeSide,
-      slotIndex: slot.slotIndex,
-      phase: "receive-card",
-      pendingCard: laneSlot.pendingCard,
-      sourceKind: "pending-card",
-    });
-  }
+        slotIndex: slot.slotIndex,
+        phase: "receive-card",
+        pendingCard: laneSlot.pendingCard,
+        sourceKind: "pending-card",
+        motion: {
+          kind: "receive-card",
+          pendingCard: laneSlot.pendingCard,
+        },
+      });
+    }
 
   return {
     slot,
@@ -440,4 +537,3 @@ export const buildBattleTargetFieldStateFromSceneSlots = ({
     }),
   ),
 });
-

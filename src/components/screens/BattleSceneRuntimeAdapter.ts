@@ -8,6 +8,7 @@ import {
 } from "./BattleRuntimeState";
 import { BattleSceneModel, createBattleSceneBoardModel } from "./BattleSceneViewModel";
 import { BattleVisualQueueState } from "./BattleVisualQueue";
+import { buildBattleFieldLaneSlotsFromTargetField } from "./battleTargetMotionPlan";
 
 export interface BattleSceneRuntimeAdapterParams {
   runtime: BattleRuntimeState;
@@ -80,58 +81,39 @@ export const buildBattleSceneModelFromRuntime = ({
     game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan;
   const mulliganDisabled = !canSwap || mulliganSelectionInvalid;
 
-  const enemyFieldSlots = Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
-    const visualTarget = runtime.stableTargets[remotePlayerIndex][idx];
-    const incomingTarget = visualQueue.incomingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-    const outgoingTarget = visualQueue.outgoingTargets[remotePlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-    const displayedTarget = outgoingTarget?.entity ?? incomingTarget?.entity ?? visualTarget;
-
-    return {
-      key: displayedTarget?.id ?? `enemy-slot-${idx}`,
-      slotRef: bindZoneRef("enemyField", `slot-${idx}`),
-      displayedTarget,
-      incomingTarget,
-      outgoingTarget,
-      slotRect: null,
-      selectedCard: null,
-      canClick: false,
-      onClick: () => {},
-      onIncomingTargetComplete: onCommitIncomingTarget,
-      onOutgoingTargetComplete: onCompleteOutgoingTarget,
-      playerHand: [],
-    };
+  const enemyFieldSlots = buildBattleFieldLaneSlotsFromTargetField({
+    fieldSlots: runtime.targetField.enemySlots,
+    bindSlotRef: (slotIndex) => bindZoneRef("enemyField", `slot-${slotIndex}`),
+    getSlotRect: () => null,
+    getSelectedCard: () => null,
+    getCanClick: () => false,
+    onClick: () => {},
+    onIncomingTargetComplete: onCommitIncomingTarget,
+    onOutgoingTargetComplete: onCompleteOutgoingTarget,
   });
 
-  const playerFieldSlots = Array.from({ length: CONFIG.targetsInPlay }).map((_, idx) => {
-    const visualTarget = runtime.stableTargets[localPlayerIndex][idx];
-    const incomingTarget = visualQueue.incomingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-    const outgoingTarget = visualQueue.outgoingTargets[localPlayerIndex].find((target) => target.slotIndex === idx) ?? null;
-    const displayedTarget = outgoingTarget?.entity ?? incomingTarget?.entity ?? visualTarget;
-
-    return {
-      key: displayedTarget?.id ?? `player-slot-${idx}`,
-      slotRef: bindZoneRef("playerField", `slot-${idx}`),
-      displayedTarget,
-      incomingTarget,
-      outgoingTarget,
-      slotRect: null,
-      selectedCard,
-      pendingCard: visualQueue.pendingTargetPlacements[localPlayerIndex][idx],
-      canClick: Boolean(
+  const playerFieldSlots = buildBattleFieldLaneSlotsFromTargetField({
+    fieldSlots: runtime.targetField.playerSlots,
+    bindSlotRef: (slotIndex) => bindZoneRef("playerField", `slot-${slotIndex}`),
+    getSlotRect: () => null,
+    getSelectedCard: () => selectedCard,
+    getPendingCard: (slotIndex) =>
+      visualQueue.pendingTargetPlacements[localPlayerIndex][slotIndex] ?? null,
+    getCanClick: (slotIndex, displayedTarget, incomingTarget) =>
+      Boolean(
         displayedTarget &&
           !incomingTarget &&
-          !visualQueue.lockedTargetSlots[localPlayerIndex][idx] &&
+          !visualQueue.lockedTargetSlots[localPlayerIndex][slotIndex] &&
           !introActive &&
           game.turn === localPlayerIndex &&
           !game.combatLocked &&
           !game.actedThisTurn &&
           game.selectedCardForPlay !== null,
       ),
-      onClick: () => onPlayTarget(idx),
-      onIncomingTargetComplete: onCommitIncomingTarget,
-      onOutgoingTargetComplete: onCompleteOutgoingTarget,
-      playerHand: me.hand,
-    };
+    onClick: onPlayTarget,
+    onIncomingTargetComplete: onCommitIncomingTarget,
+    onOutgoingTargetComplete: onCompleteOutgoingTarget,
+    getPlayerHand: () => me.hand,
   });
 
   return {
@@ -244,7 +226,11 @@ export const buildBattleSceneModelFromRuntime = ({
         },
       },
     },
-    enemyFieldHasOutgoingTarget: visualQueue.outgoingTargets[remotePlayerIndex].length > 0,
-    playerFieldHasOutgoingTarget: visualQueue.outgoingTargets[localPlayerIndex].length > 0,
+    enemyFieldHasOutgoingTarget: runtime.targetField.enemySlots.some((slot) =>
+      slot.sceneNodes.some((node) => node.motion?.kind === "outgoing"),
+    ),
+    playerFieldHasOutgoingTarget: runtime.targetField.playerSlots.some((slot) =>
+      slot.sceneNodes.some((node) => node.motion?.kind === "outgoing"),
+    ),
   };
 };
