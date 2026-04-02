@@ -6,6 +6,10 @@ import {
   DEFAULT_BATTLE_PILE_PRESET_ID,
   LegacyBattleCardStackPresetId,
 } from "../game/battleCardStackVisuals";
+import {
+  BATTLE_SHARED_ANIMATION_TIMINGS,
+  type BattleAnimationTimingConfig,
+} from "./battleSharedTimings";
 
 const BATTLE_STAGE_WIDTH = 1600;
 const BATTLE_STAGE_HEIGHT = 900;
@@ -181,6 +185,9 @@ export interface BattleAnimationLayoutConfig {
   targetAttack3Destination: BattleAnimationAnchorPoint | null;
 }
 
+export interface BattleAnimationTimingLayoutConfig
+  extends BattleAnimationTimingConfig {}
+
 export interface BattleVisualLayoutConfig {
   cardBackPresetId: BattleCardBackPresetId;
   deckPilePresetId: BattlePilePresetId;
@@ -201,6 +208,7 @@ export interface BattleLayoutConfig {
   elements: Record<BattleEditableElementKey, BattleElementPropertyConfig>;
   text: BattleTextLayoutConfig;
   animations: BattleAnimationLayoutConfig;
+  timings: BattleAnimationTimingLayoutConfig;
 }
 
 export const BATTLE_TARGET_FIELD_SLOT_COUNT = 2 as const;
@@ -233,6 +241,7 @@ export type BattleLayoutOverrides = Partial<{
   elements: Partial<Record<BattleEditableElementKey, Partial<BattleElementPropertyConfig>>>;
   text: Partial<BattleTextLayoutConfig>;
   animations: Partial<BattleAnimationLayoutConfig>;
+  timings: Partial<BattleAnimationTimingLayoutConfig>;
 }>;
 
 export type BattleLayoutDeviceKey = "desktop" | "tablet" | "mobile";
@@ -341,6 +350,10 @@ const defaultAnimationLayout: BattleAnimationLayoutConfig = {
   targetAttack1Destination: null,
   targetAttack2Destination: null,
   targetAttack3Destination: null,
+};
+
+const defaultAnimationTimingLayout: BattleAnimationTimingLayoutConfig = {
+  ...BATTLE_SHARED_ANIMATION_TIMINGS,
 };
 
 const getBattleBoardFrame = (board: BattleBoardLayoutConfig) => ({
@@ -750,6 +763,7 @@ export const defaultBattleLayoutConfig: BattleLayoutConfig = {
     bodyColor: "#451a03",
   },
   animations: defaultAnimationLayout,
+  timings: defaultAnimationTimingLayout,
 };
 
 export function createBattleLayoutConfig(
@@ -898,6 +912,10 @@ export function createBattleLayoutConfig(
       ...defaultBattleLayoutConfig.animations,
       ...overrides.animations,
     },
+    timings: {
+      ...defaultBattleLayoutConfig.timings,
+      ...overrides.timings,
+    },
   };
 }
 
@@ -953,6 +971,13 @@ export function mergeBattleLayoutOverrides(
     next.animations = {
       ...(base.animations ?? {}),
       ...patch.animations,
+    };
+  }
+
+  if (patch.timings) {
+    next.timings = {
+      ...(base.timings ?? {}),
+      ...patch.timings,
     };
   }
 

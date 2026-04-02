@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect } from "react";
-import { TIMINGS } from "../../logic/gameLogic";
 import { CoinFace, GameMode, GameState } from "../../types/game";
 import { ZoneAnchorSnapshot } from "../game/GameComponents";
 import { BattleRuntimeSide, PLAYER, ENEMY } from "./BattleRuntimeState";
@@ -10,6 +9,7 @@ export interface BattleIntroTimingConfig {
   coinSettleMs: number;
   coinResultHoldMs: number;
   coinResultFaceMs: number;
+  targetEnterMs: number;
   targetEnterStaggerMs: number;
   targetSettleMs: number;
   turnReleaseDelayMs: number;
@@ -275,9 +275,9 @@ export const useBattleIntroFlow = <TVisualTarget,>({
             entity,
             origin,
             delayMs: 0,
-            durationMs: TIMINGS.leaveMs,
+            durationMs: timing.targetEnterMs,
           });
-        }, index * (TIMINGS.leaveMs + timing.targetEnterStaggerMs));
+        }, index * (timing.targetEnterMs + timing.targetEnterStaggerMs));
         visualTimersRef.current.push(timer);
       });
 
@@ -288,7 +288,7 @@ export const useBattleIntroFlow = <TVisualTarget,>({
           openingIntroStep: "done",
           turnDeadlineAt: Date.now() + timing.turnReleaseDelayMs + timing.turnLimitMs,
         }));
-      }, (stagedTargets.length - 1) * (TIMINGS.leaveMs + timing.targetEnterStaggerMs) + TIMINGS.leaveMs + timing.targetSettleMs);
+      }, (stagedTargets.length - 1) * (timing.targetEnterMs + timing.targetEnterStaggerMs) + timing.targetEnterMs + timing.targetSettleMs);
 
       visualTimersRef.current.push(settleTimer);
     };
@@ -308,6 +308,7 @@ export const useBattleIntroFlow = <TVisualTarget,>({
     setStableTargetSlot,
     snapshotSceneAnimationOriginWithFallback,
     snapshotZone,
+    timing.targetEnterMs,
     timing.targetEnterStaggerMs,
     timing.targetSettleMs,
     timing.turnLimitMs,

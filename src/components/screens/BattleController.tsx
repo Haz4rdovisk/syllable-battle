@@ -44,10 +44,6 @@ import {
   shouldUseBattleMobileShell,
 } from "./BattleSceneSpace";
 import { BattleDevWatcherSample, useBattleDevRuntime } from "./BattleDevRuntime";
-import {
-  BATTLE_SHARED_FLOW_TIMINGS,
-  BATTLE_SHARED_OPENING_TARGET_TIMINGS,
-} from "./battleSharedTimings";
 import { buildBattleSceneModelFromRuntime } from "./BattleSceneRuntimeAdapter";
 import {
   AnimationFallbackEvent,
@@ -87,16 +83,12 @@ import {
 } from "./BattleRuntimeSetup";
 import { buildBattleTargetFieldState } from "./BattleTargetField";
 
-const FLOW = BATTLE_SHARED_FLOW_TIMINGS;
-
 const INTRO = {
   coinChoiceMs: 20000,
   coinDropMs: 1920,
   coinSettleMs: 620,
   coinResultHoldMs: 3400,
   coinResultFaceMs: 1450,
-  targetEnterStaggerMs: BATTLE_SHARED_OPENING_TARGET_TIMINGS.targetEnterStaggerMs,
-  targetSettleMs: BATTLE_SHARED_OPENING_TARGET_TIMINGS.targetSettleMs,
 };
 
 const TURN_PRESENTATION = {
@@ -212,6 +204,7 @@ export const useBattleController = ({
   const usesMobileShell = shouldUseBattleMobileShell(activeLayoutDevice);
   const isDesktopViewport = activeLayoutDevice !== "mobile";
   const activeBattleLayout = useActiveBattleLayoutConfig(activeLayoutDevice);
+  const animationTimings = activeBattleLayout.timings;
   const localPlayerIndex = localSide === "player" ? PLAYER : ENEMY;
   const remotePlayerIndex = localPlayerIndex === PLAYER ? ENEMY : PLAYER;
   const zoneIdForSide = useCallback(
@@ -1016,7 +1009,7 @@ export const useBattleController = ({
       queueHandDrawBatch(side, [nextDraw.syllable], {
         initialDelayMs: options?.initialDelayMs ?? 0,
         staggerMs: 0,
-        durationMs: FLOW.drawTravelMs,
+        durationMs: animationTimings.drawTravelMs,
         finalTotalOverride: nextDraw.finalTotal,
         finalIndexBase: nextDraw.finalIndex,
         originOverride: nextDraw.originOverride,
@@ -1024,7 +1017,7 @@ export const useBattleController = ({
       });
       return true;
     },
-    [queueHandDrawBatch],
+    [animationTimings.drawTravelMs, queueHandDrawBatch],
   );
 
   const commitIncomingCardToHand = useCallback(
@@ -1045,10 +1038,10 @@ export const useBattleController = ({
         });
       }
       if (pendingMulliganDrawQueuesRef.current[incomingCard.side].length > 0) {
-        startNextMulliganDraw(incomingCard.side, { initialDelayMs: FLOW.drawSettleMs });
+        startNextMulliganDraw(incomingCard.side, { initialDelayMs: animationTimings.drawSettleMs });
       }
     },
-    [appendStableCard, commitPendingMulliganDrawCounts, markFreshCard, removeIncomingCard, startNextMulliganDraw],
+    [animationTimings.drawSettleMs, appendStableCard, commitPendingMulliganDrawCounts, markFreshCard, removeIncomingCard, startNextMulliganDraw],
   );
 
   const handleOutgoingCardComplete = useCallback(
@@ -1195,8 +1188,9 @@ export const useBattleController = ({
       coinSettleMs: INTRO.coinSettleMs,
       coinResultHoldMs: INTRO.coinResultHoldMs,
       coinResultFaceMs: INTRO.coinResultFaceMs,
-      targetEnterStaggerMs: INTRO.targetEnterStaggerMs,
-      targetSettleMs: INTRO.targetSettleMs,
+      targetEnterMs: animationTimings.targetEnterMs,
+      targetEnterStaggerMs: animationTimings.openingTargetEnterStaggerMs,
+      targetSettleMs: animationTimings.openingTargetSettleMs,
       turnReleaseDelayMs: TURN_RELEASE_DELAY_MS,
       turnLimitMs: TURN_TIMER.limitMs,
     },
@@ -1310,7 +1304,7 @@ export const useBattleController = ({
     commitIncomingTargetToField,
     executeBattleTurnAction,
   } = useBattleCombatFlow<VisualHandCard, VisualTargetEntity>({
-    flow: FLOW,
+    flow: animationTimings,
     localPlayerIndex,
     playerDeckSpec,
     enemyDeckSpec,

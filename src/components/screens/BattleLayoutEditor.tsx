@@ -9,6 +9,7 @@ import {
 } from "./BattleSceneFixtures";
 import {
   isBattleFieldContainerElementKey,
+  BattleAnimationTimingLayoutConfig,
   battleTargetFieldSlotElementKeys,
   BattleAnimationAnchorPoint,
   BattleEditableElementKey,
@@ -58,6 +59,7 @@ import {
   BATTLE_LAYOUT_PREVIEW_STATE_MESSAGE_TYPE,
   normalizeBattleLayoutEditorPreviewState,
 } from "./BattleLayoutEditorState";
+import { getBattleAnimationPreviewDurationMs } from "./battleAnimationPreviewTiming";
 import {
   BATTLE_STAGE_HEIGHT,
   BATTLE_STAGE_WIDTH,
@@ -115,7 +117,15 @@ type MultiSelectionLayoutMetrics = {
   scaledOffsetX: number;
   scaledOffsetY: number;
 };
-type LayoutSectionKey = "shell" | "board" | "sidebars" | "hud" | "visuals";
+type LayoutSectionKey = "shell" | "board" | "sidebars" | "hud" | "visuals" | "timings";
+type AnimationTimingControlConfig = {
+  key: keyof BattleAnimationTimingLayoutConfig;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  description: string;
+};
 
 const elementPropertyDiffLabels: Record<keyof BattleElementPropertyConfig, string> = {
   x: "Centro X",
@@ -321,29 +331,6 @@ const getMultiSelectionLayoutMetrics = (
   };
 };
 
-const OPENING_TARGET_ENTRY_STAGGER_MS = 220;
-const OPENING_TARGET_ENTRY_DURATION_MS = 780;
-const OPENING_TARGET_ENTRY_SETTLE_MS = 560;
-const REPLACEMENT_TARGET_ENTRY_DURATION_MS = 780;
-const REPLACEMENT_TARGET_ENTRY_SETTLE_MS = 240;
-const PILL_DAMAGE_DURATION_MS = 1200;
-const PILL_TURN_DURATION_MS = 1120;
-const BOARD_MESSAGE_TURN_DURATION_MS = 1120;
-const BOARD_MESSAGE_INFO_DURATION_MS = 1100;
-const POST_PLAY_HAND_DRAW_DURATION_MS = 940;
-const POST_PLAY_HAND_DRAW_SETTLE_MS = 220;
-const HAND_PLAY_TARGET_DURATION_MS = 660;
-const HAND_PLAY_TARGET_SETTLE_MS = 180;
-const MULLIGAN_RETURN_DURATION_MS = 760;
-const MULLIGAN_RETURN_STAGGER_MS = 110;
-const MULLIGAN_DRAW_START_DELAY_MS = 220;
-const MULLIGAN_DRAW_DURATION_MS = POST_PLAY_HAND_DRAW_DURATION_MS;
-const MULLIGAN_DRAW_SETTLE_MS = POST_PLAY_HAND_DRAW_SETTLE_MS;
-const MULLIGAN_SETTLE_MS = 260;
-const TARGET_ATTACK_WINDUP_MS = 310;
-const TARGET_ATTACK_TRAVEL_MS = 1140;
-const TARGET_ATTACK_PAUSE_MS = 260;
-const TARGET_ATTACK_EXIT_MS = 960;
 const PLAYER = 0;
 const ENEMY = 1;
 const openingTargetEntryAnchorToolByPreset: Partial<
@@ -606,17 +593,441 @@ const mulliganReturnDestinationAnchorToolByPreset = {
   "mulligan-hand-return-3": "mulligan-hand-return-3-destination",
 } as const;
 
-const getOpeningTargetAnimationPreviewDurationMs = (
-  preset: BattleLayoutPreviewAnimationPreset,
-) => {
-  if (preset === "none") return 0;
-  const targetCount =
-    preset === "opening-target-entry-simultaneous" ? 4 : 1;
-  return (
-    Math.max(0, (targetCount - 1) * OPENING_TARGET_ENTRY_STAGGER_MS) +
-    OPENING_TARGET_ENTRY_DURATION_MS +
-    OPENING_TARGET_ENTRY_SETTLE_MS
-  );
+const animationTimingControlsBySet: Partial<
+  Record<
+    BattleLayoutPreviewAnimationSet,
+    {
+      title: string;
+      controls: AnimationTimingControlConfig[];
+    }
+  >
+> = {
+  "opening-target-entry-first-round": {
+    title: "Velocidade da entrada inicial",
+    controls: [
+      {
+        key: "openingTargetEnterStaggerMs",
+        label: "Stagger entre targets",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espaco entre entradas sucessivas.",
+      },
+      {
+        key: "targetEnterMs",
+        label: "Travel do target",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da entrada visual do alvo.",
+      },
+      {
+        key: "openingTargetSettleMs",
+        label: "Settle final",
+        min: 0,
+        max: 1600,
+        step: 10,
+        description: "Tempo antes de liberar o fim da abertura.",
+      },
+    ],
+  },
+  "replacement-target-entry": {
+    title: "Velocidade do replacement",
+    controls: [
+      {
+        key: "targetEnterMs",
+        label: "Travel do replacement",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da entrada do alvo substituto.",
+      },
+      {
+        key: "targetSettleMs",
+        label: "Settle do replacement",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa visual depois da entrada.",
+      },
+    ],
+  },
+  "post-play-hand-draw": {
+    title: "Velocidade da compra pos-play",
+    controls: [
+      {
+        key: "drawTravelMs",
+        label: "Travel da compra",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da carta entrando na mao.",
+      },
+      {
+        key: "drawSettleMs",
+        label: "Settle da compra",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa antes do fluxo encerrar.",
+      },
+    ],
+  },
+  "hand-play-target": {
+    title: "Velocidade do play da mao",
+    controls: [
+      {
+        key: "cardToFieldMs",
+        label: "Travel mao -> alvo",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da carta indo da mao para o alvo.",
+      },
+      {
+        key: "cardSettleMs",
+        label: "Settle do commit",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Tempo de settle ate o commit visual.",
+      },
+    ],
+  },
+  "hand-play-draw-combo": {
+    title: "Velocidade do combo play + draw",
+    controls: [
+      {
+        key: "cardToFieldMs",
+        label: "Travel mao -> alvo",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao do play principal.",
+      },
+      {
+        key: "cardSettleMs",
+        label: "Settle do commit",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Tempo ate o alvo consolidar a carta jogada.",
+      },
+      {
+        key: "drawTravelMs",
+        label: "Travel da compra",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da compra apos a jogada.",
+      },
+      {
+        key: "drawSettleMs",
+        label: "Settle da compra",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa visual depois da compra.",
+      },
+      {
+        key: "turnHandoffMs",
+        label: "Handoff final",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Buffer final antes do fluxo encerrar.",
+      },
+    ],
+  },
+  "target-attack": {
+    title: "Velocidade do ataque",
+    controls: [
+      {
+        key: "attackWindupMs",
+        label: "Windup",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Preparacao antes da arrancada do alvo.",
+      },
+      {
+        key: "attackWindupBufferMs",
+        label: "Buffer do windup",
+        min: 0,
+        max: 600,
+        step: 10,
+        description: "Buffer tecnico entre o windup e o travel.",
+      },
+      {
+        key: "attackTravelMs",
+        label: "Travel do ataque",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao do deslocamento ate o impacto.",
+      },
+      {
+        key: "attackTravelBufferMs",
+        label: "Buffer do travel",
+        min: 0,
+        max: 600,
+        step: 10,
+        description: "Buffer tecnico logo apos o travel.",
+      },
+      {
+        key: "impactPauseMs",
+        label: "Pause no impacto",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Retencao visual no ponto de impacto.",
+      },
+      {
+        key: "targetExitMs",
+        label: "Saida do alvo",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da saida apos o impacto.",
+      },
+      {
+        key: "targetExitBufferMs",
+        label: "Buffer da saida",
+        min: 0,
+        max: 600,
+        step: 10,
+        description: "Buffer tecnico no fim da saida.",
+      },
+    ],
+  },
+  "target-attack-replacement-combo": {
+    title: "Velocidade do ataque completo",
+    controls: [
+      {
+        key: "attackWindupMs",
+        label: "Windup",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Preparacao do ataque.",
+      },
+      {
+        key: "attackWindupBufferMs",
+        label: "Buffer do windup",
+        min: 0,
+        max: 600,
+        step: 10,
+        description: "Buffer tecnico entre fases.",
+      },
+      {
+        key: "attackTravelMs",
+        label: "Travel do ataque",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao do ataque ate o impacto.",
+      },
+      {
+        key: "attackTravelBufferMs",
+        label: "Buffer do travel",
+        min: 0,
+        max: 600,
+        step: 10,
+        description: "Buffer tecnico apos o travel.",
+      },
+      {
+        key: "impactPauseMs",
+        label: "Pause no impacto",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa visual no impacto.",
+      },
+      {
+        key: "targetExitMs",
+        label: "Saida do alvo",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da saida do alvo derrotado.",
+      },
+      {
+        key: "targetExitBufferMs",
+        label: "Buffer da saida",
+        min: 0,
+        max: 600,
+        step: 10,
+        description: "Buffer tecnico no fim da saida.",
+      },
+      {
+        key: "replacementGapMs",
+        label: "Gap ate replacement",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espaco entre a saida e a entrada do replacement.",
+      },
+      {
+        key: "targetEnterMs",
+        label: "Travel do replacement",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da entrada do replacement.",
+      },
+      {
+        key: "targetSettleMs",
+        label: "Settle do replacement",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa visual depois da entrada.",
+      },
+      {
+        key: "turnHandoffMs",
+        label: "Handoff final",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Buffer final antes do fluxo encerrar.",
+      },
+    ],
+  },
+  "mulligan-hand-return": {
+    title: "Velocidade do retorno do mulligan",
+    controls: [
+      {
+        key: "mulliganReturnMs",
+        label: "Travel de retorno",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao de cada carta voltando ao deck.",
+      },
+      {
+        key: "mulliganReturnStaggerMs",
+        label: "Stagger do retorno",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espaco entre cartas retornando.",
+      },
+      {
+        key: "mulliganSettleMs",
+        label: "Settle do retorno",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa visual antes do fluxo encerrar.",
+      },
+    ],
+  },
+  "mulligan-hand-draw": {
+    title: "Velocidade da compra do mulligan",
+    controls: [
+      {
+        key: "mulliganReturnMs",
+        label: "Base de retorno",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Tempo-base antes das compras comecarem.",
+      },
+      {
+        key: "mulliganReturnStaggerMs",
+        label: "Stagger de retorno",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espaco-base entre retornos autorados.",
+      },
+      {
+        key: "mulliganDrawDelayMs",
+        label: "Delay antes da compra",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa entre retorno e draw.",
+      },
+      {
+        key: "drawTravelMs",
+        label: "Travel da compra",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da carta entrando na mao.",
+      },
+      {
+        key: "drawSettleMs",
+        label: "Settle entre draws",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa visual entre compras sucessivas.",
+      },
+      {
+        key: "mulliganTurnHandoffMs",
+        label: "Handoff final",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Buffer final antes de encerrar o flow.",
+      },
+    ],
+  },
+  "mulligan-complete-combo": {
+    title: "Velocidade do mulligan completo",
+    controls: [
+      {
+        key: "mulliganReturnMs",
+        label: "Travel de retorno",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao das cartas voltando ao deck.",
+      },
+      {
+        key: "mulliganReturnStaggerMs",
+        label: "Stagger do retorno",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espaco entre retornos sucessivos.",
+      },
+      {
+        key: "mulliganDrawDelayMs",
+        label: "Delay antes da compra",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa entre retorno e nova compra.",
+      },
+      {
+        key: "drawTravelMs",
+        label: "Travel da compra",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao das cartas entrando na mao.",
+      },
+      {
+        key: "drawSettleMs",
+        label: "Settle entre draws",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Pausa visual entre as compras.",
+      },
+      {
+        key: "mulliganTurnHandoffMs",
+        label: "Handoff final",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Buffer final antes do encerramento.",
+      },
+    ],
+  },
 };
 
 const getAnimationModeForAction = (
@@ -680,96 +1091,6 @@ const getAnimationModeForAction = (
   return kind === "loop"
     ? "opening-target-entry-loop"
     : "opening-target-entry-play-once";
-};
-
-const getAnimationPreviewDurationMs = (
-  animationSet: BattleLayoutPreviewAnimationSet,
-  preset: BattleLayoutPreviewAnimationPreset,
-) => {
-  if (preset === "none") return 0;
-  if (animationSet === "replacement-target-entry") {
-    return REPLACEMENT_TARGET_ENTRY_DURATION_MS + REPLACEMENT_TARGET_ENTRY_SETTLE_MS;
-  }
-  if (animationSet === "pill-damage") {
-    return PILL_DAMAGE_DURATION_MS;
-  }
-  if (animationSet === "pill-turn") {
-    return PILL_TURN_DURATION_MS;
-  }
-  if (animationSet === "board-message") {
-    return preset === "board-message-round-info"
-      ? BOARD_MESSAGE_INFO_DURATION_MS
-      : BOARD_MESSAGE_TURN_DURATION_MS;
-  }
-  if (animationSet === "post-play-hand-draw") {
-    return POST_PLAY_HAND_DRAW_DURATION_MS + POST_PLAY_HAND_DRAW_SETTLE_MS;
-  }
-  if (animationSet === "hand-play-target") {
-    return HAND_PLAY_TARGET_DURATION_MS + HAND_PLAY_TARGET_SETTLE_MS;
-  }
-  if (animationSet === "mulligan-hand-return") {
-    const count = getMulliganCountFromPreset(preset) ?? 0;
-    return (
-      Math.max(0, (count - 1) * MULLIGAN_RETURN_STAGGER_MS) +
-      MULLIGAN_RETURN_DURATION_MS +
-      MULLIGAN_SETTLE_MS
-    );
-  }
-  if (animationSet === "mulligan-hand-draw") {
-    const count = getMulliganCountFromPreset(preset) ?? 0;
-    const startDelayMs =
-      MULLIGAN_RETURN_DURATION_MS +
-      Math.max(0, count - 1) * MULLIGAN_RETURN_STAGGER_MS +
-      MULLIGAN_DRAW_START_DELAY_MS;
-    const staggerMs = MULLIGAN_DRAW_DURATION_MS + MULLIGAN_DRAW_SETTLE_MS;
-    return (
-      startDelayMs +
-      Math.max(0, (count - 1) * staggerMs) +
-      MULLIGAN_DRAW_DURATION_MS +
-      MULLIGAN_SETTLE_MS
-    );
-  }
-  if (animationSet === "target-attack") {
-    return (
-      TARGET_ATTACK_WINDUP_MS +
-      TARGET_ATTACK_TRAVEL_MS +
-      TARGET_ATTACK_PAUSE_MS +
-      TARGET_ATTACK_EXIT_MS
-    );
-  }
-  if (animationSet === "hand-play-draw-combo") {
-    return (
-      HAND_PLAY_TARGET_DURATION_MS +
-      HAND_PLAY_TARGET_SETTLE_MS +
-      POST_PLAY_HAND_DRAW_DURATION_MS +
-      POST_PLAY_HAND_DRAW_SETTLE_MS
-    );
-  }
-  if (animationSet === "target-attack-replacement-combo") {
-    return (
-      TARGET_ATTACK_WINDUP_MS +
-      TARGET_ATTACK_TRAVEL_MS +
-      TARGET_ATTACK_PAUSE_MS +
-      TARGET_ATTACK_EXIT_MS +
-      REPLACEMENT_TARGET_ENTRY_DURATION_MS +
-      REPLACEMENT_TARGET_ENTRY_SETTLE_MS
-    );
-  }
-  if (animationSet === "mulligan-complete-combo") {
-    const count = getMulliganCompleteComboCountFromPreset(preset) ?? 0;
-    const returnMs =
-      Math.max(0, (count - 1) * MULLIGAN_RETURN_STAGGER_MS) +
-      MULLIGAN_RETURN_DURATION_MS;
-    const drawStartMs = returnMs + MULLIGAN_DRAW_START_DELAY_MS;
-    const drawStaggerMs = MULLIGAN_DRAW_DURATION_MS + MULLIGAN_DRAW_SETTLE_MS;
-    return (
-      drawStartMs +
-      Math.max(0, (count - 1) * drawStaggerMs) +
-      MULLIGAN_DRAW_DURATION_MS +
-      MULLIGAN_SETTLE_MS
-    );
-  }
-  return getOpeningTargetAnimationPreviewDurationMs(preset);
 };
 
 const ANIMATION_PREVIEW_LOOP_GAP_MS = 680;
@@ -2254,22 +2575,18 @@ export const BattleLayoutEditor: React.FC = () => {
       animationResetTimerRef.current = null;
     }
 
-    const isPlayOnceMode =
-      animationMode === "opening-target-entry-play-once" ||
-      animationMode === "pill-damage-play-once" ||
-      animationMode === "pill-turn-play-once" ||
-      animationMode === "board-message-play-once" ||
-      animationMode === "replacement-target-entry-play-once" ||
-      animationMode === "post-play-hand-draw-play-once" ||
-      animationMode === "hand-play-target-play-once" ||
-      animationMode === "target-attack-play-once";
+    const isPlayOnceMode = animationMode.endsWith("-play-once");
     if (!isPlayOnceMode) return;
 
     animationResetTimerRef.current = window.setTimeout(() => {
       setAnimationMode("idle");
       setAnimationRunId((current) => current + 1);
       animationResetTimerRef.current = null;
-    }, getAnimationPreviewDurationMs(animationSet, animationPreset) + 40);
+    }, getBattleAnimationPreviewDurationMs({
+      animationSet,
+      preset: animationPreset,
+      timings: layout.timings,
+    }) + 40);
 
     return () => {
       if (animationResetTimerRef.current !== null) {
@@ -2277,7 +2594,7 @@ export const BattleLayoutEditor: React.FC = () => {
         animationResetTimerRef.current = null;
       }
     };
-  }, [animationMode, animationPreset, animationSet]);
+  }, [animationMode, animationPreset, animationSet, layout.timings]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3725,9 +4042,29 @@ export const BattleLayoutEditor: React.FC = () => {
   const localMotionPreviewDurationMs = getLocalMotionPreviewDurationMs(
     !isMultiSelection ? activeElementConfig : null,
   );
+  const trajectoryPreviewDurationMs = getBattleAnimationPreviewDurationMs({
+    animationSet,
+    preset: animationPreset,
+    timings: layout.timings,
+  });
+  const timingControlGroup = animationTimingControlsBySet[animationSet] ?? null;
+  const timingPropertyControls: LayoutNumberControl[] = useMemo(
+    () =>
+      (timingControlGroup?.controls ?? []).map((control) => ({
+        label: control.label,
+        min: control.min,
+        max: control.max,
+        step: control.step,
+        value: layout.timings[control.key],
+        onChange: (value) => updateLayout("timings", control.key, value),
+        ui: "stepper",
+        changed: layout.timings[control.key] !== baselineLayout.timings[control.key],
+        onReset: () => resetLayoutKeyToBaseline("timings", control.key),
+      })),
+    [baselineLayout.timings, layout.timings, resetLayoutKeyToBaseline, timingControlGroup, updateLayout],
+  );
   const trajectoryLoopIntervalMs =
-    getAnimationPreviewDurationMs(animationSet, animationPreset) +
-    ANIMATION_PREVIEW_LOOP_GAP_MS;
+    trajectoryPreviewDurationMs + ANIMATION_PREVIEW_LOOP_GAP_MS;
   const localMotionLoopIntervalMs =
     localMotionPreviewDurationMs + ANIMATION_PREVIEW_LOOP_GAP_MS;
   const combinedLoopIntervalMs = Math.max(
@@ -5473,6 +5810,44 @@ export const BattleLayoutEditor: React.FC = () => {
                   state: "not-authorable",
                   scope: "global",
                   detail: "O preview pode simular, mas este set nao salva anchor novo.",
+                },
+              ]}
+            />
+          )}
+          {timingControlGroup ? (
+            <div className="space-y-2 rounded-2xl border border-emerald-900/12 bg-white/70 p-3">
+              <div className="space-y-1">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-950/60">
+                  Velocidade do set
+                </div>
+                <div className="text-sm font-bold text-emerald-950">
+                  {timingControlGroup.title}
+                </div>
+                <p className="text-xs leading-relaxed text-emerald-950/72">
+                  Fonte de verdade <strong>runtime-backed</strong> e <strong>global</strong>: preview e runtime leem estes timings do layout ativo.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {timingControlGroup.controls.map((control, index) => (
+                  <div key={control.key} className="space-y-1">
+                    <LayoutControl {...timingPropertyControls[index]} />
+                    <p className="px-1 text-[11px] leading-relaxed text-emerald-950/68">
+                      {control.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <EditorialHonestyPanel
+              title="Velocidade do set"
+              summary="Estado e escopo deste set."
+              items={[
+                {
+                  label: "Sem autoria estrutural nesta rodada",
+                  state: "not-authorable",
+                  scope: "global",
+                  detail: "Este set ainda usa timing fixo do projeto e nao ganhou controles no editor agora.",
                 },
               ]}
             />
