@@ -198,7 +198,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
           <div style={boardVars}>
             <BattleFieldLane
               presentation="enemy"
-              sectionClassName="flex min-h-0 items-end justify-center overflow-visible pb-1"
+              sectionClassName="overflow-visible"
               fieldSceneRect={enemyFieldSceneRect}
               slots={enemyFieldSlots}
               onDebugSnapshot={onEnemyFieldDebugSnapshot}
@@ -211,7 +211,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
           <div style={boardVars}>
             <BattleFieldLane
               presentation="player"
-              sectionClassName="flex min-h-0 items-start justify-center overflow-visible pt-1"
+              sectionClassName="overflow-visible"
               fieldSceneRect={playerFieldSceneRect}
               slots={playerFieldSlots}
               onDebugSnapshot={onPlayerFieldDebugSnapshot}
