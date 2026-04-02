@@ -80,6 +80,7 @@ import { useBattleCombatFlow } from "./BattleCombatFlow";
 import { useBattleControllerGeometry } from "./BattleControllerGeometry";
 import { useBattleControllerDebug } from "./BattleControllerDebug";
 import {
+  type BattleRuntimeCardRef,
   createBattleRuntimeInitialGameState,
   createBattleRuntimeSetup,
   resolveBattleRuntimePlayerCardPiles,
@@ -640,7 +641,9 @@ export const useBattleController = ({
         ...current,
         [side]: nextSide,
       });
-      setFreshCardIds((prev) => prev.filter((id) => !removed.some((card) => card.id === id)));
+      setFreshCardIds((prev) =>
+        prev.filter((id) => !removed.some((card) => (card.runtimeCardId ?? card.id) === id)),
+      );
 
       return removed;
     },
@@ -953,6 +956,7 @@ export const useBattleController = ({
         finalTotalOverride?: number;
         finalIndexBase?: number;
         originOverride?: ZoneAnchorSnapshot | null;
+        cardRefs?: BattleRuntimeCardRef[];
       },
     ) => {
       if (cards.length === 0) return;
@@ -974,7 +978,7 @@ export const useBattleController = ({
         const visualCard = createVisualHandCard(
           card,
           side,
-          resolvedHandIndex >= 0 ? handRefs[resolvedHandIndex] : undefined,
+          config?.cardRefs?.[index] ?? (resolvedHandIndex >= 0 ? handRefs[resolvedHandIndex] : undefined),
         );
         if (!origin) {
           appendStableCard(side, visualCard, { skipEntryAnimation: false });
@@ -1015,6 +1019,7 @@ export const useBattleController = ({
         finalTotalOverride: nextDraw.finalTotal,
         finalIndexBase: nextDraw.finalIndex,
         originOverride: nextDraw.originOverride,
+        cardRefs: [nextDraw.cardRef],
       });
       return true;
     },
@@ -1029,7 +1034,7 @@ export const useBattleController = ({
       removeIncomingCard(incomingCard.side, incomingCard.id);
       appendStableCard(incomingCard.side, incomingCard.card, { skipEntryAnimation: true });
       if (incomingCard.side === PLAYER) {
-        markFreshCard(incomingCard.card.id);
+        markFreshCard(incomingCard.card.runtimeCardId ?? incomingCard.card.id);
       }
       const currentPending = pendingMulliganDrawCountsRef.current[incomingCard.side];
       if (currentPending > 0) {
@@ -1308,6 +1313,8 @@ export const useBattleController = ({
     localPlayerIndex,
     playerDeckSpec,
     enemyDeckSpec,
+    playerDeckCatalog: runtimeSetup.playerDeckCatalog,
+    enemyDeckCatalog: runtimeSetup.enemyDeckCatalog,
     handLayoutSlotCount: HAND_LAYOUT_SLOT_COUNT,
     game,
     gameRef,

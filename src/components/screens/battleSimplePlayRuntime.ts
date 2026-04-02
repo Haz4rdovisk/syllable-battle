@@ -2,6 +2,7 @@ import type { ChronicleEntry, GameState, Syllable } from "../../types/game";
 import type { ZoneAnchorSnapshot } from "../game/GameComponents";
 import type { BattleHandLaneCard, BattleHandLaneOutgoingCard } from "./BattleHandLane";
 import type { BattleFlowTimings } from "./battleFlow";
+import type { BattleRuntimeCardRef } from "./BattleRuntimeSetup";
 import {
   getPlayDrawStartDelayMs,
   getPlayFinishDelayMs,
@@ -18,6 +19,7 @@ interface QueueHandDrawBatchArgs {
   finalTotalOverride?: number;
   finalIndexBase?: number;
   originOverride: ZoneAnchorSnapshot | null;
+  cardRefs?: BattleRuntimeCardRef[];
 }
 
 export interface ApplyBattleSimplePlayRuntimeArgs {
@@ -27,6 +29,7 @@ export interface ApplyBattleSimplePlayRuntimeArgs {
   clearSelection: boolean;
   flow: BattleFlowTimings;
   result: ResolvedBattlePlayAction;
+  drawnCardRefs?: BattleRuntimeCardRef[];
   playedStableCard: BattleHandLaneCard | null;
   playedCardLayout: {
     index: number;
@@ -62,6 +65,7 @@ export const applyBattleSimplePlayRuntime = ({
   clearSelection,
   flow,
   result,
+  drawnCardRefs,
   playedStableCard,
   playedCardLayout,
   visualPlan,
@@ -80,7 +84,7 @@ export const applyBattleSimplePlayRuntime = ({
 }: ApplyBattleSimplePlayRuntimeArgs) => {
   if (visualPlan && visualGeometry && playedStableCard && visualGeometry.handPlayDestination) {
     appendOutgoingCard(side, {
-      id: `play-${playedStableCard.id}-${visualPlan.targetIndex}`,
+      id: `play-${playedStableCard.runtimeCardId ?? playedStableCard.id}-${visualPlan.targetIndex}`,
       side,
       card: playedStableCard,
       destination: visualGeometry.handPlayDestination,
@@ -94,7 +98,7 @@ export const applyBattleSimplePlayRuntime = ({
     });
   } else if (playedStableCard && fallbackHandPlayDestination) {
     appendOutgoingCard(side, {
-      id: `play-${playedStableCard.id}-${targetIndex}`,
+      id: `play-${playedStableCard.runtimeCardId ?? playedStableCard.id}-${targetIndex}`,
       side,
       card: playedStableCard,
       destination: fallbackHandPlayDestination,
@@ -109,21 +113,25 @@ export const applyBattleSimplePlayRuntime = ({
   }
 
   if (visualPlan?.postPlayDraw) {
-    queueHandDrawBatch(side, visualPlan.postPlayDraw.cards, {
+    const drawArgs: QueueHandDrawBatchArgs = {
       initialDelayMs: visualPlan.postPlayDraw.atMs,
       staggerMs: visualPlan.postPlayDraw.staggerMs,
       durationMs: visualPlan.postPlayDraw.durationMs,
       finalTotalOverride: visualPlan.postPlayDraw.finalTotal,
       finalIndexBase: visualPlan.postPlayDraw.finalIndexBase,
       originOverride: visualGeometry?.postPlayDrawOrigin ?? fallbackPostPlayDrawOrigin,
-    });
+    };
+    if (drawnCardRefs) drawArgs.cardRefs = drawnCardRefs;
+    queueHandDrawBatch(side, visualPlan.postPlayDraw.cards, drawArgs);
   } else if (result.damage === 0) {
-    queueHandDrawBatch(side, result.drawnCards, {
+    const drawArgs: QueueHandDrawBatchArgs = {
       initialDelayMs: getPlayDrawStartDelayMs(flow),
       staggerMs: flow.drawStaggerMs,
       durationMs: flow.drawTravelMs,
       originOverride: fallbackPostPlayDrawOrigin,
-    });
+    };
+    if (drawnCardRefs) drawArgs.cardRefs = drawnCardRefs;
+    queueHandDrawBatch(side, result.drawnCards, drawArgs);
   }
 
   setGame((prev) => ({

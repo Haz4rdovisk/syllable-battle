@@ -10,13 +10,20 @@ import { applyBattleSimplePlayRuntime } from "./battleSimplePlayRuntime";
 import { prepareBattleSimplePlayStep } from "./battleSimplePlayStep";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
 import { BattleRuntimeSide, PLAYER, ENEMY } from "./BattleRuntimeState";
-import { replaceBattleRuntimeTargetInSlot } from "./BattleRuntimeSetup";
+import {
+  type BattleRuntimeDeckCatalog,
+  type BattleRuntimeCardRef,
+  replaceBattleRuntimeTargetInSlot,
+  resolveBattleRuntimeDrawnHandCardRefs,
+} from "./BattleRuntimeSetup";
 
 interface UseBattleCombatFlowParams<TVisualHandCard, TVisualTarget> {
   flow: any;
   localPlayerIndex: BattleRuntimeSide;
   playerDeckSpec: BattleDeckSpec;
   enemyDeckSpec: BattleDeckSpec;
+  playerDeckCatalog: BattleRuntimeDeckCatalog;
+  enemyDeckCatalog: BattleRuntimeDeckCatalog;
   handLayoutSlotCount: number;
   game: GameState;
   gameRef: React.MutableRefObject<GameState>;
@@ -25,6 +32,7 @@ interface UseBattleCombatFlowParams<TVisualHandCard, TVisualTarget> {
   pendingMulliganDrawCountsRef: React.MutableRefObject<Record<BattleRuntimeSide, number>>;
   pendingMulliganDrawQueuesRef: React.MutableRefObject<Record<BattleRuntimeSide, Array<{
     syllable: Syllable;
+    cardRef: BattleRuntimeCardRef;
     finalIndex: number;
     finalTotal: number;
     originOverride: any;
@@ -73,6 +81,7 @@ export const useBattleCombatFlow = <
   TVisualHandCard extends {
     id: string;
     syllable: Syllable;
+    runtimeCardId?: string;
     side: BattleRuntimeSide;
     hidden: boolean;
     skipEntryAnimation?: boolean;
@@ -83,6 +92,8 @@ export const useBattleCombatFlow = <
   localPlayerIndex,
   playerDeckSpec,
   enemyDeckSpec,
+  playerDeckCatalog,
+  enemyDeckCatalog,
   handLayoutSlotCount,
   game,
   gameRef,
@@ -384,12 +395,14 @@ export const useBattleCombatFlow = <
     removedCardLayouts,
     remainingStableCount,
     drawnCards,
+    drawnCardRefs,
   }: {
     side: BattleRuntimeSide;
     removedStableCards: TVisualHandCard[];
     removedCardLayouts: Array<{ index: number; total: number }>;
     remainingStableCount: number;
     drawnCards: Syllable[];
+    drawnCardRefs: BattleRuntimeCardRef[];
   }) => {
     createMulliganResolutionEvents({
       turn: game.turn,
@@ -406,7 +419,7 @@ export const useBattleCombatFlow = <
         const layout = removedCardLayouts[index];
         if (!layout) return;
         appendOutgoingCard(side, {
-          id: `outgoing-${card.id}-${index}`,
+          id: `outgoing-${card.runtimeCardId ?? card.id}-${index}`,
           side,
           card,
           destination: deckDestination,
@@ -424,6 +437,7 @@ export const useBattleCombatFlow = <
     });
     const plannedDraws = drawnCards.map((syllable, index) => ({
       syllable,
+      cardRef: drawnCardRefs[index]!,
       finalIndex: Math.min(handLayoutSlotCount - 1, remainingStableCount + index),
       finalTotal: Math.min(handLayoutSlotCount, remainingStableCount + drawnCards.length),
       originOverride: getMulliganHandDrawOriginSnapshot(side, drawnCards.length),
@@ -440,6 +454,7 @@ export const useBattleCombatFlow = <
         finalTotalOverride: plannedDraws[0].finalTotal,
         finalIndexBase: plannedDraws[0].finalIndex,
         originOverride: plannedDraws[0].originOverride,
+        cardRefs: [plannedDraws[0].cardRef],
       });
     }
 
@@ -465,6 +480,11 @@ export const useBattleCombatFlow = <
     if (move.type === "play") {
       const result = resolvePlayInternal(move.handIndex, move.targetIndex);
       if (!result) return;
+      const drawnCardRefs = resolveBattleRuntimeDrawnHandCardRefs(
+        result.nextPlayers[result.actorIndex],
+        side === PLAYER ? playerDeckCatalog : enemyDeckCatalog,
+        result.drawnCards.length,
+      );
 
       const stableBeforePlay = stableHandsRef.current[side];
       const simplePlayStep = prepareBattleSimplePlayStep({
@@ -490,6 +510,7 @@ export const useBattleCombatFlow = <
         localPlayerIndex,
         targetIndex: simplePlayStep.logicalEvent.targetIndex,
         result: simplePlayStep.logicalEvent.result,
+        drawnCardRefs,
         clearSelection,
         flow,
         playedStableCard,
@@ -528,6 +549,11 @@ export const useBattleCombatFlow = <
           total: stableBeforeRemoval.length,
         }));
       const resolution = resolveBattleMulliganAction(gameRef.current, side, selectedIndexes, CONFIG.handSize);
+      const drawnCardRefs = resolveBattleRuntimeDrawnHandCardRefs(
+        resolution.nextPlayers[side],
+        side === PLAYER ? playerDeckCatalog : enemyDeckCatalog,
+        resolution.drawnCards.length,
+      );
       const removedStableCards = removeStableCards(side, selectedIndexes);
       const remainingStableCount = stableHandsRef.current[side].length;
       const returnedCountForLog = removedStableCards.length;
@@ -571,12 +597,13 @@ export const useBattleCombatFlow = <
         removedCardLayouts,
         remainingStableCount,
         drawnCards: resolution.drawnCards,
+        drawnCardRefs,
       });
       return;
     }
 
     finalizeTurn();
-  }, [actionTimersRef, addLog, appendOutgoingCard, applyResolvedMulliganFlow, buildHandSwapChronicleEntry, buildPlayChronicleEntries, commitIncomingHands, commitOutgoingHands, commitOutgoingTargets, commitPendingMulliganDrawCounts, commitPlayedTargetProgress, emitResolvedPlayLogicalEvents, finalizeTurn, flow, game.players, gameRef, getHandPlayTargetDestinationSnapshot, getPostPlayHandDrawOriginSnapshot, handLayoutSlotCount, incomingHandsRef, localPlayerIndex, lockTargetSlot, outgoingHandsRef, outgoingTargetsRef, pendingMulliganDrawCountsRef, pendingMulliganDrawQueuesRef, queueHandDrawBatch, removeStableCards, resolvePlayInternal, setGame, setPendingTargetPlacement, snapshotZoneSlot, stableHandsRef, startCombatSequence, zoneIdForSide]);
+  }, [actionTimersRef, addLog, appendOutgoingCard, applyResolvedMulliganFlow, buildHandSwapChronicleEntry, buildPlayChronicleEntries, commitIncomingHands, commitOutgoingHands, commitOutgoingTargets, commitPendingMulliganDrawCounts, commitPlayedTargetProgress, emitResolvedPlayLogicalEvents, enemyDeckCatalog, finalizeTurn, flow, game.players, gameRef, getHandPlayTargetDestinationSnapshot, getPostPlayHandDrawOriginSnapshot, handLayoutSlotCount, incomingHandsRef, localPlayerIndex, lockTargetSlot, outgoingHandsRef, outgoingTargetsRef, pendingMulliganDrawCountsRef, pendingMulliganDrawQueuesRef, playerDeckCatalog, queueHandDrawBatch, removeStableCards, resolvePlayInternal, setGame, setPendingTargetPlacement, snapshotZoneSlot, stableHandsRef, startCombatSequence, zoneIdForSide]);
 
   return {
     handleOutgoingTargetComplete,

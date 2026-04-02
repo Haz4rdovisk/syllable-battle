@@ -19,6 +19,8 @@ const clampHandSceneScale = (value: number) => Math.max(0.6, value);
 export interface BattleHandLaneCard {
   id: string;
   syllable: Syllable;
+  cardId?: string;
+  runtimeCardId?: string;
   side: 0 | 1;
   hidden: boolean;
   skipEntryAnimation?: boolean;
@@ -336,7 +338,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
         layout: getLayout(totalCards, index, isDesktop, sceneLayoutWidth),
         selected: selectedIndexes.includes(index),
         hovered: hoveredCardIndex === index,
-        newlyDrawn: freshCardIds.includes(card.id),
+        newlyDrawn: freshCardIds.includes(card.runtimeCardId ?? card.id),
       })),
       incomingCards: incomingCards.map((incomingCard) => {
         const layout = getLayout(
@@ -612,7 +614,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
                     syllable={card.syllable}
                     selected={selected}
                     playable={playable && showPlayableHints}
-                    newlyDrawn={freshCardIds.includes(card.id) && showTurnHighlights}
+                    newlyDrawn={freshCardIds.includes(card.runtimeCardId ?? card.id) && showTurnHighlights}
                     attentionPulse={playable && showPlayableHints}
                     disabled={!canInteract}
                     onClick={() => onCardClick?.(i)}

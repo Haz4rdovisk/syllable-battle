@@ -14,9 +14,11 @@ import { CONFIG } from "../logic/gameLogic";
 import { resolveBattleMulliganAction } from "../components/screens/battleResolution";
 import {
   createBattleRuntimeInitialGameState,
+  createBattleRuntimePlayerState,
   createBattleRuntimeSetup,
   replaceBattleRuntimeTargetInSlot,
   resolveBattleRuntimeDeckThemeClass,
+  resolveBattleRuntimeDrawnHandCardRefs,
   resolveBattleRuntimePlayerCardPiles,
 } from "../components/screens/BattleRuntimeSetup";
 import {
@@ -675,4 +677,58 @@ test("runtime card lookup mantem refs unicas entre mao deck e descarte", () => {
   const allRuntimeIds = [...piles.hand, ...piles.syllableDeck, ...piles.discard].map((cardRef) => cardRef.runtimeCardId);
 
   assert.equal(new Set(allRuntimeIds).size, allRuntimeIds.length);
+});
+
+test("runtime card lookup resolve compras por runtimeCardId mesmo com silabas duplicadas", () => {
+  const localDeck = APP_RESOLVED_DECKS.find((deck) =>
+    deck.battleDeck.cards.some((card) => card.copiesInDeck > 1),
+  ) ?? APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+
+  const runtime = createBattleRuntimeSetup(
+    createBattleSetupSpec({
+      mode: "local",
+      playerDeck: localDeck.deckModel,
+      enemyDeck: localDeck.deckModel,
+    }),
+  );
+
+  const playerState = createBattleRuntimePlayerState(runtime.playerDeckSpec, "Teste");
+  const drawnRefs = resolveBattleRuntimeDrawnHandCardRefs(
+    playerState,
+    runtime.playerDeckCatalog,
+    playerState.hand.length,
+  );
+
+  assert.equal(drawnRefs.length, playerState.hand.length);
+  assert.ok(drawnRefs.every((cardRef) => cardRef.runtimeCardId.includes(cardRef.cardId)));
+  assert.equal(new Set(drawnRefs.map((cardRef) => cardRef.runtimeCardId)).size, drawnRefs.length);
+});
+
+test("runtime card lookup permanece estavel apos mover cartas entre mao descarte e deck", () => {
+  const localDeck = APP_RESOLVED_DECKS[0];
+  assert.ok(localDeck);
+
+  const runtime = createBattleRuntimeSetup(
+    createBattleSetupSpec({
+      mode: "local",
+      playerDeck: localDeck.deckModel,
+      enemyDeck: localDeck.deckModel,
+    }),
+  );
+
+  const playerState = createBattleRuntimePlayerState(runtime.playerDeckSpec, "Teste");
+  const movedToDiscard = playerState.hand.slice(0, 2);
+  const simulatedPlayer = {
+    ...playerState,
+    hand: playerState.hand.slice(2),
+    discard: [...playerState.discard, ...movedToDiscard],
+  };
+  const piles = resolveBattleRuntimePlayerCardPiles(simulatedPlayer, runtime.playerDeckCatalog);
+  const handIds = piles.hand.map((cardRef) => cardRef.runtimeCardId);
+  const discardIds = piles.discard.map((cardRef) => cardRef.runtimeCardId);
+  const deckIds = piles.syllableDeck.map((cardRef) => cardRef.runtimeCardId);
+
+  assert.equal(new Set([...handIds, ...discardIds, ...deckIds]).size, handIds.length + discardIds.length + deckIds.length);
+  assert.equal(discardIds.length, movedToDiscard.length);
 });

@@ -162,6 +162,16 @@ export function resolveBattleRuntimePlayerCardPiles(
   };
 }
 
+export function resolveBattleRuntimeDrawnHandCardRefs(
+  player: Pick<PlayerState, "hand" | "syllableDeck" | "discard">,
+  deckCatalog: BattleRuntimeDeckCatalog,
+  drawnCount: number,
+): BattleRuntimeCardRef[] {
+  if (drawnCount <= 0) return [];
+  const handRefs = resolveBattleRuntimePlayerCardPiles(player, deckCatalog).hand;
+  return handRefs.slice(Math.max(0, handRefs.length - drawnCount));
+}
+
 export function createBattleRuntimePlayerState(deck: BattleDeckSpec, name: string): PlayerState {
   const targetDeck = createBattleRuntimeTargetDeck(deck);
   const syllableDeck = createBattleRuntimeSyllableDeck(deck);
