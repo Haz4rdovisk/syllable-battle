@@ -69,6 +69,7 @@ interface BattleFieldLaneProps {
   fieldSceneRect?: BattleSceneRect | null;
   slots: BattleFieldLaneSlot[];
   onDebugSnapshot?: (snapshot: BattleFieldLaneDebugSnapshot) => void;
+  visualRuntime?: "dom" | "pixi";
 }
 
 interface BattleFieldLaneNodeProps {
@@ -357,6 +358,7 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
   fieldSceneRect = null,
   slots,
   onDebugSnapshot,
+  visualRuntime = "dom",
 }) => {
   const incomingRotate = presentation === "player" ? 12 : -12;
   const travelTargetSize = getTravelTargetCardSize();
@@ -558,8 +560,9 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
               key={slot.key}
               ref={slot.slotRef}
               className="relative flex items-start justify-center overflow-visible"
-              style={
-                authoredLocalRect
+              onClick={slot.canClick ? slot.onClick : undefined}
+              style={{
+                ...(authoredLocalRect
                   ? {
                       position: "absolute",
                       left: authoredLocalRect.left,
@@ -567,24 +570,27 @@ export const BattleFieldLane: React.FC<BattleFieldLaneProps> = ({
                       width: authoredLocalRect.width,
                       height: authoredLocalRect.height,
                     }
-                  : { height: "100%", width: "100%" }
-              }
+                  : { height: "100%", width: "100%" }),
+                cursor: slot.canClick ? "pointer" : undefined,
+              }}
             >
-              {renderNodes.map((node) => {
-                return (
-                  <BattleFieldLaneNode
-                    key={node.key}
-                    node={node}
-                    slot={slot}
-                    slotRect={slotRect}
-                    presentation={presentation}
-                    incomingRotate={incomingRotate}
-                    travelTargetSize={travelTargetSize}
-                    clampMotionScale={clampMotionScale}
-                    getStageLocalRect={getStageLocalRect}
-                  />
-                );
-              })}
+              {visualRuntime === "dom"
+                ? renderNodes.map((node) => {
+                    return (
+                      <BattleFieldLaneNode
+                        key={node.key}
+                        node={node}
+                        slot={slot}
+                        slotRect={slotRect}
+                        presentation={presentation}
+                        incomingRotate={incomingRotate}
+                        travelTargetSize={travelTargetSize}
+                        clampMotionScale={clampMotionScale}
+                        getStageLocalRect={getStageLocalRect}
+                      />
+                    );
+                  })
+                : null}
             </div>
           );
         })}

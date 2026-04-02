@@ -3,10 +3,15 @@ import type {
   BattleAnimationAnchorPoint,
   BattleAnimationLayoutConfig,
 } from "./BattleLayoutConfig";
+import {
+  BattleSceneAnimationAnchorKey,
+  createBattleAuthoredAnimationAnchorSet,
+  getBattleAnimationAnchorReferenceTarget,
+} from "./BattleAnchorResolver";
 
 export type BattleDebugPoint = { x: number; y: number };
 
-export type LiveBattleAnimationAnchorKey = keyof BattleAnimationLayoutConfig;
+export type LiveBattleAnimationAnchorKey = BattleSceneAnimationAnchorKey;
 
 export interface BattleProbeRow<AnchorKey extends string = string> {
   anchor: AnchorKey;
@@ -51,96 +56,14 @@ export const getBattleDebugZoneSnapshotCenter = (
 
 export const createLiveAnimationAnchorPoints = (
   animations: BattleAnimationLayoutConfig,
-): Record<LiveBattleAnimationAnchorKey, BattleAnimationAnchorPoint | null> => ({
-  openingTargetEntry0Origin: animations.openingTargetEntry0Origin,
-  openingTargetEntry1Origin: animations.openingTargetEntry1Origin,
-  openingTargetEntry2Origin: animations.openingTargetEntry2Origin,
-  openingTargetEntry3Origin: animations.openingTargetEntry3Origin,
-  replacementTargetEntry0Origin: animations.replacementTargetEntry0Origin,
-  replacementTargetEntry1Origin: animations.replacementTargetEntry1Origin,
-  replacementTargetEntry2Origin: animations.replacementTargetEntry2Origin,
-  replacementTargetEntry3Origin: animations.replacementTargetEntry3Origin,
-  postPlayHandDrawOrigin: animations.postPlayHandDrawOrigin,
-  handPlayTarget0Destination: animations.handPlayTarget0Destination,
-  handPlayTarget1Destination: animations.handPlayTarget1Destination,
-  mulliganReturn1Destination: animations.mulliganReturn1Destination,
-  mulliganReturn2Destination: animations.mulliganReturn2Destination,
-  mulliganReturn3Destination: animations.mulliganReturn3Destination,
-  mulliganDraw1Origin: animations.mulliganDraw1Origin,
-  mulliganDraw2Origin: animations.mulliganDraw2Origin,
-  mulliganDraw3Origin: animations.mulliganDraw3Origin,
-  targetAttack0Impact: animations.targetAttack0Impact,
-  targetAttack1Impact: animations.targetAttack1Impact,
-  targetAttack2Impact: animations.targetAttack2Impact,
-  targetAttack3Impact: animations.targetAttack3Impact,
-  targetAttack0Destination: animations.targetAttack0Destination,
-  targetAttack1Destination: animations.targetAttack1Destination,
-  targetAttack2Destination: animations.targetAttack2Destination,
-  targetAttack3Destination: animations.targetAttack3Destination,
-});
+): Record<LiveBattleAnimationAnchorKey, BattleAnimationAnchorPoint | null> =>
+  createBattleAuthoredAnimationAnchorSet(animations);
 
 export const getLiveAnimationAnchorReferenceTarget = (
   anchorKey: LiveBattleAnimationAnchorKey,
   targetsInPlay: number,
-): LiveBattleAnimationReferenceTarget => {
-  if (anchorKey.startsWith("openingTargetEntry")) {
-    const index = Number(anchorKey.replace("openingTargetEntry", "").replace("Origin", ""));
-    return {
-      kind: "zone",
-      zoneId: index >= targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck",
-    };
-  }
-
-  if (anchorKey.startsWith("replacementTargetEntry")) {
-    const index = Number(anchorKey.replace("replacementTargetEntry", "").replace("Origin", ""));
-    return {
-      kind: "zone",
-      zoneId: index >= targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck",
-    };
-  }
-
-  if (anchorKey === "postPlayHandDrawOrigin") {
-    return {
-      kind: "zone",
-      zoneId: "playerDeck",
-    };
-  }
-
-  if (anchorKey.startsWith("handPlayTarget")) {
-    const index = Number(anchorKey.replace("handPlayTarget", "").replace("Destination", ""));
-    return {
-      kind: "slot",
-      zoneId: "playerField",
-      slot: `slot-${index}`,
-    };
-  }
-
-  if (anchorKey.startsWith("mulliganReturn") || anchorKey.startsWith("mulliganDraw")) {
-    return {
-      kind: "zone",
-      zoneId: "playerDeck",
-    };
-  }
-
-  if (anchorKey.startsWith("targetAttack") && anchorKey.endsWith("Impact")) {
-    const index = Number(anchorKey.replace("targetAttack", "").replace("Impact", ""));
-    return {
-      kind: "slot",
-      zoneId: index >= targetsInPlay ? "enemyField" : "playerField",
-      slot: `slot-${index % targetsInPlay}`,
-    };
-  }
-
-  if (anchorKey.startsWith("targetAttack") && anchorKey.endsWith("Destination")) {
-    const index = Number(anchorKey.replace("targetAttack", "").replace("Destination", ""));
-    return {
-      kind: "zone",
-      zoneId: index >= targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck",
-    };
-  }
-
-  return null;
-};
+): LiveBattleAnimationReferenceTarget =>
+  getBattleAnimationAnchorReferenceTarget(anchorKey, targetsInPlay);
 
 export const getVisibleBattleAnimationAnchors = <AnchorKey extends string>(
   anchorPoints: Record<AnchorKey, BattleAnimationAnchorPoint | null>,
@@ -376,68 +299,11 @@ export const buildBattleDebugPointSnapshot = (
 export const getPreviewAnimationAnchorReferenceTarget = (
   anchorKey: string,
   targetsInPlay: number,
-): LiveBattleAnimationReferenceTarget => {
-  if (anchorKey.startsWith("replacement-target-entry-")) {
-    const match = anchorKey.match(/^replacement-target-entry-(\d+)-origin$/);
-    const index = match ? Number(match[1]) : Number.NaN;
-    if (Number.isNaN(index)) return null;
-    return {
-      kind: "zone",
-      zoneId: index >= targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck",
-    };
-  }
-
-  if (anchorKey === "post-play-hand-draw-origin") {
-    return {
-      kind: "zone",
-      zoneId: "playerDeck",
-    };
-  }
-
-  if (anchorKey.startsWith("hand-play-target-")) {
-    const match = anchorKey.match(/^hand-play-target-(\d+)-destination$/);
-    const index = match ? Number(match[1]) : Number.NaN;
-    if (Number.isNaN(index)) return null;
-    return {
-      kind: "slot",
-      zoneId: "playerField",
-      slot: `slot-${index}`,
-    };
-  }
-
-  if (
-    anchorKey.startsWith("mulligan-hand-draw-") ||
-    anchorKey.startsWith("mulligan-hand-return-")
-  ) {
-    return {
-      kind: "zone",
-      zoneId: "playerDeck",
-    };
-  }
-
-  if (anchorKey.startsWith("target-attack-") && anchorKey.endsWith("-impact")) {
-    const match = anchorKey.match(/^target-attack-(\d+)-impact$/);
-    const index = match ? Number(match[1]) : Number.NaN;
-    if (Number.isNaN(index)) return null;
-    return {
-      kind: "slot",
-      zoneId: index >= targetsInPlay ? "enemyField" : "playerField",
-      slot: `slot-${index % targetsInPlay}`,
-    };
-  }
-
-  if (anchorKey.startsWith("target-attack-") && anchorKey.endsWith("-destination")) {
-    const match = anchorKey.match(/^target-attack-(\d+)-destination$/);
-    const index = match ? Number(match[1]) : Number.NaN;
-    if (Number.isNaN(index)) return null;
-    return {
-      kind: "zone",
-      zoneId: index >= targetsInPlay ? "enemyTargetDeck" : "playerTargetDeck",
-    };
-  }
-
-  return null;
-};
+): LiveBattleAnimationReferenceTarget =>
+  getBattleAnimationAnchorReferenceTarget(
+    anchorKey as Parameters<typeof getBattleAnimationAnchorReferenceTarget>[0],
+    targetsInPlay,
+  );
 
 export const formatBattleDebugFallbackLine = (entry: {
   createdAt: number;

@@ -1,10 +1,13 @@
 import {
+  BattleAnimationAnchorPoint,
+  BattleAnimationLayoutConfig,
   BattleEditableElementKey,
   BattleLayoutOverrides,
   BattleLayoutDeviceKey,
   BattleLayoutDeviceOverrides,
   normalizeBattleLayoutDeviceOverrides,
 } from "./BattleLayoutConfig";
+import { BattleAnimationToolAnchorKey } from "./BattleAnchorResolver";
 import { BattleSceneFixtureKey } from "./BattleSceneFixtures";
 import { BattleScenePreviewFocusArea } from "./BattleSceneFixtureView";
 import { BATTLE_STAGE_HEIGHT, BATTLE_STAGE_WIDTH } from "./BattleSceneSpace";
@@ -100,63 +103,9 @@ export type BattleLayoutPreviewAnimationPreset =
   | "mulligan-complete-combo-1"
   | "mulligan-complete-combo-2"
   | "mulligan-complete-combo-3";
-export type BattleLayoutPreviewAnimationAnchorKey =
-  | "opening-target-entry-0-origin"
-  | "opening-target-entry-1-origin"
-  | "opening-target-entry-2-origin"
-  | "opening-target-entry-3-origin"
-  | "replacement-target-entry-0-origin"
-  | "replacement-target-entry-1-origin"
-  | "replacement-target-entry-2-origin"
-  | "replacement-target-entry-3-origin"
-  | "post-play-hand-draw-origin"
-  | "hand-play-target-0-destination"
-  | "hand-play-target-1-destination"
-  | "mulligan-hand-return-1-destination"
-  | "mulligan-hand-return-2-destination"
-  | "mulligan-hand-return-3-destination"
-  | "mulligan-hand-draw-1-origin"
-  | "mulligan-hand-draw-2-origin"
-  | "mulligan-hand-draw-3-origin"
-  | "target-attack-0-impact"
-  | "target-attack-1-impact"
-  | "target-attack-2-impact"
-  | "target-attack-3-impact"
-  | "target-attack-0-destination"
-  | "target-attack-1-destination"
-  | "target-attack-2-destination"
-  | "target-attack-3-destination";
-export interface BattleLayoutPreviewAnimationAnchorPoint {
-  x: number;
-  y: number;
-}
-export interface BattleLayoutPreviewAnimationAnchors {
-  openingTargetEntry0Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  openingTargetEntry1Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  openingTargetEntry2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  openingTargetEntry3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  replacementTargetEntry0Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  replacementTargetEntry1Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  replacementTargetEntry2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  replacementTargetEntry3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  postPlayHandDrawOrigin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  handPlayTarget0Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  handPlayTarget1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  mulliganReturn1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  mulliganReturn2Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  mulliganReturn3Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  mulliganDraw1Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  mulliganDraw2Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  mulliganDraw3Origin: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack0Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack1Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack2Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack3Impact: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack0Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack1Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack2Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-  targetAttack3Destination: BattleLayoutPreviewAnimationAnchorPoint | null;
-}
+export type BattleLayoutPreviewAnimationAnchorKey = BattleAnimationToolAnchorKey;
+export type BattleLayoutPreviewAnimationAnchorPoint = BattleAnimationAnchorPoint;
+export type BattleLayoutPreviewAnimationAnchors = BattleAnimationLayoutConfig;
 export type BattleLayoutPreviewResolutionOption = {
   label: string;
   width: number;

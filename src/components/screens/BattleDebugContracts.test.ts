@@ -715,9 +715,9 @@ test("getPreviewAnimationAnchorReferenceTarget resolve casos puros do preview", 
     getPreviewAnimationAnchorReferenceTarget("target-attack-2-destination", 2),
     { kind: "zone", zoneId: "enemyTargetDeck" },
   );
-  assert.equal(
+  assert.deepEqual(
     getPreviewAnimationAnchorReferenceTarget("opening-target-entry-1-origin", 2),
-    null,
+    { kind: "zone", zoneId: "playerTargetDeck" },
   );
 });
 

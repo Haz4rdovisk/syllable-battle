@@ -12,6 +12,8 @@ import {
 } from "./BattleLayoutConfig";
 import { battleSceneFixtures } from "./BattleSceneFixtures";
 import { BattleSceneFixtureView } from "./BattleSceneFixtureView";
+import { createBattleSceneRenderModel } from "./BattleSceneViewModel";
+import { createBattlePreviewPlaybackSelection } from "./battlePlaybackTimeline";
 
 const defaultPreviewState: BattleLayoutEditorPreviewState = {
   fixtureKey: "calm",
@@ -251,11 +253,45 @@ export const BattleLayoutPreview: React.FC = () => {
   );
   const fixture =
     battleSceneFixtures[previewState.fixtureKey] ?? battleSceneFixtures.calm;
+  const sceneRenderModel = useMemo(
+    () =>
+      createBattleSceneRenderModel({
+        scene: fixture.scene,
+        layout,
+        layoutDevice: previewState.layoutDevice,
+        viewportWidth: previewState.viewportWidth,
+        viewportHeight: previewState.viewportHeight,
+      }),
+    [
+      fixture.scene,
+      layout,
+      previewState.layoutDevice,
+      previewState.viewportHeight,
+      previewState.viewportWidth,
+    ],
+  );
+  const previewPlayback = useMemo(
+    () =>
+      createBattlePreviewPlaybackSelection({
+        clipSet: previewState.animationSet,
+        clipMode: previewState.animationMode,
+        preset: previewState.animationPreset,
+        runId: previewState.animationRunId,
+      }),
+    [
+      previewState.animationMode,
+      previewState.animationPreset,
+      previewState.animationRunId,
+      previewState.animationSet,
+    ],
+  );
 
   return (
     <BattleSceneFixtureView
       fixture={fixture}
       layout={layout}
+      sceneRenderModel={sceneRenderModel}
+      previewPlayback={previewPlayback}
       layoutPreviewDevice={previewState.layoutDevice}
       focusArea={previewState.focusArea}
       selectedElements={previewState.selectedElements}
