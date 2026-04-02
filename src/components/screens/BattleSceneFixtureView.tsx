@@ -3262,6 +3262,8 @@ export const BattleSceneFixtureView: React.FC<{
             selectedElements: hostSelectedSceneElements,
             previewSelectableByElement: {
               shell: false,
+              enemyField: false,
+              playerField: false,
               bottomHand: !isHandPlayTargetEditorSet,
             },
             selectionReadOnlyByElement: {
@@ -3333,7 +3335,7 @@ export const BattleSceneFixtureView: React.FC<{
                 selected={selectedElements.includes(slotKey)}
                 snapTargets={snapTargets}
                 className={cn(
-                  "absolute left-0 top-0 z-[16]",
+                  "absolute left-0 top-0 z-[56]",
                   getPreviewAreaClass(focusArea, [slotKey]),
                 )}
               >
