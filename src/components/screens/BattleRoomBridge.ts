@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { CONFIG, TIMINGS } from "../../logic/gameLogic";
 import { BattleSubmittedAction, BattleTurnAction, GameMode, Syllable } from "../../types/game";
 import { resolveBotTurnAction } from "./battleFlow";
@@ -119,6 +119,12 @@ export const useBattleRoomBridge = <TVisualHandCard,>({
     [executeBattleTurnAction, requestBattleAction, shouldExecuteLocallyAfterRequest, snapshotActionOrigin],
   );
 
+  const dispatchBattleActionRef = useRef(dispatchBattleAction);
+
+  useEffect(() => {
+    dispatchBattleActionRef.current = dispatchBattleAction;
+  }, [dispatchBattleAction]);
+
   useEffect(() => {
     const shouldRunEnemyAuto = mode === "bot" || (mode === "multiplayer" && enableMockRoomBot);
     if (introPhase !== "done" || game.turn !== remotePlayerIndex || game.winner !== null || game.combatLocked || !shouldRunEnemyAuto) return;
@@ -132,7 +138,7 @@ export const useBattleRoomBridge = <TVisualHandCard,>({
         maxMulligan: CONFIG.maxMulligan,
       });
       if (move) {
-        dispatchBattleAction({
+        dispatchBattleActionRef.current({
           side: remotePlayerIndex,
           move,
           clearSelection: false,
@@ -142,7 +148,7 @@ export const useBattleRoomBridge = <TVisualHandCard,>({
     }, TIMINGS.botThinkMs);
 
     return () => clearTimeout(botAction);
-  }, [dispatchBattleAction, enableMockRoomBot, game.combatLocked, game.turn, game.winner, gameRef, introPhase, mode, remotePlayerIndex]);
+  }, [enableMockRoomBot, game.combatLocked, game.turn, game.winner, gameRef, introPhase, mode, remotePlayerIndex]);
 
   useEffect(() => {
     if (!pendingExternalAction) return;

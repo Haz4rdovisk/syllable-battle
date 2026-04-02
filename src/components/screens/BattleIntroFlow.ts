@@ -86,6 +86,9 @@ export const useBattleIntroFlow = <TVisualTarget,>({
   timing,
 }: UseBattleIntroFlowParams<TVisualTarget>) => {
   const beginCoinChoiceResolution = useCallback((face: CoinFace | null) => {
+    const introAuthorityLocal = mode !== "multiplayer" || localSide === "player";
+    if (!introAuthorityLocal || gameRef.current.openingIntroStep !== "coin-choice") return;
+
     setSelectedCoinFace(face);
     setGame((prev) => ({
       ...prev,
@@ -93,7 +96,7 @@ export const useBattleIntroFlow = <TVisualTarget,>({
       openingCoinResult: null,
       openingIntroStep: "coin-fall",
     }));
-  }, [setGame, setSelectedCoinFace]);
+  }, [gameRef, localSide, mode, setGame, setSelectedCoinFace]);
 
   useEffect(() => {
     setIntroPhase(game.openingIntroStep);

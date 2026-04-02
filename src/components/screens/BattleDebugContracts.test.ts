@@ -23,6 +23,13 @@ import {
   createBattleLayoutPresetSource,
   normalizeBattleLayoutDeviceOverrides,
 } from "./BattleLayoutConfig";
+import {
+  buildBattleTargetFieldState,
+  type BattleTargetSceneNode,
+} from "./BattleTargetField";
+import { createBattleSceneBoardModel } from "./BattleSceneViewModel";
+import type { UITarget } from "../../types/game";
+import type { VisualTargetEntity } from "../game/GameComponents";
 
 const createPreviewState = (): BattleLayoutEditorPreviewState => ({
   fixtureKey: "calm",
@@ -257,6 +264,209 @@ test("getLiveAnimationAnchorReferenceTarget resolve destinos por tipo de ancora"
   assert.deepEqual(
     getLiveAnimationAnchorReferenceTarget("targetAttack2Destination", 2),
     { kind: "zone", zoneId: "enemyTargetDeck" },
+  );
+});
+
+const createTarget = (overrides: Partial<UITarget> = {}): UITarget => ({
+  id: "target-under-test",
+  name: "CAMARAO",
+  emoji: "🦐",
+  syllables: ["CA", "MA", "RAO"],
+  rarity: "raro",
+  progress: [],
+  uiId: "target-under-test-ui",
+  entering: false,
+  attacking: false,
+  leaving: false,
+  justArrived: false,
+  canonicalTargetId: "catalog-target-camarao",
+  targetInstanceId: "target-instance-camarao-1",
+  requiredCardIds: ["card-ca", "card-ma", "card-rao"],
+  targetSuperclass: "animal",
+  targetClassKey: "seafood",
+  sourceDeckId: "deck-ocean",
+  ...overrides,
+});
+
+const createVisualTargetEntity = (
+  target: UITarget,
+  side: "player" | "enemy",
+  slotIndex: number,
+): VisualTargetEntity => ({
+  id: `${target.uiId}-visual`,
+  side,
+  slotIndex,
+  target,
+});
+
+test("buildBattleTargetFieldState separa slot instance e scene nodes ativos por slot", () => {
+  const stablePlayerTarget = createVisualTargetEntity(createTarget(), "player", 0);
+  const outgoingPlayerTarget = createVisualTargetEntity(
+    createTarget({
+      id: "completed-target",
+      uiId: "completed-target-ui",
+      canonicalTargetId: "catalog-target-completed",
+      targetInstanceId: "target-instance-completed-1",
+    }),
+    "player",
+    0,
+  );
+  const incomingPlayerTarget = createVisualTargetEntity(
+    createTarget({
+      id: "replacement-target",
+      uiId: "replacement-target-ui",
+      canonicalTargetId: "catalog-target-replacement",
+      targetInstanceId: "target-instance-replacement-1",
+    }),
+    "player",
+    0,
+  );
+  const enemyStableTarget = createVisualTargetEntity(
+    createTarget({
+      id: "enemy-target",
+      uiId: "enemy-target-ui",
+      targetInstanceId: "enemy-target-instance-1",
+    }),
+    "enemy",
+    0,
+  );
+
+  const state = buildBattleTargetFieldState({
+    localPlayerIndex: 0,
+    targetsInPlay: 2,
+    logicalTargets: {
+      0: [
+        createTarget({
+          id: "logical-player-target",
+          uiId: "logical-player-target-ui",
+          targetInstanceId: "logical-player-target-instance-1",
+          canonicalTargetId: "catalog-target-logical-player",
+        }),
+        createTarget({
+          id: "player-target-1",
+          uiId: "player-target-1-ui",
+          targetInstanceId: "player-target-1-instance",
+        }),
+      ],
+      1: [
+        createTarget({
+          id: "enemy-logical-target",
+          uiId: "enemy-logical-target-ui",
+          targetInstanceId: "enemy-logical-target-instance-1",
+        }),
+        createTarget({
+          id: "enemy-target-1",
+          uiId: "enemy-target-1-ui",
+          targetInstanceId: "enemy-target-1-instance",
+        }),
+      ],
+    },
+    stableTargets: {
+      0: [stablePlayerTarget, null],
+      1: [enemyStableTarget, null],
+    },
+    incomingTargets: {
+      0: [
+        {
+          id: "incoming-target-replacement",
+          slotIndex: 0,
+          entity: incomingPlayerTarget,
+        },
+      ],
+      1: [],
+    },
+    outgoingTargets: {
+      0: [
+        {
+          id: "outgoing-target-attack",
+          slotIndex: 0,
+          entity: outgoingPlayerTarget,
+          impactDestination: { left: 0, top: 0, width: 0, height: 0 },
+        },
+      ],
+      1: [],
+    },
+    lockedTargetSlots: {
+      0: [true, false],
+      1: [false, false],
+    },
+    pendingTargetPlacements: {
+      0: ["CA", null],
+      1: [null, null],
+    },
+  });
+
+  const playerSlot0 = state.playerSlots[0];
+  assert.equal(playerSlot0.slot.slotId, "player-field-slot-0");
+  assert.equal(playerSlot0.slot.fieldZoneId, "playerField");
+  assert.equal(playerSlot0.occupant?.instanceId, "logical-player-target-instance-1");
+  assert.equal(playerSlot0.occupant?.canonicalTargetId, "catalog-target-logical-player");
+  assert.equal(playerSlot0.pendingCard, "CA");
+  assert.equal(playerSlot0.locked, true);
+  assert.deepEqual(
+    playerSlot0.sceneNodes.map((node) => node.phase),
+    ["replacement", "attack", "receive-card"],
+  );
+  assert.equal(
+    playerSlot0.sceneNodes.find((node) => node.phase === "attack")?.instanceId,
+    "target-instance-completed-1",
+  );
+  assert.equal(
+    playerSlot0.sceneNodes.find((node) => node.phase === "replacement")?.instanceId,
+    "target-instance-replacement-1",
+  );
+
+  const enemySlot0 = state.enemySlots[0];
+  assert.equal(enemySlot0.slot.slotId, "enemy-field-slot-0");
+  assert.equal(enemySlot0.occupant?.instanceId, "enemy-logical-target-instance-1");
+  assert.deepEqual(
+    enemySlot0.sceneNodes.map((node) => node.phase),
+    ["idle"],
+  );
+});
+
+test("createBattleSceneBoardModel consegue expressar occupant atual e nodes ativos por slot", () => {
+  const target = createTarget();
+  const visualEntity = createVisualTargetEntity(target, "player", 0);
+  const board = createBattleSceneBoardModel({
+    enemyFieldSlots: [],
+    playerFieldSlots: [
+      {
+        key: "player-slot-0",
+        slotRef: () => {},
+        displayedTarget: visualEntity,
+        incomingTarget: null,
+        outgoingTarget: null,
+        slotRect: null,
+        selectedCard: null,
+        pendingCard: "CA",
+        canClick: false,
+        onClick: () => {},
+      },
+    ],
+    currentMessage: null,
+    enemyPortrait: {
+      label: "OPONENTE",
+      isLocal: false,
+      life: 10,
+      active: false,
+      flashDamage: 0,
+    },
+    playerPortrait: {
+      label: "VOCE",
+      isLocal: true,
+      life: 10,
+      active: true,
+      flashDamage: 0,
+    },
+  });
+
+  assert.equal(board.playerFieldObjects.length, 1);
+  assert.equal(board.playerFieldObjects[0]?.slot.slotId, "player-field-slot-0");
+  assert.equal(board.playerFieldObjects[0]?.occupant?.instanceId, "target-instance-camarao-1");
+  assert.deepEqual(
+    board.playerFieldObjects[0]?.sceneNodes.map((node: BattleTargetSceneNode) => node.phase),
+    ["idle", "receive-card"],
   );
 });
 

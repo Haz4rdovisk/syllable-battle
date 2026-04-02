@@ -139,6 +139,8 @@ export const buildBattleSceneModelFromRuntime = ({
       board: createBattleSceneBoardModel({
         enemyFieldSlots,
         playerFieldSlots,
+        enemyFieldObjects: runtime.targetField.enemySlots,
+        playerFieldObjects: runtime.targetField.playerSlots,
         currentMessage: game.currentMessage,
         enemyPortrait: {
           label: normalizePlayerName(remotePlayerName, "OPONENTE"),

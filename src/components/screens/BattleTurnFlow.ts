@@ -221,7 +221,20 @@ export const useBattleTurnFlow = ({
       clearTimeout(queueTimer);
       clearTimeout(releaseTimer);
     };
-  }, [game, getTurnMessageTitle, introPhase, presentedTurnKeyRef, setGame, setTurnPresentationLocked, timing]);
+  }, [
+    game.setupVersion,
+    game.turn,
+    game.turnDeadlineAt,
+    game.winner,
+    getTurnMessageTitle,
+    introPhase,
+    presentedTurnKeyRef,
+    setGame,
+    setTurnPresentationLocked,
+    timing.bannerDurationMs,
+    timing.interactionReleaseBufferMs,
+    timing.preBannerDelayMs,
+  ]);
 
   useEffect(() => {
     if (game.currentMessage) {

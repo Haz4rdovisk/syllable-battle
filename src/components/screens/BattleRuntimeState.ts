@@ -2,6 +2,7 @@ import { BattleHandLaneOutgoingCard } from "./BattleHandLane";
 import { ChronicleEntry, CoinFace, GameState, Syllable } from "../../types/game";
 import { VisualTargetEntity, ZoneAnchorSnapshot } from "../game/GameComponents";
 import type { BattleRuntimeCardRef } from "./BattleRuntimeSetup";
+import type { BattleTargetFieldState } from "./BattleTargetField";
 
 export const PLAYER = 0 as const;
 export const ENEMY = 1 as const;
@@ -101,6 +102,7 @@ export interface BattleRuntimeState {
   hoveredCardIndex: number | null;
   stableHands: StableHandsState;
   stableTargets: StableTargetsState;
+  targetField: BattleTargetFieldState;
   mulliganDebug: MulliganDebugState;
 }
 

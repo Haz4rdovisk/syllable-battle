@@ -85,6 +85,7 @@ import {
   createBattleRuntimeSetup,
   resolveBattleRuntimePlayerCardPiles,
 } from "./BattleRuntimeSetup";
+import { buildBattleTargetFieldState } from "./BattleTargetField";
 
 const FLOW = BATTLE_SHARED_FLOW_TIMINGS;
 
@@ -1648,6 +1649,32 @@ export const useBattleController = ({
     },
     [introPhase, localPlayerIndex, turnPresentationLocked],
   );
+  const targetField = useMemo(
+    () =>
+      buildBattleTargetFieldState({
+        localPlayerIndex,
+        targetsInPlay: CONFIG.targetsInPlay,
+        logicalTargets: {
+          [PLAYER]: game.players[PLAYER].targets,
+          [ENEMY]: game.players[ENEMY].targets,
+        },
+        stableTargets,
+        incomingTargets,
+        outgoingTargets,
+        lockedTargetSlots,
+        pendingTargetPlacements,
+      }),
+    [
+      game.players,
+      incomingTargets,
+      localPlayerIndex,
+      lockedTargetSlots,
+      outgoingTargets,
+      pendingTargetPlacements,
+      stableTargets,
+    ],
+  );
+
   const { sceneModel, enemyFieldHasOutgoingTarget, playerFieldHasOutgoingTarget } = useMemo(
     () =>
       buildBattleSceneModelFromRuntime({
@@ -1666,6 +1693,7 @@ export const useBattleController = ({
           hoveredCardIndex,
           stableHands,
           stableTargets,
+          targetField,
           mulliganDebug,
         },
         visualQueue: {
@@ -1717,13 +1745,11 @@ export const useBattleController = ({
       introPhase,
       localPlayerAvatar,
       localPlayerIndex,
-      lockedTargetSlots,
       mulliganDebug,
       openingTurnSide,
       outgoingHands,
       outgoingTargets,
       pendingMulliganDrawCounts,
-      pendingTargetPlacements,
       plannedCoinFace,
       playOnTarget,
       remotePlayerAvatar,
@@ -1736,6 +1762,7 @@ export const useBattleController = ({
       showResultOverlay,
       stableHands,
       stableTargets,
+      targetField,
       turnPresentationLocked,
       turnRemainingMs,
     ],
@@ -1765,6 +1792,7 @@ export const useBattleController = ({
       hoveredCardIndex,
       stableHands,
       stableTargets,
+      targetField,
       mulliganDebug,
     },
     visualQueue: {

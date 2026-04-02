@@ -247,16 +247,20 @@ export const Battle: React.FC<BattleControllerProps> = ({
                 <div className="grid w-full gap-3 sm:grid-cols-2">
                   {(["cara", "coroa"] as const).map((face) => {
                     const active = selectedCoinFace === face;
+                    const coinChoiceDisabled = mode === "multiplayer" && localSide !== "player";
                     return (
                       <button
                         key={face}
                         type="button"
+                        disabled={coinChoiceDisabled}
                         onClick={() => beginCoinChoiceResolution(face)}
                         className={cn(
                           "rounded-[1.4rem] border-4 px-4 py-3 text-left transition-all duration-200",
                           active
                             ? "border-amber-950 bg-amber-950 text-amber-50 shadow-[0_16px_32px_rgba(120,53,15,0.24)]"
                             : "border-amber-900/20 bg-amber-100/85 text-amber-950 hover:-translate-y-0.5 hover:border-amber-900/35",
+                          coinChoiceDisabled &&
+                            "cursor-not-allowed border-amber-900/10 bg-amber-100/55 text-amber-950/55 hover:translate-y-0 hover:border-amber-900/10",
                         )}
                       >
                         <div className="text-[11px] font-black uppercase tracking-[0.28em] text-current/65">

@@ -1,6 +1,10 @@
 import { ChronicleEntry, GameMessage, GameState } from "../../types/game";
 import { BattleFieldLaneSlot } from "./BattleFieldLane";
 import {
+  BattleTargetFieldSlotState,
+  buildBattleTargetFieldStateFromSceneSlots,
+} from "./BattleTargetField";
+import {
   BattleHandLaneCard,
   BattleHandLaneDebugSnapshot,
   BattleHandLaneIncomingCard,
@@ -38,6 +42,8 @@ export interface BattleActionButtonViewModel {
 export interface BattleSceneBoardModel {
   enemyFieldSlots: BattleFieldLaneSlot[];
   playerFieldSlots: BattleFieldLaneSlot[];
+  enemyFieldObjects: BattleTargetFieldSlotState[];
+  playerFieldObjects: BattleTargetFieldSlotState[];
   currentMessage: GameMessage | null;
   enemyPortrait: BattlePortraitViewModel;
   playerPortrait: BattlePortraitViewModel;
@@ -83,9 +89,24 @@ export interface BattleSceneHandsModel {
 }
 
 export function createBattleSceneBoardModel(
-  board: BattleSceneBoardModel,
+  board: Omit<
+    BattleSceneBoardModel,
+    "enemyFieldObjects" | "playerFieldObjects"
+  > &
+    Partial<
+      Pick<BattleSceneBoardModel, "enemyFieldObjects" | "playerFieldObjects">
+    >,
 ): BattleSceneBoardModel {
-  return board;
+  const fallbackFieldState = buildBattleTargetFieldStateFromSceneSlots({
+    enemyFieldSlots: board.enemyFieldSlots,
+    playerFieldSlots: board.playerFieldSlots,
+  });
+
+  return {
+    ...board,
+    enemyFieldObjects: board.enemyFieldObjects ?? fallbackFieldState.enemySlots,
+    playerFieldObjects: board.playerFieldObjects ?? fallbackFieldState.playerSlots,
+  };
 }
 
 export interface BattleSceneModel {
