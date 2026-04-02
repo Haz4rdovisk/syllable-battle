@@ -12,10 +12,12 @@ import { cn } from "../../lib/utils";
 import { getBattleHandFrame, getBattleHandLayout } from "./battleFlow";
 import { getBattleStageDomMetrics, toBattleStageLocalRect } from "./BattleSceneSpace";
 import { BattleTravelLayerContext } from "./BattleTravelLayer";
+import {
+  getBattleHandIncomingTravelMotion,
+  getBattleHandOutgoingTravelMotion,
+} from "./battleHandTravelGeometry";
 
 const HAND_LAYOUT_SLOT_COUNT = 5;
-const clampScale = (value: number, min = 0.72, max = 1.24) =>
-  Math.min(max, Math.max(min, value));
 const clampHandSceneScale = (value: number) => Math.max(0.6, value);
 
 export interface BattleHandLaneCard {
@@ -140,10 +142,14 @@ export interface BattleHandLaneDebugSnapshot {
     motion: {
       baseLeft: number;
       baseTop: number;
+      portalBaseLeft: number;
+      portalBaseTop: number;
       deckExitX: number;
       deckExitY: number;
       startX: number;
       startY: number;
+      slotX: number;
+      slotY: number;
       startScale: number;
       startRotate: number;
     } | null;
@@ -166,12 +172,16 @@ export interface BattleHandLaneDebugSnapshot {
     motion: {
       baseLeft: number;
       baseTop: number;
+      portalBaseLeft: number;
+      portalBaseTop: number;
       destinationCenterX: number;
       destinationCenterY: number;
       deckBottomX: number;
       deckBottomY: number;
       endX: number;
       endY: number;
+      slotX: number;
+      slotY: number;
       endScale: number;
     } | null;
   }>;
@@ -380,29 +390,16 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           };
         }
         const cardSize = { width: cardWidth, height: cardBaseHeight };
-        const deckExitX =
-          originRect.left +
-          originRect.width / 2 -
-          sceneVisualRect.sceneLeft -
-          (cardSize.width * handSceneScale) / 2;
-        const deckExitY =
-          originRect.top +
-          Math.max(8, originRect.height * 0.14) -
-          sceneVisualRect.sceneTop -
-          cardSize.height * handSceneScale * 0.18;
-        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
-        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
-        const startX = deckExitX / handSceneScale - baseLeft;
-        const startY = deckExitY / handSceneScale - baseTop;
-        const startScale =
-          cardSize.width > 0 && cardSize.height > 0
-            ? clampScale(
-                Math.min(
-                  originRect.width / (cardSize.width * handSceneScale),
-                  originRect.height / (cardSize.height * handSceneScale),
-                ),
-              )
-            : 0.92;
+        const travelMotion = getBattleHandIncomingTravelMotion({
+          originRect,
+          layout,
+          baseHandFrame,
+          bottomOffset,
+          cardWidth: cardSize.width,
+          cardHeight: cardSize.height,
+          handSceneScale,
+          sceneRect: sceneVisualRect,
+        });
         return {
           id: incomingCard.id,
           syllable: incomingCard.card.syllable,
@@ -413,13 +410,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           origin: incomingCard.origin,
           layout,
           motion: {
-            baseLeft,
-            baseTop,
-            deckExitX,
-            deckExitY,
-            startX,
-            startY,
-            startScale,
+            ...travelMotion,
             startRotate: isLocalPresentation ? 3 : -3,
           },
         };
@@ -460,41 +451,20 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             motion: null,
           };
         }
-        const cardSize = { width: cardWidth, height: cardBaseHeight };
-        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
-        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
-        const destinationCenterX =
-          destinationRect.left +
-          destinationRect.width / 2 -
-          sceneVisualRect.sceneLeft -
-          (cardSize.width * handSceneScale) / 2;
-        const destinationCenterY =
-          destinationRect.top +
-          destinationRect.height / 2 -
-          sceneVisualRect.sceneTop -
-          (cardSize.height * handSceneScale) / 2;
-        const deckBottomX = destinationCenterX;
-        const deckBottomY =
-          destinationRect.top +
-          destinationRect.height -
-          Math.max(10, destinationRect.height * 0.16) -
-          sceneVisualRect.sceneTop -
-          cardSize.height * handSceneScale * 0.82;
         const destinationMode = outgoingCard.destinationMode ?? "deck-bottom";
-        const endX =
-          (destinationMode === "zone-center" ? destinationCenterX : deckBottomX) / handSceneScale - baseLeft;
-        const endY =
-          (destinationMode === "zone-center" ? destinationCenterY : deckBottomY) / handSceneScale - baseTop;
-        const endScale =
-          outgoingCard.endScale ??
-          (destinationMode === "zone-center"
-            ? 1
-            : clampScale(
-                Math.min(
-                  destinationRect.width / (cardSize.width * handSceneScale),
-                  destinationRect.height / (cardSize.height * handSceneScale),
-                ),
-              ));
+        const cardSize = { width: cardWidth, height: cardBaseHeight };
+        const travelMotion = getBattleHandOutgoingTravelMotion({
+          destinationRect,
+          destinationMode,
+          endScale: outgoingCard.endScale,
+          layout,
+          baseHandFrame,
+          bottomOffset,
+          cardWidth: cardSize.width,
+          cardHeight: cardSize.height,
+          handSceneScale,
+          sceneRect: sceneVisualRect,
+        });
         return {
           id: outgoingCard.id,
           syllable: outgoingCard.card.syllable,
@@ -505,17 +475,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           destinationMode,
           destination: outgoingCard.destination,
           layout,
-          motion: {
-            baseLeft,
-            baseTop,
-            destinationCenterX,
-            destinationCenterY,
-            deckBottomX,
-            deckBottomY,
-            endX,
-            endY,
-            endScale,
-          },
+          motion: travelMotion,
         };
       }),
     }),
@@ -562,48 +522,35 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           isDesktop,
           sceneLayoutWidth,
         );
-        const deckExitX =
-          originRect.left +
-          originRect.width / 2 -
-          sceneVisualRect.sceneLeft -
-          (cardSize.width * handSceneScale) / 2;
-        const deckExitY =
-          originRect.top +
-          Math.max(8, originRect.height * 0.14) -
-          sceneVisualRect.sceneTop -
-          cardSize.height * handSceneScale * 0.18;
-        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
-        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
-        const startX = deckExitX / handSceneScale - baseLeft;
-        const startY = deckExitY / handSceneScale - baseTop;
-        const startScale =
-          cardSize.width > 0 && cardSize.height > 0
-            ? clampScale(
-                Math.min(
-                  originRect.width / (cardSize.width * handSceneScale),
-                  originRect.height / (cardSize.height * handSceneScale),
-                ),
-              )
-            : 0.92;
+        const travelMotion = getBattleHandIncomingTravelMotion({
+          originRect,
+          layout,
+          baseHandFrame,
+          bottomOffset,
+          cardWidth: cardSize.width,
+          cardHeight: cardSize.height,
+          handSceneScale,
+          sceneRect: sceneVisualRect,
+        });
         const startRotate = isLocalPresentation ? 3 : -3;
         return (
           <motion.div
             key={incomingCard.id}
             className="pointer-events-none absolute left-0 top-0 z-[120]"
             style={{
-              left: `calc(50% - ${cardSize.width / 2}px)`,
-              top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
+              left: `${travelMotion.portalBaseLeft}px`,
+              top: `${travelMotion.portalBaseTop}px`,
             }}
             initial={{
-              x: startX,
-              y: startY,
+              x: travelMotion.startX,
+              y: travelMotion.startY,
               rotate: startRotate,
-              scale: startScale,
+              scale: travelMotion.startScale,
               opacity: 0,
             }}
             animate={{
-              x: layout.x,
-              y: layout.y,
+              x: travelMotion.slotX,
+              y: travelMotion.slotY,
               rotate: layout.rotate,
               scale: 1,
               opacity: 1,
@@ -650,68 +597,39 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           isDesktop,
           sceneLayoutWidth,
         );
-        const baseLeft = baseHandFrame.width / 2 - cardSize.width / 2;
-        const baseTop = baseHandFrame.height - bottomOffset - cardSize.height;
-        const destinationCenterX =
-          destinationRect.left +
-          destinationRect.width / 2 -
-          sceneVisualRect.sceneLeft -
-          (cardSize.width * handSceneScale) / 2;
-        const destinationCenterY =
-          destinationRect.top +
-          destinationRect.height / 2 -
-          sceneVisualRect.sceneTop -
-          (cardSize.height * handSceneScale) / 2;
-        const deckBottomX = destinationCenterX;
-        const deckBottomY =
-          destinationRect.top +
-          destinationRect.height -
-          Math.max(10, destinationRect.height * 0.16) -
-          sceneVisualRect.sceneTop -
-          cardSize.height * handSceneScale * 0.82;
-        const endX =
-          (outgoingCard.destinationMode === "zone-center"
-            ? destinationCenterX
-            : deckBottomX) /
-            handSceneScale -
-          baseLeft;
-        const endY =
-          (outgoingCard.destinationMode === "zone-center"
-            ? destinationCenterY
-            : deckBottomY) /
-            handSceneScale -
-          baseTop;
-        const endScale =
-          outgoingCard.endScale ??
-          (outgoingCard.destinationMode === "zone-center"
-            ? 1
-            : clampScale(
-                Math.min(
-                  destinationRect.width / (cardSize.width * handSceneScale),
-                  destinationRect.height / (cardSize.height * handSceneScale),
-                ),
-              ));
+        const travelMotion = getBattleHandOutgoingTravelMotion({
+          destinationRect,
+          destinationMode: outgoingCard.destinationMode ?? "deck-bottom",
+          endScale: outgoingCard.endScale,
+          layout,
+          baseHandFrame,
+          bottomOffset,
+          cardWidth: cardSize.width,
+          cardHeight: cardSize.height,
+          handSceneScale,
+          sceneRect: sceneVisualRect,
+        });
         return (
           <motion.div
             key={outgoingCard.id}
             className="pointer-events-none absolute left-0 top-0 z-[118]"
             style={{
-              left: `calc(50% - ${cardSize.width / 2}px)`,
-              top: `calc(100% - ${bottomOffset + cardSize.height}px)`,
+              left: `${travelMotion.portalBaseLeft}px`,
+              top: `${travelMotion.portalBaseTop}px`,
             }}
             initial={{
-              x: layout.x,
-              y: layout.y,
+              x: travelMotion.slotX,
+              y: travelMotion.slotY,
               rotate: layout.rotate,
               scale: 1,
               opacity: 1,
             }}
             animate={{
-              x: endX,
-              y: endY,
+              x: travelMotion.endX,
+              y: travelMotion.endY,
               rotate:
                 outgoingCard.endRotate ?? (isLocalPresentation ? 4 : -4),
-              scale: endScale,
+              scale: travelMotion.endScale,
               opacity: 1,
             }}
             transition={{
