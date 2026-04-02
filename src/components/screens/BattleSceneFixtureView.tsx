@@ -62,6 +62,26 @@ import {
   BATTLE_SHARED_OPENING_TARGET_TIMINGS,
 } from "./battleSharedTimings";
 import {
+  createBattleCombatPreviewSchedule,
+  createBattleMulliganPreviewSchedule,
+} from "./battleCompositeSchedule";
+import {
+  type BattlePreviewCompletionPlan,
+  type BattlePreviewPhaseDebugEntry,
+  collectBattlePreviewPlayableTargets,
+  createBattleCombatPreviewPhaseDebugEntries,
+  createBattleHandPlayTargetPreviewPhaseDebugEntries,
+  createBattleOpeningPreviewPhaseDebugEntries,
+  createBattlePostPlayDrawPreviewPhaseDebugEntries,
+  createBattleMulliganPreviewPhaseDebugEntries,
+  createBattlePreviewCompletionPlan,
+  createBattleReplacementPreviewPhaseDebugEntries,
+  createBattleSimplePlayPreviewPhaseDebugEntries,
+  formatBattlePreviewCompletionDebugLine,
+  formatBattlePreviewPhaseDebugEntry,
+  getBattlePreviewPhasesCompletionAtMs,
+} from "./battlePreviewPlayback";
+import {
   buildBattleDebugPointSnapshot,
   buildBattleProbeRow,
   formatBattleDebugPoint,
@@ -83,7 +103,6 @@ const FIXTURE_TARGET_ENTER_STAGGER_MS =
 const FIXTURE_TARGET_ENTER_SETTLE_MS =
   BATTLE_SHARED_OPENING_TARGET_TIMINGS.targetSettleMs;
 const FIXTURE_TARGET_LOOP_GAP_MS = 680;
-const FIXTURE_TARGET_ENTER_DURATION_MS = 780;
 const FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS =
   BATTLE_SHARED_FLOW_TIMINGS.targetSettleMs;
 const FIXTURE_PILL_DAMAGE_DURATION_MS = 1200;
@@ -97,20 +116,25 @@ const FIXTURE_BOARD_MESSAGE_LOOP_GAP_MS = 680;
 const FIXTURE_POST_PLAY_DRAW_DURATION_MS = BATTLE_SHARED_FLOW_TIMINGS.drawTravelMs;
 const FIXTURE_POST_PLAY_DRAW_SETTLE_MS = BATTLE_SHARED_FLOW_TIMINGS.drawSettleMs;
 const FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS = 680;
-const FIXTURE_TARGET_ATTACK_WINDUP_MS = 310;
-const FIXTURE_TARGET_ATTACK_TRAVEL_MS = 1140;
-const FIXTURE_TARGET_ATTACK_PAUSE_MS = 260;
-const FIXTURE_TARGET_ATTACK_EXIT_MS = 960;
+const FIXTURE_TARGET_ENTER_DURATION_MS = BATTLE_SHARED_FLOW_TIMINGS.targetEnterMs;
+const FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE = createBattleCombatPreviewSchedule({
+  flow: BATTLE_SHARED_FLOW_TIMINGS,
+  drawnCardCount: 0,
+});
+const FIXTURE_TARGET_ATTACK_WINDUP_MS =
+  FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.targetMotion.windupMs;
+const FIXTURE_TARGET_ATTACK_TRAVEL_MS =
+  FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.targetMotion.attackMs;
+const FIXTURE_TARGET_ATTACK_PAUSE_MS =
+  FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.targetMotion.pauseMs;
+const FIXTURE_TARGET_ATTACK_EXIT_MS =
+  FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.targetMotion.exitMs;
 const FIXTURE_TARGET_ATTACK_LOOP_GAP_MS = 680;
 const FIXTURE_MULLIGAN_RETURN_DURATION_MS =
   BATTLE_SHARED_FLOW_TIMINGS.mulliganReturnMs;
-const FIXTURE_MULLIGAN_RETURN_STAGGER_MS =
-  BATTLE_SHARED_FLOW_TIMINGS.mulliganReturnStaggerMs;
 const FIXTURE_MULLIGAN_RETURN_SETTLE_MS =
   BATTLE_SHARED_FLOW_TIMINGS.mulliganSettleMs;
 const FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS = 680;
-const FIXTURE_MULLIGAN_DRAW_START_DELAY_MS =
-  BATTLE_SHARED_FLOW_TIMINGS.mulliganDrawDelayMs;
 
 const getAnimationAnchorReferenceBadgeLabel = (
   anchor: BattleLayoutPreviewAnimationAnchorKey | null,
@@ -158,9 +182,6 @@ const getVisibleAnimationAnchorLabel = (
   return anchor;
 };
 const FIXTURE_MULLIGAN_DRAW_DURATION_MS = FIXTURE_POST_PLAY_DRAW_DURATION_MS;
-const FIXTURE_MULLIGAN_DRAW_SETTLE_MS = FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
-const FIXTURE_MULLIGAN_DRAW_STAGGER_MS =
-  FIXTURE_MULLIGAN_DRAW_DURATION_MS + FIXTURE_MULLIGAN_DRAW_SETTLE_MS;
 const openingTargetEntryAnchorToolByPreset: Partial<
   Record<BattleLayoutPreviewAnimationPreset, BattleLayoutPreviewAnimationAnchorKey>
 > = {
@@ -604,6 +625,15 @@ export const BattleSceneFixtureView: React.FC<{
   const [previewBoardMessage, setPreviewBoardMessage] = useState<GameMessage | null>(
     fixture.scene.board.currentMessage ?? null,
   );
+  const [previewPlaybackDebug, setPreviewPlaybackDebug] = useState<{
+    source: string | null;
+    phases: BattlePreviewPhaseDebugEntry[];
+    completionPlan: BattlePreviewCompletionPlan | null;
+  }>({
+    source: null,
+    phases: [],
+    completionPlan: null,
+  });
 
   const clearAnimationTimers = useCallback(() => {
     animationTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -655,6 +685,11 @@ export const BattleSceneFixtureView: React.FC<{
       [ENEMY]: fixture.scene.board.enemyPortrait?.active ?? false,
     });
     setPreviewBoardMessage(fixture.scene.board.currentMessage ?? null);
+    setPreviewPlaybackDebug({
+      source: null,
+      phases: [],
+      completionPlan: null,
+    });
   }, [
     defaultPlayerStableCards,
     fixture.selectedIndexes,
@@ -1252,6 +1287,7 @@ export const BattleSceneFixtureView: React.FC<{
       `stage:${viewportWidth}x${viewportHeight} scale:${stageMetrics.scale.toFixed(3)} off:${Math.round(stageMetrics.offsetX)},${Math.round(stageMetrics.offsetY)}`,
       `run:${animationRunId} loopGen:${loopGenerationRef.current} timers:${animationTimersRef.current.length}`,
       `anchorTool:${animationAnchorTool ?? "-"} selected:[${previewSelectedIndexes.join(",")}]`,
+      `playbackSource:${previewPlaybackDebug.source ?? "-"}`,
       `anchors:[${visibleAnimationAnchors.map(({ label, anchor, point }) => `${label}:${anchor}@${formatBattleDebugPoint(point)}`).join(" | ")}]`,
       `playerStable:[${previewPlayerStableCards.map(formatHandCard).join(",")}]`,
       `playerIncoming:[${incomingPreviewHands[PLAYER].map(formatIncomingHand).join(" | ")}]`,
@@ -1267,6 +1303,19 @@ export const BattleSceneFixtureView: React.FC<{
       `outgoingTargetsP:[${outgoingPreviewTargets[PLAYER].map(formatOutgoingTarget).join(" || ")}]`,
       `outgoingTargetsE:[${outgoingPreviewTargets[ENEMY].map(formatOutgoingTarget).join(" || ")}]`,
     ];
+
+    if (previewPlaybackDebug.completionPlan) {
+      lines.push(
+        formatBattlePreviewCompletionDebugLine(
+          previewPlaybackDebug.completionPlan,
+        ),
+      );
+    }
+    if (previewPlaybackDebug.phases.length > 0) {
+      lines.push(
+        ...previewPlaybackDebug.phases.map(formatBattlePreviewPhaseDebugEntry),
+      );
+    }
 
     if (anchorProbeRows.length > 0) {
       lines.push(
@@ -1527,6 +1576,7 @@ export const BattleSceneFixtureView: React.FC<{
     previewPostPlayDebug,
     previewPillFlashDamage,
     previewPillActive,
+    previewPlaybackDebug,
     previewBoardMessage,
     previewSelectedIndexes,
     stageMetrics.offsetX,
@@ -1695,6 +1745,46 @@ export const BattleSceneFixtureView: React.FC<{
     const generation = loopGenerationRef.current + 1;
     loopGenerationRef.current = generation;
     clearAnimationTimers();
+    setPreviewPlaybackDebug({
+      source: null,
+      phases: [],
+      completionPlan: null,
+    });
+
+    const queuePreviewTimer = (delayMs: number, callback: () => void) => {
+      const timer = window.setTimeout(() => {
+        if (loopGenerationRef.current !== generation) return;
+        callback();
+      }, delayMs);
+      animationTimersRef.current.push(timer);
+      return timer;
+    };
+
+    const schedulePreviewRunCompletion = (args: {
+      source: string;
+      phases: BattlePreviewPhaseDebugEntry[];
+      completionAtMs: number;
+      loopMode: boolean;
+      gapMs: number;
+      restart: () => void;
+    }) => {
+      const completionPlan = createBattlePreviewCompletionPlan({
+        completionAtMs: args.completionAtMs,
+        loopMode: args.loopMode,
+        gapMs: args.gapMs,
+      });
+      setPreviewPlaybackDebug({
+        source: args.source,
+        phases: args.phases,
+        completionPlan,
+      });
+      if (completionPlan.restartAtMs != null) {
+        queuePreviewTimer(completionPlan.restartAtMs, args.restart);
+        return completionPlan;
+      }
+      queuePreviewTimer(completionPlan.cleanupAtMs, resetPreviewAnimation);
+      return completionPlan;
+    };
 
     const buildStagedTargets = () => {
       const allStagedTargets = [
@@ -1781,8 +1871,9 @@ export const BattleSceneFixtureView: React.FC<{
           return;
         }
 
-        const timer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
+        queuePreviewTimer(
+          stagedTargets.length === 1 ? 0 : index * FIXTURE_TARGET_ENTER_STAGGER_MS,
+          () => {
           setIncomingPreviewTargets((current) => ({
             ...current,
             [side]: [
@@ -1799,28 +1890,24 @@ export const BattleSceneFixtureView: React.FC<{
               },
             ],
           }));
-        }, stagedTargets.length === 1 ? 0 : index * FIXTURE_TARGET_ENTER_STAGGER_MS);
-        animationTimersRef.current.push(timer);
+          },
+        );
       });
 
-      const totalMs =
-        Math.max(0, (stagedTargets.length - 1) * FIXTURE_TARGET_ENTER_STAGGER_MS) +
-        FIXTURE_TARGET_ENTER_DURATION_MS +
-        FIXTURE_TARGET_ENTER_SETTLE_MS;
-
-      if (animationMode === "opening-target-entry-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startOpeningLoop();
-        }, totalMs + FIXTURE_TARGET_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      const phases = createBattleOpeningPreviewPhaseDebugEntries({
+        targetCount: stagedTargets.length,
+        staggerMs: FIXTURE_TARGET_ENTER_STAGGER_MS,
+        enterDurationMs: FIXTURE_TARGET_ENTER_DURATION_MS,
+        settleMs: FIXTURE_TARGET_ENTER_SETTLE_MS,
+      });
+      schedulePreviewRunCompletion({
+        source: "opening-target-entry",
+        phases,
+        completionAtMs: getBattlePreviewPhasesCompletionAtMs(phases),
+        loopMode: animationMode === "opening-target-entry-loop",
+        gapMs: FIXTURE_TARGET_LOOP_GAP_MS,
+        restart: startOpeningLoop,
+      });
     };
 
     const startPillDamageLoop = () => {
@@ -1971,8 +2058,7 @@ export const BattleSceneFixtureView: React.FC<{
         ),
       });
 
-      const timer = window.setTimeout(() => {
-        if (loopGenerationRef.current !== generation) return;
+      queuePreviewTimer(0, () => {
         setIncomingPreviewTargets((current) => ({
           ...current,
           [side]: [
@@ -1989,26 +2075,20 @@ export const BattleSceneFixtureView: React.FC<{
             },
           ],
         }));
-      }, 0);
-      animationTimersRef.current.push(timer);
+      });
 
-      const totalMs =
-        FIXTURE_TARGET_ENTER_DURATION_MS +
-        FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS;
-
-      if (animationMode === "replacement-target-entry-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startReplacementTargetEntryLoop();
-        }, totalMs + FIXTURE_TARGET_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      const phases = createBattleReplacementPreviewPhaseDebugEntries({
+        enterDurationMs: FIXTURE_TARGET_ENTER_DURATION_MS,
+        settleMs: FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS,
+      });
+      schedulePreviewRunCompletion({
+        source: "replacement-target-entry",
+        phases,
+        completionAtMs: getBattlePreviewPhasesCompletionAtMs(phases),
+        loopMode: animationMode === "replacement-target-entry-loop",
+        gapMs: FIXTURE_TARGET_LOOP_GAP_MS,
+        restart: startReplacementTargetEntryLoop,
+      });
     };
 
     const getSelectedHandPlayPreviewSetup = (
@@ -2104,8 +2184,7 @@ export const BattleSceneFixtureView: React.FC<{
           committedCardLabel: null,
           phase: "setup",
         });
-        const timer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
+        queuePreviewTimer(0, () => {
           setPreviewPostPlayDebug((current) => ({
             ...current,
             phase: "incoming",
@@ -2128,8 +2207,7 @@ export const BattleSceneFixtureView: React.FC<{
             ],
             [ENEMY]: [],
           });
-        }, 0);
-        animationTimersRef.current.push(timer);
+        });
       } else {
         setPreviewPostPlayDebug({
           removedIndex,
@@ -2143,21 +2221,18 @@ export const BattleSceneFixtureView: React.FC<{
         });
       }
 
-      const totalMs =
-        FIXTURE_POST_PLAY_DRAW_DURATION_MS + FIXTURE_POST_PLAY_DRAW_SETTLE_MS;
-      if (animationMode === "post-play-hand-draw-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startPostPlayHandDrawLoop();
-        }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      const phases = createBattlePostPlayDrawPreviewPhaseDebugEntries({
+        drawDurationMs: FIXTURE_POST_PLAY_DRAW_DURATION_MS,
+        settleMs: FIXTURE_POST_PLAY_DRAW_SETTLE_MS,
+      });
+      schedulePreviewRunCompletion({
+        source: "post-play-hand-draw",
+        phases,
+        completionAtMs: getBattlePreviewPhasesCompletionAtMs(phases),
+        loopMode: animationMode === "post-play-hand-draw-loop",
+        gapMs: FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
+        restart: startPostPlayHandDrawLoop,
+      });
     };
 
     const startHandPlayTargetLoop = () => {
@@ -2208,30 +2283,25 @@ export const BattleSceneFixtureView: React.FC<{
         ],
         [ENEMY]: [],
       });
-      const totalMs =
-        BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs +
-        BATTLE_SHARED_FLOW_TIMINGS.cardSettleMs;
-      const clearPendingTimer = window.setTimeout(() => {
-        if (loopGenerationRef.current !== generation) return;
+      const phases = createBattleHandPlayTargetPreviewPhaseDebugEntries({
+        travelMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
+        settleMs: BATTLE_SHARED_FLOW_TIMINGS.cardSettleMs,
+      });
+      const completionAtMs = getBattlePreviewPhasesCompletionAtMs(phases);
+      queuePreviewTimer(completionAtMs, () => {
         setPreviewPendingTargetPlacements({
           [PLAYER]: [],
           [ENEMY]: [],
         });
-      }, totalMs);
-      animationTimersRef.current.push(clearPendingTimer);
-      if (animationMode === "hand-play-target-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startHandPlayTargetLoop();
-        }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      });
+      schedulePreviewRunCompletion({
+        source: "hand-play-target",
+        phases,
+        completionAtMs,
+        loopMode: animationMode === "hand-play-target-loop",
+        gapMs: FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
+        restart: startHandPlayTargetLoop,
+      });
     };
 
     const startHandPlayDrawComboLoop = () => {
@@ -2317,18 +2387,15 @@ export const BattleSceneFixtureView: React.FC<{
         [ENEMY]: [],
       });
 
-      const clearPendingTimer = window.setTimeout(() => {
-        if (loopGenerationRef.current !== generation) return;
+      queuePreviewTimer(visualPlan.targetProgressCommit.atMs, () => {
         setPreviewPendingTargetPlacements({
           [PLAYER]: [],
           [ENEMY]: [],
         });
-      }, visualPlan.targetProgressCommit.atMs);
-      animationTimersRef.current.push(clearPendingTimer);
+      });
 
       if (postPlayDrawOrigin && drawnCard && visualPlan.postPlayDraw) {
-        const drawTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
+        queuePreviewTimer(visualPlan.postPlayDraw.atMs, () => {
           setPreviewPostPlayDebug((current) => ({
             ...current,
             phase: "incoming",
@@ -2351,24 +2418,23 @@ export const BattleSceneFixtureView: React.FC<{
             ],
             [ENEMY]: [],
           });
-        }, visualPlan.postPlayDraw.atMs);
-        animationTimersRef.current.push(drawTimer);
+        });
       }
 
-      const totalMs = visualPlan.finish.atMs;
-      if (animationMode === "hand-play-draw-combo-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startHandPlayDrawComboLoop();
-        }, totalMs + FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      const phases = createBattleSimplePlayPreviewPhaseDebugEntries({
+        commitAtMs: visualPlan.targetProgressCommit.atMs,
+        drawAtMs: visualPlan.postPlayDraw?.atMs ?? null,
+        drawDurationMs: visualPlan.postPlayDraw?.durationMs ?? null,
+        finishAtMs: visualPlan.finish.atMs,
+      });
+      schedulePreviewRunCompletion({
+        source: "hand-play-draw-combo",
+        phases,
+        completionAtMs: visualPlan.finish.atMs,
+        loopMode: animationMode === "hand-play-draw-combo-loop",
+        gapMs: FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
+        restart: startHandPlayDrawComboLoop,
+      });
     };
 
     const resetMulliganPreviewHandAnimationState = () => {
@@ -2410,26 +2476,12 @@ export const BattleSceneFixtureView: React.FC<{
       );
     };
 
-    const scheduleMulliganPreviewCompletion = (
-      totalMs: number,
-      loopMode: boolean,
-      restart: () => void,
-      gapMs: number,
-    ) => {
-      if (loopMode) {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          restart();
-        }, totalMs + gapMs);
-        animationTimersRef.current.push(restartTimer);
-        return;
-      }
-      const cleanupTimer = window.setTimeout(() => {
-        if (loopGenerationRef.current !== generation) return;
-        resetPreviewAnimation();
-      }, totalMs + 40);
-      animationTimersRef.current.push(cleanupTimer);
-    };
+    const getMulliganPreviewSchedule = (count: 1 | 2 | 3) =>
+      createBattleMulliganPreviewSchedule({
+        flow: BATTLE_SHARED_FLOW_TIMINGS,
+        returnedCount: count,
+        drawnCount: count,
+      });
 
     const startMulliganReturnLoop = () => {
       if (loopGenerationRef.current !== generation) return;
@@ -2440,6 +2492,7 @@ export const BattleSceneFixtureView: React.FC<{
       setPreviewPlayerStableCards(remainingCards);
       const destination = getMulliganReturnDestination();
       if (!destination) return;
+      const mulliganSchedule = getMulliganPreviewSchedule(count);
       setOutgoingPreviewHands({
         [PLAYER]: removedCards.map((card, index) => ({
           id: `fixture-mulligan-return-${animationRunId}-${generation}-${index}`,
@@ -2448,22 +2501,22 @@ export const BattleSceneFixtureView: React.FC<{
           destination,
           initialIndex: index,
           initialTotal: defaultPlayerStableCards.length,
-          delayMs: index * FIXTURE_MULLIGAN_RETURN_STAGGER_MS,
+          delayMs: index * mulliganSchedule.return.staggerMs,
           durationMs: FIXTURE_MULLIGAN_RETURN_DURATION_MS,
         })),
         [ENEMY]: [],
       });
 
       const totalMs =
-        Math.max(0, (count - 1) * FIXTURE_MULLIGAN_RETURN_STAGGER_MS) +
-        FIXTURE_MULLIGAN_RETURN_DURATION_MS +
-        FIXTURE_MULLIGAN_RETURN_SETTLE_MS;
-      scheduleMulliganPreviewCompletion(
-        totalMs,
-        animationMode === "mulligan-hand-return-loop",
-        startMulliganReturnLoop,
-        FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS,
-      );
+        mulliganSchedule.return.endMs + FIXTURE_MULLIGAN_RETURN_SETTLE_MS;
+      schedulePreviewRunCompletion({
+        source: "mulligan-return",
+        phases: createBattleMulliganPreviewPhaseDebugEntries(mulliganSchedule),
+        completionAtMs: totalMs,
+        loopMode: animationMode === "mulligan-hand-return-loop",
+        gapMs: FIXTURE_MULLIGAN_RETURN_LOOP_GAP_MS,
+        restart: startMulliganReturnLoop,
+      });
     };
 
     const startMulliganDrawLoop = () => {
@@ -2472,16 +2525,14 @@ export const BattleSceneFixtureView: React.FC<{
       const handState = getMulliganPreviewHandState();
       if (!handState) return;
       const { count, removedCards, remainingCards } = handState;
+      const mulliganSchedule = getMulliganPreviewSchedule(count);
       setPreviewPlayerStableCards(remainingCards);
       const origin = getMulliganDrawOrigin();
       if (!origin) return;
-      const startDelayMs =
-        FIXTURE_MULLIGAN_RETURN_DURATION_MS +
-        Math.max(0, count - 1) * FIXTURE_MULLIGAN_RETURN_STAGGER_MS +
-        FIXTURE_MULLIGAN_DRAW_START_DELAY_MS;
       removedCards.forEach((card, index) => {
-        const timer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
+        queuePreviewTimer(
+          mulliganSchedule.draw.atMs + index * mulliganSchedule.draw.cardStaggerMs,
+          () => {
           setIncomingPreviewHands((current) => ({
             ...current,
             [PLAYER]: [
@@ -2501,21 +2552,18 @@ export const BattleSceneFixtureView: React.FC<{
               },
             ],
           }));
-        }, startDelayMs + index * FIXTURE_MULLIGAN_DRAW_STAGGER_MS);
-        animationTimersRef.current.push(timer);
+          },
+        );
       });
 
-      const totalMs =
-        startDelayMs +
-        Math.max(0, (count - 1) * FIXTURE_MULLIGAN_DRAW_STAGGER_MS) +
-        FIXTURE_MULLIGAN_DRAW_DURATION_MS +
-        FIXTURE_MULLIGAN_DRAW_SETTLE_MS;
-      scheduleMulliganPreviewCompletion(
-        totalMs,
-        animationMode === "mulligan-hand-draw-loop",
-        startMulliganDrawLoop,
-        FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
-      );
+      schedulePreviewRunCompletion({
+        source: "mulligan-draw",
+        phases: createBattleMulliganPreviewPhaseDebugEntries(mulliganSchedule),
+        completionAtMs: mulliganSchedule.finish.atMs,
+        loopMode: animationMode === "mulligan-hand-draw-loop",
+        gapMs: FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
+        restart: startMulliganDrawLoop,
+      });
     };
 
     const startMulliganCompleteComboLoop = () => {
@@ -2523,6 +2571,7 @@ export const BattleSceneFixtureView: React.FC<{
       resetMulliganPreviewHandAnimationState();
       const count = getMulliganCompleteComboCountFromPreset(animationPreset);
       if (!count) return;
+      const mulliganSchedule = getMulliganPreviewSchedule(count);
       const removedCards = defaultPlayerStableCards.slice(0, count);
       const remainingCards = defaultPlayerStableCards.slice(count);
       setPreviewPlayerStableCards(remainingCards);
@@ -2548,19 +2597,16 @@ export const BattleSceneFixtureView: React.FC<{
           destination,
           initialIndex: index,
           initialTotal: defaultPlayerStableCards.length,
-          delayMs: index * FIXTURE_MULLIGAN_RETURN_STAGGER_MS,
+          delayMs: index * mulliganSchedule.return.staggerMs,
           durationMs: FIXTURE_MULLIGAN_RETURN_DURATION_MS,
         })),
         [ENEMY]: [],
       });
 
-      const startDelayMs =
-        FIXTURE_MULLIGAN_RETURN_DURATION_MS +
-        Math.max(0, count - 1) * FIXTURE_MULLIGAN_RETURN_STAGGER_MS +
-        FIXTURE_MULLIGAN_DRAW_START_DELAY_MS;
       removedCards.forEach((card, index) => {
-        const timer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
+        queuePreviewTimer(
+          mulliganSchedule.draw.atMs + index * mulliganSchedule.draw.cardStaggerMs,
+          () => {
           setIncomingPreviewHands((current) => ({
             ...current,
             [PLAYER]: [
@@ -2580,21 +2626,18 @@ export const BattleSceneFixtureView: React.FC<{
               },
             ],
           }));
-        }, startDelayMs + index * FIXTURE_MULLIGAN_DRAW_STAGGER_MS);
-        animationTimersRef.current.push(timer);
+          },
+        );
       });
 
-      const totalMs =
-        startDelayMs +
-        Math.max(0, (count - 1) * FIXTURE_MULLIGAN_DRAW_STAGGER_MS) +
-        FIXTURE_MULLIGAN_DRAW_DURATION_MS +
-        FIXTURE_MULLIGAN_DRAW_SETTLE_MS;
-      scheduleMulliganPreviewCompletion(
-        totalMs,
-        animationMode === "mulligan-complete-combo-loop",
-        startMulliganCompleteComboLoop,
-        FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
-      );
+      schedulePreviewRunCompletion({
+        source: "mulligan-complete",
+        phases: createBattleMulliganPreviewPhaseDebugEntries(mulliganSchedule),
+        completionAtMs: mulliganSchedule.finish.atMs,
+        loopMode: animationMode === "mulligan-complete-combo-loop",
+        gapMs: FIXTURE_POST_PLAY_DRAW_LOOP_GAP_MS,
+        restart: startMulliganCompleteComboLoop,
+      });
     };
 
     const startTargetAttackLoop = () => {
@@ -2641,33 +2684,24 @@ export const BattleSceneFixtureView: React.FC<{
         pauseMs: FIXTURE_TARGET_ATTACK_PAUSE_MS,
         exitMs: FIXTURE_TARGET_ATTACK_EXIT_MS,
       };
-      const timer = window.setTimeout(() => {
-        if (loopGenerationRef.current !== generation) return;
+      queuePreviewTimer(0, () => {
         setOutgoingPreviewTargets((current) => ({
           ...current,
           [side]: [outgoingTarget],
         }));
-      }, 0);
-      animationTimersRef.current.push(timer);
+      });
 
-      const totalMs =
-        FIXTURE_TARGET_ATTACK_WINDUP_MS +
-        FIXTURE_TARGET_ATTACK_TRAVEL_MS +
-        FIXTURE_TARGET_ATTACK_PAUSE_MS +
-        FIXTURE_TARGET_ATTACK_EXIT_MS;
-      if (animationMode === "target-attack-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startTargetAttackLoop();
-        }, totalMs + FIXTURE_TARGET_ATTACK_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      const totalMs = FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.attack.endMs;
+      schedulePreviewRunCompletion({
+        source: "target-attack",
+        phases: createBattleCombatPreviewPhaseDebugEntries(
+          FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE,
+        ),
+        completionAtMs: totalMs,
+        loopMode: animationMode === "target-attack-loop",
+        gapMs: FIXTURE_TARGET_ATTACK_LOOP_GAP_MS,
+        restart: startTargetAttackLoop,
+      });
     };
 
     const startTargetAttackReplacementComboLoop = () => {
@@ -2748,13 +2782,9 @@ export const BattleSceneFixtureView: React.FC<{
         ) ?? readElementSnapshot(side === PLAYER ? "playerTargetDeck" : "enemyTargetDeck");
       if (!replacementOrigin) return;
 
-      const attackTotalMs =
-        FIXTURE_TARGET_ATTACK_WINDUP_MS +
-        FIXTURE_TARGET_ATTACK_TRAVEL_MS +
-        FIXTURE_TARGET_ATTACK_PAUSE_MS +
-        FIXTURE_TARGET_ATTACK_EXIT_MS;
-      const incomingTimer = window.setTimeout(() => {
-        if (loopGenerationRef.current !== generation) return;
+      queuePreviewTimer(
+        FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.replacement.atMs,
+        () => {
         setIncomingPreviewTargets((current) => ({
           ...current,
           [side]: [
@@ -2771,26 +2801,25 @@ export const BattleSceneFixtureView: React.FC<{
             },
           ],
         }));
-      }, attackTotalMs);
-      animationTimersRef.current.push(incomingTimer);
+        },
+      );
 
-      const totalMs =
-        attackTotalMs +
-        FIXTURE_TARGET_ENTER_DURATION_MS +
-        FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS;
-      if (animationMode === "target-attack-replacement-combo-loop") {
-        const restartTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          startTargetAttackReplacementComboLoop();
-        }, totalMs + FIXTURE_TARGET_LOOP_GAP_MS);
-        animationTimersRef.current.push(restartTimer);
-      } else {
-        const cleanupTimer = window.setTimeout(() => {
-          if (loopGenerationRef.current !== generation) return;
-          resetPreviewAnimation();
-        }, totalMs + 40);
-        animationTimersRef.current.push(cleanupTimer);
-      }
+      const totalMs = Math.max(
+        FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.finish.atMs,
+        FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE.replacement.atMs +
+          FIXTURE_TARGET_ENTER_DURATION_MS +
+          FIXTURE_REPLACEMENT_TARGET_ENTER_SETTLE_MS,
+      );
+      schedulePreviewRunCompletion({
+        source: "target-attack-replacement",
+        phases: createBattleCombatPreviewPhaseDebugEntries(
+          FIXTURE_TARGET_ATTACK_PREVIEW_SCHEDULE,
+        ),
+        completionAtMs: totalMs,
+        loopMode: animationMode === "target-attack-replacement-combo-loop",
+        gapMs: FIXTURE_TARGET_LOOP_GAP_MS,
+        restart: startTargetAttackReplacementComboLoop,
+      });
     };
 
     if (isOpeningTargetEntryAnimation) {
@@ -3040,7 +3069,7 @@ export const BattleSceneFixtureView: React.FC<{
           showTurnHighlights: true,
           showPlayableHints: fixture.showPlayableHints ?? true,
           selectedIndexes: previewSelectedIndexes,
-          targets: playerFieldSlots.map((slot) => slot.displayedTarget!.target),
+          targets: collectBattlePreviewPlayableTargets(playerFieldSlots),
           freshCardIds: previewFreshCardIds,
           onIncomingCardComplete: handleIncomingPreviewHandComplete,
           onOutgoingCardComplete: (outgoingCard) => {

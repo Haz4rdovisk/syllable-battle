@@ -5,7 +5,6 @@ import { BattleTurnAction, GameState, Syllable } from "../../types/game";
 import { BattleFieldOutgoingTarget } from "./BattleFieldLane";
 import { BattleHandLaneOutgoingCard } from "./BattleHandLane";
 import { createMulliganResolutionEvents, createPlayResolutionEvents } from "./battleEvents";
-import { getMulliganDrawStartDelayMs, getMulliganFinishDelayMs } from "./battleFlow";
 import { applyBattleSimplePlayRuntime } from "./battleSimplePlayRuntime";
 import { prepareBattleSimplePlayStep } from "./battleSimplePlayStep";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
@@ -16,6 +15,11 @@ import {
   replaceBattleRuntimeTargetInSlot,
   resolveBattleRuntimeDrawnHandCardRefs,
 } from "./BattleRuntimeSetup";
+import {
+  createBattleCombatSchedule,
+  createBattleMulliganSchedule,
+  getBattleCombatTargetMotionDurations,
+} from "./battleCompositeSchedule";
 
 interface UseBattleCombatFlowParams<TVisualHandCard, TVisualTarget> {
   flow: any;
@@ -193,6 +197,8 @@ export const useBattleCombatFlow = <
         return;
       }
 
+      const targetMotion = getBattleCombatTargetMotionDurations(flow);
+
       lockTargetSlot(side, result.completedSlot, true);
       setStableTargetSlot(side, result.completedSlot, null);
       appendOutgoingTarget(side, {
@@ -203,10 +209,10 @@ export const useBattleCombatFlow = <
         impactDestination,
         destination,
         delayMs: 0,
-        windupMs: flow.attackWindupMs + 90,
-        attackMs: flow.attackTravelMs + 120,
-        pauseMs: flow.impactPauseMs,
-        exitMs: flow.targetExitMs + 180,
+        windupMs: targetMotion.windupMs,
+        attackMs: targetMotion.attackMs,
+        pauseMs: targetMotion.pauseMs,
+        exitMs: targetMotion.exitMs,
       });
     },
     [activeBattleLayoutAnimations, appendOutgoingTarget, flow, isDesktopViewport, lockTargetSlot, setStableTargetSlot, snapshotSceneAnimationOriginWithFallback, snapshotZone, snapshotZoneSlot, stableTargetsRef, zoneIdForSide],
@@ -271,23 +277,18 @@ export const useBattleCombatFlow = <
   );
 
   const startCombatSequence = useCallback((result: any) => {
-    const attackStartDelay = flow.cardToFieldMs + flow.cardSettleMs;
-    const impactDelayMs = attackStartDelay + flow.attackWindupMs + 90 + flow.attackTravelMs + 120;
-    const replacementDelayMs =
-      attackStartDelay + flow.attackWindupMs + 90 + flow.attackTravelMs + 120 + flow.impactPauseMs + flow.targetExitMs + 180 + flow.replacementGapMs;
-    const combatResolveEndMs = replacementDelayMs + flow.targetEnterMs;
-    const drawStartDelayMs = impactDelayMs + flow.impactPauseMs + flow.drawSettleMs;
-    const drawTotalMs = (result.drawnCards.length > 0 ? flow.drawTravelMs : 0) + Math.max(0, result.drawnCards.length - 1) * flow.drawStaggerMs;
-    const drawResolveEndMs = drawStartDelayMs + drawTotalMs;
-    const finishDelayMs = Math.max(combatResolveEndMs, drawResolveEndMs) + flow.turnHandoffMs;
+    const schedule = createBattleCombatSchedule({
+      flow,
+      drawnCardCount: result.drawnCards.length,
+    });
 
     const t1 = setTimeout(() => {
       queueCompletedTargetDeparture(result);
-    }, attackStartDelay);
+    }, schedule.attackStart.atMs);
 
     if (result.drawnCards.length > 0) {
       queueHandDrawBatch(result.actorIndex, result.drawnCards, {
-        initialDelayMs: drawStartDelayMs,
+        initialDelayMs: schedule.draw.atMs,
         staggerMs: flow.drawStaggerMs,
         durationMs: flow.drawTravelMs,
         originOverride: getPostPlayHandDrawOriginSnapshot(result.actorIndex),
@@ -317,7 +318,7 @@ export const useBattleCombatFlow = <
           players,
         };
       });
-    }, impactDelayMs);
+    }, schedule.impact.atMs);
 
     const t3 = setTimeout(() => {
       if (result.completedSlot == null) return;
@@ -340,7 +341,7 @@ export const useBattleCombatFlow = <
       });
 
       queueReplacementTargetArrival(result.actorIndex, result.completedSlot, nextTarget);
-    }, replacementDelayMs);
+    }, schedule.replacement.atMs);
 
     const t4 = setTimeout(() => {
       setGame((prev) => ({
@@ -354,7 +355,7 @@ export const useBattleCombatFlow = <
       } else {
         finalizeTurn();
       }
-    }, finishDelayMs);
+    }, schedule.finish.atMs);
 
     actionTimersRef.current.push(t1, t2, t3, t4);
   }, [actionTimersRef, emitDamageAppliedEvent, emitTargetReplacedEvent, enemyDeckSpec, finalizeTurn, flow, gameRef, getPostPlayHandDrawOriginSnapshot, playerDeckSpec, queueCompletedTargetDeparture, queueHandDrawBatch, queueReplacementTargetArrival, setGame]);
@@ -411,6 +412,12 @@ export const useBattleCombatFlow = <
       drawn: drawnCards,
     }).forEach(emitBattleEvent);
 
+    const schedule = createBattleMulliganSchedule({
+      flow,
+      returnedCount: removedStableCards.length,
+      drawnCount: drawnCards.length,
+    });
+
     const deckDestination =
       getMulliganHandReturnDestinationSnapshot(side, removedStableCards.length) ??
       snapshotZone(zoneIdForSide(side, "deck"));
@@ -425,7 +432,7 @@ export const useBattleCombatFlow = <
           destination: deckDestination,
           initialIndex: layout.index,
           initialTotal: layout.total,
-          delayMs: index * flow.mulliganReturnStaggerMs,
+          delayMs: index * schedule.return.staggerMs,
           durationMs: flow.mulliganReturnMs,
         });
       });
@@ -448,7 +455,7 @@ export const useBattleCombatFlow = <
     };
     if (plannedDraws.length > 0) {
       queueHandDrawBatch(side, [plannedDraws[0].syllable], {
-        initialDelayMs: getMulliganDrawStartDelayMs(flow, removedStableCards.length),
+        initialDelayMs: schedule.draw.atMs,
         staggerMs: 0,
         durationMs: flow.drawTravelMs,
         finalTotalOverride: plannedDraws[0].finalTotal,
@@ -460,7 +467,7 @@ export const useBattleCombatFlow = <
 
     const timeout = setTimeout(
       finalizeTurn,
-      getMulliganFinishDelayMs(flow, removedStableCards.length, drawnCards.length),
+      schedule.finish.atMs,
     );
     actionTimersRef.current.push(timeout);
   }, [actionTimersRef, appendOutgoingCard, commitPendingMulliganDrawCounts, emitBattleEvent, finalizeTurn, flow, getMulliganHandDrawOriginSnapshot, getMulliganHandReturnDestinationSnapshot, handLayoutSlotCount, pendingMulliganDrawCountsRef, pendingMulliganDrawQueuesRef, queueHandDrawBatch, snapshotZone, zoneIdForSide, game.turn]);
