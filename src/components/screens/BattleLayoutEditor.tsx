@@ -606,12 +606,20 @@ const animationTimingControlsBySet: Partial<
     title: "Velocidade da entrada inicial",
     controls: [
       {
+        key: "openingTargetInitialDelayMs",
+        label: "Atraso inicial",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espera antes do primeiro target comecar a viajar.",
+      },
+      {
         key: "openingTargetEnterStaggerMs",
         label: "Stagger entre targets",
         min: 0,
         max: 1200,
         step: 10,
-        description: "Espaco entre entradas sucessivas.",
+        description: "Gap adicional apos cada travel; a cadencia efetiva fica travel + stagger.",
       },
       {
         key: "targetEnterMs",

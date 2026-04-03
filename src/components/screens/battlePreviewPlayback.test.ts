@@ -6,6 +6,7 @@ import {
   createBattleMulliganPreviewSchedule,
 } from "./battleCompositeSchedule";
 import {
+  BATTLE_OPENING_PREVIEW_INITIAL_DELAY_MS,
   collectBattlePreviewPlayableTargets,
   createBattleCombatPreviewPhaseDebugEntries,
   createBattleHandPlayTargetPreviewPhaseDebugEntries,
@@ -100,6 +101,7 @@ test("helpers de preview playback cobrem opening, replacement e simple-play sem 
     staggerMs: 220,
     enterDurationMs: 1000,
     settleMs: 560,
+    initialDelayMs: BATTLE_OPENING_PREVIEW_INITIAL_DELAY_MS,
   });
   const replacement = createBattleReplacementPreviewPhaseDebugEntries({
     enterDurationMs: 1000,
@@ -121,8 +123,8 @@ test("helpers de preview playback cobrem opening, replacement e simple-play sem 
   });
 
   assert.deepEqual(opening, [
-    { key: "opening-enter", atMs: 0, durationMs: 1440, endMs: 1440 },
-    { key: "finish", atMs: 2000, durationMs: 0, endMs: 2000, dependsOn: "opening-enter" },
+    { key: "opening-enter", atMs: 0, durationMs: 3480, endMs: 3480 },
+    { key: "finish", atMs: 4040, durationMs: 0, endMs: 4040, dependsOn: "opening-enter" },
   ]);
   assert.deepEqual(replacement, [
     { key: "replacement-enter", atMs: 0, durationMs: 1000, endMs: 1000 },
@@ -142,7 +144,7 @@ test("helpers de preview playback cobrem opening, replacement e simple-play sem 
     { key: "draw", atMs: 1060, durationMs: 940, endMs: 2000, dependsOn: "target-commit" },
     { key: "finish", atMs: 2260, durationMs: 0, endMs: 2260, dependsOn: "draw" },
   ]);
-  assert.equal(getBattlePreviewPhasesCompletionAtMs(opening), 2000);
+  assert.equal(getBattlePreviewPhasesCompletionAtMs(opening), 4040);
   assert.equal(getBattlePreviewPhasesCompletionAtMs(replacement), 1240);
   assert.equal(getBattlePreviewPhasesCompletionAtMs(postPlayDraw), 1160);
   assert.equal(getBattlePreviewPhasesCompletionAtMs(handPlayTarget), 840);

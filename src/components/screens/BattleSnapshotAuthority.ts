@@ -71,6 +71,22 @@ export function buildBattleSnapshotSignature(state: GameState) {
   });
 }
 
+function hasInFlightVisualRecoveryWork(visualQueue: BattleVisualQueueState) {
+  return (
+    Object.values(visualQueue.incomingHands).some((cards) => cards.length > 0) ||
+    Object.values(visualQueue.outgoingHands).some((cards) => cards.length > 0) ||
+    Object.values(visualQueue.incomingTargets).some((cards) => cards.length > 0) ||
+    Object.values(visualQueue.outgoingTargets).some((cards) => cards.length > 0) ||
+    Object.values(visualQueue.pendingMulliganDrawCounts).some((count) => count > 0)
+  );
+}
+
+function getRecoveredTurnRemainingMs(state: GameState, fallbackMs = 60000) {
+  return state.turnDeadlineAt != null
+    ? Math.max(0, state.turnDeadlineAt - Date.now())
+    : fallbackMs;
+}
+
 export interface BattleSnapshotAuthority {
   pendingAuthoritativeSnapshotRef: React.MutableRefObject<GameState | null>;
   publishedSnapshotSignatureRef: React.MutableRefObject<string>;
@@ -184,13 +200,6 @@ export const useBattleSnapshotAuthority = ({
       const hiddenMs = Date.now() - hiddenAt;
       if (hiddenMs < 300) return;
 
-      needsVisibilityRecoveryRef.current = true;
-      clearVisualTimers();
-      setFreshCardIds([]);
-      setTurnPresentationLocked(false);
-      setTurnRemainingMs(60000);
-      setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
-
       const authorityCanResolveTimeout = mode !== "multiplayer" || localSide === "player";
       if (
         authorityCanResolveTimeout &&
@@ -208,21 +217,51 @@ export const useBattleSnapshotAuthority = ({
         }
       }
 
-      if (mode !== "multiplayer") return;
+      const inFlightVisuals = hasInFlightVisualRecoveryWork(visualQueue);
+      const runSoftRecovery = () => {
+        setTurnRemainingMs(getRecoveredTurnRemainingMs(gameRef.current));
+      };
+
+      if (mode !== "multiplayer") {
+        runSoftRecovery();
+        return;
+      }
 
       const latestSnapshot = pendingAuthoritativeSnapshotRef.current ?? authoritativeBattleSnapshot;
+      const snapshotProgress =
+        latestSnapshot != null
+          ? compareBattleSnapshotProgress(latestSnapshot, gameRef.current)
+          : Number.NEGATIVE_INFINITY;
       const canRecoverFromSnapshot =
         latestSnapshot &&
-        compareBattleSnapshotProgress(latestSnapshot, gameRef.current) >= 0 &&
+        snapshotProgress >= 0 &&
         (isIntroSnapshotState(latestSnapshot) || isWinnerSnapshotState(latestSnapshot) || isSnapshotCheckpointClear(latestSnapshot));
+      const shouldHydrateFromSnapshot =
+        Boolean(
+          latestSnapshot &&
+          canRecoverFromSnapshot &&
+          (!inFlightVisuals || snapshotProgress > 0 || isIntroSnapshotState(latestSnapshot) || isWinnerSnapshotState(latestSnapshot)),
+        );
+
+      const runHydrationRecovery = (snapshot: GameState) => {
+        needsVisibilityRecoveryRef.current = true;
+        clearVisualTimers();
+        setFreshCardIds([]);
+        setTurnPresentationLocked(false);
+        setTurnRemainingMs(getRecoveredTurnRemainingMs(snapshot));
+        setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
+        hydrateBattleSnapshot(snapshot);
+      };
 
       if (localSide === "player") {
-        if (canRecoverFromSnapshot) {
-          hydrateBattleSnapshot(latestSnapshot);
+        if (shouldHydrateFromSnapshot && latestSnapshot) {
+          runHydrationRecovery(latestSnapshot);
           if (latestSnapshot.winner !== null && !latestSnapshot.combatLocked) {
             setShowResultOverlay(true);
             pendingResultOverlayRecoveryRef.current = false;
           }
+        } else {
+          runSoftRecovery();
         }
         if (!onBattleSnapshotPublished) return;
 
@@ -238,14 +277,18 @@ export const useBattleSnapshotAuthority = ({
         };
       }
 
-      if (latestSnapshot) {
-        hydrateBattleSnapshot(latestSnapshot);
+      if (shouldHydrateFromSnapshot && latestSnapshot) {
+        runHydrationRecovery(latestSnapshot);
         if (latestSnapshot.winner !== null && !latestSnapshot.combatLocked) {
           setShowResultOverlay(true);
           pendingResultOverlayRecoveryRef.current = false;
         }
         needsVisibilityRecoveryRef.current = false;
+        return;
       }
+
+      needsVisibilityRecoveryRef.current = inFlightVisuals;
+      runSoftRecovery();
     };
 
     const scheduleVisibilityRecovery = () => {
@@ -290,6 +333,7 @@ export const useBattleSnapshotAuthority = ({
     localSide,
     mode,
     onBattleSnapshotPublished,
+    visualQueue,
     setFreshCardIds,
     setGame,
     setShowResultOverlay,
@@ -335,7 +379,10 @@ export const useBattleSnapshotAuthority = ({
     setShowResultOverlay,
     turnPresentationLocked,
     visualQueue.incomingHands,
+    visualQueue.outgoingHands,
+    visualQueue.pendingMulliganDrawCounts,
     visualQueue.incomingTargets,
+    visualQueue.outgoingTargets,
   ]);
 
   return {

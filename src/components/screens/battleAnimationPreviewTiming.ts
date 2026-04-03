@@ -83,6 +83,7 @@ export const getBattleAnimationPreviewDurationMs = (args: {
         staggerMs: timings.openingTargetEnterStaggerMs,
         enterDurationMs: timings.targetEnterMs,
         settleMs: timings.openingTargetSettleMs,
+        initialDelayMs: timings.openingTargetInitialDelayMs,
       }),
     );
   }

@@ -9,6 +9,7 @@ export interface BattleIntroTimingConfig {
   coinSettleMs: number;
   coinResultHoldMs: number;
   coinResultFaceMs: number;
+  targetInitialDelayMs: number;
   targetEnterMs: number;
   targetEnterStaggerMs: number;
   targetSettleMs: number;
@@ -277,7 +278,7 @@ export const useBattleIntroFlow = <TVisualTarget,>({
             delayMs: 0,
             durationMs: timing.targetEnterMs,
           });
-        }, index * (timing.targetEnterMs + timing.targetEnterStaggerMs));
+        }, timing.targetInitialDelayMs + index * (timing.targetEnterMs + timing.targetEnterStaggerMs));
         visualTimersRef.current.push(timer);
       });
 
@@ -288,15 +289,13 @@ export const useBattleIntroFlow = <TVisualTarget,>({
           openingIntroStep: "done",
           turnDeadlineAt: Date.now() + timing.turnReleaseDelayMs + timing.turnLimitMs,
         }));
-      }, (stagedTargets.length - 1) * (timing.targetEnterMs + timing.targetEnterStaggerMs) + timing.targetEnterMs + timing.targetSettleMs);
+      }, timing.targetInitialDelayMs + (stagedTargets.length - 1) * (timing.targetEnterMs + timing.targetEnterStaggerMs) + timing.targetEnterMs + timing.targetSettleMs);
 
       visualTimersRef.current.push(settleTimer);
     };
+    queueInitialTargets();
 
-    const timer = setTimeout(queueInitialTargets, 40);
-    visualTimersRef.current.push(timer);
-
-    return () => clearTimeout(timer);
+    return undefined;
   }, [
     animations,
     appendIncomingTarget,
@@ -308,6 +307,7 @@ export const useBattleIntroFlow = <TVisualTarget,>({
     setStableTargetSlot,
     snapshotSceneAnimationOriginWithFallback,
     snapshotZone,
+    timing.targetInitialDelayMs,
     timing.targetEnterMs,
     timing.targetEnterStaggerMs,
     timing.targetSettleMs,

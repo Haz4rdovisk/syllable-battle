@@ -12,7 +12,18 @@ test("preview durations derivados do editor batem com os schedules compartilhado
       preset: "opening-target-entry-simultaneous",
       timings,
     }),
-    2220,
+    5260,
+  );
+  assert.equal(
+    getBattleAnimationPreviewDurationMs({
+      animationSet: "opening-target-entry-first-round",
+      preset: "opening-target-entry-simultaneous",
+      timings: {
+        ...timings,
+        openingTargetInitialDelayMs: 180,
+      },
+    }),
+    5400,
   );
   assert.equal(
     getBattleAnimationPreviewDurationMs({

@@ -75,6 +75,7 @@ import {
   createBattleSimplePlayPreviewPhaseDebugEntries,
   formatBattlePreviewCompletionDebugLine,
   formatBattlePreviewPhaseDebugEntry,
+  getBattleOpeningPreviewTargetEnterAtMs,
   getBattlePreviewPhasesCompletionAtMs,
 } from "./battlePreviewPlayback";
 import {
@@ -1861,7 +1862,12 @@ export const BattleSceneFixtureView: React.FC<{
         }
 
         queuePreviewTimer(
-          stagedTargets.length === 1 ? 0 : index * previewOpeningTargetEnterStaggerMs,
+          getBattleOpeningPreviewTargetEnterAtMs({
+            index,
+            staggerMs: previewOpeningTargetEnterStaggerMs,
+            enterDurationMs: previewTargetEnterDurationMs,
+            initialDelayMs: animationTimings.openingTargetInitialDelayMs,
+          }),
           () => {
           setIncomingPreviewTargets((current) => ({
             ...current,
@@ -1888,6 +1894,7 @@ export const BattleSceneFixtureView: React.FC<{
         staggerMs: previewOpeningTargetEnterStaggerMs,
         enterDurationMs: previewTargetEnterDurationMs,
         settleMs: previewOpeningTargetSettleMs,
+        initialDelayMs: animationTimings.openingTargetInitialDelayMs,
       });
       schedulePreviewRunCompletion({
         source: "opening-target-entry",

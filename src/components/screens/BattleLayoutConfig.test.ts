@@ -13,11 +13,13 @@ test("layout config incorpora timings no preset e no active layout sem segunda f
   const layout = createBattleLayoutConfig({
     timings: {
       cardToFieldMs: 720,
+      openingTargetInitialDelayMs: 90,
       openingTargetEnterStaggerMs: 180,
     },
   });
 
   assert.equal(layout.timings.cardToFieldMs, 720);
+  assert.equal(layout.timings.openingTargetInitialDelayMs, 90);
   assert.equal(layout.timings.openingTargetEnterStaggerMs, 180);
   assert.equal(
     layout.timings.drawTravelMs,

@@ -25,6 +25,7 @@ export interface BattleOpeningPreviewTiming {
   staggerMs: number;
   enterDurationMs: number;
   settleMs: number;
+  initialDelayMs?: number;
 }
 
 export interface BattleReplacementPreviewTiming {
@@ -48,6 +49,17 @@ export interface BattleSimplePlayPreviewTiming {
   drawAtMs: number | null;
   drawDurationMs: number | null;
 }
+
+export const BATTLE_OPENING_PREVIEW_INITIAL_DELAY_MS = 40;
+
+export const getBattleOpeningPreviewTargetEnterAtMs = (args: {
+  index: number;
+  staggerMs: number;
+  enterDurationMs: number;
+  initialDelayMs?: number;
+}) =>
+  (args.initialDelayMs ?? BATTLE_OPENING_PREVIEW_INITIAL_DELAY_MS) +
+  args.index * (args.enterDurationMs + args.staggerMs);
 
 export interface BattlePreviewPlayableTargetSlot<TTarget> {
   displayedTarget: {
@@ -110,8 +122,13 @@ export const createBattleOpeningPreviewPhaseDebugEntries = (
 ): BattlePreviewPhaseDebugEntry[] => {
   const lastEnterStartMs =
     timing.targetCount > 0
-      ? Math.max(0, timing.targetCount - 1) * timing.staggerMs
-      : 0;
+      ? getBattleOpeningPreviewTargetEnterAtMs({
+          index: Math.max(0, timing.targetCount - 1),
+          staggerMs: timing.staggerMs,
+          enterDurationMs: timing.enterDurationMs,
+          initialDelayMs: timing.initialDelayMs,
+        })
+      : timing.initialDelayMs ?? BATTLE_OPENING_PREVIEW_INITIAL_DELAY_MS;
   const enterEndMs = lastEnterStartMs + timing.enterDurationMs;
 
   return [

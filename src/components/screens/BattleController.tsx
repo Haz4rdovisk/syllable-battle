@@ -297,6 +297,7 @@ export const useBattleController = ({
       syllable: Syllable,
       side: typeof PLAYER | typeof ENEMY,
       cardRef?: { cardId: string; runtimeCardId: string },
+      options?: { skipEntryAnimation?: boolean },
     ): VisualHandCard => ({
       id: `hand-card-${side}-${handCardIdRef.current++}`,
       syllable,
@@ -304,7 +305,7 @@ export const useBattleController = ({
       runtimeCardId: cardRef?.runtimeCardId,
       side,
       hidden: side === ENEMY,
-      skipEntryAnimation: false,
+      skipEntryAnimation: options?.skipEntryAnimation ?? false,
     }),
     [],
   );
@@ -609,7 +610,8 @@ export const useBattleController = ({
           return bucket.shift()!;
         }
 
-        return createVisualHandCard(syllable, side, cardRef);
+        // Passive hand reconciliation should not introduce a synthetic entry animation.
+        return createVisualHandCard(syllable, side, cardRef, { skipEntryAnimation: true });
       });
 
       if (
@@ -1195,6 +1197,7 @@ export const useBattleController = ({
       coinSettleMs: INTRO.coinSettleMs,
       coinResultHoldMs: INTRO.coinResultHoldMs,
       coinResultFaceMs: INTRO.coinResultFaceMs,
+      targetInitialDelayMs: animationTimings.openingTargetInitialDelayMs,
       targetEnterMs: animationTimings.targetEnterMs,
       targetEnterStaggerMs: animationTimings.openingTargetEnterStaggerMs,
       targetSettleMs: animationTimings.openingTargetSettleMs,

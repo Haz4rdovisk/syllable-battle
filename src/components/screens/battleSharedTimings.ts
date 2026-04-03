@@ -12,6 +12,7 @@ export interface BattleAnimationTimingConfig extends BattleFlowTimings {
   replacementGapMs: number;
   targetEnterMs: number;
   targetSettleMs: number;
+  openingTargetInitialDelayMs: number;
   openingTargetEnterStaggerMs: number;
   openingTargetSettleMs: number;
 }
@@ -39,6 +40,7 @@ export const BATTLE_SHARED_ANIMATION_TIMINGS: BattleAnimationTimingConfig = {
   mulliganReturnStaggerMs: 110,
   mulliganDrawDelayMs: 220,
   mulliganSettleMs: 260,
+  openingTargetInitialDelayMs: 40,
   openingTargetEnterStaggerMs: 220,
   openingTargetSettleMs: 560,
 };
