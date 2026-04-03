@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { CONFIG, TIMINGS } from "../../logic/gameLogic";
 import { BattleSubmittedAction, BattleTurnAction, GameMode, Syllable } from "../../types/game";
 import { resolveBotTurnAction } from "./battleFlow";
+import type { BattleActionOriginSnapshot } from "./BattleRuntimeState";
 import { BattleRuntimeSide, PLAYER, ENEMY } from "./BattleRuntimeState";
 
 interface UseBattleRoomBridgeParams<TVisualHandCard> {
@@ -30,11 +31,11 @@ interface UseBattleRoomBridgeParams<TVisualHandCard> {
     externalActionId: string | null;
     clearIncomingHand: boolean;
   }>>;
-  snapshotActionOrigin: (side: BattleRuntimeSide, action: BattleTurnAction) => any;
+  snapshotActionOrigin: (side: BattleRuntimeSide, action: BattleTurnAction) => BattleActionOriginSnapshot | null;
   executeBattleTurnAction: (params: {
     side: BattleRuntimeSide;
     move: BattleTurnAction;
-    selectedCardOrigin?: any;
+    selectedCardOrigin?: BattleActionOriginSnapshot | null;
     clearSelection: boolean;
     clearIncomingHand?: boolean;
   }) => void;

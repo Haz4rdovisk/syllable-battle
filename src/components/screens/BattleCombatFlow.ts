@@ -8,6 +8,7 @@ import { createMulliganResolutionEvents, createPlayResolutionEvents } from "./ba
 import { applyBattleSimplePlayRuntime } from "./battleSimplePlayRuntime";
 import { prepareBattleSimplePlayStep } from "./battleSimplePlayStep";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
+import type { BattleActionOriginSnapshot, BattleSelectedHandCardOrigin } from "./BattleRuntimeState";
 import { BattleRuntimeSide, PLAYER, ENEMY } from "./BattleRuntimeState";
 import type { PendingMulliganDraw } from "./BattleRuntimeState";
 import {
@@ -395,6 +396,7 @@ export const useBattleCombatFlow = <
     side,
     removedStableCards,
     removedCardLayouts,
+    removedCardOrigins,
     remainingStableCount,
     drawnCards,
     drawnCardRefs,
@@ -402,6 +404,7 @@ export const useBattleCombatFlow = <
     side: BattleRuntimeSide;
     removedStableCards: TVisualHandCard[];
     removedCardLayouts: Array<{ index: number; total: number }>;
+    removedCardOrigins: Array<BattleSelectedHandCardOrigin | undefined>;
     remainingStableCount: number;
     drawnCards: Syllable[];
     drawnCardRefs: BattleRuntimeCardRef[];
@@ -430,11 +433,13 @@ export const useBattleCombatFlow = <
           id: `outgoing-${card.runtimeCardId ?? card.id}-${index}`,
           side,
           card,
+          initialSnapshot: removedCardOrigins[index]?.snapshot ?? null,
           destination: deckDestination,
           initialIndex: layout.index,
           initialTotal: layout.total,
           delayMs: index * schedule.return.staggerMs,
           durationMs: flow.mulliganReturnMs,
+          endScale: 1,
         });
       });
     }
@@ -483,7 +488,7 @@ export const useBattleCombatFlow = <
   }: {
     side: BattleRuntimeSide;
     move: BattleTurnAction;
-    selectedCardOrigin?: any;
+    selectedCardOrigin?: BattleActionOriginSnapshot | null;
     clearSelection: boolean;
     clearIncomingHand?: boolean;
   }) => {
@@ -519,7 +524,7 @@ export const useBattleCombatFlow = <
         side,
         localPlayerIndex,
         targetIndex: simplePlayStep.logicalEvent.targetIndex,
-        selectedCardOrigin,
+        selectedCardOrigin: selectedCardOrigin?.playCardOrigin ?? null,
         result: simplePlayStep.logicalEvent.result,
         drawnCardRefs,
         clearSelection,
@@ -565,6 +570,9 @@ export const useBattleCombatFlow = <
         side === PLAYER ? playerDeckCatalog : enemyDeckCatalog,
         resolution.drawnCards.length,
       );
+      const mulliganCardOriginsByIndex = new Map(
+        (selectedCardOrigin?.mulliganCardOrigins ?? []).map((origin) => [origin.handIndex, origin] as const),
+      );
       const removedStableCards = removeStableCards(side, selectedIndexes);
       const remainingStableCount = stableHandsRef.current[side].length;
       const returnedCountForLog = removedStableCards.length;
@@ -606,6 +614,7 @@ export const useBattleCombatFlow = <
         side,
         removedStableCards,
         removedCardLayouts,
+        removedCardOrigins: removedCardLayouts.map((layout) => mulliganCardOriginsByIndex.get(layout.index)),
         remainingStableCount,
         drawnCards: resolution.drawnCards,
         drawnCardRefs,

@@ -79,6 +79,16 @@ export interface PendingMulliganDraw {
   originOverride: ZoneAnchorSnapshot | null;
 }
 
+export interface BattleSelectedHandCardOrigin {
+  handIndex: number;
+  snapshot: ZoneAnchorSnapshot | null;
+}
+
+export interface BattleActionOriginSnapshot {
+  playCardOrigin?: ZoneAnchorSnapshot | null;
+  mulliganCardOrigins?: BattleSelectedHandCardOrigin[];
+}
+
 export interface AnimationFallbackEvent {
   id: string;
   label: string;

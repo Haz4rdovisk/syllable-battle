@@ -47,6 +47,7 @@ import { BattleDevWatcherSample, useBattleDevRuntime } from "./BattleDevRuntime"
 import { buildBattleSceneModelFromRuntime } from "./BattleSceneRuntimeAdapter";
 import {
   AnimationFallbackEvent,
+  type BattleActionOriginSnapshot,
   BattleIntroPhase,
   BattleRuntimeState as BattleRuntimeStateContract,
   ENEMY,
@@ -1367,10 +1368,29 @@ export const useBattleController = ({
 
 
   const snapshotActionOrigin = useCallback(
-    (side: typeof PLAYER | typeof ENEMY, action: BattleTurnAction) => {
-      if (action.type !== "play") return null;
-      const selectedStableCard = stableHandsRef.current[side][action.handIndex];
-      return selectedStableCard ? snapshotHandCard(selectedStableCard.id) : null;
+    (side: typeof PLAYER | typeof ENEMY, action: BattleTurnAction): BattleActionOriginSnapshot | null => {
+      if (action.type === "play") {
+        const selectedStableCard = stableHandsRef.current[side][action.handIndex];
+        return {
+          playCardOrigin: selectedStableCard ? snapshotHandCard(selectedStableCard.id) : null,
+        };
+      }
+
+      if (action.type === "mulligan") {
+        return {
+          mulliganCardOrigins: [...new Set(action.handIndexes)]
+            .sort((a, b) => a - b)
+            .map((handIndex) => {
+              const stableCard = stableHandsRef.current[side][handIndex];
+              return {
+                handIndex,
+                snapshot: stableCard ? snapshotHandCard(stableCard.id) : null,
+              };
+            }),
+        };
+      }
+
+      return null;
     },
     [snapshotHandCard],
   );

@@ -119,6 +119,39 @@ test("deck-bottom mantem a mesma base do host da mao e usa o destino em stage", 
   assert.equal(motion.endScale, 0.72);
 });
 
+test("outgoing hand travel respeita endScale explicito para manter o tamanho do card", () => {
+  const motion = getBattleHandOutgoingTravelMotion({
+    destinationRect: {
+      left: 1382.962455351686,
+      top: 746.2873696407879,
+      width: 0,
+      height: 0,
+    },
+    destinationMode: "deck-bottom",
+    endScale: 1,
+    layout: {
+      x: 108,
+      y: -28,
+      rotate: 5,
+      scale: 1,
+    },
+    baseHandFrame: {
+      width: 598,
+      height: 192,
+    },
+    bottomOffset: 31,
+    cardWidth: 110,
+    cardHeight: 150,
+    handSceneScale: 1,
+    sceneRect: {
+      sceneLeft: 661.6608339665526,
+      sceneTop: 704.4296642877881,
+    },
+  });
+
+  assert.equal(motion.endScale, 1);
+});
+
 test("outgoing hand travel pode partir da snapshot real da carta selecionada", () => {
   const motion = getBattleHandOutgoingTravelMotion({
     destinationRect: {
