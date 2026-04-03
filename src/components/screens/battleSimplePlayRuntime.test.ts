@@ -134,7 +134,6 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
     durationMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
     destinationMode: "zone-center",
     endRotate: 8,
-    preserveScale: true,
     targetSlotIndex: 1,
     pendingCardRevealDelayMs: BATTLE_SHARED_FLOW_TIMINGS.cardToFieldMs,
   });

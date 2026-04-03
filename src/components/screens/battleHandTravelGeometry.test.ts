@@ -78,6 +78,7 @@ test("outgoing hand travel termina no centro do destino authored no stage", () =
 
   assert.ok(Math.abs(actualEndLeft - desiredEndLeft) < 0.001);
   assert.ok(Math.abs(actualStartLeft - desiredStartLeft) < 0.001);
+  assert.ok(Math.abs(motion.endScale - 0.9818181818181818) < 0.001);
 });
 
 test("deck-bottom mantem a mesma base do host da mao e usa o destino em stage", () => {
@@ -116,7 +117,7 @@ test("deck-bottom mantem a mesma base do host da mao e usa o destino em stage", 
 
   assert.ok(Math.abs(actualSlotLeft - expectedSlotLeft) < 0.001);
   assert.ok(Math.abs(actualEndLeft - expectedEndLeft) < 0.001);
-  assert.equal(motion.endScale, 1);
+  assert.ok(Math.abs(motion.endScale - 0.9818181818181818) < 0.001);
 });
 
 test("outgoing hand travel respeita endScale explicito para manter o tamanho do card", () => {
@@ -227,7 +228,46 @@ test("deck-bottom preserva a escala da pose inicial quando parte de uma carta se
     },
   });
 
-  assert.equal(motion.endScale, motion.initialScale);
+  assert.equal(motion.endScale, 1);
+  assert.ok(motion.initialScale > 1.1);
+});
+
+test("zone-center reduz da pose selecionada ate o tamanho rest da mao", () => {
+  const motion = getBattleHandOutgoingTravelMotion({
+    destinationRect: {
+      left: 900,
+      top: 500,
+      width: 0,
+      height: 0,
+    },
+    destinationMode: "zone-center",
+    initialRect: {
+      left: 780,
+      top: 620,
+      width: 125.4,
+      height: 171,
+    },
+    layout: {
+      x: 108,
+      y: -28,
+      rotate: 5,
+      scale: 1,
+    },
+    baseHandFrame: {
+      width: 598,
+      height: 192,
+    },
+    bottomOffset: 31,
+    cardWidth: 110,
+    cardHeight: 150,
+    handSceneScale: 1,
+    sceneRect: {
+      sceneLeft: 600,
+      sceneTop: 640,
+    },
+  });
+
+  assert.equal(motion.endScale, 1);
   assert.ok(motion.initialScale > 1.1);
 });
 

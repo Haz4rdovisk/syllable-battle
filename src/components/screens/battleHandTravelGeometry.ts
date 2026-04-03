@@ -209,6 +209,10 @@ export const getBattleHandOutgoingTravelMotion = ({
     destinationMode === "zone-center" ? destinationCenterX : deckBottomX;
   const absoluteEndTop =
     destinationMode === "zone-center" ? destinationCenterY : deckBottomY;
+  const resolvedRestScale = Math.min(
+    1.4,
+    Math.max(0.6, layout.scale * handSceneScale),
+  );
   const resolvedInitialScale =
     initialRect && cardWidth > 0 && cardHeight > 0
       ? clampScale(
@@ -236,8 +240,6 @@ export const getBattleHandOutgoingTravelMotion = ({
     initialScale: resolvedInitialScale,
     endScale:
       endScale ??
-      (destinationMode === "zone-center" && !preserveScale
-        ? 1
-        : resolvedInitialScale),
+      (preserveScale ? resolvedInitialScale : resolvedRestScale),
   };
 };

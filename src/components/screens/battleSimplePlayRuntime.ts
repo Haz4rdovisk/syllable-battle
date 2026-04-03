@@ -97,7 +97,6 @@ export const applyBattleSimplePlayRuntime = ({
       durationMs: flow.cardToFieldMs,
       destinationMode: "zone-center",
       endRotate: side === localPlayerIndex ? 8 : -8,
-      preserveScale: true,
       targetSlotIndex: visualPlan.targetIndex,
       pendingCardRevealDelayMs: flow.cardToFieldMs,
     });
@@ -114,7 +113,6 @@ export const applyBattleSimplePlayRuntime = ({
       durationMs: flow.cardToFieldMs,
       destinationMode: "zone-center",
       endRotate: side === localPlayerIndex ? 8 : -8,
-      preserveScale: true,
       targetSlotIndex: targetIndex,
       pendingCardRevealDelayMs: flow.cardToFieldMs,
     });
