@@ -46,10 +46,10 @@ test("resolveBattleRuntimeLayoutDevice usa breakpoint unico para desktop tablet 
   assert.equal(resolveBattleRuntimeLayoutDevice(844), "mobile");
 });
 
-test("shouldUseBattleMobileShell usa shell mobile apenas no layout mobile", () => {
+test("shouldUseBattleMobileShell mantem o shell desktop/tablet em todos os devices", () => {
   assert.equal(shouldUseBattleMobileShell("desktop"), false);
   assert.equal(shouldUseBattleMobileShell("tablet"), false);
-  assert.equal(shouldUseBattleMobileShell("mobile"), true);
+  assert.equal(shouldUseBattleMobileShell("mobile"), false);
 });
 
 test("getBattleStageMetrics faz clamp dos limites minimos e centraliza viewport retrato", () => {

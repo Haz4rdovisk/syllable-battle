@@ -69,7 +69,10 @@ export const resolveBattleRuntimeLayoutDevice = (
 
 export const shouldUseBattleMobileShell = (
   device: BattleLayoutDeviceKey,
-): boolean => device === "mobile";
+): boolean => {
+  void device;
+  return false;
+};
 
 export const getBattleStageMetrics = (
   viewportWidth: number,

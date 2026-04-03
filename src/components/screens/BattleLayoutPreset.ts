@@ -193,7 +193,7 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
       }
     },
     "timings": {
-      "drawTravelMs": 440,
+      "drawTravelMs": 260,
       "drawSettleMs": 260,
       "targetEnterMs": 640
     },
@@ -391,7 +391,7 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
       }
     },
     "timings": {
-      "drawTravelMs": 440,
+      "drawTravelMs": 260,
       "drawSettleMs": 260,
       "targetEnterMs": 640
     }
@@ -584,7 +584,7 @@ export const battleActiveLayoutDeviceOverrides: BattleLayoutDeviceOverrides = {
       }
     },
     "timings": {
-      "drawTravelMs": 440,
+      "drawTravelMs": 260,
       "drawSettleMs": 260,
       "targetEnterMs": 640
     }
