@@ -12,6 +12,7 @@ interface UseBattleVisualOrchestratorParams<TVisualHandCard, TStableHandsState, 
   incomingHands: Record<BattleRuntimeSide, Array<{ id: string }>>;
   incomingHandsRef: React.MutableRefObject<Record<BattleRuntimeSide, Array<{ id: string }>>>;
   incomingTargetsRef: React.MutableRefObject<Record<BattleRuntimeSide, Array<any>>>;
+  scheduledHandDrawCounts: Record<BattleRuntimeSide, number>;
   pendingMulliganDrawCounts: Record<BattleRuntimeSide, number>;
   lockedTargetSlots: TLockedTargetSlotsState & Record<BattleRuntimeSide, boolean[]>;
   reconcileStableSide: (
@@ -38,6 +39,7 @@ export const useBattleVisualOrchestrator = <TVisualHandCard, TStableHandsState, 
   incomingHands,
   incomingHandsRef,
   incomingTargetsRef,
+  scheduledHandDrawCounts,
   pendingMulliganDrawCounts,
   lockedTargetSlots,
   reconcileStableSide,
@@ -47,8 +49,8 @@ export const useBattleVisualOrchestrator = <TVisualHandCard, TStableHandsState, 
 }: UseBattleVisualOrchestratorParams<TVisualHandCard, TStableHandsState, TStableTargetsState, TLockedTargetSlotsState>) => {
   useEffect(() => {
     const pendingCounts = {
-      [PLAYER]: incomingHands[PLAYER].length + pendingMulliganDrawCounts[PLAYER],
-      [ENEMY]: incomingHands[ENEMY].length + pendingMulliganDrawCounts[ENEMY],
+      [PLAYER]: incomingHands[PLAYER].length + scheduledHandDrawCounts[PLAYER] + pendingMulliganDrawCounts[PLAYER],
+      [ENEMY]: incomingHands[ENEMY].length + scheduledHandDrawCounts[ENEMY] + pendingMulliganDrawCounts[ENEMY],
     };
 
     const expectedPlayerStable = game.players[PLAYER].hand.length - pendingCounts[PLAYER];
@@ -76,7 +78,7 @@ export const useBattleVisualOrchestrator = <TVisualHandCard, TStableHandsState, 
     if (nextHands[PLAYER] !== current[PLAYER] || nextHands[ENEMY] !== current[ENEMY]) {
       commitStableHands(nextHands);
     }
-  }, [commitStableHands, game, incomingHands, pendingMulliganDrawCounts, reconcileStableSide, stableHands, stableHandsRef]);
+  }, [commitStableHands, game, incomingHands, pendingMulliganDrawCounts, reconcileStableSide, scheduledHandDrawCounts, stableHands, stableHandsRef]);
 
   useEffect(() => {
     if (introPhase !== "done") return;
@@ -100,11 +102,13 @@ export const useBattleVisualOrchestrator = <TVisualHandCard, TStableHandsState, 
 
   const hasBlockingVisuals = useCallback(
     () =>
+      scheduledHandDrawCounts[PLAYER] > 0 ||
+      scheduledHandDrawCounts[ENEMY] > 0 ||
       incomingHandsRef.current[PLAYER].length > 0 ||
       incomingHandsRef.current[ENEMY].length > 0 ||
       incomingTargetsRef.current[PLAYER].length > 0 ||
       incomingTargetsRef.current[ENEMY].length > 0,
-    [incomingHandsRef, incomingTargetsRef],
+    [incomingHandsRef, incomingTargetsRef, scheduledHandDrawCounts],
   );
 
   return {

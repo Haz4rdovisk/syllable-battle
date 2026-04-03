@@ -381,6 +381,11 @@ export const useBattleController = ({
     [ENEMY]: [],
   });
   const outgoingHandsRef = useRef(outgoingHands);
+  const [scheduledHandDrawCounts, setScheduledHandDrawCounts] = useState<Record<typeof PLAYER | typeof ENEMY, number>>({
+    [PLAYER]: 0,
+    [ENEMY]: 0,
+  });
+  const scheduledHandDrawCountsRef = useRef(scheduledHandDrawCounts);
   const [pendingMulliganDrawCounts, setPendingMulliganDrawCounts] = useState<Record<typeof PLAYER | typeof ENEMY, number>>({
     [PLAYER]: 0,
     [ENEMY]: 0,
@@ -548,6 +553,14 @@ export const useBattleController = ({
     (nextHands: Record<typeof PLAYER | typeof ENEMY, BattleHandLaneOutgoingCard[]>) => {
       outgoingHandsRef.current = nextHands;
       setOutgoingHands(nextHands);
+    },
+    [],
+  );
+
+  const commitScheduledHandDrawCounts = useCallback(
+    (nextCounts: Record<typeof PLAYER | typeof ENEMY, number>) => {
+      scheduledHandDrawCountsRef.current = nextCounts;
+      setScheduledHandDrawCounts(nextCounts);
     },
     [],
   );
@@ -969,7 +982,8 @@ export const useBattleController = ({
         config?.originOverride ?? snapshotZone(zoneIdForSide(side, "deck"));
       const stableCount = stableHandsRef.current[side].length;
       const incomingCount = incomingHandsRef.current[side].length;
-      const baseCount = stableCount + incomingCount;
+      const scheduledCount = scheduledHandDrawCountsRef.current[side];
+      const baseCount = stableCount + incomingCount + scheduledCount;
       const finalTotal = config?.finalTotalOverride ?? Math.min(HAND_LAYOUT_SLOT_COUNT, baseCount + cards.length);
       const finalIndexBase = config?.finalIndexBase ?? baseCount;
       const handRefs = resolveBattleRuntimePlayerCardPiles(
@@ -989,19 +1003,39 @@ export const useBattleController = ({
           return;
         }
 
-        appendIncomingCard(side, {
+        const queueDelayMs = (config?.initialDelayMs ?? 0) + index * (config?.staggerMs ?? 130);
+        const incomingCard = {
           id: visualCard.id,
           side,
           card: visualCard,
           origin,
           finalIndex: Math.min(HAND_LAYOUT_SLOT_COUNT - 1, finalIndexBase + index),
           finalTotal,
-          delayMs: (config?.initialDelayMs ?? 0) + index * (config?.staggerMs ?? 130),
+          delayMs: 0,
           durationMs: config?.durationMs ?? 940,
+        };
+
+        if (queueDelayMs <= 0) {
+          appendIncomingCard(side, incomingCard);
+          return;
+        }
+
+        commitScheduledHandDrawCounts({
+          ...scheduledHandDrawCountsRef.current,
+          [side]: scheduledHandDrawCountsRef.current[side] + 1,
         });
+
+        const timer = setTimeout(() => {
+          appendIncomingCard(side, incomingCard);
+          commitScheduledHandDrawCounts({
+            ...scheduledHandDrawCountsRef.current,
+            [side]: Math.max(0, scheduledHandDrawCountsRef.current[side] - 1),
+          });
+        }, queueDelayMs);
+        visualTimersRef.current.push(timer);
       });
     },
-    [appendIncomingCard, appendStableCard, createVisualHandCard, gameRef, resolveDeckCatalogForSide, snapshotZone],
+    [appendIncomingCard, appendStableCard, commitScheduledHandDrawCounts, createVisualHandCard, gameRef, resolveDeckCatalogForSide, snapshotZone],
   );
 
   const startNextMulliganDraw = useCallback(
@@ -1094,6 +1128,10 @@ export const useBattleController = ({
         [PLAYER]: [],
         [ENEMY]: [],
       });
+      commitScheduledHandDrawCounts({
+        [PLAYER]: 0,
+        [ENEMY]: 0,
+      });
       commitPendingMulliganDrawCounts({
         [PLAYER]: 0,
         [ENEMY]: 0,
@@ -1148,6 +1186,7 @@ export const useBattleController = ({
       cloneInitialGame,
       commitIncomingHands,
       commitOutgoingHands,
+      commitScheduledHandDrawCounts,
       commitPendingMulliganDrawCounts,
       commitIncomingTargets,
       commitOutgoingTargets,
@@ -1267,6 +1306,7 @@ export const useBattleController = ({
     incomingHands,
     incomingHandsRef,
     incomingTargetsRef,
+    scheduledHandDrawCounts,
     pendingMulliganDrawCounts,
     lockedTargetSlots,
     reconcileStableSide,
@@ -1492,6 +1532,7 @@ export const useBattleController = ({
     introPhase,
     turnPresentationLocked,
     visualQueue: {
+      scheduledHandDrawCounts,
       incomingHands,
       outgoingHands,
       pendingMulliganDrawCounts,
@@ -1719,6 +1760,7 @@ export const useBattleController = ({
         visualQueue: {
           incomingHands,
           outgoingHands,
+          scheduledHandDrawCounts,
           pendingMulliganDrawCounts,
           incomingTargets,
           outgoingTargets,
@@ -1816,6 +1858,7 @@ export const useBattleController = ({
     visualQueue: {
       incomingHands,
       outgoingHands,
+      scheduledHandDrawCounts,
       pendingMulliganDrawCounts,
       incomingTargets,
       outgoingTargets,

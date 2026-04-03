@@ -11,6 +11,7 @@ import {
 export interface BattleVisualQueueState {
   incomingHands: Record<BattleRuntimeSide, IncomingHandCard[]>;
   outgoingHands: Record<BattleRuntimeSide, BattleHandLaneOutgoingCard[]>;
+  scheduledHandDrawCounts: Record<BattleRuntimeSide, number>;
   pendingMulliganDrawCounts: Record<BattleRuntimeSide, number>;
   incomingTargets: Record<BattleRuntimeSide, IncomingTargetCard[]>;
   outgoingTargets: Record<BattleRuntimeSide, OutgoingTargetCard[]>;
@@ -27,6 +28,10 @@ export const createEmptyBattleVisualQueueState = (): BattleVisualQueueState => (
   outgoingHands: {
     0: [],
     1: [],
+  },
+  scheduledHandDrawCounts: {
+    0: 0,
+    1: 0,
   },
   pendingMulliganDrawCounts: {
     0: 0,

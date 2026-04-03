@@ -108,6 +108,15 @@ export const createBattleCombatPreviewPhaseDebugEntries = (
     endMs: schedule.replacement.endMs,
     dependsOn: schedule.replacement.dependsOn ?? null,
   },
+  ...(schedule.draw.durationMs > 0
+    ? [{
+        key: "draw",
+        atMs: schedule.draw.atMs,
+        durationMs: schedule.draw.durationMs,
+        endMs: schedule.draw.endMs,
+        dependsOn: schedule.draw.dependsOn ?? null,
+      } satisfies BattlePreviewPhaseDebugEntry]
+    : []),
   {
     key: "finish",
     atMs: schedule.finish.atMs,

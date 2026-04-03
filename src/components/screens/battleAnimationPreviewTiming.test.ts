@@ -74,7 +74,7 @@ test("preview durations de combos e mulligan respeitam a mesma composição temp
       preset: "target-attack-replacement-combo-0",
       timings,
     }),
-    4370,
+    5710,
   );
   assert.equal(
     getBattleAnimationPreviewDurationMs({

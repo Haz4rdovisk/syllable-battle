@@ -439,7 +439,6 @@ export const useBattleCombatFlow = <
           initialTotal: layout.total,
           delayMs: index * schedule.return.staggerMs,
           durationMs: flow.mulliganReturnMs,
-          endScale: 1,
         });
       });
     }

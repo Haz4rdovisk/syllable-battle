@@ -153,12 +153,9 @@ export const getBattleAnimationPreviewDurationMs = (args: {
   if (animationSet === "target-attack-replacement-combo") {
     const schedule = createBattleCombatPreviewSchedule({
       flow: timings,
-      drawnCardCount: 0,
+      drawnCardCount: 1,
     });
-    return Math.max(
-      schedule.finish.atMs,
-      schedule.replacement.atMs + timings.targetEnterMs + timings.targetSettleMs,
-    );
+    return schedule.finish.atMs;
   }
 
   const count = getMulliganCompleteComboCountFromPreset(preset) ?? 0;

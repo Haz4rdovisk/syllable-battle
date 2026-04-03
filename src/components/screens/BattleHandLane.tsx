@@ -69,6 +69,7 @@ export interface BattleHandLaneOutgoingCard {
   destinationMode?: "deck-bottom" | "zone-center";
   endRotate?: number;
   endScale?: number;
+  preserveScale?: boolean;
   targetSlotIndex?: number;
   pendingCardRevealDelayMs?: number;
 }
@@ -482,6 +483,7 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
             destinationRect,
             destinationMode,
             endScale: outgoingCard.endScale,
+            preserveScale: outgoingCard.preserveScale,
             initialRect,
             layout,
             baseHandFrame,

@@ -152,6 +152,7 @@ export const getBattleHandOutgoingTravelMotion = ({
   destinationRect,
   destinationMode,
   endScale,
+  preserveScale = false,
   initialRect,
   layout,
   baseHandFrame,
@@ -164,6 +165,7 @@ export const getBattleHandOutgoingTravelMotion = ({
   destinationRect: BattleHandTravelRect;
   destinationMode: "deck-bottom" | "zone-center";
   endScale?: number;
+  preserveScale?: boolean;
   initialRect?: BattleHandTravelRect | null;
   layout: BattleHandTravelLayout;
   baseHandFrame: {
@@ -207,6 +209,17 @@ export const getBattleHandOutgoingTravelMotion = ({
     destinationMode === "zone-center" ? destinationCenterX : deckBottomX;
   const absoluteEndTop =
     destinationMode === "zone-center" ? destinationCenterY : deckBottomY;
+  const resolvedInitialScale =
+    initialRect && cardWidth > 0 && cardHeight > 0
+      ? clampScale(
+          Math.min(
+            initialRect.width / cardWidth,
+            initialRect.height / cardHeight,
+          ),
+          0.72,
+          1.4,
+        )
+      : 1;
 
   return {
     ...base,
@@ -220,26 +233,11 @@ export const getBattleHandOutgoingTravelMotion = ({
     endY: absoluteEndTop - base.portalBaseTop,
     slotX: slotOffset.x,
     slotY: slotOffset.y,
-    initialScale:
-      initialRect && cardWidth > 0 && cardHeight > 0
-        ? clampScale(
-            Math.min(
-              initialRect.width / cardWidth,
-              initialRect.height / cardHeight,
-            ),
-            0.72,
-            1.4,
-          )
-        : 1,
+    initialScale: resolvedInitialScale,
     endScale:
       endScale ??
-      (destinationMode === "zone-center"
+      (destinationMode === "zone-center" && !preserveScale
         ? 1
-        : clampScale(
-            Math.min(
-              destinationRect.width / cardWidth,
-              destinationRect.height / cardHeight,
-            ),
-          )),
+        : resolvedInitialScale),
   };
 };

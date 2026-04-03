@@ -50,6 +50,7 @@ export interface BattleCombatPreviewSchedule {
   };
   impact: BattleCompositeSchedulePhase;
   replacement: BattleCompositeSchedulePhase;
+  draw: BattleCompositeSchedulePhase;
   finish: BattleCompositeSchedulePhase;
   targetMotion: BattleCombatSchedule["targetMotion"];
 }
@@ -202,6 +203,11 @@ export const createBattleCombatPreviewSchedule = (args: {
       schedule.replacement.atMs - previewOffsetMs,
       schedule.replacement.durationMs,
       schedule.replacement.dependsOn,
+    ),
+    draw: createPhase(
+      schedule.draw.atMs - previewOffsetMs,
+      schedule.draw.durationMs,
+      schedule.draw.dependsOn,
     ),
     finish: createPhase(
       schedule.finish.atMs - previewOffsetMs,

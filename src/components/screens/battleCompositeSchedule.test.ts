@@ -99,6 +99,8 @@ test("createBattleCombatPreviewSchedule preserva a ordem temporal do runtime em 
   assert.equal(preview.impact.atMs, 1450);
   assert.equal(preview.replacement.atMs, 3110);
   assert.equal(preview.replacement.durationMs, 1000);
+  assert.equal(preview.draw.atMs, 4110);
+  assert.equal(preview.draw.durationMs, 0);
   assert.equal(preview.finish.atMs, 4370);
   assert.deepEqual(preview.targetMotion, {
     windupMs: 310,

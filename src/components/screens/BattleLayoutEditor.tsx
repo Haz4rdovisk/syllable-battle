@@ -722,6 +722,14 @@ const animationTimingControlsBySet: Partial<
         description: "Tempo ate o alvo consolidar a carta jogada.",
       },
       {
+        key: "visualSettleBufferMs",
+        label: "Buffer antes da compra",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espera entre o commit da jogada e o nascimento da compra.",
+      },
+      {
         key: "drawTravelMs",
         label: "Travel da compra",
         min: 120,
@@ -890,6 +898,30 @@ const animationTimingControlsBySet: Partial<
         max: 1200,
         step: 10,
         description: "Pausa visual depois da entrada.",
+      },
+      {
+        key: "visualSettleBufferMs",
+        label: "Buffer antes da compra",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Espera entre o replacement e o nascimento da compra.",
+      },
+      {
+        key: "drawTravelMs",
+        label: "Travel da compra",
+        min: 120,
+        max: 2400,
+        step: 10,
+        description: "Duracao da compra apos a resolucao do ataque.",
+      },
+      {
+        key: "drawSettleMs",
+        label: "Settle da compra",
+        min: 0,
+        max: 1200,
+        step: 10,
+        description: "Buffer visual antes da compra se consolidar.",
       },
       {
         key: "turnHandoffMs",
@@ -2128,9 +2160,30 @@ export const BattleLayoutEditor: React.FC = () => {
     }
     return openingTargetEntryAnchorToolByPreset[animationPreset] ?? null;
   }, [animationPreset, animationSet]);
+  const getSelectedReplacementComboOriginAnchorTool = useCallback(() => {
+    if (animationSet !== "target-attack-replacement-combo") return null;
+    const attackIndex = getAttackReplacementComboIndexFromPreset(animationPreset);
+    return attackIndex != null
+      ? (`replacement-target-entry-${attackIndex}-origin` as const)
+      : null;
+  }, [animationPreset, animationSet]);
   const getSelectedHandPlayTargetDestinationAnchorTool = useCallback(() => {
-    if (animationSet !== "hand-play-target") return null;
+    if (animationSet !== "hand-play-target" && animationSet !== "hand-play-draw-combo") return null;
     return handPlayTargetDestinationAnchorToolByPreset[animationPreset] ?? null;
+  }, [animationPreset, animationSet]);
+  const getSelectedPostPlayDrawOriginAnchorTool = useCallback(() => {
+    if (animationSet === "hand-play-draw-combo") {
+      return getHandPlayDrawComboTargetIndexFromPreset(animationPreset) != null
+        ? ("post-play-hand-draw-origin" as const)
+        : null;
+    }
+    if (animationSet === "target-attack-replacement-combo") {
+      const attackIndex = getAttackReplacementComboIndexFromPreset(animationPreset);
+      return attackIndex != null && attackIndex < 2
+        ? ("post-play-hand-draw-origin" as const)
+        : null;
+    }
+    return null;
   }, [animationPreset, animationSet]);
   const getSelectedMulliganReturnDestinationAnchorTool = useCallback(() => {
     if (animationSet !== "mulligan-hand-return") return null;
@@ -2232,8 +2285,12 @@ export const BattleLayoutEditor: React.FC = () => {
   const isAnimationFeatureDisabled = animationPreset === "none";
   const animationPresetOptions = animationPresetOptionsBySet[animationSet];
   const selectedAnimationOriginAnchorTool = getSelectedAnimationOriginAnchorTool();
+  const selectedReplacementComboOriginAnchorTool =
+    getSelectedReplacementComboOriginAnchorTool();
   const selectedHandPlayTargetDestinationAnchorTool =
     getSelectedHandPlayTargetDestinationAnchorTool();
+  const selectedPostPlayDrawOriginAnchorTool =
+    getSelectedPostPlayDrawOriginAnchorTool();
   const selectedMulliganReturnDestinationAnchorTool =
     getSelectedMulliganReturnDestinationAnchorTool();
   const selectedTargetAttackImpactAnchorTool = getSelectedTargetAttackImpactAnchorTool();
@@ -2241,6 +2298,8 @@ export const BattleLayoutEditor: React.FC = () => {
   const animationAnchorEditorItems = useMemo(() => {
     const anchorKeys = [
       selectedAnimationOriginAnchorTool,
+      selectedReplacementComboOriginAnchorTool,
+      selectedPostPlayDrawOriginAnchorTool,
       selectedTargetAttackImpactAnchorTool,
       selectedHandPlayTargetDestinationAnchorTool,
       selectedMulliganReturnDestinationAnchorTool,
@@ -2257,7 +2316,9 @@ export const BattleLayoutEditor: React.FC = () => {
     }));
   }, [
     selectedAnimationOriginAnchorTool,
+    selectedReplacementComboOriginAnchorTool,
     selectedHandPlayTargetDestinationAnchorTool,
+    selectedPostPlayDrawOriginAnchorTool,
     selectedMulliganReturnDestinationAnchorTool,
     selectedTargetAttackImpactAnchorTool,
     selectedTargetAttackDestinationAnchorTool,

@@ -116,7 +116,7 @@ test("deck-bottom mantem a mesma base do host da mao e usa o destino em stage", 
 
   assert.ok(Math.abs(actualSlotLeft - expectedSlotLeft) < 0.001);
   assert.ok(Math.abs(actualEndLeft - expectedEndLeft) < 0.001);
-  assert.equal(motion.endScale, 0.72);
+  assert.equal(motion.endScale, 1);
 });
 
 test("outgoing hand travel respeita endScale explicito para manter o tamanho do card", () => {
@@ -150,6 +150,85 @@ test("outgoing hand travel respeita endScale explicito para manter o tamanho do 
   });
 
   assert.equal(motion.endScale, 1);
+});
+
+test("zone-center pode preservar a escala inicial quando a play pede isso", () => {
+  const motion = getBattleHandOutgoingTravelMotion({
+    destinationRect: {
+      left: 900,
+      top: 500,
+      width: 0,
+      height: 0,
+    },
+    destinationMode: "zone-center",
+    preserveScale: true,
+    initialRect: {
+      left: 780,
+      top: 620,
+      width: 125.4,
+      height: 171,
+    },
+    layout: {
+      x: 108,
+      y: -28,
+      rotate: 5,
+      scale: 1,
+    },
+    baseHandFrame: {
+      width: 598,
+      height: 192,
+    },
+    bottomOffset: 31,
+    cardWidth: 110,
+    cardHeight: 150,
+    handSceneScale: 1,
+    sceneRect: {
+      sceneLeft: 600,
+      sceneTop: 640,
+    },
+  });
+
+  assert.equal(motion.endScale, motion.initialScale);
+  assert.ok(motion.endScale > 1.1);
+});
+
+test("deck-bottom preserva a escala da pose inicial quando parte de uma carta selecionada", () => {
+  const motion = getBattleHandOutgoingTravelMotion({
+    destinationRect: {
+      left: 1382.962455351686,
+      top: 746.2873696407879,
+      width: 0,
+      height: 0,
+    },
+    destinationMode: "deck-bottom",
+    initialRect: {
+      left: 780,
+      top: 620,
+      width: 125.4,
+      height: 171,
+    },
+    layout: {
+      x: 108,
+      y: -28,
+      rotate: 5,
+      scale: 1,
+    },
+    baseHandFrame: {
+      width: 598,
+      height: 192,
+    },
+    bottomOffset: 31,
+    cardWidth: 110,
+    cardHeight: 150,
+    handSceneScale: 1,
+    sceneRect: {
+      sceneLeft: 661.6608339665526,
+      sceneTop: 704.4296642877881,
+    },
+  });
+
+  assert.equal(motion.endScale, motion.initialScale);
+  assert.ok(motion.initialScale > 1.1);
 });
 
 test("outgoing hand travel pode partir da snapshot real da carta selecionada", () => {

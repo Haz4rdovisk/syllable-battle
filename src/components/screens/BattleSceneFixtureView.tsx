@@ -441,6 +441,14 @@ export const BattleSceneFixtureView: React.FC<{
       }),
     [animationTimings],
   );
+  const previewTargetAttackReplacementSchedule = useMemo(
+    () =>
+      createBattleCombatPreviewSchedule({
+        flow: animationTimings,
+        drawnCardCount: 1,
+      }),
+    [animationTimings],
+  );
   const previewMulliganReturnDurationMs = animationTimings.mulliganReturnMs;
   const previewMulliganReturnSettleMs = animationTimings.mulliganSettleMs;
   const previewMulliganDrawDurationMs = animationTimings.drawTravelMs;
@@ -493,6 +501,7 @@ export const BattleSceneFixtureView: React.FC<{
     [layout],
   );
   const zoneNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const handCardNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
   const slotNodesRef = useRef<Record<typeof PLAYER | typeof ENEMY, Array<HTMLDivElement | null>>>({
     [PLAYER]: [],
     [ENEMY]: [],
@@ -506,6 +515,25 @@ export const BattleSceneFixtureView: React.FC<{
   const snapshotZone = useCallback((zoneId: BoardZoneId): ZoneAnchorSnapshot | null => {
     const bestNode = Object.entries(zoneNodesRef.current)
       .filter(([key, node]) => key.startsWith(`${zoneId}:`) && node)
+      .map(([, node]) => node as HTMLDivElement)
+      .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
+
+    if (!bestNode) return null;
+
+    const { left, top, width, height } = bestNode.rect;
+    return { left, top, width, height };
+  }, []);
+  const bindPreviewHandCardRef = useCallback(
+    (cardId: string, layoutId: string) => (node: HTMLDivElement | null) => {
+      handCardNodesRef.current[`${cardId}:${layoutId}`] = node;
+    },
+    [],
+  );
+  const snapshotPreviewHandCard = useCallback((cardId: string): ZoneAnchorSnapshot | null => {
+    const bestNode = Object.entries(handCardNodesRef.current)
+      .filter(([key, node]) => key.startsWith(`${cardId}:`) && node)
       .map(([, node]) => node as HTMLDivElement)
       .map((node) => ({ node, rect: node.getBoundingClientRect() }))
       .filter(({ rect }) => rect.width > 0 && rect.height > 0)
@@ -537,6 +565,13 @@ export const BattleSceneFixtureView: React.FC<{
       ),
     [createPreviewHandCard, fixture.playerHand],
   );
+  const defaultEnemyStableCards = useMemo(
+    () =>
+      fixture.enemyHand.map((handCard, index) =>
+        createPreviewHandCard(handCard, ENEMY, `stable-${index}`),
+      ),
+    [createPreviewHandCard, fixture.enemyHand],
+  );
   const anchorDragRef = useRef<{
     anchor: BattleLayoutPreviewAnimationAnchorKey;
     stageRoot: HTMLElement;
@@ -564,6 +599,9 @@ export const BattleSceneFixtureView: React.FC<{
   const [previewPlayerStableCards, setPreviewPlayerStableCards] = useState<
     BattleHandLaneCard[]
   >(defaultPlayerStableCards);
+  const [previewEnemyStableCards, setPreviewEnemyStableCards] = useState<
+    BattleHandLaneCard[]
+  >(defaultEnemyStableCards);
   const [previewSelectedIndexes, setPreviewSelectedIndexes] = useState<number[]>(
     fixture.selectedIndexes ?? [],
   );
@@ -644,6 +682,7 @@ export const BattleSceneFixtureView: React.FC<{
       [ENEMY]: [],
     });
     setPreviewPlayerStableCards(defaultPlayerStableCards);
+    setPreviewEnemyStableCards(defaultEnemyStableCards);
     setPreviewPendingTargetPlacements({
       [PLAYER]: [],
       [ENEMY]: [],
@@ -681,6 +720,7 @@ export const BattleSceneFixtureView: React.FC<{
       completionPlan: null,
     });
   }, [
+    defaultEnemyStableCards,
     defaultPlayerStableCards,
     fixture.selectedIndexes,
     fixture.scene.board.currentMessage,
@@ -776,6 +816,14 @@ export const BattleSceneFixtureView: React.FC<{
           committedCardLabel: `${incomingCard.card.syllable}#${incomingCard.card.id}`,
           phase: "committed",
         }));
+      } else {
+        setPreviewEnemyStableCards((current) => [
+          ...current,
+          {
+            ...incomingCard.card,
+            skipEntryAnimation: true,
+          },
+        ]);
       }
     },
     [],
@@ -888,9 +936,22 @@ export const BattleSceneFixtureView: React.FC<{
             ] ?? null
           : null;
       const point = getAnimationAnchorPoint(anchor);
-      return point && anchor
-        ? [{ label: getVisibleAnimationAnchorLabel(anchor), anchor, point }]
-        : [];
+      const drawPoint =
+        animationSet === "hand-play-draw-combo"
+          ? getAnimationAnchorPoint("post-play-hand-draw-origin")
+          : null;
+      return [
+        ...(point && anchor
+          ? [{ label: getVisibleAnimationAnchorLabel(anchor), anchor, point }]
+          : []),
+        ...(drawPoint
+          ? [{
+              label: getVisibleAnimationAnchorLabel("post-play-hand-draw-origin"),
+              anchor: "post-play-hand-draw-origin" as const,
+              point: drawPoint,
+            }]
+          : []),
+      ];
     }
 
     if (animationSet === "mulligan-hand-draw") {
@@ -959,6 +1020,10 @@ export const BattleSceneFixtureView: React.FC<{
       const replacementPoint = getAnimationAnchorPoint(replacementAnchor);
       const impactPoint = getAnimationAnchorPoint(impactAnchor);
       const destinationPoint = getAnimationAnchorPoint(destinationAnchor);
+      const drawPoint =
+        attackIndex < 2
+          ? getAnimationAnchorPoint("post-play-hand-draw-origin")
+          : null;
       return [
         ...(replacementPoint && replacementAnchor
           ? [{
@@ -979,6 +1044,13 @@ export const BattleSceneFixtureView: React.FC<{
               label: getVisibleAnimationAnchorLabel(destinationAnchor),
               anchor: destinationAnchor,
               point: destinationPoint,
+            }]
+          : []),
+        ...(drawPoint
+          ? [{
+              label: getVisibleAnimationAnchorLabel("post-play-hand-draw-origin"),
+              anchor: "post-play-hand-draw-origin" as const,
+              point: drawPoint,
             }]
           : []),
       ];
@@ -1362,6 +1434,18 @@ export const BattleSceneFixtureView: React.FC<{
           buildAnimationAnchorSnapshot(destinationAnchor),
         )}`,
       );
+      if (animationSet === "hand-play-draw-combo") {
+        lines.push(
+          `drawOrigin:${formatBattleDebugPoint(
+            getAnimationAnchorPoint("post-play-hand-draw-origin"),
+          )}`,
+        );
+        lines.push(
+          `drawOriginSnap:${formatBattleDebugSnapshot(
+            buildAnimationAnchorSnapshot("post-play-hand-draw-origin"),
+          )}`,
+        );
+      }
       lines.push(
         `pendingPlayer:[${previewPendingTargetPlacements[PLAYER]
           .map((value, index) => `${index}:${value ?? "-"}`)
@@ -1519,6 +1603,18 @@ export const BattleSceneFixtureView: React.FC<{
             buildAnimationAnchorSnapshot(destinationAnchor),
           )}`,
         );
+        if (attackIndex != null && attackIndex < 2) {
+          lines.push(
+            `drawOrigin:${formatBattleDebugPoint(
+              getAnimationAnchorPoint("post-play-hand-draw-origin"),
+            )}`,
+          );
+          lines.push(
+            `drawOriginSnap:${formatBattleDebugSnapshot(
+              buildAnimationAnchorSnapshot("post-play-hand-draw-origin"),
+            )}`,
+          );
+        }
       }
       lines.push(
         `impactAnchors:[${[
@@ -2150,6 +2246,24 @@ export const BattleSceneFixtureView: React.FC<{
       };
     };
 
+    const resolveCombatComboDrawGeometry = (side: typeof PLAYER | typeof ENEMY) => {
+      const sourceCards =
+        side === PLAYER ? defaultPlayerStableCards : defaultEnemyStableCards;
+      const drawnCard = sourceCards[sourceCards.length - 1] ?? null;
+      const origin =
+        side === PLAYER
+          ? buildAnimationAnchorSnapshot("post-play-hand-draw-origin") ??
+            readElementSnapshot("playerDeck")
+          : readElementSnapshot("enemyDeck");
+
+      return {
+        drawnCard,
+        origin,
+        finalIndex: sourceCards.length,
+        finalTotal: sourceCards.length + (drawnCard ? 1 : 0),
+      };
+    };
+
     const startPostPlayHandDrawLoop = () => {
       if (loopGenerationRef.current !== generation) return;
       setIncomingPreviewHands({
@@ -2250,6 +2364,7 @@ export const BattleSceneFixtureView: React.FC<{
       const previewSetup = getSelectedHandPlayPreviewSetup(targetIndex);
       if (!previewSetup) return;
       const { removedIndex, playedCard, handPlayDestination } = previewSetup;
+      const playedCardSnapshot = snapshotPreviewHandCard(playedCard.id);
       setPreviewPlayerStableCards(
         defaultPlayerStableCards.filter((_, index) => index !== removedIndex),
       );
@@ -2265,6 +2380,7 @@ export const BattleSceneFixtureView: React.FC<{
             id: `fixture-hand-play-target-${animationRunId}-${generation}-${targetIndex}`,
             side: PLAYER,
             card: playedCard,
+            initialSnapshot: playedCardSnapshot,
             destination: handPlayDestination,
             initialIndex: removedIndex,
             initialTotal: defaultPlayerStableCards.length,
@@ -2272,7 +2388,7 @@ export const BattleSceneFixtureView: React.FC<{
             durationMs: animationTimings.cardToFieldMs,
             destinationMode: "zone-center",
             endRotate: 8,
-            endScale: 1,
+            preserveScale: true,
             targetSlotIndex: targetIndex,
             pendingCardRevealDelayMs: animationTimings.cardToFieldMs,
           },
@@ -2320,6 +2436,7 @@ export const BattleSceneFixtureView: React.FC<{
       const previewSetup = getSelectedHandPlayPreviewSetup(targetIndex);
       if (!previewSetup) return;
       const { removedIndex, playedCard, handPlayDestination } = previewSetup;
+      const playedCardSnapshot = snapshotPreviewHandCard(playedCard.id);
       const {
         drawSourceIndex,
         drawnCard,
@@ -2368,6 +2485,7 @@ export const BattleSceneFixtureView: React.FC<{
             id: `fixture-hand-play-draw-combo-${animationRunId}-${generation}-${targetIndex}`,
             side: PLAYER,
             card: playedCard,
+            initialSnapshot: playedCardSnapshot,
             destination: handPlayDestination,
             initialIndex: visualPlan.handExit.handIndex,
             initialTotal: visualPlan.handExit.handCountBefore,
@@ -2375,7 +2493,7 @@ export const BattleSceneFixtureView: React.FC<{
             durationMs: animationTimings.cardToFieldMs,
             destinationMode: "zone-center",
             endRotate: 8,
-            endScale: 1,
+            preserveScale: true,
             targetSlotIndex: targetIndex,
             pendingCardRevealDelayMs: animationTimings.cardToFieldMs,
           },
@@ -2529,6 +2647,9 @@ export const BattleSceneFixtureView: React.FC<{
       const handState = getMulliganPreviewHandState();
       if (!handState) return;
       const { count, removedCards, remainingCards } = handState;
+      const removedCardSnapshots = removedCards.map((card) =>
+        snapshotPreviewHandCard(card.id),
+      );
       setPreviewPlayerStableCards(remainingCards);
       const destination = getMulliganReturnDestination();
       if (!destination) return;
@@ -2538,6 +2659,7 @@ export const BattleSceneFixtureView: React.FC<{
           id: `fixture-mulligan-return-${animationRunId}-${generation}-${index}`,
           side: PLAYER,
           card,
+          initialSnapshot: removedCardSnapshots[index] ?? null,
           destination,
           initialIndex: index,
           initialTotal: defaultPlayerStableCards.length,
@@ -2598,6 +2720,9 @@ export const BattleSceneFixtureView: React.FC<{
       const mulliganSchedule = getMulliganPreviewSchedule(count);
       const removedCards = defaultPlayerStableCards.slice(0, count);
       const remainingCards = defaultPlayerStableCards.slice(count);
+      const removedCardSnapshots = removedCards.map((card) =>
+        snapshotPreviewHandCard(card.id),
+      );
       setPreviewPlayerStableCards(remainingCards);
       const destination =
         buildAnimationAnchorSnapshot(
@@ -2618,6 +2743,7 @@ export const BattleSceneFixtureView: React.FC<{
           id: `fixture-mulligan-complete-return-${animationRunId}-${generation}-${index}`,
           side: PLAYER,
           card,
+          initialSnapshot: removedCardSnapshots[index] ?? null,
           destination,
           initialIndex: index,
           initialTotal: defaultPlayerStableCards.length,
@@ -2714,6 +2840,17 @@ export const BattleSceneFixtureView: React.FC<{
 
     const startTargetAttackReplacementComboLoop = () => {
       if (loopGenerationRef.current !== generation) return;
+      setPreviewPlayerStableCards(defaultPlayerStableCards);
+      setPreviewEnemyStableCards(defaultEnemyStableCards);
+      setIncomingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setOutgoingPreviewHands({
+        [PLAYER]: [],
+        [ENEMY]: [],
+      });
+      setPreviewFreshCardIds([]);
       setIncomingPreviewTargets({
         [PLAYER]: [],
         [ENEMY]: [],
@@ -2759,10 +2896,10 @@ export const BattleSceneFixtureView: React.FC<{
             impactDestination: impactSnapshot,
             destination,
             delayMs: 0,
-            windupMs: previewTargetAttackSchedule.targetMotion.windupMs,
-            attackMs: previewTargetAttackSchedule.targetMotion.attackMs,
-            pauseMs: previewTargetAttackSchedule.targetMotion.pauseMs,
-            exitMs: previewTargetAttackSchedule.targetMotion.exitMs,
+            windupMs: previewTargetAttackReplacementSchedule.targetMotion.windupMs,
+            attackMs: previewTargetAttackReplacementSchedule.targetMotion.attackMs,
+            pauseMs: previewTargetAttackReplacementSchedule.targetMotion.pauseMs,
+            exitMs: previewTargetAttackReplacementSchedule.targetMotion.exitMs,
           },
         ] : [],
         [ENEMY]: side === ENEMY ? [
@@ -2774,10 +2911,10 @@ export const BattleSceneFixtureView: React.FC<{
             impactDestination: impactSnapshot,
             destination,
             delayMs: 0,
-            windupMs: previewTargetAttackSchedule.targetMotion.windupMs,
-            attackMs: previewTargetAttackSchedule.targetMotion.attackMs,
-            pauseMs: previewTargetAttackSchedule.targetMotion.pauseMs,
-            exitMs: previewTargetAttackSchedule.targetMotion.exitMs,
+            windupMs: previewTargetAttackReplacementSchedule.targetMotion.windupMs,
+            attackMs: previewTargetAttackReplacementSchedule.targetMotion.attackMs,
+            pauseMs: previewTargetAttackReplacementSchedule.targetMotion.pauseMs,
+            exitMs: previewTargetAttackReplacementSchedule.targetMotion.exitMs,
           },
         ] : [],
       });
@@ -2791,7 +2928,7 @@ export const BattleSceneFixtureView: React.FC<{
       if (!replacementOrigin) return;
 
       queuePreviewTimer(
-        previewTargetAttackSchedule.replacement.atMs,
+        previewTargetAttackReplacementSchedule.replacement.atMs,
         () => {
         setIncomingPreviewTargets((current) => ({
           ...current,
@@ -2812,16 +2949,36 @@ export const BattleSceneFixtureView: React.FC<{
         },
       );
 
-      const totalMs = Math.max(
-        previewTargetAttackSchedule.finish.atMs,
-        previewTargetAttackSchedule.replacement.atMs +
-          previewTargetEnterDurationMs +
-          previewReplacementTargetSettleMs,
-      );
+      const combatDraw = resolveCombatComboDrawGeometry(side);
+      if (previewTargetAttackReplacementSchedule.draw.durationMs > 0 && combatDraw.origin && combatDraw.drawnCard) {
+        queuePreviewTimer(previewTargetAttackReplacementSchedule.draw.atMs, () => {
+          setIncomingPreviewHands((current) => ({
+            ...current,
+            [side]: [
+              ...current[side],
+              {
+                id: `fixture-target-attack-replacement-draw-${animationRunId}-${generation}-${side}`,
+                side,
+                card: {
+                  ...combatDraw.drawnCard,
+                  id: `${combatDraw.drawnCard.id}-replacement-draw-${generation}-${side}`,
+                },
+                origin: combatDraw.origin,
+                finalIndex: combatDraw.finalIndex,
+                finalTotal: combatDraw.finalTotal,
+                delayMs: 0,
+                durationMs: animationTimings.drawTravelMs,
+              },
+            ],
+          }));
+        });
+      }
+
+      const totalMs = previewTargetAttackReplacementSchedule.finish.atMs;
       schedulePreviewRunCompletion({
         source: "target-attack-replacement",
         phases: createBattleCombatPreviewPhaseDebugEntries(
-          previewTargetAttackSchedule,
+          previewTargetAttackReplacementSchedule,
         ),
         completionAtMs: totalMs,
         loopMode: animationMode === "target-attack-replacement-combo-loop",
@@ -2861,7 +3018,7 @@ export const BattleSceneFixtureView: React.FC<{
     return () => {
       clearAnimationTimers();
     };
-  }, [animationMode, animationPreset, animationRunId, animationSet, animationTimings, clearAnimationTimers, defaultPlayerStableCards, fixture.scene.board.currentMessage, fixture.scene.board.enemyFieldSlots, fixture.scene.board.enemyPortrait?.active, fixture.scene.board.enemyPortrait?.flashDamage, fixture.scene.board.playerFieldSlots, fixture.scene.board.playerPortrait?.active, fixture.scene.board.playerPortrait?.flashDamage, getAnimationAnchorPoint, previewTargetAttackSchedule, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
+  }, [animationMode, animationPreset, animationRunId, animationSet, animationTimings, clearAnimationTimers, defaultEnemyStableCards, defaultPlayerStableCards, fixture.scene.board.currentMessage, fixture.scene.board.enemyFieldSlots, fixture.scene.board.enemyPortrait?.active, fixture.scene.board.enemyPortrait?.flashDamage, fixture.scene.board.playerFieldSlots, fixture.scene.board.playerPortrait?.active, fixture.scene.board.playerPortrait?.flashDamage, getAnimationAnchorPoint, previewTargetAttackReplacementSchedule, previewTargetAttackSchedule, readElementSnapshot, resetPreviewAnimation, updateHiddenStableTarget]);
 
   useEffect(
     () => () => {
@@ -3065,7 +3222,17 @@ export const BattleSceneFixtureView: React.FC<{
       hands: {
         top: {
           ...fixture.scene.hands.top,
-          stableCards: fixture.enemyHand,
+          stableCards: previewEnemyStableCards,
+          incomingCards: incomingPreviewHands[ENEMY],
+          outgoingCards: outgoingPreviewHands[ENEMY],
+          bindCardRef: bindPreviewHandCardRef,
+          onIncomingCardComplete: handleIncomingPreviewHandComplete,
+          onOutgoingCardComplete: (outgoingCard) => {
+            setOutgoingPreviewHands((current) => ({
+              ...current,
+              [ENEMY]: current[ENEMY].filter((item) => item.id !== outgoingCard.id),
+            }));
+          },
         },
         bottom: {
           ...fixture.scene.hands.bottom,
@@ -3079,6 +3246,7 @@ export const BattleSceneFixtureView: React.FC<{
           selectedIndexes: previewSelectedIndexes,
           targets: collectBattlePreviewPlayableTargets(playerFieldSlots),
           freshCardIds: previewFreshCardIds,
+          bindCardRef: bindPreviewHandCardRef,
           onIncomingCardComplete: handleIncomingPreviewHandComplete,
           onOutgoingCardComplete: (outgoingCard) => {
             setOutgoingPreviewHands((current) => ({
@@ -3101,8 +3269,10 @@ export const BattleSceneFixtureView: React.FC<{
       fixture.enemyHand,
       fixture.scene,
       fixture.showPlayableHints,
+      bindPreviewHandCardRef,
       handleIncomingPreviewHandComplete,
       incomingPreviewHands,
+      previewEnemyStableCards,
       playerFieldSlots,
       previewFreshCardIds,
       previewBoardMessage,
@@ -3114,6 +3284,7 @@ export const BattleSceneFixtureView: React.FC<{
       previewTargetField,
       setOutgoingPreviewHands,
       setPreviewSelectedIndexes,
+      snapshotPreviewHandCard,
       outgoingPreviewHands,
     ],
   );

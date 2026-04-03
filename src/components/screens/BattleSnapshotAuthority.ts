@@ -73,6 +73,7 @@ export function buildBattleSnapshotSignature(state: GameState) {
 
 function hasInFlightVisualRecoveryWork(visualQueue: BattleVisualQueueState) {
   return (
+    Object.values(visualQueue.scheduledHandDrawCounts).some((count) => count > 0) ||
     Object.values(visualQueue.incomingHands).some((cards) => cards.length > 0) ||
     Object.values(visualQueue.outgoingHands).some((cards) => cards.length > 0) ||
     Object.values(visualQueue.incomingTargets).some((cards) => cards.length > 0) ||
@@ -376,6 +377,7 @@ export const useBattleSnapshotAuthority = ({
     localSide,
     mode,
     setShowResultOverlay,
+    visualQueue.scheduledHandDrawCounts,
     visualQueue.incomingHands,
     visualQueue.outgoingHands,
     visualQueue.pendingMulliganDrawCounts,
