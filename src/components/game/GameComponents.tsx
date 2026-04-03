@@ -200,21 +200,6 @@ export const TargetCard: React.FC<TargetCardProps> = ({
         isInvalidTargetNow && "opacity-55 saturate-[0.72] brightness-95",
       )}
     >
-      {(isCompleted || isValidTarget) && (
-        <div className="pointer-events-none absolute left-1/2 top-[2.5rem] z-20 -translate-x-1/2">
-          <div
-            className={cn(
-              "rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.22em] backdrop-blur-sm",
-              isCompleted
-                ? "border-amber-300/60 bg-amber-100/92 text-amber-950 shadow-[0_8px_18px_rgba(120,53,15,0.16)]"
-                : "border-emerald-300/60 bg-emerald-100/92 text-emerald-950 shadow-[0_8px_18px_rgba(5,46,22,0.16)]",
-            )}
-          >
-            {isCompleted ? "Completo" : "Valido"}
-          </div>
-        </div>
-      )}
-
       <div
         className={cn(
           "flex items-center justify-between border-b-2 border-[#d4af37] px-[clamp(0.55rem,0.8vw,0.75rem)] text-[clamp(0.5rem,0.7vw,0.68rem)] font-black uppercase text-white",
