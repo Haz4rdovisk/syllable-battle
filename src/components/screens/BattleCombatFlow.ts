@@ -278,7 +278,7 @@ export const useBattleCombatFlow = <
     [gameRef, lockTargetSlot, setPendingTargetPlacement, setStableTargetSlot, toVisualTarget],
   );
 
-  const startCombatSequence = useCallback((result: any) => {
+  const startCombatSequence = useCallback((result: any, drawnCardRefs?: BattleRuntimeCardRef[]) => {
     const schedule = createBattleCombatSchedule({
       flow,
       drawnCardCount: result.drawnCards.length,
@@ -294,6 +294,7 @@ export const useBattleCombatFlow = <
         staggerMs: flow.drawStaggerMs,
         durationMs: flow.drawTravelMs,
         originOverride: getPostPlayHandDrawOriginSnapshot(result.actorIndex),
+        cardRefs: drawnCardRefs,
       });
     }
 

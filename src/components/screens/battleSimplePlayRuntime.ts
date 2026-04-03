@@ -55,7 +55,10 @@ export interface ApplyBattleSimplePlayRuntimeArgs {
   }) => void;
   commitPlayedTargetProgress: (side: 0 | 1, targetIndex: number) => void;
   scheduleActionTimer: (callback: () => void, delayMs: number) => void;
-  startCombatSequence: (result: ResolvedBattlePlayAction) => void;
+  startCombatSequence: (
+    result: ResolvedBattlePlayAction,
+    drawnCardRefs?: BattleRuntimeCardRef[],
+  ) => void;
   finalizeTurn: () => void;
 }
 
@@ -168,7 +171,7 @@ export const applyBattleSimplePlayRuntime = ({
   );
 
   if (result.damage > 0) {
-    startCombatSequence(result);
+    startCombatSequence(result, drawnCardRefs);
     return;
   }
 

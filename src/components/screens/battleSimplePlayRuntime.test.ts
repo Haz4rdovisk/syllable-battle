@@ -5,6 +5,7 @@ import type { BattleHandLaneOutgoingCard } from "./BattleHandLane";
 import { BATTLE_SHARED_FLOW_TIMINGS } from "./battleSharedTimings";
 import { applyBattleSimplePlayRuntime } from "./battleSimplePlayRuntime";
 import type { ResolvedBattlePlayAction } from "./battleResolution";
+import type { BattleRuntimeCardRef } from "./BattleRuntimeSetup";
 
 const createResolvedPlayAction = (
   overrides: Partial<ResolvedBattlePlayAction> = {},
@@ -251,4 +252,63 @@ test("applyBattleSimplePlayRuntime preserva fallback simples sem mover geometria
     [840, 2440],
   );
   assert.equal(combatCalls.length, 0);
+});
+
+test("applyBattleSimplePlayRuntime repassa drawnCardRefs para o fluxo de combate", () => {
+  const combatCalls: Array<{
+    result: ResolvedBattlePlayAction;
+    drawnCardRefs: BattleRuntimeCardRef[] | undefined;
+  }> = [];
+  const drawnCardRefs: BattleRuntimeCardRef[] = [
+    {
+      runtimeCardId: "deck:card:7",
+      deckId: "deck",
+      cardId: "card",
+      syllable: "ZU" as any,
+      copyIndex: 7,
+    },
+  ];
+
+  const result = createResolvedPlayAction({
+    damage: 2,
+    playedCard: "BA",
+    drawnCards: ["ZU"],
+  });
+
+  applyBattleSimplePlayRuntime({
+    side: 0,
+    localPlayerIndex: 0,
+    targetIndex: 0,
+    clearSelection: true,
+    selectedCardOrigin: null,
+    flow: BATTLE_SHARED_FLOW_TIMINGS,
+    result,
+    drawnCardRefs,
+    playedStableCard: {
+      id: "card-3",
+      syllable: "BA",
+      side: 0,
+      hidden: false,
+    },
+    playedCardLayout: {
+      index: 0,
+      total: 5,
+    },
+    visualPlan: null,
+    visualGeometry: null,
+    fallbackHandPlayDestination: { left: 1, top: 2, width: 3, height: 4 },
+    fallbackPostPlayDrawOrigin: { left: 5, top: 6, width: 7, height: 8 },
+    appendOutgoingCard: () => undefined,
+    queueHandDrawBatch: () => undefined,
+    setGame: () => undefined,
+    buildNextLog: (prevLog) => prevLog,
+    emitResolvedPlayLogicalEvents: () => undefined,
+    commitPlayedTargetProgress: () => undefined,
+    scheduleActionTimer: () => undefined,
+    startCombatSequence: (combatResult, combatDrawnCardRefs) =>
+      combatCalls.push({ result: combatResult, drawnCardRefs: combatDrawnCardRefs }),
+    finalizeTurn: () => undefined,
+  });
+
+  assert.deepEqual(combatCalls, [{ result, drawnCardRefs }]);
 });
