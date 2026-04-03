@@ -2012,6 +2012,8 @@ export const BattleLayoutEditor: React.FC = () => {
     useState<BattleLayoutOverrides | null>(null);
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
   const [isPresetSaveConfirmOpen, setIsPresetSaveConfirmOpen] = useState(false);
+  const [pendingCopyTargetDevice, setPendingCopyTargetDevice] =
+    useState<BattleLayoutDeviceKey | null>(null);
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [presetSaveFeedback, setPresetSaveFeedback] = useState<string | null>(null);
   const [resetBaselineByDevice, setResetBaselineByDevice] =
@@ -2083,6 +2085,35 @@ export const BattleLayoutEditor: React.FC = () => {
     () => pruneBattleLayoutOverrides(layoutOverrides),
     [layoutOverrides],
   );
+  const copyLayoutSourceToDevice = useCallback(
+    (targetDevice: BattleLayoutDeviceKey) => {
+      if (targetDevice === layoutDevice) return;
+      const sourceOverrides = pruneBattleLayoutOverrides(layoutDeviceOverrides[layoutDevice]);
+      const clonedSourceOverrides = JSON.parse(
+        JSON.stringify(sourceOverrides),
+      ) as BattleLayoutOverrides;
+      setLayoutDeviceOverrides((current) => ({
+        ...current,
+        [targetDevice]: clonedSourceOverrides,
+      }));
+    },
+    [layoutDevice, layoutDeviceOverrides],
+  );
+  const requestCopyLayoutToDevice = useCallback(
+    (targetDevice: BattleLayoutDeviceKey) => {
+      if (targetDevice === layoutDevice) return;
+      setPendingCopyTargetDevice(targetDevice);
+    },
+    [layoutDevice],
+  );
+  const confirmCopyLayoutToDevice = useCallback(() => {
+    if (!pendingCopyTargetDevice) return;
+    copyLayoutSourceToDevice(pendingCopyTargetDevice);
+    setPendingCopyTargetDevice(null);
+  }, [copyLayoutSourceToDevice, pendingCopyTargetDevice]);
+  const cancelCopyLayoutToDevice = useCallback(() => {
+    setPendingCopyTargetDevice(null);
+  }, []);
   const getSelectedAnimationOriginAnchorTool = useCallback(() => {
     if (animationSet === "replacement-target-entry") {
       return replacementTargetEntryAnchorToolByPreset[animationPreset] ?? null;
@@ -6115,6 +6146,25 @@ export const BattleLayoutEditor: React.FC = () => {
                 ))}
               </div>
 
+              <div className="flex h-[48px] items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-1.5 py-1">
+                {([
+                  ["desktop", "Desktop"],
+                  ["tablet", "Tablet"],
+                  ["mobile", "Mobile"],
+                ] as const)
+                  .filter(([variantKey]) => variantKey !== layoutDevice)
+                  .map(([variantKey, label]) => (
+                    <Button
+                      key={`copy-${variantKey}`}
+                      type="button"
+                      onClick={() => requestCopyLayoutToDevice(variantKey)}
+                      className="h-[30px] rounded-md border border-amber-300/20 bg-amber-950/40 px-2 py-0 text-[7px] font-black uppercase tracking-[0.08em] text-amber-100 hover:bg-amber-900/60"
+                    >
+                      {`Copiar p/ ${label}`}
+                    </Button>
+                  ))}
+              </div>
+
               <label className="flex h-[48px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
                 <span className="text-[8px] font-black uppercase tracking-[0.08em] text-amber-100/60">
                   Zoom
@@ -6309,6 +6359,45 @@ export const BattleLayoutEditor: React.FC = () => {
                 className="flex-1 rounded-xl bg-emerald-950 text-emerald-50 hover:bg-emerald-900 disabled:opacity-60"
               >
                 {isSavingPreset ? "Salvando..." : "Salvar no projeto"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingCopyTargetDevice ? (
+        <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/45 p-6">
+          <div className="w-full max-w-md rounded-[28px] border border-amber-950/15 bg-[#f8f0d8] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950/55">
+              Confirmar copia
+            </div>
+            <div className="mt-2 font-serif text-3xl font-black leading-none text-amber-950">
+              Copiar preset completo?
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-amber-950/75">
+              Isso vai copiar tudo de{" "}
+              <span className="font-bold text-amber-950">{layoutDevice}</span>{" "}
+              para{" "}
+              <span className="font-bold text-amber-950">{pendingCopyTargetDevice}</span>
+              , incluindo posicoes, anchors, animacoes, timings, texto e visuais.
+            </p>
+            <div className="mt-5 rounded-2xl border border-amber-950/10 bg-white/55 p-3 text-xs leading-relaxed text-amber-950/70">
+              O device de destino sera sobrescrito por completo.
+            </div>
+            <div className="mt-6 flex gap-3">
+              <Button
+                type="button"
+                onClick={cancelCopyLayoutToDevice}
+                className="flex-1 rounded-xl border border-amber-950/15 bg-white/70 text-amber-950 hover:bg-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmCopyLayoutToDevice}
+                className="flex-1 rounded-xl bg-amber-900 text-amber-50 hover:bg-amber-800"
+              >
+                Copiar agora
               </Button>
             </div>
           </div>
