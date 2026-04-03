@@ -114,6 +114,7 @@ interface TargetCardProps {
   target: UITarget;
   selectedCard: Syllable | null;
   pendingCard?: Syllable | null;
+  mulliganSelectionActive?: boolean;
   isPlayerSide: boolean;
   canClick: boolean;
   onClick: () => void;
@@ -125,6 +126,7 @@ export const TargetCard: React.FC<TargetCardProps> = ({
   target,
   selectedCard,
   pendingCard = null,
+  mulliganSelectionActive = false,
   isPlayerSide,
   canClick,
   onClick,
@@ -171,12 +173,18 @@ export const TargetCard: React.FC<TargetCardProps> = ({
     (placedCounts.get(normalizeSyllable(selectedCard as Syllable)) ?? 0) <
       target.syllables.filter((item) => normalizeSyllable(item) === normalizeSyllable(selectedCard as Syllable)).length;
   const isCompleted = target.progress.length >= target.syllables.length && target.syllables.length > 0;
-  const isValidTarget = isMatch && canClick;
+  const isValidTarget = !mulliganSelectionActive && isMatch && canClick;
   const hasAnyFutureProgress =
     isPlayerSide &&
     target.syllables.some((syllable, index) => canStillFillSlot(syllable, index));
-  const isInvalidTargetNow = Boolean(selectedCard) && isPlayerSide && !isMatch;
-  const isAvailableButNotPriority = !selectedCard && hasAnyFutureProgress && !isCompleted;
+  const isInvalidTargetNow =
+    isPlayerSide &&
+    (mulliganSelectionActive || (Boolean(selectedCard) && !isMatch));
+  const isAvailableButNotPriority =
+    !selectedCard &&
+    !mulliganSelectionActive &&
+    hasAnyFutureProgress &&
+    !isCompleted;
 
   const damage = RARITY_DAMAGE[normalizeRarity(target.rarity)];
 

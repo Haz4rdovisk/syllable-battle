@@ -60,6 +60,7 @@ export interface BuildBattleFieldLaneSlotsFromTargetFieldParams {
   ) => (node: HTMLDivElement | null) => void;
   getSlotRect: (slotIndex: number) => DOMRect | null;
   getSelectedCard: (slotIndex: number) => Syllable | null;
+  getMulliganSelectionActive?: (slotIndex: number) => boolean;
   getPendingCard?: (slotIndex: number) => Syllable | null;
   getPendingCardMotion?: (
     slotIndex: number,
@@ -82,6 +83,7 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
   bindSlotRef,
   getSlotRect,
   getSelectedCard,
+  getMulliganSelectionActive,
   getPendingCard,
   getPendingCardMotion,
   getCanClick,
@@ -176,6 +178,10 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
           interactiveNodeKey === node.sceneNodeId
             ? getSelectedCard(fieldSlot.slot.slotIndex)
             : null,
+        mulliganSelectionActive:
+          interactiveNodeKey === node.sceneNodeId
+            ? getMulliganSelectionActive?.(fieldSlot.slot.slotIndex) ?? false
+            : false,
         pendingCard:
           pendingCardOwnerKey === node.sceneNodeId ? pendingCard : null,
         pendingCardRevealDelayMs:
@@ -229,6 +235,8 @@ export const buildBattleFieldLaneSlotsFromTargetField = ({
       renderNodes,
       slotRect: getSlotRect(fieldSlot.slot.slotIndex),
       selectedCard: getSelectedCard(fieldSlot.slot.slotIndex),
+      mulliganSelectionActive:
+        getMulliganSelectionActive?.(fieldSlot.slot.slotIndex) ?? false,
       pendingCard,
       canClick: getCanClick(
         fieldSlot.slot.slotIndex,

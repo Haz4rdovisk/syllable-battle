@@ -40,6 +40,7 @@ export interface BattleFieldLaneSlot {
   slotRect: DOMRect | null;
   authoredSceneRect?: BattleSceneRect | null;
   selectedCard: Syllable | null;
+  mulliganSelectionActive?: boolean;
   pendingCard?: Syllable | null;
   canClick: boolean;
   onClick: () => void;
@@ -57,6 +58,7 @@ export interface BattleFieldLaneRenderNode {
   zIndex: number;
   canClick: boolean;
   selectedCard: Syllable | null;
+  mulliganSelectionActive?: boolean;
   pendingCard?: Syllable | null;
   pendingCardRevealDelayMs?: number;
   playerHand?: Syllable[];
@@ -266,6 +268,9 @@ const BattleFieldLaneNode: React.FC<BattleFieldLaneNodeProps> = ({
         <TargetCard
           target={node.entity.target}
           selectedCard={presentation === "player" ? node.selectedCard : null}
+          mulliganSelectionActive={
+            presentation === "player" ? node.mulliganSelectionActive ?? false : false
+          }
           pendingCard={resolvedPendingCard}
           isPlayerSide={presentation === "player"}
           canClick={false}
@@ -307,6 +312,9 @@ const BattleFieldLaneNode: React.FC<BattleFieldLaneNodeProps> = ({
       <TargetCard
         target={node.entity.target}
         selectedCard={presentation === "player" ? node.selectedCard : null}
+        mulliganSelectionActive={
+          presentation === "player" ? node.mulliganSelectionActive ?? false : false
+        }
         pendingCard={resolvedPendingCard}
         isPlayerSide={presentation === "player"}
         canClick={node.canClick}
@@ -343,6 +351,7 @@ const buildBattleFieldLaneRenderNodesFromCompatSlot = (
       zIndex: slot.outgoingTarget ? 40 : slot.incomingTarget ? 30 : 20,
       canClick: slot.canClick && !slot.outgoingTarget,
       selectedCard: slot.selectedCard,
+      mulliganSelectionActive: slot.mulliganSelectionActive ?? false,
       pendingCard: slot.pendingCard ?? null,
       pendingCardRevealDelayMs: 0,
       playerHand: slot.playerHand ?? [],

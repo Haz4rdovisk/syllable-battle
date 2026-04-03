@@ -80,6 +80,7 @@ export const buildBattleSceneModelFromRuntime = ({
   const mulliganSelectionInvalid =
     game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan;
   const mulliganDisabled = !canSwap || mulliganSelectionInvalid;
+  const mulliganSelectionActive = canSwap && game.selectedHandIndexes.length > 0;
   const getReservedHandSlots = (side: BattleRuntimeSide) => {
     const mulliganReserved = Math.max(
       0,
@@ -115,6 +116,7 @@ export const buildBattleSceneModelFromRuntime = ({
     bindSlotRef: (slotIndex) => bindZoneRef("playerField", `slot-${slotIndex}`),
     getSlotRect: () => null,
     getSelectedCard: () => selectedCard,
+    getMulliganSelectionActive: () => mulliganSelectionActive,
     getPendingCard: (slotIndex) =>
       visualQueue.pendingTargetPlacements[localPlayerIndex][slotIndex] ?? null,
     getPendingCardMotion,
