@@ -50,6 +50,12 @@ export interface BattleHandLaneOutgoingCard {
   id: string;
   side: 0 | 1;
   card: BattleHandLaneCard;
+  initialSnapshot?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null;
   destination: {
     left: number;
     top: number;
@@ -177,10 +183,13 @@ export interface BattleHandLaneDebugSnapshot {
       destinationCenterY: number;
       deckBottomX: number;
       deckBottomY: number;
+      startX: number;
+      startY: number;
       endX: number;
       endY: number;
       slotX: number;
       slotY: number;
+      initialScale: number;
       endScale: number;
     } | null;
   }>;
@@ -463,6 +472,7 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
             motion: null,
           };
         }
+        const initialRect = getStageLocalRect(outgoingCard.initialSnapshot);
 
         return {
           outgoingCard,
@@ -472,6 +482,7 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
             destinationRect,
             destinationMode,
             endScale: outgoingCard.endScale,
+            initialRect,
             layout,
             baseHandFrame,
             bottomOffset,
@@ -657,10 +668,10 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
               top: `${travelMotionData.portalBaseTop}px`,
             }}
             initial={{
-              x: travelMotionData.slotX,
-              y: travelMotionData.slotY,
+              x: travelMotionData.startX,
+              y: travelMotionData.startY,
               rotate: layout.rotate,
-              scale: 1,
+              scale: travelMotionData.initialScale,
               opacity: 1,
             }}
             animate={{

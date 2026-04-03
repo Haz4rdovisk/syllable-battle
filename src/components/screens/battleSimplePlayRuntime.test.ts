@@ -55,6 +55,7 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
     localPlayerIndex: 0,
     targetIndex: 1,
     clearSelection: true,
+    selectedCardOrigin: { left: 111, top: 222, width: 123, height: 171 },
     flow: BATTLE_SHARED_FLOW_TIMINGS,
     result: createResolvedPlayAction({
       playedCard: "VA",
@@ -125,6 +126,7 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
       side: 0,
       hidden: false,
     },
+    initialSnapshot: { left: 111, top: 222, width: 123, height: 171 },
     destination: { left: 10, top: 20, width: 30, height: 40 },
     initialIndex: 2,
     initialTotal: 5,
@@ -181,6 +183,7 @@ test("applyBattleSimplePlayRuntime preserva fallback simples sem mover geometria
     localPlayerIndex: 0,
     targetIndex: 0,
     clearSelection: false,
+    selectedCardOrigin: { left: 444, top: 555, width: 120, height: 168 },
     flow: BATTLE_SHARED_FLOW_TIMINGS,
     result: createResolvedPlayAction({
       actorIndex: 1,
@@ -218,6 +221,12 @@ test("applyBattleSimplePlayRuntime preserva fallback simples sem mover geometria
     top: 200,
     width: 20,
     height: 30,
+  });
+  assert.deepEqual(outgoingCards[0].initialSnapshot, {
+    left: 444,
+    top: 555,
+    width: 120,
+    height: 168,
   });
   assert.equal(outgoingCards[0].initialIndex, 1);
   assert.equal(outgoingCards[0].initialTotal, 4);

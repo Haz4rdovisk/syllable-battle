@@ -9,6 +9,7 @@ import { applyBattleSimplePlayRuntime } from "./battleSimplePlayRuntime";
 import { prepareBattleSimplePlayStep } from "./battleSimplePlayStep";
 import { resolveBattleMulliganAction, resolveBattlePlayAction } from "./battleResolution";
 import { BattleRuntimeSide, PLAYER, ENEMY } from "./BattleRuntimeState";
+import type { PendingMulliganDraw } from "./BattleRuntimeState";
 import {
   type BattleRuntimeDeckCatalog,
   type BattleRuntimeCardRef,
@@ -442,12 +443,13 @@ export const useBattleCombatFlow = <
       ...pendingMulliganDrawCountsRef.current,
       [side]: pendingMulliganDrawCountsRef.current[side] + drawnCards.length,
     });
-    const plannedDraws = drawnCards.map((syllable, index) => ({
+    const mulliganDrawOrigin = getMulliganHandDrawOriginSnapshot(side, drawnCards.length);
+    const plannedDraws: PendingMulliganDraw[] = drawnCards.map((syllable, index) => ({
       syllable,
       cardRef: drawnCardRefs[index]!,
       finalIndex: Math.min(handLayoutSlotCount - 1, remainingStableCount + index),
       finalTotal: Math.min(handLayoutSlotCount, remainingStableCount + drawnCards.length),
-      originOverride: getMulliganHandDrawOriginSnapshot(side, drawnCards.length),
+      originOverride: mulliganDrawOrigin,
     }));
     pendingMulliganDrawQueuesRef.current = {
       ...pendingMulliganDrawQueuesRef.current,
@@ -475,6 +477,7 @@ export const useBattleCombatFlow = <
   const executeBattleTurnAction = useCallback(({
     side,
     move,
+    selectedCardOrigin,
     clearSelection,
     clearIncomingHand,
   }: {
@@ -516,6 +519,7 @@ export const useBattleCombatFlow = <
         side,
         localPlayerIndex,
         targetIndex: simplePlayStep.logicalEvent.targetIndex,
+        selectedCardOrigin,
         result: simplePlayStep.logicalEvent.result,
         drawnCardRefs,
         clearSelection,

@@ -2479,6 +2479,50 @@ export const BattleSceneFixtureView: React.FC<{
         drawnCount: count,
       });
 
+    const queueMulliganPreviewIncomingCards = ({
+      cards,
+      origin,
+      incomingIdPrefix,
+      cardIdSuffix,
+      startAtMs,
+      cardStaggerMs,
+      remainingStableCards,
+      totalCount,
+    }: {
+      cards: typeof defaultPlayerStableCards;
+      origin: NonNullable<ReturnType<typeof readElementSnapshot>>;
+      incomingIdPrefix: string;
+      cardIdSuffix: string;
+      startAtMs: number;
+      cardStaggerMs: number;
+      remainingStableCards: typeof defaultPlayerStableCards;
+      totalCount: number;
+    }) => {
+      cards.forEach((card, index) => {
+        queuePreviewTimer(startAtMs + index * cardStaggerMs, () => {
+          setIncomingPreviewHands((current) => ({
+            ...current,
+            [PLAYER]: [
+              ...current[PLAYER],
+              {
+                id: `${incomingIdPrefix}-${animationRunId}-${generation}-${index}`,
+                side: PLAYER,
+                card: {
+                  ...card,
+                  id: `${card.id}-${cardIdSuffix}-${generation}-${index}`,
+                },
+                origin,
+                finalIndex: remainingStableCards.length + index,
+                finalTotal: remainingStableCards.length + totalCount,
+                delayMs: 0,
+                durationMs: previewMulliganDrawDurationMs,
+              },
+            ],
+          }));
+        });
+      });
+    };
+
     const startMulliganReturnLoop = () => {
       if (loopGenerationRef.current !== generation) return;
       resetMulliganPreviewHandAnimationState();
@@ -2525,31 +2569,15 @@ export const BattleSceneFixtureView: React.FC<{
       setPreviewPlayerStableCards(remainingCards);
       const origin = getMulliganDrawOrigin();
       if (!origin) return;
-      removedCards.forEach((card, index) => {
-        queuePreviewTimer(
-          mulliganSchedule.draw.atMs + index * mulliganSchedule.draw.cardStaggerMs,
-          () => {
-          setIncomingPreviewHands((current) => ({
-            ...current,
-            [PLAYER]: [
-              ...current[PLAYER],
-              {
-                id: `fixture-mulligan-draw-${animationRunId}-${generation}-${index}`,
-                side: PLAYER,
-                card: {
-                  ...card,
-                  id: `${card.id}-mulligan-incoming-${generation}-${index}`,
-                },
-                origin,
-                finalIndex: remainingCards.length + index,
-                finalTotal: remainingCards.length + count,
-                delayMs: 0,
-                durationMs: previewMulliganDrawDurationMs,
-              },
-            ],
-          }));
-          },
-        );
+      queueMulliganPreviewIncomingCards({
+        cards: removedCards,
+        origin,
+        incomingIdPrefix: "fixture-mulligan-draw",
+        cardIdSuffix: "mulligan-incoming",
+        startAtMs: mulliganSchedule.draw.atMs,
+        cardStaggerMs: mulliganSchedule.draw.cardStaggerMs,
+        remainingStableCards: remainingCards,
+        totalCount: count,
       });
 
       schedulePreviewRunCompletion({
@@ -2599,31 +2627,15 @@ export const BattleSceneFixtureView: React.FC<{
         [ENEMY]: [],
       });
 
-      removedCards.forEach((card, index) => {
-        queuePreviewTimer(
-          mulliganSchedule.draw.atMs + index * mulliganSchedule.draw.cardStaggerMs,
-          () => {
-          setIncomingPreviewHands((current) => ({
-            ...current,
-            [PLAYER]: [
-              ...current[PLAYER],
-              {
-                id: `fixture-mulligan-complete-draw-${animationRunId}-${generation}-${index}`,
-                side: PLAYER,
-                card: {
-                  ...card,
-                  id: `${card.id}-mulligan-complete-${generation}-${index}`,
-                },
-                origin,
-                finalIndex: remainingCards.length + index,
-                finalTotal: remainingCards.length + count,
-                delayMs: 0,
-                durationMs: previewMulliganDrawDurationMs,
-              },
-            ],
-          }));
-          },
-        );
+      queueMulliganPreviewIncomingCards({
+        cards: removedCards,
+        origin,
+        incomingIdPrefix: "fixture-mulligan-complete-draw",
+        cardIdSuffix: "mulligan-complete",
+        startAtMs: mulliganSchedule.draw.atMs,
+        cardStaggerMs: mulliganSchedule.draw.cardStaggerMs,
+        remainingStableCards: remainingCards,
+        totalCount: count,
       });
 
       schedulePreviewRunCompletion({

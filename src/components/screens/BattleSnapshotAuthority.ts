@@ -368,7 +368,6 @@ export const useBattleSnapshotAuthority = ({
       pendingResultOverlayRecoveryRef.current = false;
     }
   }, [
-    authoritativeBattleSnapshot,
     gameRef,
     hydrateBattleSnapshot,
     isIntroSnapshotState,
@@ -377,7 +376,6 @@ export const useBattleSnapshotAuthority = ({
     localSide,
     mode,
     setShowResultOverlay,
-    turnPresentationLocked,
     visualQueue.incomingHands,
     visualQueue.outgoingHands,
     visualQueue.pendingMulliganDrawCounts,

@@ -51,10 +51,13 @@ export interface BattleHandOutgoingTravelMotion extends BattleHandTravelMotionBa
   destinationCenterY: number;
   deckBottomX: number;
   deckBottomY: number;
+  startX: number;
+  startY: number;
   endX: number;
   endY: number;
   slotX: number;
   slotY: number;
+  initialScale: number;
   endScale: number;
 }
 
@@ -149,6 +152,7 @@ export const getBattleHandOutgoingTravelMotion = ({
   destinationRect,
   destinationMode,
   endScale,
+  initialRect,
   layout,
   baseHandFrame,
   bottomOffset,
@@ -160,6 +164,7 @@ export const getBattleHandOutgoingTravelMotion = ({
   destinationRect: BattleHandTravelRect;
   destinationMode: "deck-bottom" | "zone-center";
   endScale?: number;
+  initialRect?: BattleHandTravelRect | null;
   layout: BattleHandTravelLayout;
   baseHandFrame: {
     width: number;
@@ -190,6 +195,14 @@ export const getBattleHandOutgoingTravelMotion = ({
     destinationRect.height -
     Math.max(10, destinationRect.height * 0.16) -
     cardHeight * 0.82;
+  const initialLeft =
+    initialRect != null
+      ? initialRect.left + initialRect.width / 2 - cardWidth / 2
+      : base.portalBaseLeft + slotOffset.x;
+  const initialTop =
+    initialRect != null
+      ? initialRect.top + initialRect.height / 2 - cardHeight / 2
+      : base.portalBaseTop + slotOffset.y;
   const absoluteEndLeft =
     destinationMode === "zone-center" ? destinationCenterX : deckBottomX;
   const absoluteEndTop =
@@ -201,10 +214,23 @@ export const getBattleHandOutgoingTravelMotion = ({
     destinationCenterY,
     deckBottomX,
     deckBottomY,
+    startX: initialLeft - base.portalBaseLeft,
+    startY: initialTop - base.portalBaseTop,
     endX: absoluteEndLeft - base.portalBaseLeft,
     endY: absoluteEndTop - base.portalBaseTop,
     slotX: slotOffset.x,
     slotY: slotOffset.y,
+    initialScale:
+      initialRect && cardWidth > 0 && cardHeight > 0
+        ? clampScale(
+            Math.min(
+              initialRect.width / cardWidth,
+              initialRect.height / cardHeight,
+            ),
+            0.72,
+            1.4,
+          )
+        : 1,
     endScale:
       endScale ??
       (destinationMode === "zone-center"

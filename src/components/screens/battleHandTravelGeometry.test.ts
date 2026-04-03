@@ -118,3 +118,48 @@ test("deck-bottom mantem a mesma base do host da mao e usa o destino em stage", 
   assert.ok(Math.abs(actualEndLeft - expectedEndLeft) < 0.001);
   assert.equal(motion.endScale, 0.72);
 });
+
+test("outgoing hand travel pode partir da snapshot real da carta selecionada", () => {
+  const motion = getBattleHandOutgoingTravelMotion({
+    destinationRect: {
+      left: 900,
+      top: 500,
+      width: 0,
+      height: 0,
+    },
+    destinationMode: "zone-center",
+    initialRect: {
+      left: 780,
+      top: 620,
+      width: 125.4,
+      height: 171,
+    },
+    layout: {
+      x: 108,
+      y: -28,
+      rotate: 5,
+      scale: 1,
+    },
+    baseHandFrame: {
+      width: 598,
+      height: 192,
+    },
+    bottomOffset: 31,
+    cardWidth: 110,
+    cardHeight: 150,
+    handSceneScale: 1,
+    sceneRect: {
+      sceneLeft: 600,
+      sceneTop: 640,
+    },
+  });
+
+  const actualStartLeft = motion.portalBaseLeft + motion.startX;
+  const expectedStartLeft = 780 + 125.4 / 2 - 55;
+  const actualStartTop = motion.portalBaseTop + motion.startY;
+  const expectedStartTop = 620 + 171 / 2 - 75;
+
+  assert.ok(Math.abs(actualStartLeft - expectedStartLeft) < 0.001);
+  assert.ok(Math.abs(actualStartTop - expectedStartTop) < 0.001);
+  assert.ok(motion.initialScale > 1.1);
+});

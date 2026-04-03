@@ -27,6 +27,7 @@ export interface ApplyBattleSimplePlayRuntimeArgs {
   localPlayerIndex: 0 | 1;
   targetIndex: number;
   clearSelection: boolean;
+  selectedCardOrigin?: ZoneAnchorSnapshot | null;
   flow: BattleFlowTimings;
   result: ResolvedBattlePlayAction;
   drawnCardRefs?: BattleRuntimeCardRef[];
@@ -63,6 +64,7 @@ export const applyBattleSimplePlayRuntime = ({
   localPlayerIndex,
   targetIndex,
   clearSelection,
+  selectedCardOrigin,
   flow,
   result,
   drawnCardRefs,
@@ -87,6 +89,7 @@ export const applyBattleSimplePlayRuntime = ({
       id: `play-${playedStableCard.runtimeCardId ?? playedStableCard.id}-${visualPlan.targetIndex}`,
       side,
       card: playedStableCard,
+      initialSnapshot: selectedCardOrigin ?? null,
       destination: visualGeometry.handPlayDestination,
       initialIndex: visualPlan.handExit.handIndex,
       initialTotal: visualPlan.handExit.handCountBefore,
@@ -103,6 +106,7 @@ export const applyBattleSimplePlayRuntime = ({
       id: `play-${playedStableCard.runtimeCardId ?? playedStableCard.id}-${targetIndex}`,
       side,
       card: playedStableCard,
+      initialSnapshot: selectedCardOrigin ?? null,
       destination: fallbackHandPlayDestination,
       initialIndex: playedCardLayout.index,
       initialTotal: playedCardLayout.total,
