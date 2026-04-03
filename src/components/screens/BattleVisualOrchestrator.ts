@@ -14,8 +14,6 @@ interface UseBattleVisualOrchestratorParams<TVisualHandCard, TStableHandsState, 
   incomingTargetsRef: React.MutableRefObject<Record<BattleRuntimeSide, Array<any>>>;
   pendingMulliganDrawCounts: Record<BattleRuntimeSide, number>;
   lockedTargetSlots: TLockedTargetSlotsState & Record<BattleRuntimeSide, boolean[]>;
-  previousEnemyHandSignatureRef: React.MutableRefObject<string>;
-  setEnemyHandPulse: React.Dispatch<React.SetStateAction<boolean>>;
   reconcileStableSide: (
     side: BattleRuntimeSide,
     logicalHand: Syllable[],
@@ -42,31 +40,11 @@ export const useBattleVisualOrchestrator = <TVisualHandCard, TStableHandsState, 
   incomingTargetsRef,
   pendingMulliganDrawCounts,
   lockedTargetSlots,
-  previousEnemyHandSignatureRef,
-  setEnemyHandPulse,
   reconcileStableSide,
   commitStableHands,
   commitStableTargets,
   toVisualTarget,
 }: UseBattleVisualOrchestratorParams<TVisualHandCard, TStableHandsState, TStableTargetsState, TLockedTargetSlotsState>) => {
-  useEffect(() => {
-    const currentEnemy = game.players[remotePlayerIndex];
-    const signature = `${stableHands[remotePlayerIndex].map((card: any) => card.id).join("|")}:${incomingHands[remotePlayerIndex]
-      .map((card) => card.id)
-      .join("|")}:${currentEnemy.targets.map((target) => target.progress.join("-")).join("|")}`;
-    if (!previousEnemyHandSignatureRef.current) {
-      previousEnemyHandSignatureRef.current = signature;
-      return;
-    }
-
-    if (previousEnemyHandSignatureRef.current !== signature) {
-      previousEnemyHandSignatureRef.current = signature;
-      setEnemyHandPulse(true);
-      const timer = setTimeout(() => setEnemyHandPulse(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [game.players, incomingHands, remotePlayerIndex, setEnemyHandPulse, stableHands, previousEnemyHandSignatureRef]);
-
   useEffect(() => {
     const pendingCounts = {
       [PLAYER]: incomingHands[PLAYER].length + pendingMulliganDrawCounts[PLAYER],

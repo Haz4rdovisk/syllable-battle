@@ -67,7 +67,6 @@ export interface BattleSceneHandModel {
   incomingCards?: BattleHandLaneIncomingCard[];
   outgoingCards?: BattleHandLaneOutgoingCard[];
   reservedSlots?: number;
-  pulse?: boolean;
   hoveredCardIndex?: number | null;
   selectedIndexes?: number[];
   canInteract?: boolean;

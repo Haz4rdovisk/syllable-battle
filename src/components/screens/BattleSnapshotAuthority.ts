@@ -94,7 +94,6 @@ interface UseBattleSnapshotAuthorityParams {
   cloneGame: (state: GameState) => GameState;
   clearVisualTimers: () => void;
   setFreshCardIds: React.Dispatch<React.SetStateAction<string[]>>;
-  setEnemyHandPulse: React.Dispatch<React.SetStateAction<boolean>>;
   setTurnPresentationLocked: React.Dispatch<React.SetStateAction<boolean>>;
   setTurnRemainingMs: React.Dispatch<React.SetStateAction<number>>;
   setShowResultOverlay: React.Dispatch<React.SetStateAction<boolean>>;
@@ -126,7 +125,6 @@ export const useBattleSnapshotAuthority = ({
   cloneGame,
   clearVisualTimers,
   setFreshCardIds,
-  setEnemyHandPulse,
   setTurnPresentationLocked,
   setTurnRemainingMs,
   setShowResultOverlay,
@@ -189,7 +187,6 @@ export const useBattleSnapshotAuthority = ({
       needsVisibilityRecoveryRef.current = true;
       clearVisualTimers();
       setFreshCardIds([]);
-      setEnemyHandPulse(false);
       setTurnPresentationLocked(false);
       setTurnRemainingMs(60000);
       setGame((prev) => (prev.currentMessage?.kind === "turn" ? { ...prev, currentMessage: null } : prev));
@@ -293,7 +290,6 @@ export const useBattleSnapshotAuthority = ({
     localSide,
     mode,
     onBattleSnapshotPublished,
-    setEnemyHandPulse,
     setFreshCardIds,
     setGame,
     setShowResultOverlay,

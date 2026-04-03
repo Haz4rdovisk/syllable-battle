@@ -75,7 +75,6 @@ export interface BattleHandLaneProps {
   outgoingCards?: BattleHandLaneOutgoingCard[];
   reservedSlots?: number;
   scale: "desktop" | "mobile";
-  pulse?: boolean;
   cardBackPresetId?: BattleCardBackPresetId;
   anchorRef?: React.Ref<HTMLDivElement>;
   onIncomingCardComplete?: (incomingCard: BattleHandLaneIncomingCard) => void;
@@ -187,12 +186,66 @@ export interface BattleHandLaneDebugSnapshot {
   }>;
 }
 
-export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
+type BattleHandLayoutSnapshot = ReturnType<typeof getBattleHandLayout>;
+
+interface BattleHandIncomingTravelDescriptor {
+  incomingCard: BattleHandLaneIncomingCard;
+  layout: BattleHandLayoutSnapshot;
+  motion: ReturnType<typeof getBattleHandIncomingTravelMotion> | null;
+}
+
+interface BattleHandOutgoingTravelDescriptor {
+  outgoingCard: BattleHandLaneOutgoingCard;
+  layout: BattleHandLayoutSnapshot;
+  destinationMode: "deck-bottom" | "zone-center";
+  motion: ReturnType<typeof getBattleHandOutgoingTravelMotion> | null;
+}
+
+const areNumberArraysEqual = (left: number[], right: number[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+const areStringArraysEqual = (left: string[], right: string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+interface BattleHandStableCardVisualState {
+  initial: false | { x: number; y: number; opacity: number; rotate: number; scale: number };
+  animate: { x: number; y: number; rotate: number; opacity: number; scale: number };
+  zIndex: number;
+}
+
+export function getBattleHandStableCardVisualState(params: {
+  card: BattleHandLaneCard;
+  layout: BattleHandLayoutSnapshot;
+  isDesktop: boolean;
+  isSelected: boolean;
+  isHovered: boolean;
+  isLocalPresentation: boolean;
+  baseZIndex: number;
+}): BattleHandStableCardVisualState {
+  const { card, layout, isDesktop, isSelected, isHovered, isLocalPresentation, baseZIndex } = params;
+  const stableY = isLocalPresentation && isSelected ? (isDesktop ? -28 : -18) : layout.y;
+  const stableScale = isHovered ? 1.14 : 1;
+  return {
+    initial:
+      card.skipEntryAnimation
+        ? false
+        : { x: 0, y: -60, opacity: 0, rotate: layout.rotate, scale: 0.9 },
+    animate: {
+      x: layout.x,
+      y: stableY,
+      rotate: layout.rotate,
+      opacity: 1,
+      scale: stableScale,
+    },
+    zIndex: isHovered ? 100 : baseZIndex,
+  };
+}
+
+const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
   side = 0,
   presentation,
   stableCards = [],
   scale,
-  pulse = false,
   cardBackPresetId = DEFAULT_BATTLE_CARD_BACK_PRESET_ID,
   anchorRef,
   incomingCards = [],
@@ -327,6 +380,120 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           };
         })()
       : null;
+  const incomingTravelDescriptors = React.useMemo<BattleHandIncomingTravelDescriptor[]>(
+    () =>
+      incomingCards.map((incomingCard) => {
+        const layout = getLayout(
+          incomingCard.finalTotal,
+          incomingCard.finalIndex,
+          isDesktop,
+          sceneLayoutWidth,
+        );
+        if (!sceneVisualRect) {
+          return {
+            incomingCard,
+            layout,
+            motion: null,
+          };
+        }
+
+        const originRect = getStageLocalRect(incomingCard.origin);
+        if (!originRect) {
+          return {
+            incomingCard,
+            layout,
+            motion: null,
+          };
+        }
+
+        return {
+          incomingCard,
+          layout,
+          motion: getBattleHandIncomingTravelMotion({
+            originRect,
+            layout,
+            baseHandFrame,
+            bottomOffset,
+            cardWidth,
+            cardHeight: cardBaseHeight,
+            handSceneScale,
+            sceneRect: sceneVisualRect,
+          }),
+        };
+      }),
+    [
+      baseHandFrame,
+      bottomOffset,
+      cardBaseHeight,
+      cardWidth,
+      getLayout,
+      handSceneScale,
+      incomingCards,
+      isDesktop,
+      sceneLayoutWidth,
+      sceneVisualRect,
+    ],
+  );
+  const outgoingTravelDescriptors = React.useMemo<BattleHandOutgoingTravelDescriptor[]>(
+    () =>
+      outgoingCards.map((outgoingCard) => {
+        const layout = getLayout(
+          outgoingCard.initialTotal,
+          outgoingCard.initialIndex,
+          isDesktop,
+          sceneLayoutWidth,
+        );
+        const destinationMode = outgoingCard.destinationMode ?? "deck-bottom";
+        if (!sceneVisualRect) {
+          return {
+            outgoingCard,
+            layout,
+            destinationMode,
+            motion: null,
+          };
+        }
+
+        const destinationRect = getStageLocalRect(outgoingCard.destination);
+        if (!destinationRect) {
+          return {
+            outgoingCard,
+            layout,
+            destinationMode,
+            motion: null,
+          };
+        }
+
+        return {
+          outgoingCard,
+          layout,
+          destinationMode,
+          motion: getBattleHandOutgoingTravelMotion({
+            destinationRect,
+            destinationMode,
+            endScale: outgoingCard.endScale,
+            layout,
+            baseHandFrame,
+            bottomOffset,
+            cardWidth,
+            cardHeight: cardBaseHeight,
+            handSceneScale,
+            sceneRect: sceneVisualRect,
+          }),
+        };
+      }),
+    [
+      baseHandFrame,
+      bottomOffset,
+      cardBaseHeight,
+      cardWidth,
+      getLayout,
+      handSceneScale,
+      isDesktop,
+      outgoingCards,
+      sceneLayoutWidth,
+      sceneVisualRect,
+    ],
+  );
   const handLaneDebugSnapshot = React.useMemo<BattleHandLaneDebugSnapshot>(
     () => ({
       presentation,
@@ -355,51 +522,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
         hovered: hoveredCardIndex === index,
         newlyDrawn: freshCardIds.includes(card.runtimeCardId ?? card.id),
       })),
-      incomingCards: incomingCards.map((incomingCard) => {
-        const layout = getLayout(
-          incomingCard.finalTotal,
-          incomingCard.finalIndex,
-          isDesktop,
-          sceneLayoutWidth,
-        );
-        if (!sceneVisualRect) {
-          return {
-            id: incomingCard.id,
-            syllable: incomingCard.card.syllable,
-            finalIndex: incomingCard.finalIndex,
-            finalTotal: incomingCard.finalTotal,
-            delayMs: incomingCard.delayMs,
-            durationMs: incomingCard.durationMs,
-            origin: incomingCard.origin,
-            layout,
-            motion: null,
-          };
-        }
-        const originRect = getStageLocalRect(incomingCard.origin);
-        if (!originRect) {
-          return {
-            id: incomingCard.id,
-            syllable: incomingCard.card.syllable,
-            finalIndex: incomingCard.finalIndex,
-            finalTotal: incomingCard.finalTotal,
-            delayMs: incomingCard.delayMs,
-            durationMs: incomingCard.durationMs,
-            origin: incomingCard.origin,
-            layout,
-            motion: null,
-          };
-        }
-        const cardSize = { width: cardWidth, height: cardBaseHeight };
-        const travelMotion = getBattleHandIncomingTravelMotion({
-          originRect,
-          layout,
-          baseHandFrame,
-          bottomOffset,
-          cardWidth: cardSize.width,
-          cardHeight: cardSize.height,
-          handSceneScale,
-          sceneRect: sceneVisualRect,
-        });
+      incomingCards: incomingTravelDescriptors.map(({ incomingCard, layout, motion: travelMotionData }) => {
         return {
           id: incomingCard.id,
           syllable: incomingCard.card.syllable,
@@ -409,62 +532,16 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           durationMs: incomingCard.durationMs,
           origin: incomingCard.origin,
           layout,
-          motion: {
-            ...travelMotion,
-            startRotate: isLocalPresentation ? 3 : -3,
-          },
+          motion:
+            travelMotionData == null
+              ? null
+              : {
+                  ...travelMotionData,
+                  startRotate: isLocalPresentation ? 3 : -3,
+                },
         };
       }),
-      outgoingCards: outgoingCards.map((outgoingCard) => {
-        const layout = getLayout(
-          outgoingCard.initialTotal,
-          outgoingCard.initialIndex,
-          isDesktop,
-          sceneLayoutWidth,
-        );
-        if (!sceneVisualRect) {
-          return {
-            id: outgoingCard.id,
-            syllable: outgoingCard.card.syllable,
-            initialIndex: outgoingCard.initialIndex,
-            initialTotal: outgoingCard.initialTotal,
-            delayMs: outgoingCard.delayMs,
-            durationMs: outgoingCard.durationMs,
-            destinationMode: outgoingCard.destinationMode ?? "deck-bottom",
-            destination: outgoingCard.destination,
-            layout,
-            motion: null,
-          };
-        }
-        const destinationRect = getStageLocalRect(outgoingCard.destination);
-        if (!destinationRect) {
-          return {
-            id: outgoingCard.id,
-            syllable: outgoingCard.card.syllable,
-            initialIndex: outgoingCard.initialIndex,
-            initialTotal: outgoingCard.initialTotal,
-            delayMs: outgoingCard.delayMs,
-            durationMs: outgoingCard.durationMs,
-            destinationMode: outgoingCard.destinationMode ?? "deck-bottom",
-            destination: outgoingCard.destination,
-            layout,
-            motion: null,
-          };
-        }
-        const destinationMode = outgoingCard.destinationMode ?? "deck-bottom";
-        const cardSize = { width: cardWidth, height: cardBaseHeight };
-        const travelMotion = getBattleHandOutgoingTravelMotion({
-          destinationRect,
-          destinationMode,
-          endScale: outgoingCard.endScale,
-          layout,
-          baseHandFrame,
-          bottomOffset,
-          cardWidth: cardSize.width,
-          cardHeight: cardSize.height,
-          handSceneScale,
-          sceneRect: sceneVisualRect,
-        });
+      outgoingCards: outgoingTravelDescriptors.map(({ outgoingCard, layout, destinationMode, motion: travelMotionData }) => {
         return {
           id: outgoingCard.id,
           syllable: outgoingCard.card.syllable,
@@ -475,7 +552,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
           destinationMode,
           destination: outgoingCard.destination,
           layout,
-          motion: travelMotion,
+          motion: travelMotionData,
         };
       }),
     }),
@@ -487,7 +564,7 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
       hostHeight,
       hostRectSnapshot,
       hoveredCardIndex,
-      incomingCards,
+      incomingTravelDescriptors,
       isDesktop,
       isLocalPresentation,
       handSceneScale,
@@ -495,9 +572,8 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
       laneWidth,
       layoutBounds.maxY,
       layoutBounds.minY,
-      sceneLayoutWidth,
       baseHandFrame.height,
-      outgoingCards,
+      outgoingTravelDescriptors,
       presentation,
       reservedSlots,
       scale,
@@ -512,45 +588,27 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   }, [handLaneDebugSnapshot, onDebugSnapshot]);
 
   const incomingTravelCards = hostRef.current
-    ? incomingCards.map((incomingCard) => {
-        const originRect = getStageLocalRect(incomingCard.origin);
-        if (!sceneVisualRect || !originRect) return null;
-        const cardSize = { width: cardWidth, height: cardBaseHeight };
-        const layout = getLayout(
-          incomingCard.finalTotal,
-          incomingCard.finalIndex,
-          isDesktop,
-          sceneLayoutWidth,
-        );
-        const travelMotion = getBattleHandIncomingTravelMotion({
-          originRect,
-          layout,
-          baseHandFrame,
-          bottomOffset,
-          cardWidth: cardSize.width,
-          cardHeight: cardSize.height,
-          handSceneScale,
-          sceneRect: sceneVisualRect,
-        });
+    ? incomingTravelDescriptors.map(({ incomingCard, layout, motion: travelMotionData }) => {
+        if (!travelMotionData) return null;
         const startRotate = isLocalPresentation ? 3 : -3;
         return (
           <motion.div
             key={incomingCard.id}
             className="pointer-events-none absolute left-0 top-0 z-[120]"
             style={{
-              left: `${travelMotion.portalBaseLeft}px`,
-              top: `${travelMotion.portalBaseTop}px`,
+              left: `${travelMotionData.portalBaseLeft}px`,
+              top: `${travelMotionData.portalBaseTop}px`,
             }}
             initial={{
-              x: travelMotion.startX,
-              y: travelMotion.startY,
+              x: travelMotionData.startX,
+              y: travelMotionData.startY,
               rotate: startRotate,
-              scale: travelMotion.startScale,
+              scale: travelMotionData.startScale,
               opacity: 0,
             }}
             animate={{
-              x: travelMotion.slotX,
-              y: travelMotion.slotY,
+              x: travelMotionData.slotX,
+              y: travelMotionData.slotY,
               rotate: layout.rotate,
               scale: 1,
               opacity: 1,
@@ -587,49 +645,29 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
     : [];
 
   const outgoingTravelCards = hostRef.current
-    ? outgoingCards.map((outgoingCard) => {
-        const destinationRect = getStageLocalRect(outgoingCard.destination);
-        if (!sceneVisualRect || !destinationRect) return null;
-        const cardSize = { width: cardWidth, height: cardBaseHeight };
-        const layout = getLayout(
-          outgoingCard.initialTotal,
-          outgoingCard.initialIndex,
-          isDesktop,
-          sceneLayoutWidth,
-        );
-        const travelMotion = getBattleHandOutgoingTravelMotion({
-          destinationRect,
-          destinationMode: outgoingCard.destinationMode ?? "deck-bottom",
-          endScale: outgoingCard.endScale,
-          layout,
-          baseHandFrame,
-          bottomOffset,
-          cardWidth: cardSize.width,
-          cardHeight: cardSize.height,
-          handSceneScale,
-          sceneRect: sceneVisualRect,
-        });
+    ? outgoingTravelDescriptors.map(({ outgoingCard, layout, motion: travelMotionData }) => {
+        if (!travelMotionData) return null;
         return (
           <motion.div
             key={outgoingCard.id}
             className="pointer-events-none absolute left-0 top-0 z-[118]"
             style={{
-              left: `${travelMotion.portalBaseLeft}px`,
-              top: `${travelMotion.portalBaseTop}px`,
+              left: `${travelMotionData.portalBaseLeft}px`,
+              top: `${travelMotionData.portalBaseTop}px`,
             }}
             initial={{
-              x: travelMotion.slotX,
-              y: travelMotion.slotY,
+              x: travelMotionData.slotX,
+              y: travelMotionData.slotY,
               rotate: layout.rotate,
               scale: 1,
               opacity: 1,
             }}
             animate={{
-              x: travelMotion.endX,
-              y: travelMotion.endY,
+              x: travelMotionData.endX,
+              y: travelMotionData.endY,
               rotate:
                 outgoingCard.endRotate ?? (isLocalPresentation ? 4 : -4),
-              scale: travelMotion.endScale,
+              scale: travelMotionData.endScale,
               opacity: 1,
             }}
             transition={{
@@ -671,10 +709,8 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
   );
 
   return (
-    <motion.div
+    <div
       data-battle-visual-root="true"
-      animate={pulse ? { y: [0, -6, 0], rotate: [0, 1, 0] } : {}}
-      transition={{ duration: 0.62, ease: "easeOut" }}
       className="relative h-full w-full min-h-0 overflow-visible"
       style={{
         minHeight: `var(--battle-hand-height)`,
@@ -705,32 +741,32 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
             const layout = getLayout(totalCards, i, isDesktop, sceneLayoutWidth);
             const selected = selectedIndexes.includes(i);
             const playable = isLocalPresentation ? targets.some((target) => canPlace(card.syllable, target)) : false;
+            const isHovered = isLocalPresentation && hoveredCardIndex === i;
+            const visualState = getBattleHandStableCardVisualState({
+              card,
+              layout,
+              isDesktop,
+              isSelected: selected,
+              isHovered,
+              isLocalPresentation,
+              baseZIndex: i,
+            });
 
             return (
               <motion.div
                 key={card.id}
-                initial={
-                  card.skipEntryAnimation
-                    ? false
-                    : { x: 0, y: -60, opacity: 0, rotate: layout.rotate, scale: 0.9 }
-                }
-                animate={{
-                  x: layout.x,
-                  y: isLocalPresentation && selected ? (isDesktop ? -28 : -18) : layout.y,
-                  rotate: layout.rotate,
-                  opacity: 1,
-                  scale: isLocalPresentation && hoveredCardIndex === i ? 1.14 : 1,
-                }}
+                initial={visualState.initial}
+                animate={visualState.animate}
                 exit={{ opacity: 0, transition: { duration: 0.01 } }}
                 transition={{ type: "spring", stiffness: 82, damping: 22 }}
-                onMouseEnter={() => onHoverCard?.(i)}
-                onMouseLeave={() => onHoverCard?.(null)}
+                onMouseEnter={isLocalPresentation ? () => onHoverCard?.(i) : undefined}
+                onMouseLeave={isLocalPresentation ? () => onHoverCard?.(null) : undefined}
                 ref={bindCardRef?.(card.id, scale)}
                 className={cn("absolute left-0 top-0", isLocalPresentation && "cursor-pointer")}
                 style={{
                   left: `calc(50% - ${cardWidth / 2}px)`,
                   top: `calc(100% - ${bottomOffset + cardBaseHeight}px)`,
-                  zIndex: isLocalPresentation && hoveredCardIndex === i ? 100 : i,
+                  zIndex: visualState.zIndex,
                 }}
               >
                 {isLocalPresentation ? (
@@ -757,6 +793,31 @@ export const BattleHandLane: React.FC<BattleHandLaneProps> = ({
         </div>
       </div>
       {travelLayerNode ? createPortal(travelCards, travelLayerNode) : travelCards}
-    </motion.div>
+    </div>
   );
 };
+
+export const BattleHandLane = React.memo(
+  BattleHandLaneComponent,
+  (prev, next) =>
+    prev.side === next.side &&
+    prev.presentation === next.presentation &&
+    prev.scale === next.scale &&
+    prev.cardBackPresetId === next.cardBackPresetId &&
+    prev.stableCards === next.stableCards &&
+    prev.incomingCards === next.incomingCards &&
+    prev.outgoingCards === next.outgoingCards &&
+    prev.reservedSlots === next.reservedSlots &&
+    prev.onIncomingCardComplete === next.onIncomingCardComplete &&
+    prev.onOutgoingCardComplete === next.onOutgoingCardComplete &&
+    prev.hoveredCardIndex === next.hoveredCardIndex &&
+    prev.onHoverCard === next.onHoverCard &&
+    areNumberArraysEqual(prev.selectedIndexes ?? [], next.selectedIndexes ?? []) &&
+    prev.canInteract === next.canInteract &&
+    prev.showTurnHighlights === next.showTurnHighlights &&
+    prev.showPlayableHints === next.showPlayableHints &&
+    prev.targets === next.targets &&
+    prev.onCardClick === next.onCardClick &&
+    areStringArraysEqual(prev.freshCardIds ?? [], next.freshCardIds ?? []) &&
+    prev.bindCardRef === next.bindCardRef,
+);

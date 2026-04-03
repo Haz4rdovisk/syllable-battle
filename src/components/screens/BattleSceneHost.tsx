@@ -86,7 +86,6 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
       outgoingCards={hand.outgoingCards}
       reservedSlots={hand.reservedSlots}
       scale={scale}
-      pulse={hand.pulse}
       anchorRef={bindZoneRef(getHandZoneId(hand), `layout-${scale}`)}
       onIncomingCardComplete={hand.onIncomingCardComplete}
       onOutgoingCardComplete={hand.onOutgoingCardComplete}

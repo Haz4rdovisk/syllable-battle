@@ -17,7 +17,6 @@ export interface BattleVisualQueueState {
   lockedTargetSlots: LockedTargetSlotsState;
   pendingTargetPlacements: PendingTargetPlacementsState;
   freshCardIds: string[];
-  enemyHandPulse: boolean;
 }
 
 export const createEmptyBattleVisualQueueState = (): BattleVisualQueueState => ({
@@ -50,5 +49,4 @@ export const createEmptyBattleVisualQueueState = (): BattleVisualQueueState => (
     1: [],
   },
   freshCardIds: [],
-  enemyHandPulse: false,
 });

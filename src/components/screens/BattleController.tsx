@@ -254,7 +254,6 @@ export const useBattleController = ({
   const [turnRemainingMs, setTurnRemainingMs] = useState(
     initialGameRef.current.turnDeadlineAt ? Math.max(0, initialGameRef.current.turnDeadlineAt - Date.now()) : TURN_TIMER.limitMs,
   );
-  const [enemyHandPulse, setEnemyHandPulse] = useState(false);
   const [showResultOverlay, setShowResultOverlay] = useState(false);
   const [introPhase, setIntroPhase] = useState<BattleIntroPhase>(initialGameRef.current.openingIntroStep);
   const [openingTurnSide, setOpeningTurnSide] = useState<typeof PLAYER | typeof ENEMY>(initialGameRef.current.turn as typeof PLAYER | typeof ENEMY);
@@ -428,7 +427,6 @@ export const useBattleController = ({
   const battleDebugStartedAtRef = useRef<number | null>(null);
   const battleDebugLastSignatureRef = useRef("");
   gameRef.current = game;
-  const previousEnemyHandSignatureRef = useRef<string>("");
   const lastHiddenAtRef = useRef<number | null>(null);
   const needsVisibilityRecoveryRef = useRef(false);
   const pendingResultOverlayRecoveryRef = useRef(false);
@@ -604,7 +602,7 @@ export const useBattleController = ({
         buckets.set(bucketKey, bucket);
       });
 
-      return logicalHand.map((syllable, index) => {
+      const nextSide = logicalHand.map((syllable, index) => {
         const cardRef = handRefs[index];
         const bucket = buckets.get(cardRef?.runtimeCardId ?? syllable);
         if (bucket && bucket.length > 0) {
@@ -613,6 +611,15 @@ export const useBattleController = ({
 
         return createVisualHandCard(syllable, side, cardRef);
       });
+
+      if (
+        nextSide.length === currentStableSide.length &&
+        nextSide.every((card, index) => card === currentStableSide[index])
+      ) {
+        return currentStableSide;
+      }
+
+      return nextSide;
     },
     [createVisualHandCard, gameRef, resolveDeckCatalogForSide],
   );
@@ -1258,8 +1265,6 @@ export const useBattleController = ({
     incomingTargetsRef,
     pendingMulliganDrawCounts,
     lockedTargetSlots,
-    previousEnemyHandSignatureRef,
-    setEnemyHandPulse,
     reconcileStableSide,
     commitStableHands,
     commitStableTargets,
@@ -1469,16 +1474,14 @@ export const useBattleController = ({
       pendingMulliganDrawCounts,
       incomingTargets,
       outgoingTargets,
-      lockedTargetSlots,
-      pendingTargetPlacements,
-      freshCardIds,
-      enemyHandPulse,
-    },
-    cloneGame: cloneInitialGame,
-    clearVisualTimers,
-    setFreshCardIds,
-    setEnemyHandPulse,
-    setTurnPresentationLocked,
+        lockedTargetSlots,
+        pendingTargetPlacements,
+        freshCardIds,
+      },
+      cloneGame: cloneInitialGame,
+      clearVisualTimers,
+      setFreshCardIds,
+      setTurnPresentationLocked,
     setTurnRemainingMs,
     setShowResultOverlay,
     setGame,
@@ -1699,7 +1702,6 @@ export const useBattleController = ({
           lockedTargetSlots,
           pendingTargetPlacements,
           freshCardIds,
-          enemyHandPulse,
         },
         localPlayerIndex,
         remotePlayerIndex,
@@ -1726,7 +1728,6 @@ export const useBattleController = ({
       coinResultStage,
       commitIncomingCardToHand,
       commitIncomingTargetToField,
-      enemyHandPulse,
       freshCardIds,
       game,
       handleMulligan,
@@ -1798,7 +1799,6 @@ export const useBattleController = ({
       lockedTargetSlots,
       pendingTargetPlacements,
       freshCardIds,
-      enemyHandPulse,
     },
     sceneModel,
     enemyFieldHasOutgoingTarget,

@@ -164,7 +164,6 @@ export const buildBattleSceneModelFromRuntime = ({
             visualQueue.pendingMulliganDrawCounts[remotePlayerIndex] -
               visualQueue.incomingHands[remotePlayerIndex].length,
           ),
-          pulse: visualQueue.enemyHandPulse,
           onIncomingCardComplete: onCommitIncomingHandCard,
           onOutgoingCardComplete: onCompleteOutgoingHandCard,
           onDebugSnapshotByScale: {
