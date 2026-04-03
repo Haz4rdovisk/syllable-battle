@@ -283,26 +283,57 @@ const mulliganReturnDestinationAnchorToolByPreset = {
   "mulligan-hand-return-3": "mulligan-hand-return-3-destination",
 } as const;
 
-const getMulliganPreviewReservedSlots = (
+const getPreviewReservedSlotsBySide = (
   animationSet: BattleLayoutPreviewAnimationSet,
   animationPreset: BattleLayoutPreviewAnimationPreset,
-  incomingCount: number,
-) => {
+  incomingCounts: Record<typeof PLAYER | typeof ENEMY, number>,
+): Record<typeof PLAYER | typeof ENEMY, number> => {
+  const empty = {
+    [PLAYER]: 0,
+    [ENEMY]: 0,
+  } as Record<typeof PLAYER | typeof ENEMY, number>;
+
+  if (
+    animationSet === "post-play-hand-draw" ||
+    animationSet === "hand-play-draw-combo"
+  ) {
+    return {
+      ...empty,
+      [PLAYER]: Math.max(0, 1 - incomingCounts[PLAYER]),
+    };
+  }
+
+  if (animationSet === "target-attack-replacement-combo") {
+    const attackIndex = getAttackReplacementComboIndexFromPreset(animationPreset);
+    if (attackIndex == null) return empty;
+    const side = attackIndex >= 2 ? ENEMY : PLAYER;
+    return {
+      ...empty,
+      [side]: Math.max(0, 1 - incomingCounts[side]),
+    };
+  }
+
   const count =
     animationSet === "mulligan-complete-combo"
       ? getMulliganCompleteComboCountFromPreset(animationPreset)
       : getMulliganCountFromPreset(animationPreset);
-  if (!count) return 0;
+  if (!count) return empty;
   if (animationSet === "mulligan-hand-return") {
-    return count;
+    return {
+      ...empty,
+      [PLAYER]: count,
+    };
   }
   if (
     animationSet === "mulligan-hand-draw" ||
     animationSet === "mulligan-complete-combo"
   ) {
-    return Math.max(0, count - incomingCount);
+    return {
+      ...empty,
+      [PLAYER]: Math.max(0, count - incomingCounts[PLAYER]),
+    };
   }
-  return 0;
+  return empty;
 };
 
 export type BattleScenePreviewFocusArea =
@@ -1137,11 +1168,14 @@ export const BattleSceneFixtureView: React.FC<{
     ];
   }, [animationPreset, animationSet, getAnimationAnchorPoint]);
 
-  const previewReservedSlots = useMemo(() => {
-    return getMulliganPreviewReservedSlots(
+  const previewReservedSlotsBySide = useMemo(() => {
+    return getPreviewReservedSlotsBySide(
       animationSet,
       animationPreset,
-      incomingPreviewHands[PLAYER].length,
+      {
+        [PLAYER]: incomingPreviewHands[PLAYER].length,
+        [ENEMY]: incomingPreviewHands[ENEMY].length,
+      },
     );
   }, [animationPreset, animationSet, incomingPreviewHands]);
 
@@ -1338,10 +1372,13 @@ export const BattleSceneFixtureView: React.FC<{
       animationSet === "mulligan-complete-combo"
         ? getMulliganCompleteComboCountFromPreset(animationPreset)
         : getMulliganCountFromPreset(animationPreset);
-    const mulliganReservedSlots = getMulliganPreviewReservedSlots(
+    const previewReservedSlotsDebug = getPreviewReservedSlotsBySide(
       animationSet,
       animationPreset,
-      incomingPreviewHands[PLAYER].length,
+      {
+        [PLAYER]: incomingPreviewHands[PLAYER].length,
+        [ENEMY]: incomingPreviewHands[ENEMY].length,
+      },
     );
 
     const lines = [
@@ -1539,7 +1576,7 @@ export const BattleSceneFixtureView: React.FC<{
             ] ?? null
           : null;
       lines.push(
-        `mulliganCount:${mulliganCount ?? "-"} reservedSlots:${mulliganReservedSlots}`,
+        `mulliganCount:${mulliganCount ?? "-"} reservedSlots:P${previewReservedSlotsDebug[PLAYER]} E${previewReservedSlotsDebug[ENEMY]}`,
       );
       lines.push(
         `remainingStableCount:${previewPlayerStableCards.length} plannedIncomingCount:${Math.max(0, (mulliganCount ?? 0) - incomingPreviewHands[PLAYER].length)}`,
@@ -3223,6 +3260,7 @@ export const BattleSceneFixtureView: React.FC<{
           stableCards: previewEnemyStableCards,
           incomingCards: incomingPreviewHands[ENEMY],
           outgoingCards: outgoingPreviewHands[ENEMY],
+          reservedSlots: previewReservedSlotsBySide[ENEMY],
           bindCardRef: bindPreviewHandCardRef,
           onIncomingCardComplete: handleIncomingPreviewHandComplete,
           onOutgoingCardComplete: (outgoingCard) => {
@@ -3237,7 +3275,7 @@ export const BattleSceneFixtureView: React.FC<{
           stableCards: previewPlayerStableCards,
           incomingCards: incomingPreviewHands[PLAYER],
           outgoingCards: outgoingPreviewHands[PLAYER],
-          reservedSlots: previewReservedSlots,
+          reservedSlots: previewReservedSlotsBySide[PLAYER],
           canInteract: true,
           showTurnHighlights: true,
           showPlayableHints: fixture.showPlayableHints ?? true,
@@ -3277,7 +3315,7 @@ export const BattleSceneFixtureView: React.FC<{
       previewPlayerStableCards,
       previewPillActive,
       previewPillFlashDamage,
-      previewReservedSlots,
+      previewReservedSlotsBySide,
       previewSelectedIndexes,
       previewTargetField,
       setOutgoingPreviewHands,

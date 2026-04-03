@@ -80,6 +80,14 @@ export const buildBattleSceneModelFromRuntime = ({
   const mulliganSelectionInvalid =
     game.selectedHandIndexes.length === 0 || game.selectedHandIndexes.length > CONFIG.maxMulligan;
   const mulliganDisabled = !canSwap || mulliganSelectionInvalid;
+  const getReservedHandSlots = (side: BattleRuntimeSide) => {
+    const mulliganReserved = Math.max(
+      0,
+      visualQueue.pendingMulliganDrawCounts[side] -
+        visualQueue.incomingHands[side].length,
+    );
+    return Math.max(mulliganReserved, visualQueue.scheduledHandDrawCounts[side]);
+  };
   const getPendingCardMotion = (slotIndex: number) => {
     const outgoingCard = visualQueue.outgoingHands[localPlayerIndex].find(
       (card) =>
@@ -159,11 +167,7 @@ export const buildBattleSceneModelFromRuntime = ({
           stableCards: runtime.stableHands[remotePlayerIndex],
           incomingCards: visualQueue.incomingHands[remotePlayerIndex],
           outgoingCards: visualQueue.outgoingHands[remotePlayerIndex],
-          reservedSlots: Math.max(
-            0,
-            visualQueue.pendingMulliganDrawCounts[remotePlayerIndex] -
-              visualQueue.incomingHands[remotePlayerIndex].length,
-          ),
+          reservedSlots: getReservedHandSlots(remotePlayerIndex),
           onIncomingCardComplete: onCommitIncomingHandCard,
           onOutgoingCardComplete: onCompleteOutgoingHandCard,
           onDebugSnapshotByScale: {
@@ -177,11 +181,7 @@ export const buildBattleSceneModelFromRuntime = ({
           stableCards: runtime.stableHands[localPlayerIndex],
           incomingCards: visualQueue.incomingHands[localPlayerIndex],
           outgoingCards: visualQueue.outgoingHands[localPlayerIndex],
-          reservedSlots: Math.max(
-            0,
-            visualQueue.pendingMulliganDrawCounts[localPlayerIndex] -
-              visualQueue.incomingHands[localPlayerIndex].length,
-          ),
+          reservedSlots: getReservedHandSlots(localPlayerIndex),
           hoveredCardIndex,
           onHoverCard: onHoverPlayerHandCard,
           selectedIndexes: game.selectedHandIndexes,
