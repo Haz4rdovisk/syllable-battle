@@ -107,6 +107,15 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
   const selectionReadOnlyByElement =
     elementConfig?.selectionReadOnlyByElement ?? {};
   const zIndexOverrides = elementConfig?.zIndexOverrides ?? {};
+  const handLayerClassName = elementConfig?.editorMode
+    ? "absolute inset-0 overflow-visible"
+    : "pointer-events-none absolute inset-0 overflow-visible";
+  const handSlotWrapperClassName = elementConfig?.editorMode
+    ? "absolute overflow-visible"
+    : "pointer-events-none absolute overflow-visible";
+  const handFooterWrapperClassName = elementConfig?.editorMode
+    ? "absolute overflow-visible pt-[var(--battle-shell-mobile-footer-pad,0px)]"
+    : "pointer-events-none absolute overflow-visible pt-[var(--battle-shell-mobile-footer-pad,0px)]";
   const enemyFieldSceneRect = getBattleFieldContainerSceneRect("enemy", layout);
   const playerFieldSceneRect = getBattleFieldContainerSceneRect("player", layout);
   const enemyFieldSlots = React.useMemo(
@@ -234,14 +243,14 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
         )}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 overflow-visible"
+          className={handLayerClassName}
           style={{ zIndex: BATTLE_SCENE_LAYER_ORDER.hand }}
         >
           {compact ? (
             <>
               {handSlots.topMobile ? (
                 <div
-                  className="pointer-events-none absolute overflow-visible"
+                  className={handSlotWrapperClassName}
                   style={{
                     left: `${compactShellSlots.top.x}px`,
                     top: `${compactShellSlots.top.y}px`,
@@ -254,7 +263,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               ) : null}
               {handSlots.bottomMobile && compactShellSlots.bottom ? (
                 <div
-                  className="pointer-events-none absolute overflow-visible"
+                  className={handSlotWrapperClassName}
                   style={{
                     left: `${compactShellSlots.bottom.x}px`,
                     top: `${compactShellSlots.bottom.y}px`,
@@ -267,7 +276,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               ) : null}
               {handSlots.footerMobile && compactShellSlots.footer ? (
                 <div
-                  className="pointer-events-none absolute overflow-visible pt-[var(--battle-shell-mobile-footer-pad,0px)]"
+                  className={handFooterWrapperClassName}
                   style={{
                     left: `${compactShellSlots.footer.x}px`,
                     top: `${compactShellSlots.footer.y}px`,
@@ -284,7 +293,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
             <>
               {handSlots.topDesktop ? (
                 <div
-                  className="pointer-events-none absolute overflow-visible"
+                  className={handSlotWrapperClassName}
                   style={{
                     left: `${desktopShellSlots.centerTop.x}px`,
                     top: `${desktopShellSlots.centerTop.y}px`,
@@ -297,7 +306,7 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               ) : null}
               {handSlots.bottomDesktop ? (
                 <div
-                  className="pointer-events-none absolute overflow-visible"
+                  className={handSlotWrapperClassName}
                   style={{
                     left: `${desktopShellSlots.centerBottom.x}px`,
                     top: `${desktopShellSlots.centerBottom.y}px`,
