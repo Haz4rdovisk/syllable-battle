@@ -49,7 +49,7 @@ test("createSimplePlayVisualPlan cria contrato minimo para play sem dano", () =>
       targetIndex: 1,
     },
     postPlayDraw: {
-      atMs: 1060,
+      atMs: 1240,
       cards: ["CA"],
       finalIndexBase: 4,
       finalTotal: 5,
@@ -57,7 +57,7 @@ test("createSimplePlayVisualPlan cria contrato minimo para play sem dano", () =>
       durationMs: 940,
     },
     finish: {
-      atMs: 2260,
+      atMs: 2440,
     },
   });
 });
@@ -100,5 +100,5 @@ test("createSimplePlayVisualPlan tolera play simples sem draw disponivel", () =>
 
   assert.equal(plan?.postPlayDraw, null);
   assert.equal(plan?.stableHandCountAfterPlay, 2);
-  assert.equal(plan?.finish.atMs, 2260);
+  assert.equal(plan?.finish.atMs, 2440);
 });

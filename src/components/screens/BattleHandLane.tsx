@@ -615,7 +615,7 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
               x: travelMotionData.startX,
               y: travelMotionData.startY,
               rotate: startRotate,
-              scale: travelMotionData.startScale,
+              scale: 1,
               opacity: 0,
             }}
             animate={{
@@ -629,6 +629,10 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
               delay: incomingCard.delayMs / 1000,
               duration: incomingCard.durationMs / 1000,
               ease: [0.18, 0.9, 0.22, 1],
+              opacity: {
+                duration: Math.min(0.16, incomingCard.durationMs / 1000 * 0.24),
+                ease: "easeOut",
+              },
             }}
             onAnimationComplete={() => onIncomingCardComplete?.(incomingCard)}
           >

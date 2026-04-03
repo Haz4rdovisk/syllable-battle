@@ -29,13 +29,14 @@ test("createBattleCombatSchedule mantém a ordem temporal composta de attack -> 
   assert.equal(schedule.exit.endMs, 3730);
   assert.equal(schedule.replacement.atMs, 3950);
   assert.equal(schedule.replacement.endMs, 4950);
-  assert.equal(schedule.draw.atMs, 2510);
-  assert.equal(schedule.draw.endMs, 3450);
-  assert.equal(schedule.finish.atMs, 5210);
+  assert.equal(schedule.draw.atMs, 5350);
+  assert.equal(schedule.draw.endMs, 6290);
+  assert.equal(schedule.finish.atMs, 6550);
   assert.equal(schedule.impact.dependsOn, "attackStart");
   assert.equal(schedule.exit.dependsOn, "impact");
   assert.equal(schedule.replacement.dependsOn, "exit");
-  assert.equal(schedule.finish.dependsOn, "replacement");
+  assert.equal(schedule.draw.dependsOn, "replacement");
+  assert.equal(schedule.finish.dependsOn, "draw");
 });
 
 test("createBattleCombatSchedule mantém finish previsível quando draw termina depois do replacement", () => {
@@ -45,8 +46,9 @@ test("createBattleCombatSchedule mantém finish previsível quando draw termina 
   });
 
   assert.equal(schedule.replacement.endMs, 4950);
-  assert.equal(schedule.draw.endMs, 5920);
-  assert.equal(schedule.finish.atMs, 6180);
+  assert.equal(schedule.draw.atMs, 5350);
+  assert.equal(schedule.draw.endMs, 8760);
+  assert.equal(schedule.finish.atMs, 9020);
   assert.equal(schedule.finish.dependsOn, "draw");
 });
 

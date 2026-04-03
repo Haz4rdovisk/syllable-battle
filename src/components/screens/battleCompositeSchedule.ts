@@ -116,10 +116,14 @@ export const createBattleCombatSchedule = (args: {
     drawnCardCount > 0
       ? flow.drawTravelMs + Math.max(0, drawnCardCount - 1) * flow.drawStaggerMs
       : 0;
+  const drawStartAtMs =
+    drawnCardCount > 0
+      ? replacement.endMs + flow.visualSettleBufferMs + flow.drawSettleMs
+      : replacement.endMs;
   const draw = createPhase(
-    impact.atMs + flow.drawSettleMs,
+    drawStartAtMs,
     drawDurationMs,
-    "impact",
+    "replacement",
   );
   const finish = createPhase(
     Math.max(replacement.endMs, draw.endMs) + flow.turnHandoffMs,

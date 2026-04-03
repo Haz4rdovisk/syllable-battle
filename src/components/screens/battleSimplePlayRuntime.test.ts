@@ -88,7 +88,7 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
         targetIndex: 1,
       },
       postPlayDraw: {
-        atMs: 1060,
+        atMs: 1240,
         cards: ["CA"],
         finalIndexBase: 4,
         finalTotal: 5,
@@ -96,7 +96,7 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
         durationMs: 940,
       },
       finish: {
-        atMs: 2260,
+        atMs: 2440,
       },
     },
     visualGeometry: {
@@ -142,7 +142,7 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
     {
       cards: ["CA"],
       args: {
-        initialDelayMs: 1060,
+        initialDelayMs: 1240,
         staggerMs: 130,
         durationMs: 940,
         finalTotalOverride: 5,
@@ -166,7 +166,7 @@ test("applyBattleSimplePlayRuntime preserva o fluxo simples com visual plan cons
   assert.equal(emitted.length, 1);
   assert.deepEqual(
     scheduled.map(({ delayMs }) => delayMs),
-    [840, 2260],
+    [840, 2440],
   );
   assert.equal(combatCalls.length, 0);
   assert.equal(finalizeCalls.length, 0);
@@ -240,7 +240,7 @@ test("applyBattleSimplePlayRuntime preserva fallback simples sem mover geometria
     {
       cards: ["BO"],
       args: {
-        initialDelayMs: 1060,
+        initialDelayMs: 1240,
         staggerMs: 130,
         durationMs: 940,
         originOverride: { left: 300, top: 400, width: 20, height: 30 },
@@ -249,7 +249,7 @@ test("applyBattleSimplePlayRuntime preserva fallback simples sem mover geometria
   ]);
   assert.deepEqual(
     scheduled.map(({ delayMs }) => delayMs),
-    [840, 2260],
+    [840, 2440],
   );
   assert.equal(combatCalls.length, 0);
 });

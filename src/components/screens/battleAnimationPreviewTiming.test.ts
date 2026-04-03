@@ -66,7 +66,7 @@ test("preview durations de combos e mulligan respeitam a mesma composição temp
       preset: "hand-play-draw-combo-0",
       timings,
     }),
-    2260,
+    2440,
   );
   assert.equal(
     getBattleAnimationPreviewDurationMs({

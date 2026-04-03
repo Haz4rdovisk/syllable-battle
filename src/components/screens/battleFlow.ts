@@ -112,15 +112,14 @@ export const getBattleHandFrame = (
 
 export const getPlayedCardCommitDelayMs = (flow: BattleFlowTimings) => flow.cardToFieldMs + flow.cardSettleMs;
 
+export const getPostPlayResolutionSettleDelayMs = (flow: BattleFlowTimings) =>
+  flow.visualSettleBufferMs + flow.drawSettleMs;
+
 export const getPlayDrawStartDelayMs = (flow: BattleFlowTimings) =>
-  flow.cardToFieldMs + flow.cardSettleMs + flow.drawSettleMs;
+  getPlayedCardCommitDelayMs(flow) + getPostPlayResolutionSettleDelayMs(flow);
 
 export const getPlayFinishDelayMs = (flow: BattleFlowTimings) =>
-  flow.cardToFieldMs +
-  flow.cardSettleMs +
-  flow.drawSettleMs +
-  flow.drawTravelMs +
-  flow.turnHandoffMs;
+  getPlayDrawStartDelayMs(flow) + flow.drawTravelMs + flow.turnHandoffMs;
 
 export const getMulliganDrawStartDelayMs = (flow: BattleFlowTimings, returnedCount: number) =>
   flow.mulliganReturnMs + Math.max(0, returnedCount - 1) * flow.mulliganReturnStaggerMs + flow.mulliganDrawDelayMs;

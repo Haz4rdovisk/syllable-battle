@@ -117,9 +117,9 @@ test("helpers de preview playback cobrem opening, replacement e simple-play sem 
   });
   const combo = createBattleSimplePlayPreviewPhaseDebugEntries({
     commitAtMs: 840,
-    drawAtMs: 1060,
+    drawAtMs: 1240,
     drawDurationMs: 940,
-    finishAtMs: 2260,
+    finishAtMs: 2440,
   });
 
   assert.deepEqual(opening, [
@@ -141,14 +141,14 @@ test("helpers de preview playback cobrem opening, replacement e simple-play sem 
   assert.deepEqual(combo, [
     { key: "hand-exit", atMs: 0, durationMs: 840, endMs: 840 },
     { key: "target-commit", atMs: 840, durationMs: 0, endMs: 840, dependsOn: "hand-exit" },
-    { key: "draw", atMs: 1060, durationMs: 940, endMs: 2000, dependsOn: "target-commit" },
-    { key: "finish", atMs: 2260, durationMs: 0, endMs: 2260, dependsOn: "draw" },
+    { key: "draw", atMs: 1240, durationMs: 940, endMs: 2180, dependsOn: "target-commit" },
+    { key: "finish", atMs: 2440, durationMs: 0, endMs: 2440, dependsOn: "draw" },
   ]);
   assert.equal(getBattlePreviewPhasesCompletionAtMs(opening), 4040);
   assert.equal(getBattlePreviewPhasesCompletionAtMs(replacement), 1240);
   assert.equal(getBattlePreviewPhasesCompletionAtMs(postPlayDraw), 1160);
   assert.equal(getBattlePreviewPhasesCompletionAtMs(handPlayTarget), 840);
-  assert.equal(getBattlePreviewPhasesCompletionAtMs(combo), 2260);
+  assert.equal(getBattlePreviewPhasesCompletionAtMs(combo), 2440);
 });
 
 test("collectBattlePreviewPlayableTargets ignora slots ocultos sem quebrar o preview", () => {
