@@ -10,7 +10,11 @@ import { BattleHandFocusFrame } from "./BattleHandFocusFrame";
 import { BattleHandLane } from "./BattleHandLane";
 import { BattleLayoutConfig, BattleEditableElementKey } from "./BattleLayoutConfig";
 import { battleActiveLayoutConfig } from "./BattleLayoutPreset";
-import { BattleSceneRenderer, BattleSceneRendererDebugBindings, BattleSceneRendererElementConfig } from "./BattleSceneRenderer";
+import {
+  BattleSceneRenderer,
+  BattleSceneRendererDebugBindings,
+  BattleSceneRendererElementConfig,
+} from "./BattleSceneRenderer";
 import { BattleSinglePile } from "./BattleSidePanel";
 import { BattleLeftSidebarView, BattleRightSidebarView } from "./BattleSidebarViews";
 import { BattleStatusPanel } from "./BattleStatusPanel";
@@ -185,17 +189,6 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
       <div className={compactTopShellClassName}>
         <div className="relative h-full w-full overflow-visible">
           {renderEditableHostElement(
-            "topHand",
-            <div className="flex h-full w-full items-start justify-center">
-              {renderHandLane(model.hands.top, "mobile")}
-            </div>,
-            {
-              baseX: compactShellSlots.top.x,
-              baseY: compactShellSlots.top.y,
-              className: "absolute left-0 top-0",
-            },
-          )}
-          {renderEditableHostElement(
             "enemyTargetDeck",
             <BattleSinglePile
               label="ALVOS"
@@ -256,15 +249,6 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
         </div>
       </div>
     ),
-    centerTopDesktop: renderEditableHostElement(
-      "topHand",
-      <div className="flex h-full w-full items-start justify-center">
-        {renderHandLane(model.hands.top, "desktop")}
-      </div>,
-      {
-        className: "flex items-start justify-center",
-      },
-    ),
     boardSurface: renderEditableHostElement(
       "board",
       <BattleBoardSurface layout={layout} />,
@@ -275,33 +259,6 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
           }
         : undefined,
     ),
-    centerBottomDesktop: renderEditableHostElement(
-      "bottomHand",
-      <div className="flex h-full w-full items-end justify-center overflow-visible">
-        <BattleHandFocusFrame scale="desktop">
-          {renderHandLane(model.hands.bottom, "desktop")}
-        </BattleHandFocusFrame>
-      </div>,
-      {
-        className: "flex items-end justify-center",
-      },
-    ),
-    centerBottomMobile: tight
-      ? renderEditableHostElement(
-          "bottomHand",
-          <BattleHandFocusFrame
-            scale="mobile"
-            className={compactFooterFrameClassName}
-          >
-            {renderHandLane(model.hands.bottom, "mobile")}
-          </BattleHandFocusFrame>,
-          {
-            baseX: compactShellSlots.bottom?.x,
-            baseY: compactShellSlots.bottom?.y,
-            className: "absolute left-0 top-0",
-          },
-        )
-      : null,
     centerControlMobile: (
       <div className={compactControlShellClassName}>
         <div className="relative h-full w-full overflow-visible">
@@ -400,7 +357,56 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
         snapTargets={snapTargets}
       />
     ),
-    footerMobileHand: tight
+  } satisfies React.ComponentProps<typeof BattleSceneRenderer>["shellSlots"];
+  const sceneHandSlots = {
+    topDesktop: renderEditableHostElement(
+      "topHand",
+      <div className="flex h-full w-full items-start justify-center">
+        {renderHandLane(model.hands.top, "desktop")}
+      </div>,
+      {
+        className: "flex h-full w-full items-start justify-center",
+      },
+    ),
+    topMobile: renderEditableHostElement(
+      "topHand",
+      <div className="flex h-full w-full items-start justify-center">
+        {renderHandLane(model.hands.top, "mobile")}
+      </div>,
+      {
+        baseX: compactShellSlots.top.x,
+        baseY: compactShellSlots.top.y,
+        className: "absolute left-0 top-0",
+      },
+    ),
+    bottomDesktop: renderEditableHostElement(
+      "bottomHand",
+      <div className="flex h-full w-full items-end justify-center overflow-visible">
+        <BattleHandFocusFrame scale="desktop">
+          {renderHandLane(model.hands.bottom, "desktop")}
+        </BattleHandFocusFrame>
+      </div>,
+      {
+        className: "flex h-full w-full items-end justify-center",
+      },
+    ),
+    bottomMobile: tight
+      ? renderEditableHostElement(
+          "bottomHand",
+          <BattleHandFocusFrame
+            scale="mobile"
+            className={compactFooterFrameClassName}
+          >
+            {renderHandLane(model.hands.bottom, "mobile")}
+          </BattleHandFocusFrame>,
+          {
+            baseX: compactShellSlots.bottom?.x,
+            baseY: compactShellSlots.bottom?.y,
+            className: "absolute left-0 top-0",
+          },
+        )
+      : null,
+    footerMobile: tight
       ? null
       : renderEditableHostElement(
           "bottomHand",
@@ -413,12 +419,13 @@ export const BattleSceneHost: React.FC<BattleSceneHostProps> = ({
             className: "absolute left-0 top-0",
           },
         ),
-  } satisfies React.ComponentProps<typeof BattleSceneRenderer>["shellSlots"];
+  } satisfies React.ComponentProps<typeof BattleSceneRenderer>["handSlots"];
 
   return (
     <BattleSceneRenderer
       model={model}
       shellSlots={sceneShellSlots}
+      handSlots={sceneHandSlots}
       compact={compact}
       tight={tight}
       layout={layout}

@@ -13,6 +13,8 @@ import { BATTLE_SCENE_LAYER_ORDER, getBattleSceneElementLayer } from "./BattleSc
 import { BattleSceneModel } from "./BattleSceneViewModel";
 import {
   battleGlobalFrameToScenePosition,
+  getBattleCompactShellSlots,
+  getBattleDesktopShellSlots,
   getBattleFieldContainerSceneRect,
   getBattleTargetFieldSlotSceneRect,
 } from "./BattleSceneSpace";
@@ -24,13 +26,17 @@ type BattleSceneSnapTargets = NonNullable<BattleEditableElementProps["snapTarget
 export interface BattleSceneRendererShellSlots {
   leftSidebar: React.ReactNode;
   centerTopMobile: React.ReactNode;
-  centerTopDesktop: React.ReactNode;
   boardSurface: React.ReactNode;
-  centerBottomDesktop: React.ReactNode;
-  centerBottomMobile: React.ReactNode;
   centerControlMobile: React.ReactNode;
   rightSidebar: React.ReactNode;
-  footerMobileHand: React.ReactNode;
+}
+
+export interface BattleSceneRendererHandSlots {
+  topDesktop: React.ReactNode;
+  topMobile: React.ReactNode;
+  bottomDesktop: React.ReactNode;
+  bottomMobile: React.ReactNode;
+  footerMobile: React.ReactNode;
 }
 
 export interface BattleSceneRendererElementConfig {
@@ -57,6 +63,7 @@ export interface BattleSceneRendererDebugBindings {
 export interface BattleSceneRendererProps extends BattleSceneRendererDebugBindings {
   model: BattleSceneModel;
   shellSlots: BattleSceneRendererShellSlots;
+  handSlots: BattleSceneRendererHandSlots;
   compact: boolean;
   tight?: boolean;
   layout?: BattleLayoutConfig;
@@ -67,6 +74,7 @@ export interface BattleSceneRendererProps extends BattleSceneRendererDebugBindin
 export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
   model,
   shellSlots,
+  handSlots,
   compact,
   tight = false,
   layout = battleActiveLayoutConfig,
@@ -76,6 +84,15 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
   onPlayerFieldDebugSnapshot,
 }) => {
   const boardVars = getBattleBoardSurfaceVars(layout);
+  const compactFooterPad = tight ? 0 : layout.shell.mobileFooterHandTopPadding;
+  const desktopShellSlots = React.useMemo(
+    () => getBattleDesktopShellSlots(layout),
+    [layout],
+  );
+  const compactShellSlots = React.useMemo(
+    () => getBattleCompactShellSlots(layout, tight),
+    [layout, tight],
+  );
   const [travelLayerNode, setTravelLayerNode] =
     React.useState<HTMLDivElement | null>(null);
   const selectedElements = elementConfig?.selectedElements ?? [];
@@ -183,13 +200,9 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
               tight={tight}
               leftSidebar={shellSlots.leftSidebar}
               centerTopMobile={shellSlots.centerTopMobile}
-              centerTopDesktop={shellSlots.centerTopDesktop}
               boardSurface={shellSlots.boardSurface}
-              centerBottomDesktop={shellSlots.centerBottomDesktop}
-              centerBottomMobile={shellSlots.centerBottomMobile}
               centerControlMobile={shellSlots.centerControlMobile}
               rightSidebar={shellSlots.rightSidebar}
-              footerMobileHand={shellSlots.footerMobileHand}
             />
           </>,
         )}
@@ -219,6 +232,85 @@ export const BattleSceneRenderer: React.FC<BattleSceneRendererProps> = ({
           </div>,
           { configOverride: playerFieldConfig },
         )}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-visible"
+          style={{ zIndex: BATTLE_SCENE_LAYER_ORDER.hand }}
+        >
+          {compact ? (
+            <>
+              {handSlots.topMobile ? (
+                <div
+                  className="pointer-events-none absolute overflow-visible"
+                  style={{
+                    left: `${compactShellSlots.top.x}px`,
+                    top: `${compactShellSlots.top.y}px`,
+                    width: `${compactShellSlots.top.width}px`,
+                    height: `${compactShellSlots.top.height}px`,
+                  }}
+                >
+                  {handSlots.topMobile}
+                </div>
+              ) : null}
+              {handSlots.bottomMobile && compactShellSlots.bottom ? (
+                <div
+                  className="pointer-events-none absolute overflow-visible"
+                  style={{
+                    left: `${compactShellSlots.bottom.x}px`,
+                    top: `${compactShellSlots.bottom.y}px`,
+                    width: `${compactShellSlots.bottom.width}px`,
+                    height: `${compactShellSlots.bottom.height}px`,
+                  }}
+                >
+                  {handSlots.bottomMobile}
+                </div>
+              ) : null}
+              {handSlots.footerMobile && compactShellSlots.footer ? (
+                <div
+                  className="pointer-events-none absolute overflow-visible pt-[var(--battle-shell-mobile-footer-pad,0px)]"
+                  style={{
+                    left: `${compactShellSlots.footer.x}px`,
+                    top: `${compactShellSlots.footer.y}px`,
+                    width: `${compactShellSlots.footer.width}px`,
+                    height: `${compactShellSlots.footer.height}px`,
+                    paddingTop: `${compactFooterPad}px`,
+                  }}
+                >
+                  {handSlots.footerMobile}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {handSlots.topDesktop ? (
+                <div
+                  className="pointer-events-none absolute overflow-visible"
+                  style={{
+                    left: `${desktopShellSlots.centerTop.x}px`,
+                    top: `${desktopShellSlots.centerTop.y}px`,
+                    width: `${desktopShellSlots.centerTop.width}px`,
+                    height: `${desktopShellSlots.centerTop.height}px`,
+                  }}
+                >
+                  {handSlots.topDesktop}
+                </div>
+              ) : null}
+              {handSlots.bottomDesktop ? (
+                <div
+                  className="pointer-events-none absolute overflow-visible"
+                  style={{
+                    left: `${desktopShellSlots.centerBottom.x}px`,
+                    top: `${desktopShellSlots.centerBottom.y}px`,
+                    width: `${desktopShellSlots.centerBottom.width}px`,
+                    height: `${desktopShellSlots.centerBottom.height}px`,
+                  }}
+                >
+                  {handSlots.bottomDesktop}
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 overflow-visible"

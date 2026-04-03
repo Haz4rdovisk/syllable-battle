@@ -9,13 +9,9 @@ import {
 interface BattleBoardShellProps {
   leftSidebar: React.ReactNode;
   centerTopMobile: React.ReactNode;
-  centerTopDesktop: React.ReactNode;
   boardSurface: React.ReactNode;
-  centerBottomDesktop: React.ReactNode;
-  centerBottomMobile: React.ReactNode;
   centerControlMobile: React.ReactNode;
   rightSidebar: React.ReactNode;
-  footerMobileHand: React.ReactNode;
   compact: boolean;
   tight?: boolean;
   layout?: BattleLayoutConfig;
@@ -24,13 +20,9 @@ interface BattleBoardShellProps {
 export const BattleBoardShell: React.FC<BattleBoardShellProps> = ({
   leftSidebar,
   centerTopMobile,
-  centerTopDesktop,
   boardSurface,
-  centerBottomDesktop,
-  centerBottomMobile,
   centerControlMobile,
   rightSidebar,
-  footerMobileHand,
   compact,
   tight = false,
   layout = battleActiveLayoutConfig,
@@ -105,33 +97,6 @@ export const BattleBoardShell: React.FC<BattleBoardShellProps> = ({
           </div>
         ) : null}
 
-        {centerBottomMobile && compactShellSlots.bottom ? (
-          <div
-            className="absolute z-20 overflow-visible"
-            style={{
-              left: `${compactShellSlots.bottom.x}px`,
-              top: `${compactShellSlots.bottom.y}px`,
-              width: `${compactShellSlots.bottom.width}px`,
-              height: `${compactShellSlots.bottom.height}px`,
-            }}
-          >
-            {centerBottomMobile}
-          </div>
-        ) : null}
-
-        {footerMobileHand && compactShellSlots.footer ? (
-          <div
-            className="absolute z-20 overflow-visible pt-[var(--battle-shell-mobile-footer-pad)]"
-            style={{
-              left: `${compactShellSlots.footer.x}px`,
-              top: `${compactShellSlots.footer.y}px`,
-              width: `${compactShellSlots.footer.width}px`,
-              height: `${compactShellSlots.footer.height}px`,
-            }}
-          >
-            {footerMobileHand}
-          </div>
-        ) : null}
       </section>
     );
   }
@@ -146,18 +111,10 @@ export const BattleBoardShell: React.FC<BattleBoardShellProps> = ({
         {rightSidebar}
       </div>
 
-      <div className="absolute left-[var(--battle-shell-center-x)] top-0 z-20 h-[var(--battle-shell-top-height)] min-h-0 w-[var(--battle-shell-center-width)]">
-        {centerTopDesktop}
-      </div>
-
       <div className="absolute left-[var(--battle-shell-center-x)] top-[var(--battle-shell-board-top)] min-h-0 h-[var(--battle-shell-board-height)] w-[var(--battle-shell-center-width)]">
         <div className="flex h-full min-h-0 flex-col">
           <div className="min-h-0 flex-1">{boardSurface}</div>
         </div>
-      </div>
-
-      <div className="absolute left-[var(--battle-shell-center-x)] top-[var(--battle-shell-bottom-y)] z-20 h-[var(--battle-shell-bottom-height)] min-h-0 w-[var(--battle-shell-center-width)]">
-        {centerBottomDesktop}
       </div>
     </section>
   );

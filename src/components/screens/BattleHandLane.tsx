@@ -711,7 +711,7 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
   return (
     <div
       data-battle-visual-root="true"
-      className="relative h-full w-full min-h-0 overflow-visible"
+      className="pointer-events-none relative h-full w-full min-h-0 overflow-visible"
       style={{
         minHeight: `var(--battle-hand-height)`,
         ...laneVars,
@@ -722,13 +722,13 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
           hostRef.current = node;
           if (typeof anchorRef === "function") anchorRef(node);
         }}
-        className="relative flex h-full w-full items-end justify-center overflow-visible"
+        className="pointer-events-none relative flex h-full w-full items-end justify-center overflow-visible"
         style={{
           paddingInline: `var(--battle-hand-padding-x)`,
         }}
       >
         <div
-          className="absolute left-1/2 top-1/2 overflow-visible"
+          className="pointer-events-none absolute left-1/2 top-1/2 overflow-visible"
           style={{
             width: `${baseHandFrame.width}px`,
             height: `${baseHandFrame.height}px`,
@@ -742,6 +742,8 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
             const selected = selectedIndexes.includes(i);
             const playable = isLocalPresentation ? targets.some((target) => canPlace(card.syllable, target)) : false;
             const isHovered = isLocalPresentation && hoveredCardIndex === i;
+            const shouldPassThroughSelectedCard =
+              isLocalPresentation && selected && playable && canInteract;
             const visualState = getBattleHandStableCardVisualState({
               card,
               layout,
@@ -762,7 +764,12 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
                 onMouseEnter={isLocalPresentation ? () => onHoverCard?.(i) : undefined}
                 onMouseLeave={isLocalPresentation ? () => onHoverCard?.(null) : undefined}
                 ref={bindCardRef?.(card.id, scale)}
-                className={cn("absolute left-0 top-0", isLocalPresentation && "cursor-pointer")}
+                className={cn(
+                  "absolute left-0 top-0",
+                  isLocalPresentation && !shouldPassThroughSelectedCard
+                    ? "pointer-events-auto cursor-pointer"
+                    : "pointer-events-none",
+                )}
                 style={{
                   left: `calc(50% - ${cardWidth / 2}px)`,
                   top: `calc(100% - ${bottomOffset + cardBaseHeight}px)`,

@@ -3,6 +3,7 @@ import { BattleEditableElementKey } from "./BattleLayoutConfig";
 export const BATTLE_SCENE_LAYER_ORDER = {
   shell: 10,
   field: 40,
+  hand: 70,
   travel: 100,
   boardMessage: 120,
 } as const;
