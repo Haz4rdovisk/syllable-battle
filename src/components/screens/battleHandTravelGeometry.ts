@@ -44,6 +44,7 @@ export interface BattleHandIncomingTravelMotion extends BattleHandTravelMotionBa
   slotX: number;
   slotY: number;
   startScale: number;
+  endScale: number;
 }
 
 export interface BattleHandOutgoingTravelMotion extends BattleHandTravelMotionBase {
@@ -127,6 +128,7 @@ export const getBattleHandIncomingTravelMotion = ({
     originRect.top +
     Math.max(8, originRect.height * 0.14) -
     cardHeight * 0.18;
+  const resolvedRestScale = Math.max(0.6, layout.scale * handSceneScale);
 
   return {
     ...base,
@@ -145,6 +147,7 @@ export const getBattleHandIncomingTravelMotion = ({
             ),
           )
         : 0.92,
+    endScale: resolvedRestScale,
   };
 };
 
@@ -209,10 +212,7 @@ export const getBattleHandOutgoingTravelMotion = ({
     destinationMode === "zone-center" ? destinationCenterX : deckBottomX;
   const absoluteEndTop =
     destinationMode === "zone-center" ? destinationCenterY : deckBottomY;
-  const resolvedRestScale = Math.min(
-    1.4,
-    Math.max(0.6, layout.scale * handSceneScale),
-  );
+  const resolvedRestScale = Math.max(0.6, layout.scale * handSceneScale);
   const resolvedInitialScale =
     initialRect && cardWidth > 0 && cardHeight > 0
       ? clampScale(

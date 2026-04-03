@@ -617,14 +617,12 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
               x: travelMotionData.startX,
               y: travelMotionData.startY,
               rotate: startRotate,
-              scale: 1,
               opacity: 0,
             }}
             animate={{
               x: travelMotionData.slotX,
               y: travelMotionData.slotY,
               rotate: layout.rotate,
-              scale: 1,
               opacity: 1,
             }}
             transition={{
@@ -638,25 +636,33 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
             }}
             onAnimationComplete={() => onIncomingCardComplete?.(incomingCard)}
           >
-            {isLocalPresentation ? (
-              <SyllableCard
-                syllable={incomingCard.card.syllable}
-                selected={false}
-                playable={showPlayableHints}
-                newlyDrawn={showTurnHighlights}
-                attentionPulse={false}
-                floating={true}
-                disabled={true}
-                onClick={() => {}}
-                sizePreset={sizePreset}
-              />
-            ) : (
-              <CardBackCard
-                floating={true}
-                sizePreset={sizePreset}
-                visualPresetId={cardBackPresetId}
-              />
-            )}
+            <div
+              className="pointer-events-none"
+              style={{
+                transform: `scale(${travelMotionData.endScale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              {isLocalPresentation ? (
+                <SyllableCard
+                  syllable={incomingCard.card.syllable}
+                  selected={false}
+                  playable={showPlayableHints}
+                  newlyDrawn={showTurnHighlights}
+                  attentionPulse={false}
+                  floating={true}
+                  disabled={true}
+                  onClick={() => {}}
+                  sizePreset={sizePreset}
+                />
+              ) : (
+                <CardBackCard
+                  floating={true}
+                  sizePreset={sizePreset}
+                  visualPresetId={cardBackPresetId}
+                />
+              )}
+            </div>
           </motion.div>
         );
       })

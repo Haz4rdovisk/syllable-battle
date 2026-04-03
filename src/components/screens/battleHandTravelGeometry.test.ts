@@ -40,6 +40,7 @@ test("incoming hand travel parte do ponto authored no stage em vez do centro gen
 
   assert.ok(Math.abs(actualStartLeft - desiredStartLeft) < 0.001);
   assert.ok(Math.abs(actualEndLeft - desiredEndLeft) < 0.001);
+  assert.ok(Math.abs(motion.endScale - 0.9818181818181818) < 0.001);
 });
 
 test("outgoing hand travel termina no centro do destino authored no stage", () => {
