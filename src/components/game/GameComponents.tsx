@@ -505,9 +505,10 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
                   y: -4,
                   transition: { type: "spring", stiffness: 260, damping: 22 },
                 }
+            : selected
+              ? {}
             : {
-                y: -28,
-                scale: 1.12,
+                scale: 1.06,
                 rotate: 0,
                 zIndex: 50,
                 transition: { type: "spring", stiffness: 300, damping: 20 },
@@ -519,24 +520,33 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
       disabled={disabled}
       style={style}
       className={cn(
-        "relative flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 font-serif font-black shadow-2xl transition-all",
+        "relative flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 bg-amber-50 font-serif font-black shadow-2xl transition-[transform,box-shadow,border-color,color,filter] duration-200",
         battleCardSizePresetClass[sizePreset],
         selected
           ? staticDisplay
-            ? "border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_12px_22px_rgba(120,53,15,0.14)]"
-            : "z-40 -translate-y-4 border-amber-300 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))] text-amber-950 ring-4 ring-amber-300/60 shadow-[0_24px_44px_rgba(120,53,15,0.26)]"
+            ? "border-amber-300 text-amber-950 ring-4 ring-amber-300/60 shadow-[0_12px_22px_rgba(120,53,15,0.14)]"
+            : "border-amber-300 text-amber-950 ring-4 ring-amber-300/60 shadow-[0_24px_44px_rgba(120,53,15,0.26)]"
           : playable
-            ? "border-emerald-700 bg-emerald-100 text-emerald-900 shadow-[0_0_20px_rgba(52,211,153,0.2)] ring-2 ring-emerald-300/30"
-            : "border-amber-900/40 bg-amber-50 text-amber-900/60",
+            ? "border-emerald-700 text-emerald-900 shadow-[0_0_20px_rgba(52,211,153,0.2)] ring-2 ring-emerald-300/30"
+            : "border-amber-900/40 text-amber-900/60",
         newlyDrawn && "border-sky-300 bg-sky-50 text-sky-950 shadow-[0_0_30px_rgba(125,211,252,0.55)] ring-4 ring-sky-300/45",
         disabledVisual && "cursor-not-allowed grayscale-[0.78] saturate-50 brightness-90",
       )}
     >
-      {selected && !staticDisplay ? (
-        <div className="pointer-events-none absolute top-2 z-20 rounded-full border border-amber-400/40 bg-amber-100/92 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-amber-950 shadow-[0_8px_18px_rgba(120,53,15,0.16)]">
-          Selecionada
-        </div>
-      ) : null}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0 transition-opacity duration-150",
+          selected
+            ? "opacity-100 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))]"
+            : "opacity-0 bg-[linear-gradient(180deg,rgba(255,251,235,1),rgba(254,243,199,0.98))]",
+        )}
+      />
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0 transition-opacity duration-150",
+          playable && !selected ? "bg-emerald-100 opacity-100" : "bg-emerald-100 opacity-0",
+        )}
+      />
       {playable && !selected && !disabled ? (
         <div className="pointer-events-none absolute inset-x-3 bottom-2 z-20 h-3 rounded-full bg-[radial-gradient(circle,rgba(16,185,129,0.34)_0%,rgba(16,185,129,0)_72%)] blur-md" />
       ) : null}

@@ -223,8 +223,9 @@ export function getBattleHandStableCardVisualState(params: {
   baseZIndex: number;
 }): BattleHandStableCardVisualState {
   const { card, layout, isDesktop, isSelected, isHovered, isLocalPresentation, baseZIndex } = params;
-  const stableY = isLocalPresentation && isSelected ? (isDesktop ? -28 : -18) : layout.y;
-  const stableScale = isHovered ? 1.14 : 1;
+  const hoveredY = isLocalPresentation && isHovered ? (isDesktop ? -18 : -12) : layout.y;
+  const stableY = isLocalPresentation && isSelected ? (isDesktop ? -28 : -18) : hoveredY;
+  const stableScale = isSelected ? 1.14 : isHovered ? 1.04 : 1;
   return {
     initial:
       card.skipEntryAnimation
@@ -237,7 +238,7 @@ export function getBattleHandStableCardVisualState(params: {
       opacity: 1,
       scale: stableScale,
     },
-    zIndex: isHovered ? 100 : baseZIndex,
+    zIndex: isSelected ? 110 : isHovered ? 100 : baseZIndex,
   };
 }
 
@@ -755,45 +756,63 @@ const BattleHandLaneComponent: React.FC<BattleHandLaneProps> = ({
             });
 
             return (
-              <motion.div
-                key={card.id}
-                initial={visualState.initial}
-                animate={visualState.animate}
-                exit={{ opacity: 0, transition: { duration: 0.01 } }}
-                transition={{ type: "spring", stiffness: 82, damping: 22 }}
-                onMouseEnter={isLocalPresentation ? () => onHoverCard?.(i) : undefined}
-                onMouseLeave={isLocalPresentation ? () => onHoverCard?.(null) : undefined}
-                ref={bindCardRef?.(card.id, scale)}
-                className={cn(
-                  "absolute left-0 top-0",
-                  isLocalPresentation && !shouldPassThroughSelectedCard
-                    ? "pointer-events-auto cursor-pointer"
-                    : "pointer-events-none",
-                )}
-                style={{
-                  left: `calc(50% - ${cardWidth / 2}px)`,
-                  top: `calc(100% - ${bottomOffset + cardBaseHeight}px)`,
-                  zIndex: visualState.zIndex,
-                }}
-              >
-                {isLocalPresentation ? (
-                  <SyllableCard
-                    syllable={card.syllable}
-                    selected={selected}
-                    playable={playable && showPlayableHints}
-                    newlyDrawn={freshCardIds.includes(card.runtimeCardId ?? card.id) && showTurnHighlights}
-                    attentionPulse={playable && showPlayableHints}
-                    disabled={!canInteract}
+              <React.Fragment key={card.id}>
+                {shouldPassThroughSelectedCard ? (
+                  <button
+                    type="button"
+                    aria-label={`Deselecionar ${card.syllable}`}
                     onClick={() => onCardClick?.(i)}
-                    sizePreset={sizePreset}
+                    onMouseEnter={isLocalPresentation ? () => onHoverCard?.(i) : undefined}
+                    onMouseLeave={isLocalPresentation ? () => onHoverCard?.(null) : undefined}
+                    className="absolute left-0 top-0 pointer-events-auto cursor-pointer rounded-xl bg-transparent p-0"
+                    style={{
+                      left: `calc(50% - ${cardWidth / 2}px + ${layout.x}px)`,
+                      top: `calc(100% - ${bottomOffset + cardBaseHeight}px + ${layout.y}px)`,
+                      width: `${cardWidth}px`,
+                      height: `${cardBaseHeight}px`,
+                      zIndex: visualState.zIndex,
+                    }}
                   />
-                ) : (
-                  <CardBackCard
-                    sizePreset={sizePreset}
-                    visualPresetId={cardBackPresetId}
-                  />
-                )}
-              </motion.div>
+                ) : null}
+                <motion.div
+                  initial={visualState.initial}
+                  animate={visualState.animate}
+                  exit={{ opacity: 0, transition: { duration: 0.01 } }}
+                  transition={{ type: "spring", stiffness: 82, damping: 22 }}
+                  onMouseEnter={isLocalPresentation ? () => onHoverCard?.(i) : undefined}
+                  onMouseLeave={isLocalPresentation ? () => onHoverCard?.(null) : undefined}
+                  ref={bindCardRef?.(card.id, scale)}
+                  className={cn(
+                    "absolute left-0 top-0",
+                    isLocalPresentation && !shouldPassThroughSelectedCard
+                      ? "pointer-events-auto cursor-pointer"
+                      : "pointer-events-none",
+                  )}
+                  style={{
+                    left: `calc(50% - ${cardWidth / 2}px)`,
+                    top: `calc(100% - ${bottomOffset + cardBaseHeight}px)`,
+                    zIndex: visualState.zIndex,
+                  }}
+                >
+                  {isLocalPresentation ? (
+                    <SyllableCard
+                      syllable={card.syllable}
+                      selected={selected}
+                      playable={playable && showPlayableHints}
+                      newlyDrawn={freshCardIds.includes(card.runtimeCardId ?? card.id) && showTurnHighlights}
+                      attentionPulse={playable && showPlayableHints}
+                      disabled={!canInteract}
+                      onClick={() => onCardClick?.(i)}
+                      sizePreset={sizePreset}
+                    />
+                  ) : (
+                    <CardBackCard
+                      sizePreset={sizePreset}
+                      visualPresetId={cardBackPresetId}
+                    />
+                  )}
+                </motion.div>
+              </React.Fragment>
             );
           })}
         </AnimatePresence>
