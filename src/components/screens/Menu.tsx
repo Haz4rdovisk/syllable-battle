@@ -271,7 +271,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
                 className="relative mt-5 flex flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:mt-3"
               >
                 <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
-                <h1 className="relative font-serif text-[3.3rem] font-black uppercase leading-[0.86] text-amber-950 drop-shadow-[0_2px_0_rgba(255,248,220,0.45)] [text-shadow:0_0_18px_rgba(238,196,94,0.18),0_4px_14px_rgba(214,165,63,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[2.55rem] [@media(pointer:coarse)_and_(max-height:480px)]:leading-none sm:text-[4.8rem] lg:text-[5.7rem]">
+                    <h1 className="relative font-serif text-[3.3rem] font-black uppercase leading-[0.86] text-amber-950 drop-shadow-[0_2px_0_rgba(255,248,220,0.45)] [text-shadow:0_0_18px_rgba(238,196,94,0.18),0_4px_14px_rgba(214,165,63,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[3.92rem] [@media(pointer:coarse)_and_(max-height:480px)]:leading-none sm:text-[4.8rem] lg:text-[5.7rem]">
                   <span className="block [@media(pointer:coarse)_and_(max-height:480px)]:inline">SYLLABLE</span>
                   <span className="hidden [@media(pointer:coarse)_and_(max-height:480px)]:inline"> </span>
                   <span className="block [@media(pointer:coarse)_and_(max-height:480px)]:inline">BATTLE</span>
