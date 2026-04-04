@@ -57,28 +57,28 @@ const CabinetButton: React.FC<CabinetButtonProps> = ({
   <Button
     onClick={onClick}
     disabled={disabled}
-    className={`group relative h-[6.8rem] w-full overflow-hidden rounded-[1.85rem] border-[3px] px-5 py-4 text-left transition-all duration-150 ease-out hover:-translate-y-1 disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0 disabled:active:translate-y-0 [@media(pointer:coarse)_and_(max-height:480px)]:!h-[5.15rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:!px-3.75 [@media(pointer:coarse)_and_(max-height:480px)]:!py-3 sm:h-[7.35rem] ${cabinetToneClassName[tone].frame}`}
+    className={`group relative h-[6.8rem] w-full overflow-hidden rounded-[1.85rem] border-[3px] px-5 py-4 text-left transition-all duration-150 ease-out hover:-translate-y-1 disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0 disabled:active:translate-y-0 [@media(pointer:coarse)_and_(max-height:480px)]:!h-[4.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:!px-3 [@media(pointer:coarse)_and_(max-height:480px)]:!py-2.4 sm:h-[7.35rem] ${cabinetToneClassName[tone].frame}`}
   >
     <div className="pointer-events-none absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-20 mix-blend-soft-light" />
     <div className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22" />
-    <span className="pointer-events-none absolute inset-0 z-0 rounded-[1.65rem] border border-black/10 [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.4rem]" />
-    <span className="pointer-events-none absolute inset-[6px] z-0 rounded-[1.5rem] border border-white/16 [@media(pointer:coarse)_and_(max-height:480px)]:!inset-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.18rem] sm:inset-[7px] sm:rounded-[1.65rem]" />
-    <div className="relative z-10 flex h-full w-full items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:!gap-3">
+    <span className="pointer-events-none absolute inset-0 z-0 rounded-[1.65rem] border border-black/10 [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.2rem]" />
+    <span className="pointer-events-none absolute inset-[6px] z-0 rounded-[1.5rem] border border-white/16 [@media(pointer:coarse)_and_(max-height:480px)]:!inset-[3px] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1rem] sm:inset-[7px] sm:rounded-[1.65rem]" />
+    <div className="relative z-10 flex h-full w-full items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:!gap-2.5">
       <span
-        className={`relative flex h-[4.45rem] w-[4.45rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.45rem] border-[2.5px] backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_14px_24px_rgba(0,0,0,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:!h-[3.35rem] [@media(pointer:coarse)_and_(max-height:480px)]:!w-[3.35rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.05rem] sm:h-[4.9rem] sm:w-[4.9rem] sm:rounded-[1.6rem] ${cabinetToneClassName[tone].icon}`}
+        className={`relative flex h-[4.45rem] w-[4.45rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.45rem] border-[2.5px] backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_14px_24px_rgba(0,0,0,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:!h-[2.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:!w-[2.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[0.95rem] sm:h-[4.9rem] sm:w-[4.9rem] sm:rounded-[1.6rem] ${cabinetToneClassName[tone].icon}`}
       >
         <span className="pointer-events-none absolute inset-x-2 top-1.5 h-4 rounded-full bg-white/28 blur-sm" />
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-serif text-[1.7rem] font-black leading-none [@media(pointer:coarse)_and_(max-height:480px)]:!text-[1.28rem] sm:text-[1.95rem]">{label}</span>
-        <span className="mt-2 block truncate text-[0.7rem] font-black uppercase tracking-[0.18em] text-current/78 [@media(pointer:coarse)_and_(max-height:480px)]:!mt-1 [@media(pointer:coarse)_and_(max-height:480px)]:!text-[0.56rem] [@media(pointer:coarse)_and_(max-height:480px)]:!tracking-[0.12em] sm:text-[0.74rem]">
+        <span className="block truncate font-serif text-[1.7rem] font-black leading-none [@media(pointer:coarse)_and_(max-height:480px)]:!text-[1.08rem] sm:text-[1.95rem]">{label}</span>
+        <span className="mt-2 block truncate text-[0.7rem] font-black uppercase tracking-[0.18em] text-current/78 [@media(pointer:coarse)_and_(max-height:480px)]:!mt-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:!text-[0.48rem] [@media(pointer:coarse)_and_(max-height:480px)]:!tracking-[0.1em] sm:text-[0.74rem]">
           {detail}
         </span>
       </span>
       {disabled ? (
         <span
-          className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.22em] [@media(pointer:coarse)_and_(max-height:480px)]:!right-2 [@media(pointer:coarse)_and_(max-height:480px)]:!top-2 [@media(pointer:coarse)_and_(max-height:480px)]:!px-1.75 [@media(pointer:coarse)_and_(max-height:480px)]:!py-0.75 [@media(pointer:coarse)_and_(max-height:480px)]:!text-[0.42rem] [@media(pointer:coarse)_and_(max-height:480px)]:!tracking-[0.12em] ${cabinetToneClassName[tone].badge}`}
+          className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.22em] [@media(pointer:coarse)_and_(max-height:480px)]:!right-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:!top-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:!px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:!py-0.55 [@media(pointer:coarse)_and_(max-height:480px)]:!text-[0.38rem] [@media(pointer:coarse)_and_(max-height:480px)]:!tracking-[0.08em] ${cabinetToneClassName[tone].badge}`}
         >
           Em Breve
         </span>
@@ -215,7 +215,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative flex h-full w-full items-center justify-center overflow-y-auto bg-[#ece3d3] p-3 text-[#31271e] no-scrollbar [@media(pointer:coarse)_and_(max-height:480px)]:items-start [@media(pointer:coarse)_and_(max-height:480px)]:p-2.5 sm:p-5"
+      className="relative flex h-full w-full items-center justify-center overflow-y-auto bg-[#ece3d3] p-3 text-[#31271e] no-scrollbar [@media(pointer:coarse)_and_(max-height:480px)]:items-start [@media(pointer:coarse)_and_(max-height:480px)]:p-1.5 sm:p-5"
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#ece3d3]" />
@@ -230,23 +230,23 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
       <div className="relative z-10 w-full max-w-[68rem]">
         <BinderRings />
 
-        <div className="paper-panel relative z-10 overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-4 py-5 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:min-h-[calc(100dvh-20px)] [@media(pointer:coarse)_and_(max-height:480px)]:px-3 [@media(pointer:coarse)_and_(max-height:480px)]:py-3.5 sm:px-7 sm:py-7">
+        <div className="paper-panel relative z-10 overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-4 py-5 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:min-h-[calc(100dvh-10px)] [@media(pointer:coarse)_and_(max-height:480px)]:px-2.25 [@media(pointer:coarse)_and_(max-height:480px)]:py-2.5 sm:px-7 sm:py-7">
           <div className="absolute inset-0 bg-white/28" />
-          <div className="absolute inset-y-[14px] left-[14px] right-[14px] rounded-[1.4rem] border border-[#d9c8a9] [@media(pointer:coarse)_and_(max-height:480px)]:top-[10px] [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[10px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[10px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[10px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.1rem] lg:left-[38px] lg:rounded-[1.6rem]" />
-          <div className="pointer-events-none absolute bottom-[18px] left-[12px] right-[12px] top-[18px] rounded-[1.25rem] border border-white/32 [@media(pointer:coarse)_and_(max-height:480px)]:top-[14px] [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[20px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1rem] lg:left-[34px] lg:right-[22px] lg:rounded-[1.45rem]" />
+          <div className="absolute inset-y-[14px] left-[14px] right-[14px] rounded-[1.4rem] border border-[#d9c8a9] [@media(pointer:coarse)_and_(max-height:480px)]:top-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1rem] lg:left-[38px] lg:rounded-[1.6rem]" />
+          <div className="pointer-events-none absolute bottom-[18px] left-[12px] right-[12px] top-[18px] rounded-[1.25rem] border border-white/32 [@media(pointer:coarse)_and_(max-height:480px)]:top-[11px] [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[14px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[6px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[6px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] lg:left-[34px] lg:right-[22px] lg:rounded-[1.45rem]" />
 
-          <div className="relative flex flex-col gap-6 [@media(pointer:coarse)_and_(max-height:480px)]:gap-3.5">
+          <div className="relative flex flex-col gap-6 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5">
             <div className="flex flex-col items-center text-center">
-              <div className="flex w-full items-center justify-between gap-4 px-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-[0.95rem] lg:pl-[20px] lg:pr-0">
-                <div className="flex items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5 text-left">
-                  <span className="flex h-[5.2rem] w-[5.2rem] items-center justify-center rounded-[1.8rem] border-2 border-[#efcf78] bg-[#f7eac5] text-[2.6rem] shadow-[0_14px_24px_rgba(0,0,0,0.08)] transition-transform group-hover:-translate-y-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-[4rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[4rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.3rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[2rem] sm:h-[5.8rem] sm:w-[5.8rem] sm:text-[3rem]">
+              <div className="flex w-full items-center justify-between gap-4 px-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-[0.8rem] lg:pl-[20px] lg:pr-0">
+                <div className="flex items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 text-left">
+                  <span className="flex h-[5.2rem] w-[5.2rem] items-center justify-center rounded-[1.8rem] border-2 border-[#efcf78] bg-[#f7eac5] text-[2.6rem] shadow-[0_14px_24px_rgba(0,0,0,0.08)] transition-transform group-hover:-translate-y-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-[3.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[3.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.1rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.7rem] sm:h-[5.8rem] sm:w-[5.8rem] sm:text-[3rem]">
                     {profile.avatar}
                   </span>
                   <div className="min-w-0">
-                    <span className="block text-[0.68rem] font-black uppercase tracking-[0.34em] text-[#a96e43] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.22em]">
+                    <span className="block text-[0.68rem] font-black uppercase tracking-[0.34em] text-[#a96e43] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.18em]">
                       Duelista
                     </span>
-                    <span className="mt-1 block font-serif text-[1.55rem] font-black uppercase leading-none text-[#5b2408] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.18rem] sm:text-[1.8rem]">
+                    <span className="mt-1 block font-serif text-[1.55rem] font-black uppercase leading-none text-[#5b2408] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1rem] sm:text-[1.8rem]">
                       {displayName}
                     </span>
                   </div>
@@ -254,12 +254,12 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
 
                 <Button
                   onClick={onEditProfile}
-                  className="group relative flex h-[4.6rem] w-[4.6rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-[1.45rem] border-[2px] border-[#2d6b8f] bg-[#4f9fcc] px-0 text-[0.66rem] font-black uppercase tracking-[0.08em] text-[#f3fbff] shadow-[0_5px_0_#28597d,0_14px_22px_rgba(35,74,110,0.18)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5ba8d4] hover:shadow-[0_7px_0_#28597d,0_18px_24px_rgba(35,74,110,0.22)] active:translate-y-[3px] active:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(35,74,110,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[3.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[3.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.15rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem] sm:h-[4.95rem] sm:w-[4.95rem] sm:rounded-[1.6rem]"
+                  className="group relative flex h-[4.6rem] w-[4.6rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-[1.45rem] border-[2px] border-[#2d6b8f] bg-[#4f9fcc] px-0 text-[0.66rem] font-black uppercase tracking-[0.08em] text-[#f3fbff] shadow-[0_5px_0_#28597d,0_14px_22px_rgba(35,74,110,0.18)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5ba8d4] hover:shadow-[0_7px_0_#28597d,0_18px_24px_rgba(35,74,110,0.22)] active:translate-y-[3px] active:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(35,74,110,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[3.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[3.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem] sm:h-[4.95rem] sm:w-[4.95rem] sm:rounded-[1.6rem]"
                 >
                   <span className="pointer-events-none absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-15 mix-blend-soft-light" />
                   <span className="pointer-events-none absolute inset-x-3 top-0 z-0 h-[3px] rounded-b-full bg-white/24" />
                   <span className="pointer-events-none absolute inset-[4px] z-0 rounded-[1.1rem] border border-white/18 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] sm:rounded-[1.25rem]" />
-                  <span className="relative z-10 text-[1.28rem] leading-none sm:text-[1.42rem]">✏️</span>
+                  <span className="relative z-10 text-[1.28rem] leading-none [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.05rem] sm:text-[1.42rem]">✏️</span>
                   <span className="relative z-10 mt-1 leading-none">Perfil</span>
                 </Button>
               </div>
@@ -268,10 +268,10 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
                 initial={{ scale: 0.8, rotate: -5 }}
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: "spring", stiffness: 100 }}
-                className="relative mt-5 flex flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:mt-3"
+                className="relative mt-5 flex flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5"
               >
                 <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
-                <h1 className="relative font-serif text-[3.3rem] font-black uppercase leading-[0.86] text-amber-950 drop-shadow-[0_2px_0_rgba(255,248,220,0.45)] [text-shadow:0_0_18px_rgba(238,196,94,0.18),0_4px_14px_rgba(214,165,63,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[3.92rem] [@media(pointer:coarse)_and_(max-height:480px)]:leading-none sm:text-[4.8rem] lg:text-[5.7rem]">
+                <h1 className="relative font-serif text-[3.3rem] font-black uppercase leading-[0.86] text-amber-950 drop-shadow-[0_2px_0_rgba(255,248,220,0.45)] [text-shadow:0_0_18px_rgba(238,196,94,0.18),0_4px_14px_rgba(214,165,63,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[3.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:leading-none sm:text-[4.8rem] lg:text-[5.7rem]">
                   <span className="block [@media(pointer:coarse)_and_(max-height:480px)]:inline">SYLLABLE</span>
                   <span className="hidden [@media(pointer:coarse)_and_(max-height:480px)]:inline"> </span>
                   <span className="block [@media(pointer:coarse)_and_(max-height:480px)]:inline">BATTLE</span>
@@ -280,38 +280,38 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
                   initial={{ opacity: 0, scaleX: 0.35 }}
                   animate={{ opacity: 1, scaleX: 1 }}
                   transition={{ duration: 0.7, delay: 0.18, ease: "easeOut" }}
-                  className="relative mt-3 h-1.5 w-32 origin-center rounded-full bg-[#e2a438] shadow-[0_0_18px_rgba(226,164,56,0.28)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-2"
+                  className="relative mt-3 h-1.5 w-32 origin-center rounded-full bg-[#e2a438] shadow-[0_0_18px_rgba(226,164,56,0.28)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-1 [@media(pointer:coarse)_and_(max-height:480px)]:w-24"
                 />
               </motion.div>
             </div>
 
-            <div className="rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-4 [@media(pointer:coarse)_and_(max-height:480px)]:mx-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-auto [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.3rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-2.75 [@media(pointer:coarse)_and_(max-height:480px)]:pt-2.75 [@media(pointer:coarse)_and_(max-height:480px)]:pb-4.25 lg:ml-[20px] sm:p-5">
-              <div className="grid gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-x-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-y-3.5 sm:grid-cols-2">
+            <div className="rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-2 [@media(pointer:coarse)_and_(max-height:480px)]:mx-[0.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-auto [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-3.5 lg:ml-[20px] sm:p-5">
+              <div className="grid gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-x-2.25 [@media(pointer:coarse)_and_(max-height:480px)]:gap-y-2.75 sm:grid-cols-2">
                 <CabinetButton
                   label="Jogar Solo"
                   detail="Desafie o bot"
-                  icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] sm:text-[2.2rem]">⚔️</span>}
+                  icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">⚔️</span>}
                   tone="solo"
                   onClick={() => onSelectMode("bot")}
                 />
                 <CabinetButton
                   label="Jogar Online"
                   detail="Enfrente outro duelista"
-                  icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] sm:text-[2.2rem]">🛡️</span>}
+                  icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">🛡️</span>}
                   tone="online"
                   onClick={() => onSelectMode("multiplayer")}
                 />
                 <CabinetButton
                   label="Minha Colecao"
                   detail="Veja seus decks"
-                  icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] sm:text-[2.15rem]">📚</span>}
+                  icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">📚</span>}
                   tone="collection"
                   onClick={onOpenCollection}
                 />
                 <CabinetButton
                   label="Open Packs"
                   detail="Novas cartas em breve"
-                  icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] sm:text-[2.15rem]">🎴</span>}
+                  icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">🎴</span>}
                   tone="packs"
                   disabled
                 />
