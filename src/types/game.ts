@@ -55,7 +55,7 @@ export interface PlayerProfile {
   avatar: string;
 }
 
-export const MAX_PLAYER_NAME_LENGTH = 12;
+export const MAX_PLAYER_NAME_LENGTH = 7;
 
 export function normalizePlayerName(name: string, fallback = "Duelista") {
   const normalized = name.trim().replace(/\s+/g, " ").slice(0, MAX_PLAYER_NAME_LENGTH);

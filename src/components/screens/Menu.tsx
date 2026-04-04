@@ -1,7 +1,8 @@
-import React from "react";
+﻿import React from "react";
 import { motion } from "motion/react";
 import { Button } from "../ui/button";
 import { GameMode, PlayerProfile, normalizePlayerName } from "../../types/game";
+import titleLogo from "../../assets/branding/syllable-battle-title.svg";
 
 interface MenuProps {
   onSelectMode: (mode: GameMode) => void;
@@ -57,22 +58,22 @@ const CabinetButton: React.FC<CabinetButtonProps> = ({
   <Button
     onClick={onClick}
     disabled={disabled}
-    className={`group relative h-[6.8rem] w-full overflow-hidden rounded-[1.85rem] border-[3px] px-5 py-4 text-left transition-all duration-150 ease-out hover:-translate-y-1 disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0 disabled:active:translate-y-0 [@media(pointer:coarse)_and_(max-height:480px)]:!h-[4.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:!px-3 [@media(pointer:coarse)_and_(max-height:480px)]:!py-2.4 sm:h-[7.35rem] ${cabinetToneClassName[tone].frame}`}
+    className={`group relative h-[6.8rem] w-full overflow-hidden rounded-[1.85rem] border-[3px] px-5 py-4 text-left transition-all duration-150 ease-out hover:-translate-y-1 disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0 disabled:active:translate-y-0 [@media(pointer:coarse)_and_(max-height:480px)]:!h-[3.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1rem] [@media(pointer:coarse)_and_(max-height:480px)]:!px-2.35 [@media(pointer:coarse)_and_(max-height:480px)]:!py-1.8 sm:h-[7.35rem] ${cabinetToneClassName[tone].frame}`}
   >
     <div className="pointer-events-none absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-20 mix-blend-soft-light" />
     <div className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22" />
-    <span className="pointer-events-none absolute inset-0 z-0 rounded-[1.65rem] border border-black/10 [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1.2rem]" />
-    <span className="pointer-events-none absolute inset-[6px] z-0 rounded-[1.5rem] border border-white/16 [@media(pointer:coarse)_and_(max-height:480px)]:!inset-[3px] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1rem] sm:inset-[7px] sm:rounded-[1.65rem]" />
-    <div className="relative z-10 flex h-full w-full items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:!gap-2.5">
+    <span className="pointer-events-none absolute inset-0 z-0 rounded-[1.65rem] border border-black/10 [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1rem]" />
+    <span className="pointer-events-none absolute inset-[6px] z-0 rounded-[1.5rem] border border-white/16 [@media(pointer:coarse)_and_(max-height:480px)]:!inset-[2px] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[0.85rem] sm:inset-[7px] sm:rounded-[1.65rem]" />
+    <div className="relative z-10 flex h-full w-full items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:!gap-2">
       <span
-        className={`relative flex h-[4.45rem] w-[4.45rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.45rem] border-[2.5px] backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_14px_24px_rgba(0,0,0,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:!h-[2.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:!w-[2.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[0.95rem] sm:h-[4.9rem] sm:w-[4.9rem] sm:rounded-[1.6rem] ${cabinetToneClassName[tone].icon}`}
+        className={`relative flex h-[4.45rem] w-[4.45rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.45rem] border-[2.5px] backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_14px_24px_rgba(0,0,0,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:!h-[2.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:!w-[2.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[0.82rem] sm:h-[4.9rem] sm:w-[4.9rem] sm:rounded-[1.6rem] ${cabinetToneClassName[tone].icon}`}
       >
         <span className="pointer-events-none absolute inset-x-2 top-1.5 h-4 rounded-full bg-white/28 blur-sm" />
         {icon}
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-serif text-[1.7rem] font-black leading-none [@media(pointer:coarse)_and_(max-height:480px)]:!text-[1.08rem] sm:text-[1.95rem]">{label}</span>
-        <span className="mt-2 block truncate text-[0.7rem] font-black uppercase tracking-[0.18em] text-current/78 [@media(pointer:coarse)_and_(max-height:480px)]:!mt-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:!text-[0.48rem] [@media(pointer:coarse)_and_(max-height:480px)]:!tracking-[0.1em] sm:text-[0.74rem]">
+      <span className="flex min-w-0 flex-1 flex-col justify-center pl-4 text-left [@media(pointer:coarse)_and_(max-height:480px)]:pl-6 sm:pl-4">
+        <span className="block truncate font-serif text-[1.7rem] font-black leading-none [@media(pointer:coarse)_and_(max-height:480px)]:!text-[1.14rem] sm:text-[1.95rem]">{label}</span>
+        <span className="mt-2 block truncate text-[0.7rem] font-black uppercase tracking-[0.18em] text-current/78 [@media(pointer:coarse)_and_(max-height:480px)]:!mt-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:!text-[0.52rem] [@media(pointer:coarse)_and_(max-height:480px)]:!tracking-[0.11em] sm:text-[0.74rem]">
           {detail}
         </span>
       </span>
@@ -210,6 +211,42 @@ const BinderRings: React.FC = () => {
 export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, profile, onEditProfile }) => {
   const displayName = normalizePlayerName(profile.name);
   const buildLabel = (__APP_BUILD__ || "local").slice(0, 7).toUpperCase();
+  const soloButton = (
+    <CabinetButton
+      label="Jogar Solo"
+      detail="Desafie o bot"
+      icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">⚔️</span>}
+      tone="solo"
+      onClick={() => onSelectMode("bot")}
+    />
+  );
+  const onlineButton = (
+    <CabinetButton
+      label="Jogar Online"
+      detail="Enfrente outro duelista"
+      icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">🛡️</span>}
+      tone="online"
+      onClick={() => onSelectMode("multiplayer")}
+    />
+  );
+  const collectionButton = (
+    <CabinetButton
+      label="Minha Colecao"
+      detail="Veja seus decks"
+      icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">📚</span>}
+      tone="collection"
+      onClick={onOpenCollection}
+    />
+  );
+  const packsButton = (
+    <CabinetButton
+      label="Open Packs"
+      detail="Novas cartas em breve"
+      icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">🎴</span>}
+      tone="packs"
+      disabled
+    />
+  );
 
   return (
     <motion.div
@@ -237,7 +274,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
 
           <div className="relative flex flex-col gap-6 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5">
             <div className="flex flex-col items-center text-center">
-              <div className="flex w-full items-center justify-between gap-4 px-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-[0.8rem] lg:pl-[20px] lg:pr-0">
+              <div className="relative z-20 flex w-full items-center justify-between gap-4 px-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-[0.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:pt-[0.6rem] lg:pl-[20px] lg:pr-0">
                 <div className="flex items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 text-left">
                   <span className="flex h-[5.2rem] w-[5.2rem] items-center justify-center rounded-[1.8rem] border-2 border-[#efcf78] bg-[#f7eac5] text-[2.6rem] shadow-[0_14px_24px_rgba(0,0,0,0.08)] transition-transform group-hover:-translate-y-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-[3.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[3.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.1rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.7rem] sm:h-[5.8rem] sm:w-[5.8rem] sm:text-[3rem]">
                     {profile.avatar}
@@ -254,67 +291,54 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
 
                 <Button
                   onClick={onEditProfile}
-                  className="group relative flex h-[4.6rem] w-[4.6rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-[1.45rem] border-[2px] border-[#2d6b8f] bg-[#4f9fcc] px-0 text-[0.66rem] font-black uppercase tracking-[0.08em] text-[#f3fbff] shadow-[0_5px_0_#28597d,0_14px_22px_rgba(35,74,110,0.18)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5ba8d4] hover:shadow-[0_7px_0_#28597d,0_18px_24px_rgba(35,74,110,0.22)] active:translate-y-[3px] active:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(35,74,110,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[3.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[3.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem] sm:h-[4.95rem] sm:w-[4.95rem] sm:rounded-[1.6rem]"
+                  className="group relative flex h-[4.1rem] w-[8.4rem] shrink-0 items-center justify-center gap-2 overflow-hidden rounded-[1.35rem] border-[2px] border-[#2d6b8f] bg-[#4f9fcc] px-3 text-[0.72rem] font-black uppercase tracking-[0.08em] text-[#f3fbff] shadow-[0_5px_0_#28597d,0_14px_22px_rgba(35,74,110,0.18)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5ba8d4] hover:shadow-[0_7px_0_#28597d,0_18px_24px_rgba(35,74,110,0.22)] active:translate-y-[3px] active:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(35,74,110,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[2.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[6.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-2.25 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.52rem] sm:h-[4.4rem] sm:w-[9rem] sm:rounded-[1.5rem]"
                 >
                   <span className="pointer-events-none absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-15 mix-blend-soft-light" />
                   <span className="pointer-events-none absolute inset-x-3 top-0 z-0 h-[3px] rounded-b-full bg-white/24" />
-                  <span className="pointer-events-none absolute inset-[4px] z-0 rounded-[1.1rem] border border-white/18 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] sm:rounded-[1.25rem]" />
-                  <span className="relative z-10 text-[1.28rem] leading-none [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.05rem] sm:text-[1.42rem]">✏️</span>
-                  <span className="relative z-10 mt-1 leading-none">Perfil</span>
+                  <span className="pointer-events-none absolute inset-[4px] z-0 rounded-[1rem] border border-white/18 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem] sm:rounded-[1.15rem]" />
+                  <span className="relative z-10 text-[1.2rem] leading-none [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.95rem] sm:text-[1.35rem]">✏️</span>
+                  <span className="relative z-10 leading-none">Perfil</span>
                 </Button>
               </div>
 
-              <motion.div
-                initial={{ scale: 0.8, rotate: -5 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", stiffness: 100 }}
-                className="relative mt-5 flex flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5"
-              >
-                <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
-                <h1 className="relative font-serif text-[3.3rem] font-black uppercase leading-[0.86] text-amber-950 drop-shadow-[0_2px_0_rgba(255,248,220,0.45)] [text-shadow:0_0_18px_rgba(238,196,94,0.18),0_4px_14px_rgba(214,165,63,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[3.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:leading-none sm:text-[4.8rem] lg:text-[5.7rem]">
-                  <span className="block [@media(pointer:coarse)_and_(max-height:480px)]:inline">SYLLABLE</span>
-                  <span className="hidden [@media(pointer:coarse)_and_(max-height:480px)]:inline"> </span>
-                  <span className="block [@media(pointer:coarse)_and_(max-height:480px)]:inline">BATTLE</span>
-                </h1>
-                <motion.div
-                  initial={{ opacity: 0, scaleX: 0.35 }}
-                  animate={{ opacity: 1, scaleX: 1 }}
-                  transition={{ duration: 0.7, delay: 0.18, ease: "easeOut" }}
-                  className="relative mt-3 h-1.5 w-32 origin-center rounded-full bg-[#e2a438] shadow-[0_0_18px_rgba(226,164,56,0.28)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-1 [@media(pointer:coarse)_and_(max-height:480px)]:w-24"
-                />
-              </motion.div>
+              <div className="relative z-0 flex w-full justify-center overflow-visible">
+                <div className="relative h-[8rem] w-[52rem] max-w-none [@media(pointer:coarse)_and_(max-height:480px)]:h-[6.25rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[43rem] sm:h-[9.4rem] sm:w-[62rem] lg:h-[10.5rem] lg:w-[78rem]">
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2">
+                    <motion.div
+                      initial={{ scale: 0.8, rotate: -5 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: "spring", stiffness: 100 }}
+                      className="relative top-[1.95rem] flex translate-x-[0.15rem] flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:top-[1.3rem] [@media(pointer:coarse)_and_(max-height:480px)]:translate-x-[0.05rem] sm:top-[2.2rem] sm:translate-x-[0.45rem] lg:top-[2.55rem] lg:translate-x-[0.75rem]"
+                    >
+                      <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
+                      <motion.img
+                        src={titleLogo}
+                        alt="Syllable Battle"
+                        initial={{ opacity: 0, y: -18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
+                        className="relative h-auto w-full max-w-none origin-center scale-[1.48] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[1.52] drop-shadow-[0_0_18px_rgba(238,196,94,0.18)]"
+                      />
+                    </motion.div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-2 [@media(pointer:coarse)_and_(max-height:480px)]:mx-[0.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-auto [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-3.5 lg:ml-[20px] sm:p-5">
-              <div className="grid gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-x-2.25 [@media(pointer:coarse)_and_(max-height:480px)]:gap-y-2.75 sm:grid-cols-2">
-                <CabinetButton
-                  label="Jogar Solo"
-                  detail="Desafie o bot"
-                  icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">⚔️</span>}
-                  tone="solo"
-                  onClick={() => onSelectMode("bot")}
-                />
-                <CabinetButton
-                  label="Jogar Online"
-                  detail="Enfrente outro duelista"
-                  icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">🛡️</span>}
-                  tone="online"
-                  onClick={() => onSelectMode("multiplayer")}
-                />
-                <CabinetButton
-                  label="Minha Colecao"
-                  detail="Veja seus decks"
-                  icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">📚</span>}
-                  tone="collection"
-                  onClick={onOpenCollection}
-                />
-                <CabinetButton
-                  label="Open Packs"
-                  detail="Novas cartas em breve"
-                  icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">🎴</span>}
-                  tone="packs"
-                  disabled
-                />
+            <div className="relative z-20 mt-[5rem] [@media(pointer:coarse)_and_(max-height:480px)]:mt-[2.35rem] [@media(pointer:coarse)_and_(max-height:480px)]:mx-[5.5rem] lg:ml-[20px]">
+              <div className="grid items-stretch gap-y-4 gap-x-[3.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:gap-x-[42px] [@media(pointer:coarse)_and_(max-height:480px)]:gap-y-3 sm:grid-cols-2">
+                <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.7rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
+                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-3 sm:gap-3.5">
+                    {soloButton}
+                    {collectionButton}
+                  </div>
+                </div>
+                <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.7rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
+                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-3 sm:gap-3.5">
+                    {onlineButton}
+                    {packsButton}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -323,3 +347,4 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
     </motion.div>
   );
 };
+
