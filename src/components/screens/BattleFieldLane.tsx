@@ -6,6 +6,32 @@ import { BattleSceneRect, getBattleStageDomMetrics, toBattleStageLocalRect } fro
 import type { BattleTargetScenePhase } from "./BattleTargetField";
 
 const noopDivRef = () => {};
+const areSyllableArraysEqual = (left: Syllable[], right: Syllable[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+const areZoneSnapshotsEqual = (
+  left: ZoneAnchorSnapshot | null | undefined,
+  right: ZoneAnchorSnapshot | null | undefined,
+) =>
+  left === right ||
+  (!!left &&
+    !!right &&
+    left.left === right.left &&
+    left.top === right.top &&
+    left.width === right.width &&
+    left.height === right.height);
+
+const areSlotRectsEqual = (
+  left: ReturnType<typeof toBattleStageLocalRect>,
+  right: ReturnType<typeof toBattleStageLocalRect>,
+) =>
+  left === right ||
+  (!!left &&
+    !!right &&
+    left.left === right.left &&
+    left.top === right.top &&
+    left.width === right.width &&
+    left.height === right.height);
 
 export interface BattleFieldIncomingTarget {
   id: string;
@@ -142,7 +168,7 @@ export interface BattleFieldLaneDebugSnapshot {
   }>;
 }
 
-const BattleFieldLaneNode: React.FC<BattleFieldLaneNodeProps> = ({
+const BattleFieldLaneNodeComponent: React.FC<BattleFieldLaneNodeProps> = ({
   node,
   slot,
   slotRect,
@@ -325,6 +351,47 @@ const BattleFieldLaneNode: React.FC<BattleFieldLaneNodeProps> = ({
     </motion.div>
   );
 };
+
+const BattleFieldLaneNode = React.memo(
+  BattleFieldLaneNodeComponent,
+  (prev, next) =>
+    prev.presentation === next.presentation &&
+    prev.incomingRotate === next.incomingRotate &&
+    prev.travelTargetSize.width === next.travelTargetSize.width &&
+    prev.travelTargetSize.height === next.travelTargetSize.height &&
+    areSlotRectsEqual(prev.slotRect, next.slotRect) &&
+    prev.slot.key === next.slot.key &&
+    prev.slot.displayedTarget === next.slot.displayedTarget &&
+    prev.slot.selectedCard === next.slot.selectedCard &&
+    prev.slot.mulliganSelectionActive === next.slot.mulliganSelectionActive &&
+    prev.slot.pendingCard === next.slot.pendingCard &&
+    prev.slot.canClick === next.slot.canClick &&
+    areSyllableArraysEqual(prev.slot.playerHand ?? [], next.slot.playerHand ?? []) &&
+    prev.node.key === next.node.key &&
+    prev.node.phase === next.node.phase &&
+    prev.node.entity === next.node.entity &&
+    prev.node.zIndex === next.node.zIndex &&
+    prev.node.canClick === next.node.canClick &&
+    prev.node.selectedCard === next.node.selectedCard &&
+    prev.node.mulliganSelectionActive === next.node.mulliganSelectionActive &&
+    prev.node.pendingCard === next.node.pendingCard &&
+    prev.node.pendingCardRevealDelayMs === next.node.pendingCardRevealDelayMs &&
+    areSyllableArraysEqual(prev.node.playerHand ?? [], next.node.playerHand ?? []) &&
+    prev.node.incomingTarget?.id === next.node.incomingTarget?.id &&
+    prev.node.incomingTarget?.entity === next.node.incomingTarget?.entity &&
+    prev.node.incomingTarget?.delayMs === next.node.incomingTarget?.delayMs &&
+    prev.node.incomingTarget?.durationMs === next.node.incomingTarget?.durationMs &&
+    areZoneSnapshotsEqual(prev.node.incomingTarget?.origin, next.node.incomingTarget?.origin) &&
+    prev.node.outgoingTarget?.id === next.node.outgoingTarget?.id &&
+    prev.node.outgoingTarget?.entity === next.node.outgoingTarget?.entity &&
+    prev.node.outgoingTarget?.delayMs === next.node.outgoingTarget?.delayMs &&
+    prev.node.outgoingTarget?.windupMs === next.node.outgoingTarget?.windupMs &&
+    prev.node.outgoingTarget?.attackMs === next.node.outgoingTarget?.attackMs &&
+    prev.node.outgoingTarget?.pauseMs === next.node.outgoingTarget?.pauseMs &&
+    prev.node.outgoingTarget?.exitMs === next.node.outgoingTarget?.exitMs &&
+    areZoneSnapshotsEqual(prev.node.outgoingTarget?.impactDestination, next.node.outgoingTarget?.impactDestination) &&
+    areZoneSnapshotsEqual(prev.node.outgoingTarget?.destination, next.node.outgoingTarget?.destination),
+);
 
 const buildBattleFieldLaneRenderNodesFromCompatSlot = (
   slot: BattleFieldLaneSlot,

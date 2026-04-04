@@ -43,6 +43,9 @@ export interface VisualTargetEntity {
   target: UITarget;
 }
 
+const areSyllableArraysEqual = (left: Syllable[], right: Syllable[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
 const rarityColor = (rarity: string) => {
   const normalized = normalizeRarity(rarity)
     .normalize("NFD")
@@ -77,7 +80,7 @@ const battleCardSizePresetClass: Record<BattleCardSizePreset, string> = {
   "hand-mobile": "h-[120px] w-[86px]",
 };
 
-export const CardBackCard: React.FC<{
+const CardBackCardComponent: React.FC<{
   floating?: boolean;
   sizePreset?: BattleCardSizePreset;
   visualPresetId?: BattleCardBackPresetId;
@@ -110,6 +113,8 @@ export const CardBackCard: React.FC<{
   );
 };
 
+export const CardBackCard = React.memo(CardBackCardComponent);
+
 interface TargetCardProps {
   target: UITarget;
   selectedCard: Syllable | null;
@@ -122,7 +127,7 @@ interface TargetCardProps {
   fitParent?: boolean;
 }
 
-export const TargetCard: React.FC<TargetCardProps> = ({
+const TargetCardComponent: React.FC<TargetCardProps> = ({
   target,
   selectedCard,
   pendingCard = null,
@@ -293,6 +298,19 @@ export const TargetCard: React.FC<TargetCardProps> = ({
   );
 };
 
+export const TargetCard = React.memo(
+  TargetCardComponent,
+  (prev, next) =>
+    prev.target === next.target &&
+    prev.selectedCard === next.selectedCard &&
+    prev.pendingCard === next.pendingCard &&
+    prev.mulliganSelectionActive === next.mulliganSelectionActive &&
+    prev.isPlayerSide === next.isPlayerSide &&
+    prev.canClick === next.canClick &&
+    prev.fitParent === next.fitParent &&
+    areSyllableArraysEqual(prev.playerHand ?? [], next.playerHand ?? []),
+);
+
 export const CardPile: React.FC<{
   label: string;
   count: number;
@@ -456,7 +474,7 @@ interface SyllableCardProps {
   sizePreset?: BattleCardSizePreset;
 }
 
-export const SyllableCard: React.FC<SyllableCardProps> = ({
+const SyllableCardComponent: React.FC<SyllableCardProps> = ({
   syllable,
   selected,
   playable,
@@ -549,6 +567,21 @@ export const SyllableCard: React.FC<SyllableCardProps> = ({
     </motion.button>
   );
 };
+
+export const SyllableCard = React.memo(
+  SyllableCardComponent,
+  (prev, next) =>
+    prev.syllable === next.syllable &&
+    prev.selected === next.selected &&
+    prev.playable === next.playable &&
+    prev.disabled === next.disabled &&
+    prev.newlyDrawn === next.newlyDrawn &&
+    prev.floating === next.floating &&
+    prev.attentionPulse === next.attentionPulse &&
+    prev.staticDisplay === next.staticDisplay &&
+    prev.style === next.style &&
+    prev.sizePreset === next.sizePreset,
+);
 
 interface PlayerPortraitProps {
   label: string;

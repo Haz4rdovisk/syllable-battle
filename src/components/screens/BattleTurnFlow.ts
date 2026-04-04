@@ -172,14 +172,29 @@ export const useBattleTurnFlow = ({
       return;
     }
 
+    let tickTimer: ReturnType<typeof setTimeout> | null = null;
+
     const updateRemaining = () => {
       setTurnRemainingMs(Math.max(0, game.turnDeadlineAt! - Date.now()));
     };
 
-    updateRemaining();
-    const interval = setInterval(updateRemaining, 200);
+    const scheduleTick = () => {
+      updateRemaining();
+      const remainingMs = Math.max(0, game.turnDeadlineAt! - Date.now());
+      if (remainingMs <= 0) {
+        tickTimer = null;
+        return;
+      }
 
-    return () => clearInterval(interval);
+      const nextTickMs = Math.max(80, remainingMs % 1000 || 1000);
+      tickTimer = setTimeout(scheduleTick, nextTickMs);
+    };
+
+    scheduleTick();
+
+    return () => {
+      if (tickTimer) clearTimeout(tickTimer);
+    };
   }, [game.turn, game.setupVersion, game.turnDeadlineAt, game.winner, introPhase, setTurnRemainingMs, timing.turnLimitMs]);
 
   useEffect(() => {
