@@ -46,7 +46,7 @@
         \"relation\": [\"delegate_permission/common.handle_all_urls\"],
         \"target\": {
             \"namespace\": \"web\",
-            \"site\": \"https://skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app\"
+            \"site\": \"https://syllable-battle.vercel.app\"
         }
     }]
     

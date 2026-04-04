@@ -22,7 +22,7 @@ plugins {
 
 def twaManifest = [
     applicationId: 'com.syllablebattle.deckmaster',
-    hostName: 'skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app', // The domain being opened in the TWA.
+    hostName: 'syllable-battle.vercel.app', // The domain being opened in the TWA.
     launchUrl: '/', // The start path for the TWA. Must be relative to the domain.
     name: 'SpellCast', // The application name.
     launcherName: 'SpellCast', // The name shown on the Android Launcher.
@@ -76,12 +76,12 @@ android {
             // The URL the Web Manifest for the Progressive Web App that the TWA points to. This
             // is used by Chrome OS and Meta Quest to open the Web version of the PWA instead of
             // the TWA, as it will probably give a better user experience for non-mobile devices.
-            resValue "string", "webManifestUrl", 'https://skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app/manifest.webmanifest'
+            resValue "string", "webManifestUrl", 'https://syllable-battle.vercel.app/manifest.webmanifest'
         
 
         
             // This is used by Meta Quest.
-            resValue "string", "fullScopeUrl", 'https://skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app/'
+            resValue "string", "fullScopeUrl", 'https://syllable-battle.vercel.app/'
         
 
         

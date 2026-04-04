@@ -1,6 +1,6 @@
 {
   "packageId": "com.syllablebattle.deckmaster",
-  "host": "skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app",
+  "host": "syllable-battle.vercel.app",
   "name": "SpellCast",
   "launcherName": "SpellCast",
   "display": "fullscreen-sticky",
@@ -13,8 +13,8 @@
   "backgroundColor": "#1A1A1A",
   "enableNotifications": false,
   "startUrl": "/",
-  "iconUrl": "https://skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app/icons/icon-512.png",
-  "maskableIconUrl": "https://skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app/icons/icon-maskable-512.png",
+  "iconUrl": "https://syllable-battle.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://syllable-battle.vercel.app/icons/icon-maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./syllable-battle-upload-key.jks",
@@ -24,7 +24,7 @@
   "appVersionCode": 1,
   "shortcuts": [],
   "generatorApp": "@bubblewrap/core",
-  "webManifestUrl": "https://skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app/manifest.webmanifest",
+  "webManifestUrl": "https://syllable-battle.vercel.app/manifest.webmanifest",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -33,7 +33,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://skill-deploy-8gxqm6w7v5-codex-agent-deploys.vercel.app/",
+  "fullScopeUrl": "https://syllable-battle.vercel.app/",
   "minSdkVersion": 21,
   "orientation": "landscape",
   "fingerprints": [],
