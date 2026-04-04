@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.syllablebattle.deckmaster",
+      "sha256_cert_fingerprints": [
+        "78:B8:21:2C:B8:49:34:64:F6:1F:C9:FC:76:99:B0:3F:4A:09:F5:E7:73:F5:00:B8:76:74:89:F7:2A:C6:CA:9C"
+      ]
+    }
+  }
+]

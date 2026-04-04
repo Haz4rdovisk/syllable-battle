@@ -24,6 +24,7 @@ import type { RawDeckCatalogEntry } from './src/data/content/decks';
 const APP_THEME_COLOR = '#1a1a1a';
 const APP_NAME = 'SpellCast';
 const APP_SHORT_NAME = 'SpellCast';
+const WELL_KNOWN_SOURCE_DIR = path.resolve(__dirname, 'public', '.well-known');
 
 const isPathInsideDirectory = (directoryPath: string, candidatePath: string) => {
   const relativePath = path.relative(directoryPath, candidatePath);
@@ -42,6 +43,18 @@ const writeTextFileSafely = async (targetPath: string, contents: string) => {
       await fs.rm(tempPath, { force: true });
     },
   };
+};
+
+const copyWellKnownAssets = async (outputDirectory: string) => {
+  try {
+    await fs.access(WELL_KNOWN_SOURCE_DIR);
+  } catch {
+    return;
+  }
+
+  const destinationDirectory = path.resolve(outputDirectory, '.well-known');
+  await fs.mkdir(destinationDirectory, { recursive: true });
+  await fs.cp(WELL_KNOWN_SOURCE_DIR, destinationDirectory, { recursive: true });
 };
 
 export default defineConfig(({ mode }) => {
@@ -84,7 +97,7 @@ export default defineConfig(({ mode }) => {
           scope: '/',
           display: 'fullscreen',
           display_override: ['fullscreen', 'standalone'],
-          orientation: 'landscape',
+          orientation: 'landscape-primary',
           background_color: APP_THEME_COLOR,
           theme_color: APP_THEME_COLOR,
           lang: 'pt-BR',
@@ -395,6 +408,13 @@ export default defineConfig(({ mode }) => {
               );
             }
           });
+        },
+      },
+      {
+        name: 'copy-well-known-assets',
+        apply: 'build',
+        async closeBundle() {
+          await copyWellKnownAssets(path.resolve(__dirname, 'dist'));
         },
       },
     ],

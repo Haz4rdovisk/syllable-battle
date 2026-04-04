@@ -16,10 +16,15 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: only light;
+  }
+
   html, body, #root {
     height: 100dvh;
     margin: 0;
     padding: 0;
+    forced-color-adjust: none;
     overflow: hidden;
     position: fixed;
     width: 100%;
@@ -27,6 +32,8 @@
 
   body {
     @apply bg-[#1a1a1a] text-slate-200 antialiased;
+    color: #e2e8f0;
+    background-color: #1a1a1a;
     background-image: radial-gradient(circle at center, #2c1e1a 0%, #1a1a1a 100%);
     touch-action: none;
     overscroll-behavior: none;
