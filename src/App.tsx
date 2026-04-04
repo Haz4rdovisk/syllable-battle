@@ -189,6 +189,15 @@ export default function App() {
     }
   };
 
+  const handleOpenCollection = () => {
+    setMode("bot");
+    setPlayerDeckId(null);
+    setEnemyBattleDeckId(null);
+    setSoloDeckStep("player");
+    setScreen("deck-selection");
+    setIsPreparingBattle(false);
+  };
+
   const handleBattleActionRequested = (action: BattleSubmittedAction) => {
     activeRoomSession?.submitAction(action);
   };
@@ -311,7 +320,12 @@ export default function App() {
               exit={{ opacity: 0, scale: 1.05 }}
               transition={{ duration: 0.3 }}
             >
-              <Menu onSelectMode={handleSelectMode} profile={playerProfile} onEditProfile={() => setIsEditingProfile(true)} />
+              <Menu
+                onSelectMode={handleSelectMode}
+                onOpenCollection={handleOpenCollection}
+                profile={playerProfile}
+                onEditProfile={() => setIsEditingProfile(true)}
+              />
             </motion.div>
           )}
 

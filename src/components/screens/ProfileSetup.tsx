@@ -119,9 +119,14 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({
             <Button
               onClick={() => canSave && onSave({ name: trimmedName, avatar })}
               disabled={!canSave}
-              className="h-14 rounded-[2rem] border-4 border-[#d4af37] bg-gradient-to-br from-[#2e7d32] to-[#1b5e20] px-8 font-serif text-lg font-black text-emerald-50 shadow-[0_16px_32px_rgba(0,0,0,0.28)] transition-all hover:from-[#388e3c] hover:to-[#2e7d32] disabled:cursor-not-allowed disabled:opacity-60 sm:h-[3.8rem] sm:text-xl"
+              className="group relative h-14 overflow-hidden rounded-[1.25rem] border-[3px] border-[#1f7a46] bg-[#2f9a56] px-8 font-serif text-lg font-black text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] transition-all duration-150 ease-out hover:-translate-y-1 hover:bg-[#35a55d] hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] active:translate-y-[4px] active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:bg-[#2f9a56] disabled:hover:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] disabled:active:translate-y-0 sm:h-[3.9rem] sm:text-xl"
             >
-              {isEditing ? "SALVAR PERFIL" : "ENTRAR NA TAVERNA"}
+              <span className="pointer-events-none absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-15 mix-blend-soft-light" />
+              <span className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22" />
+              <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[0.95rem] border border-white/16" />
+              <span className="relative z-10">
+                {isEditing ? "SALVAR PERFIL" : "ENTRAR NA TAVERNA"}
+              </span>
             </Button>
           </div>
         </div>
