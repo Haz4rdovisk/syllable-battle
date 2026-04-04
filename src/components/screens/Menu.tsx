@@ -285,7 +285,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
               </motion.div>
             </div>
 
-            <div className="rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-8.5 [@media(pointer:coarse)_and_(max-height:480px)]:mx-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-auto [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.3rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-2.75 [@media(pointer:coarse)_and_(max-height:480px)]:pt-2.75 [@media(pointer:coarse)_and_(max-height:480px)]:pb-4.25 lg:ml-[20px] sm:p-5">
+            <div className="rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:mt-4.5 [@media(pointer:coarse)_and_(max-height:480px)]:mx-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-auto [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.3rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-2.75 [@media(pointer:coarse)_and_(max-height:480px)]:pt-2.75 [@media(pointer:coarse)_and_(max-height:480px)]:pb-4.25 lg:ml-[20px] sm:p-5">
               <div className="grid gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-x-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-y-3.5 sm:grid-cols-2">
                 <CabinetButton
                   label="Jogar Solo"
