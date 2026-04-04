@@ -1,0 +1,48 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(172 146) rotate(47.49) scale(410.657)">
+      <stop stop-color="#4A2E28" />
+      <stop offset="0.52" stop-color="#1A1A1A" />
+      <stop offset="1" stop-color="#0F2318" />
+    </radialGradient>
+    <linearGradient id="gold" x1="132" y1="108" x2="380" y2="404" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE7B0" />
+      <stop offset="1" stop-color="#B9771E" />
+    </linearGradient>
+    <linearGradient id="emerald" x1="256" y1="156" x2="256" y2="356" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#62DEAA" />
+      <stop offset="1" stop-color="#16533D" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="160" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="176" fill="#1B1513" stroke="url(#gold)" stroke-width="16" />
+  <path
+    d="M256 136L356 178V275C356 338 317 388 256 416C195 388 156 338 156 275V178L256 136Z"
+    fill="url(#emerald)"
+    stroke="url(#gold)"
+    stroke-width="18"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M210 216C210 197 225 182 244 182H268C287 182 302 197 302 216V221C302 235 294 247 281 254C299 261 310 277 310 296V300C310 326 289 347 263 347H226"
+    stroke="#F9E6A9"
+    stroke-width="22"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M206 259H270C293 259 312 278 312 301V301C312 324 293 343 270 343H206"
+    stroke="#F9E6A9"
+    stroke-width="22"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M188 179L328 349"
+    stroke="#FFE39A"
+    stroke-width="10"
+    stroke-linecap="round"
+    opacity="0.4"
+  />
+</svg>

@@ -8,3 +8,12 @@ coverage/
 !.env.example
 .codex/
 artifacts/
+.npm-cache/
+android-twa/.gradle/
+android-twa/.gradle-home/
+android-twa/build/
+android-twa/app/build/
+android-twa/.gradle/
+android-twa/local.properties
+android-twa/*.jks
+android-twa/*.keystore

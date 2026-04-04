@@ -1,0 +1,65 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="84" y1="52" x2="428" y2="460" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3E2723" />
+      <stop offset="0.55" stop-color="#1A1A1A" />
+      <stop offset="1" stop-color="#10241A" />
+    </linearGradient>
+    <linearGradient id="gold" x1="120" y1="96" x2="392" y2="416" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE39A" />
+      <stop offset="1" stop-color="#C68722" />
+    </linearGradient>
+    <linearGradient id="emerald" x1="256" y1="132" x2="256" y2="380" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#53D19D" />
+      <stop offset="1" stop-color="#144F3A" />
+    </linearGradient>
+    <filter id="shadow" x="44" y="44" width="424" height="424" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="120" fill="url(#bg)" />
+  <rect x="32" y="32" width="448" height="448" rx="104" stroke="url(#gold)" stroke-width="12" opacity="0.75" />
+
+  <g filter="url(#shadow)">
+    <path
+      d="M256 92L376 142V258C376 334 329 395 256 428C183 395 136 334 136 258V142L256 92Z"
+      fill="#271714"
+      stroke="url(#gold)"
+      stroke-width="18"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M256 126L344 163V252C344 310 309 359 256 388C203 359 168 310 168 252V163L256 126Z"
+      fill="url(#emerald)"
+    />
+    <path
+      d="M206 208C206 188 222 172 242 172H270C290 172 306 188 306 208V216C306 230 298 242 286 248C303 255 314 271 314 289V296C314 323 292 345 265 345H230"
+      stroke="#F9E6A9"
+      stroke-width="24"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M230 172H264C291 172 313 194 313 221V229C313 248 302 264 286 272"
+      stroke="#6C2C1F"
+      stroke-opacity="0.35"
+      stroke-width="10"
+      stroke-linecap="round"
+    />
+    <path
+      d="M210 256H272C296 256 316 276 316 300V300C316 324 296 344 272 344H210"
+      stroke="#F9E6A9"
+      stroke-width="24"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M178 158L334 352"
+      stroke="#FFE39A"
+      stroke-width="10"
+      stroke-linecap="round"
+      opacity="0.4"
+    />
+  </g>
+</svg>

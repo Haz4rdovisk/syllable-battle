@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 import packageJson from './package.json';
 import { createBattleLayoutPresetSource } from './src/components/screens/BattleLayoutConfig';
 import {
@@ -19,6 +20,10 @@ import { getRawDeckCatalogEntry, rawDeckCatalogEntries } from './src/data/conten
 import { rawTargetCatalog } from './src/data/content/targets';
 import type { RawDeckDefinition, RawTargetDefinition } from './src/data/content/types';
 import type { RawDeckCatalogEntry } from './src/data/content/decks';
+
+const APP_THEME_COLOR = '#1a1a1a';
+const APP_NAME = 'SpellCast';
+const APP_SHORT_NAME = 'SpellCast';
 
 const isPathInsideDirectory = (directoryPath: string, candidatePath: string) => {
   const relativePath = path.relative(directoryPath, candidatePath);
@@ -56,6 +61,70 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: false,
+        manifestFilename: 'manifest.webmanifest',
+        includeAssets: [
+          'icons/icon-192.png',
+          'icons/icon-512.png',
+          'icons/icon-maskable-192.png',
+          'icons/icon-maskable-512.png',
+          'icons/apple-touch-icon.png',
+          'icons/icon.svg',
+          'icons/icon-maskable.svg',
+        ],
+        manifest: {
+          id: '/',
+          name: APP_NAME,
+          short_name: APP_SHORT_NAME,
+          description:
+            'Card game fantasy em landscape com duelos, decks tematicos e multiplayer remoto.',
+          start_url: '/',
+          scope: '/',
+          display: 'fullscreen',
+          display_override: ['fullscreen', 'standalone'],
+          orientation: 'landscape',
+          background_color: APP_THEME_COLOR,
+          theme_color: APP_THEME_COLOR,
+          lang: 'pt-BR',
+          categories: ['games', 'entertainment'],
+          icons: [
+            {
+              src: '/icons/icon-192.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: '/icons/icon-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: '/icons/icon-maskable-192.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+            {
+              src: '/icons/icon-maskable-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+          ],
+        },
+        workbox: {
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          navigateFallback: 'index.html',
+          skipWaiting: true,
+        },
+      }),
       {
         name: 'battle-layout-preset-writer',
         configureServer(server) {

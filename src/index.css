@@ -29,6 +29,7 @@
     @apply bg-[#1a1a1a] text-slate-200 antialiased;
     background-image: radial-gradient(circle at center, #2c1e1a 0%, #1a1a1a 100%);
     touch-action: none;
+    overscroll-behavior: none;
   }
 
   h1, h2, h3, .font-fantasy {
