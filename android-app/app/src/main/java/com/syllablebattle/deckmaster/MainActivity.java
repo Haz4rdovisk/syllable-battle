@@ -41,7 +41,12 @@ import androidx.webkit.WebViewFeature;
 public class MainActivity extends AppCompatActivity {
     private static final String APP_VERSION_PATH = "app-version.json";
     private static final long MIN_LOADING_DURATION_MS = 2500L;
+    private static final String NATIVE_APP_SHELL_PARAM = "app_shell";
+    private static final String NATIVE_APP_SHELL_VALUE = "android-webview";
+    private static final String NATIVE_LOADING_PARAM = "native_loading";
     private static final String WEBVIEW_REFRESH_PARAM = "wv_refresh";
+    private static final long WEB_ENTRANCE_READY_POLL_MS = 60L;
+    private static final int MAX_WEB_ENTRANCE_READY_ATTEMPTS = 15;
     private static final int MAX_VERSION_SYNC_ATTEMPTS = 2;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -358,7 +363,7 @@ public class MainActivity extends AppCompatActivity {
         long elapsed = SystemClock.elapsedRealtime() - loadingVisibleSinceMs;
         long remaining = MIN_LOADING_DURATION_MS - elapsed;
         if (remaining <= 0L) {
-            loadingOverlay.setVisibility(View.GONE);
+            waitForWebEntranceReadyAndDismiss(0);
             return;
         }
 
@@ -367,12 +372,55 @@ public class MainActivity extends AppCompatActivity {
         }
 
         pendingHideOverlay = () -> {
-            if (loadingOverlay != null) {
-                loadingOverlay.setVisibility(View.GONE);
-            }
+            waitForWebEntranceReadyAndDismiss(0);
             pendingHideOverlay = null;
         };
         mainHandler.postDelayed(pendingHideOverlay, remaining);
+    }
+
+    private void waitForWebEntranceReadyAndDismiss(int attemptCount) {
+        if (loadingOverlay == null || webView == null) {
+            return;
+        }
+
+        webView.evaluateJavascript(
+                "(function(){return !!window.__SPELLCAST_MENU_TITLE_READY__;})();",
+                value -> {
+                    boolean webEntranceReady = "true".equalsIgnoreCase(normalizeJavascriptResult(value));
+                    if (webEntranceReady || attemptCount >= MAX_WEB_ENTRANCE_READY_ATTEMPTS) {
+                        dismissLoadingOverlayAndReleaseWeb();
+                        return;
+                    }
+
+                    mainHandler.postDelayed(
+                            () -> waitForWebEntranceReadyAndDismiss(attemptCount + 1),
+                            WEB_ENTRANCE_READY_POLL_MS
+                    );
+                }
+        );
+    }
+
+    private void dismissLoadingOverlayAndReleaseWeb() {
+        if (loadingOverlay == null) {
+            notifyWebLoadingFinished();
+            return;
+        }
+
+        loadingOverlay.setVisibility(View.GONE);
+        webView.postOnAnimation(() ->
+                webView.postOnAnimation(this::notifyWebLoadingFinished)
+        );
+    }
+
+    private void notifyWebLoadingFinished() {
+        if (webView == null) {
+            return;
+        }
+
+        webView.evaluateJavascript(
+                "(function(){window.__SPELLCAST_NATIVE_LOADING_PENDING__=false;window.dispatchEvent(new CustomEvent('spellcast:native-loading-finished',{detail:{scope:'initial'}}));})();",
+                null
+        );
     }
 
     private String buildVersionUrl() {
@@ -383,6 +431,8 @@ public class MainActivity extends AppCompatActivity {
     private String buildLaunchUrl() {
         Uri baseUri = Uri.parse(remoteWebUrl);
         return baseUri.buildUpon()
+                .appendQueryParameter(NATIVE_APP_SHELL_PARAM, NATIVE_APP_SHELL_VALUE)
+                .appendQueryParameter(NATIVE_LOADING_PARAM, "1")
                 .appendQueryParameter(WEBVIEW_REFRESH_PARAM, String.valueOf(System.currentTimeMillis()))
                 .build()
                 .toString();

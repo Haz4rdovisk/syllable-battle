@@ -208,9 +208,52 @@ const BinderRings: React.FC = () => {
   );
 };
 
+const SPELLCAST_NATIVE_LOADING_FINISHED_EVENT = "spellcast:native-loading-finished";
+
 export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, profile, onEditProfile }) => {
   const displayName = normalizePlayerName(profile.name);
   const buildLabel = (__APP_BUILD__ || "local").slice(0, 7).toUpperCase();
+  const [canPlayTitleEntrance, setCanPlayTitleEntrance] = React.useState(
+    () => window.__SPELLCAST_NATIVE_LOADING_PENDING__ !== true,
+  );
+
+  React.useEffect(() => {
+    const isNativeApp = window.__SPELLCAST_NATIVE_APP__ === true;
+    const isLoadingPending = window.__SPELLCAST_NATIVE_LOADING_PENDING__ === true;
+    let firstAnimationFrameId = 0;
+    let secondAnimationFrameId = 0;
+
+    if (!isNativeApp || !isLoadingPending) {
+      window.__SPELLCAST_MENU_TITLE_READY__ = false;
+      setCanPlayTitleEntrance(true);
+      return;
+    }
+
+    const handleNativeLoadingFinished = () => {
+      window.__SPELLCAST_NATIVE_LOADING_PENDING__ = false;
+      document.documentElement.setAttribute('data-native-loading-pending', 'false');
+      firstAnimationFrameId = window.requestAnimationFrame(() => {
+        secondAnimationFrameId = window.requestAnimationFrame(() => {
+          setCanPlayTitleEntrance(true);
+        });
+      });
+    };
+
+    window.addEventListener(SPELLCAST_NATIVE_LOADING_FINISHED_EVENT, handleNativeLoadingFinished);
+    window.__SPELLCAST_MENU_TITLE_READY__ = true;
+
+    return () => {
+      if (firstAnimationFrameId !== 0) {
+        window.cancelAnimationFrame(firstAnimationFrameId);
+      }
+      if (secondAnimationFrameId !== 0) {
+        window.cancelAnimationFrame(secondAnimationFrameId);
+      }
+      window.removeEventListener(SPELLCAST_NATIVE_LOADING_FINISHED_EVENT, handleNativeLoadingFinished);
+      window.__SPELLCAST_MENU_TITLE_READY__ = false;
+    };
+  }, []);
+
   const soloButton = (
     <CabinetButton
       label="Jogar Solo"
@@ -304,22 +347,25 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
               <div className="relative z-0 flex w-full justify-center overflow-visible">
                 <div className="relative h-[8rem] w-[52rem] max-w-none [@media(pointer:coarse)_and_(max-height:480px)]:h-[5.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[41rem] sm:h-[9.4rem] sm:w-[62rem] lg:h-[10.5rem] lg:w-[78rem]">
                   <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2">
-                    <motion.div
-                      initial={{ scale: 0.8, rotate: -5 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ type: "spring", stiffness: 100 }}
-                      className="relative top-[1.95rem] flex translate-x-[0.15rem] flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:top-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:translate-x-[0.05rem] sm:top-[2.2rem] sm:translate-x-[0.45rem] lg:top-[2.55rem] lg:translate-x-[0.75rem]"
-                    >
-                      <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
-                      <motion.img
-                        src={titleLogo}
-                        alt="Syllable Battle"
-                        initial={{ opacity: 0, y: -18 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
-                        className="relative h-auto w-full max-w-none origin-center scale-[1.48] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[1.4] drop-shadow-[0_0_18px_rgba(238,196,94,0.18)]"
-                      />
-                    </motion.div>
+                    {canPlayTitleEntrance ? (
+                      <motion.div
+                        key="title-entrance-ready"
+                        initial={{ scale: 0.8, rotate: -5 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", stiffness: 100 }}
+                        className="relative top-[1.95rem] flex translate-x-[0.15rem] flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:top-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:translate-x-[0.05rem] sm:top-[2.2rem] sm:translate-x-[0.45rem] lg:top-[2.55rem] lg:translate-x-[0.75rem]"
+                      >
+                        <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
+                        <motion.img
+                          src={titleLogo}
+                          alt="Syllable Battle"
+                          initial={{ opacity: 0, y: -18 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
+                          className="relative h-auto w-full max-w-none origin-center scale-[1.48] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[1.4] drop-shadow-[0_0_18px_rgba(238,196,94,0.18)]"
+                        />
+                      </motion.div>
+                    ) : null}
                   </div>
                 </div>
               </div>
