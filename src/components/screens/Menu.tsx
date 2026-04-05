@@ -221,7 +221,6 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
     const isNativeApp = window.__SPELLCAST_NATIVE_APP__ === true;
     const isLoadingPending = window.__SPELLCAST_NATIVE_LOADING_PENDING__ === true;
     let firstAnimationFrameId = 0;
-    let secondAnimationFrameId = 0;
 
     if (!isNativeApp || !isLoadingPending) {
       window.__SPELLCAST_MENU_TITLE_READY__ = false;
@@ -233,9 +232,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
       window.__SPELLCAST_NATIVE_LOADING_PENDING__ = false;
       document.documentElement.setAttribute('data-native-loading-pending', 'false');
       firstAnimationFrameId = window.requestAnimationFrame(() => {
-        secondAnimationFrameId = window.requestAnimationFrame(() => {
-          setCanPlayTitleEntrance(true);
-        });
+        setCanPlayTitleEntrance(true);
       });
     };
 
@@ -245,9 +242,6 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
     return () => {
       if (firstAnimationFrameId !== 0) {
         window.cancelAnimationFrame(firstAnimationFrameId);
-      }
-      if (secondAnimationFrameId !== 0) {
-        window.cancelAnimationFrame(secondAnimationFrameId);
       }
       window.removeEventListener(SPELLCAST_NATIVE_LOADING_FINISHED_EVENT, handleNativeLoadingFinished);
       window.__SPELLCAST_MENU_TITLE_READY__ = false;

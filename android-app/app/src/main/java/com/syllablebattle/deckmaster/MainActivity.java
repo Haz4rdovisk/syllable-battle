@@ -407,9 +407,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         loadingOverlay.setVisibility(View.GONE);
-        webView.postOnAnimation(() ->
-                webView.postOnAnimation(this::notifyWebLoadingFinished)
-        );
+        webView.postOnAnimation(this::notifyWebLoadingFinished);
     }
 
     private void notifyWebLoadingFinished() {
