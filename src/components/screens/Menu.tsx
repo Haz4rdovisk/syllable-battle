@@ -252,7 +252,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative flex h-full w-full items-center justify-center overflow-y-auto bg-[#ece3d3] p-3 text-[#31271e] no-scrollbar [@media(pointer:coarse)_and_(max-height:480px)]:items-start [@media(pointer:coarse)_and_(max-height:480px)]:p-1.5 sm:p-5"
+      className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#ece3d3] p-3 text-[#31271e] no-scrollbar [@media(pointer:coarse)_and_(max-height:480px)]:items-start [@media(pointer:coarse)_and_(max-height:480px)]:p-1.5 sm:p-5"
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#ece3d3]" />
@@ -267,14 +267,14 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
       <div className="relative z-10 w-full max-w-[68rem]">
         <BinderRings />
 
-        <div className="paper-panel relative z-10 overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-4 py-5 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:min-h-[calc(100dvh-10px)] [@media(pointer:coarse)_and_(max-height:480px)]:px-2.25 [@media(pointer:coarse)_and_(max-height:480px)]:py-2.5 sm:px-7 sm:py-7">
+        <div className="paper-panel relative z-10 overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-4 py-5 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[calc(100dvh-10px)] [@media(pointer:coarse)_and_(max-height:480px)]:min-h-0 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-2 sm:px-7 sm:py-7">
           <div className="absolute inset-0 bg-white/28" />
           <div className="absolute inset-y-[14px] left-[14px] right-[14px] rounded-[1.4rem] border border-[#d9c8a9] [@media(pointer:coarse)_and_(max-height:480px)]:top-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1rem] lg:left-[38px] lg:rounded-[1.6rem]" />
           <div className="pointer-events-none absolute bottom-[18px] left-[12px] right-[12px] top-[18px] rounded-[1.25rem] border border-white/32 [@media(pointer:coarse)_and_(max-height:480px)]:top-[11px] [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[14px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[6px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[6px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] lg:left-[34px] lg:right-[22px] lg:rounded-[1.45rem]" />
 
-          <div className="relative flex flex-col gap-6 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5">
-            <div className="flex flex-col items-center text-center">
-              <div className="relative z-20 flex w-full items-center justify-between gap-4 px-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-[0.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:pt-[0.6rem] lg:pl-[20px] lg:pr-0">
+          <div className="relative flex flex-col gap-6 [@media(pointer:coarse)_and_(max-height:480px)]:h-full [@media(pointer:coarse)_and_(max-height:480px)]:gap-0">
+            <div className="flex flex-col items-center text-center [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+              <div className="relative z-20 flex w-full items-center justify-between gap-4 px-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-[0.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:pt-[0.4rem] lg:pl-[20px] lg:pr-0">
                 <div className="flex items-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 text-left">
                   <span className="flex h-[5.2rem] w-[5.2rem] items-center justify-center rounded-[1.8rem] border-2 border-[#efcf78] bg-[#f7eac5] text-[2.6rem] shadow-[0_14px_24px_rgba(0,0,0,0.08)] transition-transform group-hover:-translate-y-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-[3.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[3.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.1rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.7rem] sm:h-[5.8rem] sm:w-[5.8rem] sm:text-[3rem]">
                     {profile.avatar}
@@ -302,13 +302,13 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
               </div>
 
               <div className="relative z-0 flex w-full justify-center overflow-visible">
-                <div className="relative h-[8rem] w-[52rem] max-w-none [@media(pointer:coarse)_and_(max-height:480px)]:h-[6.25rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[43rem] sm:h-[9.4rem] sm:w-[62rem] lg:h-[10.5rem] lg:w-[78rem]">
+                <div className="relative h-[8rem] w-[52rem] max-w-none [@media(pointer:coarse)_and_(max-height:480px)]:h-[5.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[41rem] sm:h-[9.4rem] sm:w-[62rem] lg:h-[10.5rem] lg:w-[78rem]">
                   <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2">
                     <motion.div
                       initial={{ scale: 0.8, rotate: -5 }}
                       animate={{ scale: 1, rotate: 0 }}
                       transition={{ type: "spring", stiffness: 100 }}
-                      className="relative top-[1.95rem] flex translate-x-[0.15rem] flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:top-[1.3rem] [@media(pointer:coarse)_and_(max-height:480px)]:translate-x-[0.05rem] sm:top-[2.2rem] sm:translate-x-[0.45rem] lg:top-[2.55rem] lg:translate-x-[0.75rem]"
+                      className="relative top-[1.95rem] flex translate-x-[0.15rem] flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:top-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:translate-x-[0.05rem] sm:top-[2.2rem] sm:translate-x-[0.45rem] lg:top-[2.55rem] lg:translate-x-[0.75rem]"
                     >
                       <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
                       <motion.img
@@ -317,7 +317,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
                         initial={{ opacity: 0, y: -18 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
-                        className="relative h-auto w-full max-w-none origin-center scale-[1.48] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[1.52] drop-shadow-[0_0_18px_rgba(238,196,94,0.18)]"
+                        className="relative h-auto w-full max-w-none origin-center scale-[1.48] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[1.4] drop-shadow-[0_0_18px_rgba(238,196,94,0.18)]"
                       />
                     </motion.div>
                   </div>
@@ -325,16 +325,16 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
               </div>
             </div>
 
-            <div className="relative z-20 mt-[5rem] [@media(pointer:coarse)_and_(max-height:480px)]:mt-[2.35rem] [@media(pointer:coarse)_and_(max-height:480px)]:mx-[5.5rem] lg:ml-[20px]">
+            <div className="relative z-20 mt-[5rem] [@media(pointer:coarse)_and_(max-height:480px)]:absolute [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:left-[5.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:right-[5.5rem] lg:ml-[20px]">
               <div className="grid items-stretch gap-y-4 gap-x-[3.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:gap-x-[42px] [@media(pointer:coarse)_and_(max-height:480px)]:gap-y-3 sm:grid-cols-2">
-                <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.7rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
-                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-3 sm:gap-3.5">
+                <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.8rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
+                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5 sm:gap-3.5">
                     {soloButton}
                     {collectionButton}
                   </div>
                 </div>
-                <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.7rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
-                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-3 sm:gap-3.5">
+                <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.8rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
+                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5 sm:gap-3.5">
                     {onlineButton}
                     {packsButton}
                   </div>
