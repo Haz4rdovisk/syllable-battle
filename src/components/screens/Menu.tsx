@@ -328,13 +328,13 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
             <div className="relative z-20 mt-[5rem] [@media(pointer:coarse)_and_(max-height:480px)]:absolute [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:left-[5.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:right-[5.5rem] lg:ml-[20px]">
               <div className="grid items-stretch gap-y-4 gap-x-[3.8rem] [@media(pointer:coarse)_and_(max-height:480px)]:gap-x-[42px] [@media(pointer:coarse)_and_(max-height:480px)]:gap-y-3 sm:grid-cols-2">
                 <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.8rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
-                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5 sm:gap-3.5">
+                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-3.5 sm:gap-3.5">
                     {soloButton}
                     {collectionButton}
                   </div>
                 </div>
                 <div className="flex min-h-full flex-col rounded-[1.9rem] border border-[#d8c9b0] bg-white/36 px-3 pt-3 pb-[1.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.25 [@media(pointer:coarse)_and_(max-height:480px)]:pb-[0.8rem] sm:px-2.5 sm:pt-2.5 sm:pb-[1rem]">
-                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2.5 sm:gap-3.5">
+                  <div className="flex h-full flex-col justify-center gap-4 [@media(pointer:coarse)_and_(max-height:480px)]:gap-3.5 sm:gap-3.5">
                     {onlineButton}
                     {packsButton}
                   </div>
