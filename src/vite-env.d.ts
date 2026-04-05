@@ -3,6 +3,7 @@
 declare const __APP_BUILD__: string;
 
 interface Window {
+  __SPELLCAST_BUILD__?: string;
   __battleDev?: {
     snapshot: () => unknown;
     logSnapshot: () => void;

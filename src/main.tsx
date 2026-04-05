@@ -37,6 +37,9 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+window.__SPELLCAST_BUILD__ = __APP_BUILD__;
+document.documentElement.setAttribute('data-app-build', __APP_BUILD__);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

@@ -1,3 +1,17 @@
 <resources>
     <color name="spellcast_black">#FF000000</color>
+    <color name="spellcast_loading_backdrop">#FF1A1A1A</color>
+    <color name="spellcast_loading_backdrop_glow">#FF2C1E1A</color>
+    <color name="spellcast_loading_back_panel">#FFE4DED2</color>
+    <color name="spellcast_loading_panel">#FFF0E9DD</color>
+    <color name="spellcast_loading_panel_inner">#FFF0E9DD</color>
+    <color name="spellcast_loading_panel_border">#FFD1CBC0</color>
+    <color name="spellcast_loading_panel_inner_border">#FFD2C5AB</color>
+    <color name="spellcast_loading_panel_shadow">#40281A10</color>
+    <color name="spellcast_loading_gold">#FFEFCF78</color>
+    <color name="spellcast_loading_gold_dark">#FFB77912</color>
+    <color name="spellcast_loading_title">#FF5B2408</color>
+    <color name="spellcast_loading_text">#FF6B5A47</color>
+    <color name="spellcast_loading_badge">#FFF7EAC5</color>
+    <color name="spellcast_loading_badge_text">#FFA96E43</color>
 </resources>

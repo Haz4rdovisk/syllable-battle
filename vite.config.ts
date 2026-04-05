@@ -47,6 +47,13 @@ export default defineConfig(({ mode }) => {
     process.env.RENDER_GIT_COMMIT ||
     env.RENDER_GIT_COMMIT ||
     packageJson.version;
+  const appVersionPayload = JSON.stringify(
+    {
+      build: buildCommit,
+    },
+    null,
+    2,
+  );
   const battleLayoutPresetPath = path.resolve(
     __dirname,
     'src/components/screens/BattleLayoutPreset.ts',
@@ -325,6 +332,23 @@ export default defineConfig(({ mode }) => {
                 }),
               );
             }
+          });
+        },
+      },
+      {
+        name: 'spellcast-app-version',
+        configureServer(server) {
+          server.middlewares.use('/app-version.json', (_req, res) => {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-store, max-age=0');
+            res.end(appVersionPayload);
+          });
+        },
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'app-version.json',
+            source: appVersionPayload,
           });
         },
       },
