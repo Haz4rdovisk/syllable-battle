@@ -59,6 +59,8 @@ Ao final, voce tera uma URL parecida com:
 
 `https://syllable-battle.vercel.app`
 
+Esta URL tambem e a origem remota carregada pelo app Android em `WebView`.
+
 ## 3. Como testar entre 2 PCs
 
 1. Abra o link do frontend nos 2 PCs.
@@ -74,6 +76,7 @@ Ao final, voce tera uma URL parecida com:
 - A Render gratuita pode "dormir" depois de um tempo sem uso.
 - O primeiro acesso ao relay pode demorar um pouco quando ele estiver acordando.
 - Para jogo casual isso costuma ser aceitavel, mas o primeiro login/sala pode ficar lento.
+- O app Android `WebView` usa a URL hospedada do frontend, entao atualizacoes web entram no app sem novo APK enquanto a estrutura nativa nao mudar.
 
 ## Fluxo local sem deploy
 

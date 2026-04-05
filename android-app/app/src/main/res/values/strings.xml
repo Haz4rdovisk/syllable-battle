@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">SpellCast</string>
+    <string name="remote_web_url">https://syllable-battle.vercel.app/</string>
+    <string name="remote_web_host">syllable-battle.vercel.app</string>
+</resources>

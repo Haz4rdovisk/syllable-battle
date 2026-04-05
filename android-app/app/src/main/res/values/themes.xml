@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.SpellCast" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/spellcast_black</item>
+        <item name="android:statusBarColor">@color/spellcast_black</item>
+        <item name="android:navigationBarColor">@color/spellcast_black</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>
