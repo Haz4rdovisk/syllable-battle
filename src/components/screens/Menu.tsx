@@ -16,32 +16,47 @@ interface CabinetButtonProps {
   detail: string;
   icon: React.ReactNode;
   tone: "solo" | "online" | "collection" | "packs";
-  onClick?: () => void;
+  pressed?: boolean;
+  onActivate?: React.MouseEventHandler<HTMLButtonElement>;
+  onPressStart?: React.PointerEventHandler<HTMLButtonElement>;
+  onPressEnd?: React.PointerEventHandler<HTMLButtonElement>;
+  onPressCancel?: React.PointerEventHandler<HTMLButtonElement>;
   disabled?: boolean;
 }
 
-const cabinetToneClassName: Record<CabinetButtonProps["tone"], { frame: string; icon: string; badge: string }> = {
+const cabinetToneClassName: Record<
+  CabinetButtonProps["tone"],
+  { frame: string; pressed: string; icon: string; badge: string }
+> = {
   solo: {
     frame:
-      "border-[#b77912] bg-[#d9a22b] text-[#fff8e8] shadow-[0_7px_0_#8f5f12,0_20px_28px_rgba(88,52,8,0.24)] hover:bg-[#e0ac37] hover:shadow-[0_10px_0_#8f5f12,0_24px_34px_rgba(88,52,8,0.28)] active:translate-y-[4px] active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)]",
+      "border-[#b77912] bg-[#d9a22b] text-[#fff8e8] shadow-[0_7px_0_#8f5f12,0_20px_28px_rgba(88,52,8,0.24)] [@media(hover:hover)]:hover:bg-[#e0ac37] [@media(hover:hover)]:hover:shadow-[0_10px_0_#8f5f12,0_24px_34px_rgba(88,52,8,0.28)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)]",
+    pressed:
+      "[@media(pointer:coarse)_and_(max-height:480px)]:translate-y-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)]",
     icon: "border-white/28 bg-white/38 text-[#8f5f12]",
     badge: "bg-[#f7e4b4] text-[#8f5f12]",
   },
   online: {
     frame:
-      "border-[#1f7a46] bg-[#2f9a56] text-[#f6fff2] shadow-[0_7px_0_#22673f,0_20px_28px_rgba(20,83,45,0.24)] hover:bg-[#35a55d] hover:shadow-[0_10px_0_#22673f,0_24px_34px_rgba(20,83,45,0.28)] active:translate-y-[4px] active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)]",
+      "border-[#1f7a46] bg-[#2f9a56] text-[#f6fff2] shadow-[0_7px_0_#22673f,0_20px_28px_rgba(20,83,45,0.24)] [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_24px_34px_rgba(20,83,45,0.28)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)]",
+    pressed:
+      "[@media(pointer:coarse)_and_(max-height:480px)]:translate-y-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)]",
     icon: "border-white/28 bg-white/32 text-[#175632]",
     badge: "bg-[#d8f5e1] text-[#22673f]",
   },
   collection: {
     frame:
-      "border-[#2b6d9a] bg-[#4c95c4] text-[#f5fbff] shadow-[0_7px_0_#28597d,0_20px_28px_rgba(35,74,110,0.22)] hover:bg-[#5aa1ce] hover:shadow-[0_10px_0_#28597d,0_24px_34px_rgba(35,74,110,0.26)] active:translate-y-[4px] active:shadow-[0_3px_0_#28597d,0_10px_16px_rgba(35,74,110,0.18)]",
+      "border-[#2b6d9a] bg-[#4c95c4] text-[#f5fbff] shadow-[0_7px_0_#28597d,0_20px_28px_rgba(35,74,110,0.22)] [@media(hover:hover)]:hover:bg-[#5aa1ce] [@media(hover:hover)]:hover:shadow-[0_10px_0_#28597d,0_24px_34px_rgba(35,74,110,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#28597d,0_10px_16px_rgba(35,74,110,0.18)]",
+    pressed:
+      "[@media(pointer:coarse)_and_(max-height:480px)]:translate-y-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:shadow-[0_3px_0_#28597d,0_10px_16px_rgba(35,74,110,0.18)]",
     icon: "border-white/28 bg-white/32 text-[#234f72]",
     badge: "bg-[#d9ecf9] text-[#28597d]",
   },
   packs: {
     frame:
-      "border-[#8d5b86] bg-[#b882ac] text-[#fff7ff] shadow-[0_7px_0_#7d4f74,0_20px_28px_rgba(83,47,78,0.22)] hover:bg-[#c18ab4] hover:shadow-[0_10px_0_#7d4f74,0_24px_34px_rgba(83,47,78,0.26)] active:translate-y-[4px] active:shadow-[0_3px_0_#7d4f74,0_10px_16px_rgba(83,47,78,0.18)]",
+      "border-[#8d5b86] bg-[#b882ac] text-[#fff7ff] shadow-[0_7px_0_#7d4f74,0_20px_28px_rgba(83,47,78,0.22)] [@media(hover:hover)]:hover:bg-[#c18ab4] [@media(hover:hover)]:hover:shadow-[0_10px_0_#7d4f74,0_24px_34px_rgba(83,47,78,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#7d4f74,0_10px_16px_rgba(83,47,78,0.18)]",
+    pressed:
+      "[@media(pointer:coarse)_and_(max-height:480px)]:translate-y-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:shadow-[0_3px_0_#7d4f74,0_10px_16px_rgba(83,47,78,0.18)]",
     icon: "border-white/28 bg-white/32 text-[#6a4263]",
     badge: "bg-[#f5d9ee] text-[#7d4f74]",
   },
@@ -52,13 +67,21 @@ const CabinetButton: React.FC<CabinetButtonProps> = ({
   detail,
   icon,
   tone,
-  onClick,
+  pressed = false,
+  onActivate,
+  onPressStart,
+  onPressEnd,
+  onPressCancel,
   disabled = false,
 }) => (
   <Button
-    onClick={onClick}
+    onClick={onActivate}
+    onPointerDown={onPressStart}
+    onPointerUp={onPressEnd}
+    onPointerCancel={onPressCancel}
+    onPointerLeave={onPressCancel}
     disabled={disabled}
-    className={`group relative h-[6.8rem] w-full overflow-hidden rounded-[1.85rem] border-[3px] px-5 py-4 text-left transition-all duration-150 ease-out hover:-translate-y-1 disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0 disabled:active:translate-y-0 [@media(pointer:coarse)_and_(max-height:480px)]:!h-[3.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1rem] [@media(pointer:coarse)_and_(max-height:480px)]:!px-2.35 [@media(pointer:coarse)_and_(max-height:480px)]:!py-1.8 sm:h-[7.35rem] ${cabinetToneClassName[tone].frame}`}
+    className={`group relative h-[6.8rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.85rem] border-[3px] px-5 py-4 text-left transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 disabled:cursor-default disabled:opacity-70 disabled:[@media(hover:hover)]:hover:translate-y-0 disabled:[@media(hover:hover)]:active:translate-y-0 [@media(pointer:coarse)_and_(max-height:480px)]:!h-[3.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:!rounded-[1rem] [@media(pointer:coarse)_and_(max-height:480px)]:!px-2.35 [@media(pointer:coarse)_and_(max-height:480px)]:!py-1.8 sm:h-[7.35rem] ${cabinetToneClassName[tone].frame} ${pressed ? cabinetToneClassName[tone].pressed : ""}`}
   >
     <div className="pointer-events-none absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-20 mix-blend-soft-light" />
     <div className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22" />
@@ -213,8 +236,80 @@ const SPELLCAST_NATIVE_LOADING_FINISHED_EVENT = "spellcast:native-loading-finish
 export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, profile, onEditProfile }) => {
   const displayName = normalizePlayerName(profile.name);
   const buildLabel = (__APP_BUILD__ || "local").slice(0, 7).toUpperCase();
+  const [pressedButtonId, setPressedButtonId] = React.useState<"solo" | "online" | "collection" | "packs" | "profile" | null>(null);
+  const touchActivatedButtonRef = React.useRef<"solo" | "online" | "collection" | "packs" | "profile" | null>(null);
   const [canPlayTitleEntrance, setCanPlayTitleEntrance] = React.useState(
     () => window.__SPELLCAST_NATIVE_LOADING_PENDING__ !== true,
+  );
+
+  const clearPressedButton = React.useCallback(
+    (buttonId?: "solo" | "online" | "collection" | "packs" | "profile") => {
+      setPressedButtonId((current) => (buttonId === undefined || current === buttonId ? null : current));
+    },
+    [],
+  );
+
+  const createButtonPointerDownHandler = React.useCallback(
+    (buttonId: "solo" | "online" | "collection" | "packs" | "profile"): React.PointerEventHandler<HTMLButtonElement> =>
+      (event) => {
+        if (event.pointerType === "mouse") {
+          return;
+        }
+
+        touchActivatedButtonRef.current = null;
+        setPressedButtonId(buttonId);
+      },
+    [],
+  );
+
+  const createButtonPointerUpHandler = React.useCallback(
+    (
+      buttonId: "solo" | "online" | "collection" | "packs" | "profile",
+      action?: () => void,
+    ): React.PointerEventHandler<HTMLButtonElement> =>
+      (event) => {
+        if (event.pointerType === "mouse") {
+          return;
+        }
+
+        if (pressedButtonId === buttonId) {
+          touchActivatedButtonRef.current = buttonId;
+          action?.();
+        }
+
+        clearPressedButton(buttonId);
+      },
+    [clearPressedButton, pressedButtonId],
+  );
+
+  const createButtonPointerCancelHandler = React.useCallback(
+    (buttonId: "solo" | "online" | "collection" | "packs" | "profile"): React.PointerEventHandler<HTMLButtonElement> =>
+      (event) => {
+        if (event.pointerType === "mouse") {
+          return;
+        }
+
+        clearPressedButton(buttonId);
+      },
+    [clearPressedButton],
+  );
+
+  const createButtonClickHandler = React.useCallback(
+    (
+      buttonId: "solo" | "online" | "collection" | "packs" | "profile",
+      action?: () => void,
+    ): React.MouseEventHandler<HTMLButtonElement> =>
+      (event) => {
+        if (touchActivatedButtonRef.current === buttonId) {
+          touchActivatedButtonRef.current = null;
+          event.preventDefault();
+          return;
+        }
+
+        clearPressedButton(buttonId);
+        action?.();
+      },
+    [clearPressedButton],
   );
 
   React.useEffect(() => {
@@ -250,37 +345,53 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
 
   const soloButton = (
     <CabinetButton
+      pressed={pressedButtonId === "solo"}
       label="Jogar Solo"
       detail="Desafie o bot"
       icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">⚔️</span>}
       tone="solo"
-      onClick={() => onSelectMode("bot")}
+      onActivate={createButtonClickHandler("solo", () => onSelectMode("bot"))}
+      onPressStart={createButtonPointerDownHandler("solo")}
+      onPressEnd={createButtonPointerUpHandler("solo", () => onSelectMode("bot"))}
+      onPressCancel={createButtonPointerCancelHandler("solo")}
     />
   );
   const onlineButton = (
     <CabinetButton
+      pressed={pressedButtonId === "online"}
       label="Jogar Online"
       detail="Enfrente outro duelista"
       icon={<span className="text-[1.95rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.65rem] sm:text-[2.2rem]">🛡️</span>}
       tone="online"
-      onClick={() => onSelectMode("multiplayer")}
+      onActivate={createButtonClickHandler("online", () => onSelectMode("multiplayer"))}
+      onPressStart={createButtonPointerDownHandler("online")}
+      onPressEnd={createButtonPointerUpHandler("online", () => onSelectMode("multiplayer"))}
+      onPressCancel={createButtonPointerCancelHandler("online")}
     />
   );
   const collectionButton = (
     <CabinetButton
+      pressed={pressedButtonId === "collection"}
       label="Minha Colecao"
       detail="Veja seus decks"
       icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">📚</span>}
       tone="collection"
-      onClick={onOpenCollection}
+      onActivate={createButtonClickHandler("collection", onOpenCollection)}
+      onPressStart={createButtonPointerDownHandler("collection")}
+      onPressEnd={createButtonPointerUpHandler("collection", onOpenCollection)}
+      onPressCancel={createButtonPointerCancelHandler("collection")}
     />
   );
   const packsButton = (
     <CabinetButton
+      pressed={pressedButtonId === "packs"}
       label="Open Packs"
       detail="Novas cartas em breve"
       icon={<span className="text-[1.9rem] drop-shadow-[0_4px_6px_rgba(255,255,255,0.2)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.6rem] sm:text-[2.15rem]">🎴</span>}
       tone="packs"
+      onPressStart={createButtonPointerDownHandler("packs")}
+      onPressEnd={createButtonPointerUpHandler("packs")}
+      onPressCancel={createButtonPointerCancelHandler("packs")}
       disabled
     />
   );
@@ -327,8 +438,12 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
                 </div>
 
                 <Button
-                  onClick={onEditProfile}
-                  className="group relative flex h-[4.1rem] w-[8.4rem] shrink-0 items-center justify-center gap-2 overflow-hidden rounded-[1.35rem] border-[2px] border-[#2d6b8f] bg-[#4f9fcc] px-3 text-[0.72rem] font-black uppercase tracking-[0.08em] text-[#f3fbff] shadow-[0_5px_0_#28597d,0_14px_22px_rgba(35,74,110,0.18)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5ba8d4] hover:shadow-[0_7px_0_#28597d,0_18px_24px_rgba(35,74,110,0.22)] active:translate-y-[3px] active:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(35,74,110,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[2.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[6.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-2.25 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.52rem] sm:h-[4.4rem] sm:w-[9rem] sm:rounded-[1.5rem]"
+                  onClick={createButtonClickHandler("profile", onEditProfile)}
+                  onPointerDown={createButtonPointerDownHandler("profile")}
+                  onPointerUp={createButtonPointerUpHandler("profile", onEditProfile)}
+                  onPointerCancel={createButtonPointerCancelHandler("profile")}
+                  onPointerLeave={createButtonPointerCancelHandler("profile")}
+                  className={`group relative flex h-[4.1rem] w-[8.4rem] shrink-0 touch-manipulation select-none items-center justify-center gap-2 overflow-hidden rounded-[1.35rem] border-[2px] border-[#2d6b8f] bg-[#4f9fcc] px-3 text-[0.72rem] font-black uppercase tracking-[0.08em] text-[#f3fbff] shadow-[0_5px_0_#28597d,0_14px_22px_rgba(35,74,110,0.18)] transition-all duration-150 [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:bg-[#5ba8d4] [@media(hover:hover)]:hover:shadow-[0_7px_0_#28597d,0_18px_24px_rgba(35,74,110,0.22)] [@media(hover:hover)]:active:translate-y-[3px] [@media(hover:hover)]:active:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(35,74,110,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[2.9rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[6.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-2.25 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.52rem] [@media(pointer:coarse)_and_(max-height:480px)]:touch-manipulation sm:h-[4.4rem] sm:w-[9rem] sm:rounded-[1.5rem] ${pressedButtonId === "profile" ? "[@media(pointer:coarse)_and_(max-height:480px)]:translate-y-[3px] [@media(pointer:coarse)_and_(max-height:480px)]:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(35,74,110,0.14)]" : ""}`}
                 >
                   <span className="pointer-events-none absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-15 mix-blend-soft-light" />
                   <span className="pointer-events-none absolute inset-x-3 top-0 z-0 h-[3px] rounded-b-full bg-white/24" />
