@@ -44,8 +44,8 @@ const SYL_H_C = 134;
 // ─── Pill ─────────────────────────────────────────────────────────────────────
 const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.ReactNode; sm?: boolean }> = ({ active, onClick, children, sm }) => (
   <button type="button" onClick={onClick} className={cn(
-    "inline-flex touch-manipulation select-none items-center justify-center rounded-full border font-black uppercase transition-all duration-100",
-    sm ? "px-1.5 py-0.5 text-[0.55rem] tracking-[0.06em]" : "px-3.5 py-1 text-[0.72rem] tracking-[0.1em]",
+    "inline-flex shrink-0 touch-manipulation select-none items-center justify-center rounded-full border font-black uppercase transition-all duration-100 px-3",
+    sm ? "h-7 text-[0.6rem] tracking-[0.06em]" : "h-9 text-[0.72rem] tracking-[0.1em]",
     active ? "border-[#c7a561] bg-[#fff3d6] text-[#7c5821]" : "border-[#d7ccb8] bg-white/72 text-[#7f6a52] [@media(hover:hover)]:hover:border-amber-400/50",
   )}>{children}</button>
 );
@@ -564,8 +564,8 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
             {/* ── Toolbar ── */}
             <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 no-scrollbar">
-              {/* Back */}
-              <Button variant="ghost" onClick={onBack} className={cn("relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] font-serif font-black uppercase text-[#6b4723] shadow-[0_4px_0_#8f5f12] transition-all [@media(hover:hover)]:hover:-translate-y-px", compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]")}>
+              {/* Voltar */}
+              <Button type="button" variant="ghost" onClick={onBack} className={cn("relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] font-serif font-black uppercase text-[#6b4723] shadow-[0_4px_0_#8f5f12] transition-all [@media(hover:hover)]:hover:-translate-y-px", compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]")}>
                 <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />
                 <ChevronLeft className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /><span className="relative z-10 hidden sm:inline">Voltar</span>
               </Button>
@@ -573,9 +573,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
               <div className="h-5 w-px shrink-0 bg-amber-900/12" />
 
               {/* Mode toggle */}
-              <div className="flex shrink-0 items-center gap-1">
-                <Pill active={mode === "targets"} onClick={() => setMode("targets")}>Alvos</Pill>
-                <Pill active={mode === "syllables"} onClick={() => setMode("syllables")}>Sílabas</Pill>
+              <div className={cn("flex shrink-0 items-center justify-center", compact ? "gap-1" : "gap-1.5")}>
+                <Pill sm={compact} active={mode === "targets"} onClick={() => setMode("targets")}>Alvos</Pill>
+                <Pill sm={compact} active={mode === "syllables"} onClick={() => setMode("syllables")}>Sílabas</Pill>
               </div>
 
               <div className="flex-1" />
@@ -584,27 +584,27 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
               {mode === "targets" && (
                 <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-1.5")}>
                   {!compact && <div className="flex h-5 w-px bg-amber-900/12" />}
-                  <span className={cn("font-black uppercase tracking-widest text-amber-950/40", compact ? "mx-0.5 text-[0.4rem] opacity-70" : "text-[0.55rem]")}>
+                  <span className={cn("font-black uppercase tracking-widest text-amber-950/40", compact ? "mx-1 text-[0.45rem] opacity-70" : "text-[0.55rem]")}>
                     {compact ? "Ord." : "Ordenação"}
                   </span>
-                  <div className="flex items-center gap-1">
+                  <div className={cn("flex items-center", compact ? "gap-1" : "gap-1.5")}>
                     <Pill sm={compact} active={sortMode === "rarity"} onClick={() => { if (sortMode === "rarity") setSortMode("default"); else setSortMode("rarity"); }}>
-                      <Layers3 className={cn("mr-1", compact ? "h-2.5 w-2.5" : "h-3 w-3")} /> Raridade
+                      <Layers3 className={cn("mr-1", compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> Raridade
                     </Pill>
                     <Pill sm={compact} active={sortMode === "damage"} onClick={() => { if (sortMode === "damage") setSortMode("default"); else setSortMode("damage"); }}>
-                      <Swords className={cn("mr-1", compact ? "h-2.5 w-2.5" : "h-3 w-3")} /> Dano
+                      <Swords className={cn("mr-1", compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> Dano
                     </Pill>
                     <button
                       type="button"
                       disabled={sortMode === "default"}
                       onClick={() => setSortDir(d => d === "desc" ? "asc" : "desc")}
                       className={cn(
-                        "flex items-center justify-center rounded-full border border-[#d7ccb8] bg-white text-[#7f6a52] transition-all disabled:opacity-30",
-                        compact ? "h-6 w-6" : "h-7 w-7",
+                        "flex shrink-0 items-center justify-center rounded-full border border-[#d7ccb8] bg-white text-[#7f6a52] transition-all disabled:opacity-30",
+                        compact ? "h-7 w-7" : "h-9 w-9",
                         sortMode !== "default" && "border-amber-400 bg-amber-50 text-amber-800"
                       )}
                     >
-                      {sortDir === "desc" ? <ArrowDown className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> : <ArrowUp className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")} />}
+                      {sortDir === "desc" ? <ArrowDown className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} /> : <ArrowUp className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} />}
                     </button>
                   </div>
                 </div>
@@ -613,8 +613,8 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
               {/* Page Indicator — moved from grid to toolbar */}
               {totalPages > 1 && (
                 <span className={cn(
-                  "shrink-0 rounded-full border border-[#d9c8a9]/70 bg-[#fffdfa]/90 font-black tracking-widest text-[#8b7357] shadow-sm",
-                  compact ? "px-2 py-0.5 text-[0.5rem]" : "px-3 py-1 text-[0.6rem]",
+                  "shrink-0 flex items-center justify-center rounded-full border border-[#d9c8a9]/70 bg-[#fffdfa]/90 font-black tracking-widest text-[#8b7357] shadow-sm",
+                  compact ? "h-7 px-3 text-[0.5rem]" : "h-9 px-4 text-[0.6rem]",
                 )}>
                   {curPage + 1} / {totalPages}
                 </span>
