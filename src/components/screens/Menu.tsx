@@ -2,7 +2,7 @@
 import { motion } from "motion/react";
 import { Button } from "../ui/button";
 import { GameMode, PlayerProfile, normalizePlayerName } from "../../types/game";
-import titleLogo from "../../assets/branding/syllable-battle-title.svg";
+import titleLogo from "../../assets/branding/SpellCast.webp";
 
 interface MenuProps {
   onSelectMode: (mode: GameMode) => void;
@@ -339,7 +339,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
               </div>
 
               <div className="relative z-0 flex w-full justify-center overflow-visible">
-                <div className="relative h-[8rem] w-[52rem] max-w-none [@media(pointer:coarse)_and_(max-height:480px)]:h-[5.2rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[41rem] sm:h-[9.4rem] sm:w-[62rem] lg:h-[10.5rem] lg:w-[78rem]">
+                <div className="relative h-[7.3rem] w-[46rem] max-w-none [@media(pointer:coarse)_and_(max-height:480px)]:h-[5.4rem] [@media(pointer:coarse)_and_(max-height:480px)]:w-[42rem] sm:h-[8.6rem] sm:w-[54rem] lg:h-[9.4rem] lg:w-[66rem]">
                   <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2">
                     {canPlayTitleEntrance ? (
                       <motion.div
@@ -347,7 +347,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
                         initial={{ scale: 0.8, rotate: -5 }}
                         animate={{ scale: 1, rotate: 0 }}
                         transition={{ type: "spring", stiffness: 100 }}
-                        className="relative top-[1.95rem] flex translate-x-[0.15rem] flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:top-[0.95rem] [@media(pointer:coarse)_and_(max-height:480px)]:translate-x-[0.05rem] sm:top-[2.2rem] sm:translate-x-[0.45rem] lg:top-[2.55rem] lg:translate-x-[0.75rem]"
+                      className="relative top-[1.95rem] flex translate-x-[0.15rem] flex-col items-center [@media(pointer:coarse)_and_(max-height:480px)]:top-[1.3rem] [@media(pointer:coarse)_and_(max-height:480px)]:translate-x-[0.05rem] sm:top-[2.2rem] sm:translate-x-[0.45rem] lg:top-[2.55rem] lg:translate-x-[0.75rem]"
                       >
                         <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-full bg-[#f1d07f]/18 blur-3xl" />
                         <motion.img
@@ -356,7 +356,7 @@ export const Menu: React.FC<MenuProps> = ({ onSelectMode, onOpenCollection, prof
                           initial={{ opacity: 0, y: -18 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
-                          className="relative h-auto w-full max-w-none origin-center scale-[1.48] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[1.4] drop-shadow-[0_0_18px_rgba(238,196,94,0.18)]"
+                        className="relative h-auto w-full max-w-none origin-center scale-[1] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[0.94] drop-shadow-[0_0_18px_rgba(238,196,94,0.18)]"
                         />
                       </motion.div>
                     ) : null}
