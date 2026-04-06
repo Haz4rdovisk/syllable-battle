@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { GameMode, BattleSide, BattleSubmittedAction, GameState, PlayerProfile, normalizePlayerName } from "./types/game";
 import { Menu } from "./components/screens/Menu";
 import { DeckSelection } from "./components/screens/DeckSelection";
+import { CollectionScreen } from "./components/screens/CollectionScreen";
 import { Lobby } from "./components/screens/Lobby";
 import { Battle } from "./components/screens/Battle";
 import { ContentInspector } from "./components/screens/ContentInspector";
@@ -24,7 +25,7 @@ import {
   resolveAppBattleSetupSelection,
 } from "./app/appDeckResolver";
 
-type Screen = "menu" | "deck-selection" | "lobby" | "battle";
+type Screen = "menu" | "deck-selection" | "collection" | "lobby" | "battle";
 type SoloDeckStep = "player" | "enemy";
 const MOCK_ROOM_LATENCY_MS = 180;
 const MOCK_ROOM_DELIVERED_MS = 60;
@@ -208,11 +209,10 @@ export default function App() {
   };
 
   const handleOpenCollection = () => {
-    setMode("bot");
     setPlayerDeckId(null);
     setEnemyBattleDeckId(null);
     setSoloDeckStep("player");
-    setScreen("deck-selection");
+    setScreen("collection");
     setIsPreparingBattle(false);
   };
 
@@ -380,6 +380,19 @@ export default function App() {
                     : undefined
                 }
               />
+            </motion.div>
+          )}
+
+          {screen === "collection" && (
+            <motion.div
+              key="collection"
+              className="h-full w-full"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CollectionScreen onBack={() => setScreen("menu")} />
             </motion.div>
           )}
 
