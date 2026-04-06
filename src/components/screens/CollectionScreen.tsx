@@ -567,6 +567,16 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
               <div className="flex-1" />
 
+              {/* Page Indicator — moved from grid to toolbar */}
+              {totalPages > 1 && (
+                <span className={cn(
+                  "shrink-0 rounded-full border border-[#d9c8a9]/70 bg-[#fffdfa]/90 font-black tracking-widest text-[#8b7357] shadow-sm",
+                  compact ? "px-2 py-0.5 text-[0.5rem]" : "px-3 py-1 text-[0.6rem]",
+                )}>
+                  {curPage + 1} / {totalPages}
+                </span>
+              )}
+
               {/* FILTERS TOGGLE */}
               <div className="flex shrink-0 items-center">
                 <Button
@@ -647,12 +657,6 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                   </button>
                 </div>
 
-                {/* Page Indicator */}
-                <div className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 [@media(pointer:coarse)_and_(max-height:480px)]:bottom-0">
-                  <span className="rounded-full border border-[#d9c8a9]/60 bg-[#fffdfa]/85 px-3 py-1 text-[0.6rem] font-black tracking-widest text-[#8b7357] shadow-sm backdrop-blur-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]">
-                    {curPage + 1} / {totalPages}
-                  </span>
-                </div>
               </div>
             </div>
           </div>
