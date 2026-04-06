@@ -45,7 +45,7 @@ const SYL_H_C = 134;
 const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.ReactNode; sm?: boolean }> = ({ active, onClick, children, sm }) => (
   <button type="button" onClick={onClick} className={cn(
     "inline-flex touch-manipulation select-none items-center justify-center rounded-full border font-black uppercase transition-all duration-100",
-    sm ? "px-2.5 py-0.5 text-[0.62rem] tracking-[0.08em]" : "px-3.5 py-1 text-[0.72rem] tracking-[0.1em]",
+    sm ? "px-1.5 py-0.5 text-[0.55rem] tracking-[0.06em]" : "px-3.5 py-1 text-[0.72rem] tracking-[0.1em]",
     active ? "border-[#c7a561] bg-[#fff3d6] text-[#7c5821]" : "border-[#d7ccb8] bg-white/72 text-[#7f6a52] [@media(hover:hover)]:hover:border-amber-400/50",
   )}>{children}</button>
 );
@@ -414,7 +414,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const [superF, setSuperF] = useState("all");
   const [classF, setClassF] = useState("all");
   const [rarF, setRarF] = useState("all");
-  const [sortMode, setSortMode] = useState<"default" | "rarity">("default");
+  const [sortMode, setSortMode] = useState<"default" | "rarity" | "damage">("default");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const dSearch = useDeferredValue(search.trim().toLowerCase());
 
@@ -496,7 +496,20 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     if (classF !== "all") items = items.filter((t) => normTax(t.classKey ?? "") === classF);
     if (rarF !== "all") items = items.filter((t) => normalizeRarity(t.rarity as Rarity) === rarF);
     if (dSearch) items = items.filter((t) => [t.id, t.name, t.superclass ?? "", t.classKey ?? ""].join(" ").toLowerCase().includes(dSearch));
-    if (sortMode === "rarity") { items = [...items].sort((a, b) => { const d = tier(b.rarity) - tier(a.rarity); return sortDir === "desc" ? (d || a.name.localeCompare(b.name)) : (-d || a.name.localeCompare(b.name)); }); }
+    if (sortMode === "rarity") {
+      items = [...items].sort((a, b) => {
+        const d = tier(b.rarity) - tier(a.rarity);
+        return sortDir === "desc" ? (d || a.name.localeCompare(b.name)) : (-d || a.name.localeCompare(b.name));
+      });
+    }
+    if (sortMode === "damage") {
+      items = [...items].sort((a, b) => {
+        const da = RARITY_DAMAGE[normalizeRarity(a.rarity as Rarity)] || 1;
+        const db = RARITY_DAMAGE[normalizeRarity(b.rarity as Rarity)] || 1;
+        const d = db - da;
+        return sortDir === "desc" ? (d || a.name.localeCompare(b.name)) : (-d || a.name.localeCompare(b.name));
+      });
+    }
     return items;
   }, [allT, superF, classF, rarF, dSearch, sortMode, sortDir]);
 
@@ -567,6 +580,36 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
               <div className="flex-1" />
 
+              {/* Sorting — Toolbar */}
+              {mode === "targets" && (
+                <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-1.5")}>
+                  {!compact && <div className="flex h-5 w-px bg-amber-900/12" />}
+                  <span className={cn("font-black uppercase tracking-widest text-amber-950/40", compact ? "mx-0.5 text-[0.4rem] opacity-70" : "text-[0.55rem]")}>
+                    {compact ? "Ord." : "Ordenação"}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Pill sm={compact} active={sortMode === "rarity"} onClick={() => { if (sortMode === "rarity") setSortMode("default"); else setSortMode("rarity"); }}>
+                      <Layers3 className={cn("mr-1", compact ? "h-2.5 w-2.5" : "h-3 w-3")} /> Raridade
+                    </Pill>
+                    <Pill sm={compact} active={sortMode === "damage"} onClick={() => { if (sortMode === "damage") setSortMode("default"); else setSortMode("damage"); }}>
+                      <Swords className={cn("mr-1", compact ? "h-2.5 w-2.5" : "h-3 w-3")} /> Dano
+                    </Pill>
+                    <button
+                      type="button"
+                      disabled={sortMode === "default"}
+                      onClick={() => setSortDir(d => d === "desc" ? "asc" : "desc")}
+                      className={cn(
+                        "flex items-center justify-center rounded-full border border-[#d7ccb8] bg-white text-[#7f6a52] transition-all disabled:opacity-30",
+                        compact ? "h-6 w-6" : "h-7 w-7",
+                        sortMode !== "default" && "border-amber-400 bg-amber-50 text-amber-800"
+                      )}
+                    >
+                      {sortDir === "desc" ? <ArrowDown className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> : <ArrowUp className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Page Indicator — moved from grid to toolbar */}
               {totalPages > 1 && (
                 <span className={cn(
@@ -593,7 +636,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                 >
                   {sidebar === "filters" && <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />}
                   <Sparkles className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
-                  <span className="relative z-10">Filtros {(dSearch || superF !== "all" || classF !== "all" || rarF !== "all" || sortMode !== "default") ? "*" : ""}</span>
+                  <span className="relative z-10">Filtros</span>
                 </Button>
               </div>
             </div>
@@ -720,14 +763,19 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
                     {/* Sorting and reset */}
                     {mode === "targets" && (
-                      <div className="mt-2 space-y-1.5">
+                      <div className={cn("mt-2 space-y-1.5", compact && "mt-1 space-y-1")}>
                         <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Ordenação</label>
-                        <div className="flex items-center gap-2">
-                          <Button type="button" variant="ghost" onClick={() => { if (sortMode !== "rarity") { setSortMode("rarity"); setSortDir("desc"); } else setSortMode("default"); }} className={cn("h-10 flex-1 rounded-xl border px-3 text-[0.8rem] font-black transition shadow-sm", sortMode === "rarity" ? "border-amber-500/40 bg-amber-100/90 hover:bg-amber-100 text-amber-950" : "border-amber-900/15 bg-white/70 hover:bg-amber-100/70 text-amber-950/60")}>
-                            <Layers3 className="mr-1.5 h-4 w-4" /> Raridade
-                          </Button>
-                          <Button type="button" variant="ghost" onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} disabled={sortMode !== "rarity"} className="flex h-10 w-12 items-center justify-center rounded-xl border border-amber-900/15 bg-white/70 text-amber-950 transition hover:bg-amber-100/70 disabled:opacity-45 shadow-sm">
-                            {sortDir === "desc" ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
+                        <div className={cn("flex flex-col", compact ? "gap-1.5" : "gap-2")}>
+                          <div className={cn("flex items-center", compact ? "gap-1.5" : "gap-2")}>
+                            <Button type="button" variant="ghost" onClick={() => { if (sortMode !== "rarity") { setSortMode("rarity"); setSortDir("desc"); } else setSortMode("default"); }} className={cn("flex-1 rounded-xl border font-black transition shadow-sm items-center justify-center", compact ? "h-8 px-2 text-[0.68rem]" : "h-10 px-3 text-[0.8rem]", sortMode === "rarity" ? "border-emerald-500/40 bg-emerald-50 text-emerald-800" : "border-amber-900/15 bg-white/70 text-amber-950/60")}>
+                              <Layers3 className={cn("shrink-0", compact ? "h-3 w-3 mr-1" : "h-4 w-4 mr-1.5")} /> Raridade
+                            </Button>
+                            <Button type="button" variant="ghost" onClick={() => { if (sortMode !== "damage") { setSortMode("damage"); setSortDir("desc"); } else setSortMode("default"); }} className={cn("flex-1 rounded-xl border font-black transition shadow-sm items-center justify-center", compact ? "h-8 px-2 text-[0.68rem]" : "h-10 px-3 text-[0.8rem]", sortMode === "damage" ? "border-emerald-500/40 bg-emerald-50 text-emerald-800" : "border-amber-900/15 bg-white/70 text-amber-950/60")}>
+                              <Swords className={cn("shrink-0", compact ? "h-3 w-3 mr-1" : "h-4 w-4 mr-1.5")} /> Dano
+                            </Button>
+                          </div>
+                          <Button type="button" variant="ghost" onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} disabled={sortMode === "default"} className={cn("flex w-full items-center justify-center gap-1.5 rounded-xl border border-amber-900/15 bg-white/70 text-amber-950 transition disabled:opacity-45 shadow-sm", compact ? "h-8 text-[0.68rem]" : "h-10 text-[0.8rem]", sortMode !== "default" && "border-amber-500/40 bg-amber-50 text-amber-800")}>
+                            {sortDir === "desc" ? <><ArrowDown className={cn(compact ? "h-3 w-3" : "h-4 w-4")} /> Descendente</> : <><ArrowUp className={cn(compact ? "h-3 w-3" : "h-4 w-4")} /> Ascendente</>}
                           </Button>
                         </div>
                       </div>
