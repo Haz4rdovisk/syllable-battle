@@ -32,12 +32,12 @@ const toUITarget = (t: TargetDefinition): UITarget => ({
 });
 
 // ─── Card grid sizes (portrait aspect ratio ~200:275 ≈ 0.73:1) ───────────────
-const CARD_W_D = 200; 
-const CARD_H_D = 275; 
-const CARD_W_C = 105; 
-const CARD_H_C = 158; 
-const SYL_W_D = 128;  
-const SYL_H_D = 179;  
+const CARD_W_D = 200;
+const CARD_H_D = 275;
+const CARD_W_C = 105;
+const CARD_H_C = 158;
+const SYL_W_D = 128;
+const SYL_H_D = 179;
 const SYL_W_C = 96;
 const SYL_H_C = 134;
 
@@ -66,16 +66,21 @@ const MiniCardRow: React.FC<{ emoji: string; name: string; rarity: string; copie
 // ─── DeckBanner ───────────────────────────────────────────────────────────────
 const DeckBanner: React.FC<{ deck: AppResolvedDeck; isSelected: boolean; onClick: () => void }> = ({ deck, isSelected, onClick }) => {
   const count = useMemo(() => new Set(deck.deckModel.targetInstances.map((e) => e.target.id)).size, [deck]);
+  const sylCount = useMemo(() => deck.deckModel.cards.reduce((sum, c) => sum + c.copiesInDeck, 0), [deck]);
+
   return (
-    <button type="button" onClick={onClick} className={cn("relative flex w-full items-center gap-3 overflow-hidden rounded-xl border-2 px-3 py-3 text-left transition-all duration-200", isSelected ? cn("border-white/30 ring-2 ring-white/15 shadow-md bg-gradient-to-r", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]) : cn("border-[#d9c8a9] bg-gradient-to-r opacity-72 [@media(hover:hover)]:hover:opacity-95 [@media(hover:hover)]:hover:shadow-sm", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
+    <div role="button" onClick={onClick} className={cn("relative flex w-full shrink-0 cursor-pointer select-none items-center gap-3 overflow-hidden rounded-xl border-2 px-3 py-3 text-left transition-all duration-200 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-2", isSelected ? cn("border-white/30 ring-2 ring-white/15 shadow-md bg-gradient-to-r", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]) : cn("border-[#d9c8a9] bg-gradient-to-r opacity-72 [@media(hover:hover)]:hover:opacity-95 [@media(hover:hover)]:hover:shadow-sm", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_left,rgba(255,255,255,0.12),transparent_55%)]" />
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.7rem] shadow">{deck.emoji}</div>
-      <div className="relative min-w-0 flex-1">
-        <div className="truncate font-serif text-[1.05rem] font-black leading-tight text-amber-50 drop-shadow-sm">{deck.name}</div>
-        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65">{deck.definition.superclass}</div>
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.7rem] shadow [@media(pointer:coarse)_and_(max-height:480px)]:h-10 [@media(pointer:coarse)_and_(max-height:480px)]:w-10 [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.4rem]">{deck.emoji}</div>
+      <div className="relative min-w-0 flex-1 flex flex-col justify-center py-0.5">
+        <div className="truncate font-serif text-[1.05rem] font-black leading-tight text-amber-50 drop-shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.95rem]">{deck.name}</div>
+        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]">{deck.definition.superclass || "SEM CLASSE"}</div>
+        <div className="mt-2 flex items-center gap-1.5 overflow-hidden [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+          <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{count} alvo{count !== 1 ? 's' : ''}</div>
+          <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{sylCount} sílaba{sylCount !== 1 ? 's' : ''}</div>
+        </div>
       </div>
-      <div className="relative shrink-0 rounded-full border border-white/25 bg-black/20 px-2.5 py-1 text-[0.6rem] font-black text-amber-50">{count} alvos</div>
-    </button>
+    </div>
   );
 };
 
@@ -127,7 +132,7 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
                 </div>
               </div>
             )}
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fffaf3]/94 px-2.5 py-2">
+            <div className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 py-2">
               {RORDER.map((rk) => {
                 const grp = grouped[rk]; if (!grp?.length) return null;
                 return (
@@ -201,7 +206,7 @@ const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }
   return (
     <div className="relative flex h-full w-full items-start justify-center pb-2 text-center [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
       <div className="card-base relative flex w-full aspect-[126/176] h-full flex-col overflow-hidden rounded-[1.1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]">
-        
+
         <div className={cn("flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[8px]", toneClass)}>
           <span className="truncate">{getRarityLabel(rarityNormalized)}</span>
           <div className="flex items-center gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
@@ -221,7 +226,7 @@ const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }
           <div className="truncate text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.65rem]">
             {target.name || "NOVO ALVO"}
           </div>
-          
+
           <div className="mt-2.5 flex flex-wrap justify-center gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5">
             {syllables.length > 0 ? (
               syllables.map((syllable, index) => (
@@ -281,9 +286,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
   // Cards per page based on grid dimensions:
   // Desktop and Compact targets: 4 cols × 2 rows = 8
-  // Desktop syllables: 6 cols × 3 rows = 18 | Compact syllables: 5 cols × 2 rows = 10
+  // Desktop syllables: 6 cols × 3 rows = 18 | Compact syllables: 4 cols × 2 rows = 8
   const perPage = compact
-    ? (mode === "targets" ? 8 : 10)
+    ? (mode === "targets" ? 8 : 8)
     : (mode === "targets" ? 8 : 18);
 
   const items = mode === "targets" ? filtT : filtC;
@@ -297,16 +302,18 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   // Card and grid dimensions
   const cardW = compact ? CARD_W_C : CARD_W_D;
   const cardH = compact ? CARD_H_C : CARD_H_D;
-  const sylW  = compact ? SYL_W_C  : SYL_W_D;
-  const sylH  = compact ? SYL_H_C  : SYL_H_D;
+  const sylW = compact ? SYL_W_C : SYL_W_D;
+  const sylH = compact ? SYL_H_C : SYL_H_D;
 
   const targetCols = 4;
-  const sylCols    = compact ? 5 : 6;
-  const gap        = compact ? 10 : 16;
+  const sylCols = compact ? 4 : 6;
+  const targetRows = 2;
+  const sylRows = compact ? 2 : 3;
+  const gap = compact ? 8 : 16;
 
   const gridStyle = mode === "targets"
-    ? { gridTemplateColumns: `repeat(${targetCols}, ${cardW}px)`, gap }
-    : { gridTemplateColumns: `repeat(${sylCols}, ${sylW}px)`, gap };
+    ? { gridTemplateColumns: `repeat(${targetCols}, minmax(0, ${cardW}px))`, gridTemplateRows: `repeat(${targetRows}, minmax(0, 1fr))`, height: "100%", gap }
+    : { gridTemplateColumns: `repeat(${sylCols}, minmax(0, ${sylW}px))`, gridTemplateRows: `repeat(${sylRows}, minmax(0, 1fr))`, height: "100%", gap };
 
   const panelW = compact ? "w-[min(40%,220px)]" : "w-[300px] xl:w-[340px]";
 
@@ -316,59 +323,59 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/old-mathematics.png')] opacity-55" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(120,92,64,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(120,92,64,0.07)_1px,transparent_1px)] bg-[size:44px_44px] opacity-40" />
 
-      <div className="paper-panel relative z-10 h-[min(96vh,54rem)] w-[min(98vw,120rem)] overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-3 py-3 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[calc(100dvh-6px)] [@media(pointer:coarse)_and_(max-height:480px)]:w-[calc(100vw-6px)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.1rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-1.5 [@media(pointer:coarse)]:h-[calc(100dvh-8px)] [@media(pointer:coarse)]:w-[calc(100vw-8px)] sm:px-5 sm:py-5">
-        <div className="absolute inset-y-[12px] left-[12px] right-[12px] rounded-[1.45rem] border border-[#d9c8a9] [@media(pointer:coarse)_and_(max-height:480px)]:inset-y-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]" />
-        <div className="pointer-events-none absolute bottom-[14px] left-[8px] right-[8px] top-[14px] rounded-[1.2rem] border border-white/30 [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[9px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:top-[9px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.72rem]" />
+      <div className="paper-panel relative z-10 h-[min(96vh,54rem)] w-[min(98vw,120rem)] overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-3 py-3 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[calc(100dvh-6px)] [@media(pointer:coarse)_and_(max-height:480px)]:w-[calc(100vw-6px)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.1rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-[11px] [@media(pointer:coarse)]:h-[calc(100dvh-8px)] [@media(pointer:coarse)]:w-[calc(100vw-8px)] sm:px-5 sm:py-5">
+        <div className="absolute inset-y-[12px] left-[12px] right-[12px] rounded-[1.45rem] border border-[#d9c8a9] [@media(pointer:coarse)_and_(max-height:480px)]:inset-y-[6px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[6px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[6px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.95rem]" />
+        <div className="pointer-events-none absolute bottom-[14px] left-[8px] right-[8px] top-[14px] rounded-[1.2rem] border border-white/30 [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[3px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[3px] [@media(pointer:coarse)_and_(max-height:480px)]:top-[8px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.8rem]" />
 
-        <div className="relative flex h-full min-h-0 flex-row gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+        <div className="relative flex h-full min-h-0 flex-row gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5">
           {/* ── Left Content (Toolbar + Grid) ── */}
-          <div className="flex min-w-0 flex-1 flex-col gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5">
 
-          {/* ── Toolbar ── */}
-          <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 no-scrollbar">
-            {/* Back */}
-            <Button variant="ghost" onClick={onBack} className={cn("relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] font-serif font-black uppercase text-[#6b4723] shadow-[0_4px_0_#8f5f12] transition-all [@media(hover:hover)]:hover:-translate-y-px", compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]")}>
-              <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />
-              <ChevronLeft className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /><span className="relative z-10 hidden sm:inline">Voltar</span>
-            </Button>
-
-            <div className="h-5 w-px shrink-0 bg-amber-900/12" />
-
-            {/* Mode toggle */}
-            <div className="flex shrink-0 items-center gap-1">
-              <Pill active={mode === "targets"} onClick={() => setMode("targets")}>Alvos</Pill>
-              <Pill active={mode === "syllables"} onClick={() => setMode("syllables")}>Sílabas</Pill>
-            </div>
-
-            <div className="flex-1" />
-
-            {/* FILTERS TOGGLE */}
-            <div className="flex shrink-0 items-center">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setSidebar((s) => (s === "decks" ? "filters" : "decks"))}
-                className={cn(
-                  "relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] font-serif font-black uppercase transition-all [@media(hover:hover)]:hover:-translate-y-px",
-                  sidebar === "filters"
-                    ? "border-[#8f5f12] bg-[#f0dfc4] text-[#6b4723] shadow-[0_4px_0_#8f5f12]"
-                    : "border-[#d7ccb8] bg-white/72 text-[#7f6a52] [@media(hover:hover)]:hover:border-amber-400/50",
-                  compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]"
-                )}
-              >
-                {sidebar === "filters" && <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />}
-                <Sparkles className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
-                <span className="relative z-10">Filtros {(dSearch || superF !== "all" || classF !== "all" || rarF !== "all" || sortMode !== "default") ? "*" : ""}</span>
+            {/* ── Toolbar ── */}
+            <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 no-scrollbar">
+              {/* Back */}
+              <Button variant="ghost" onClick={onBack} className={cn("relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] font-serif font-black uppercase text-[#6b4723] shadow-[0_4px_0_#8f5f12] transition-all [@media(hover:hover)]:hover:-translate-y-px", compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]")}>
+                <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />
+                <ChevronLeft className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /><span className="relative z-10 hidden sm:inline">Voltar</span>
               </Button>
-            </div>
-          </div>
 
-          {/* Card pool panel */}
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border border-[#d8ccb8] bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2">
+              <div className="h-5 w-px shrink-0 bg-amber-900/12" />
+
+              {/* Mode toggle */}
+              <div className="flex shrink-0 items-center gap-1">
+                <Pill active={mode === "targets"} onClick={() => setMode("targets")}>Alvos</Pill>
+                <Pill active={mode === "syllables"} onClick={() => setMode("syllables")}>Sílabas</Pill>
+              </div>
+
+              <div className="flex-1" />
+
+              {/* FILTERS TOGGLE */}
+              <div className="flex shrink-0 items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setSidebar((s) => (s === "decks" ? "filters" : "decks"))}
+                  className={cn(
+                    "relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] font-serif font-black uppercase transition-all [@media(hover:hover)]:hover:-translate-y-px",
+                    sidebar === "filters"
+                      ? "border-[#8f5f12] bg-[#f0dfc4] text-[#6b4723] shadow-[0_4px_0_#8f5f12]"
+                      : "border-[#d7ccb8] bg-white/72 text-[#7f6a52] [@media(hover:hover)]:hover:border-amber-400/50",
+                    compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]"
+                  )}
+                >
+                  {sidebar === "filters" && <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />}
+                  <Sparkles className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
+                  <span className="relative z-10">Filtros {(dSearch || superF !== "all" || classF !== "all" || rarF !== "all" || sortMode !== "default") ? "*" : ""}</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Card pool panel */}
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border border-[#d8ccb8] bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2">
 
               {/* Card grid — explicit pixel sizes for proper portrait proportions */}
               <div className="relative flex min-h-0 flex-1 items-center justify-between">
-                
+
                 {/* Prev Button */}
                 <div className="flex w-12 justify-start shrink-0 z-10 [@media(pointer:coarse)_and_(max-height:480px)]:w-8">
                   <button type="button" onClick={() => goPage(curPage - 1)} disabled={curPage === 0} className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border-[2px] border-[#d0b98a] bg-[#fffaf3] text-[#8a6428] shadow-sm disabled:opacity-35 transition-all [@media(hover:hover)]:hover:-translate-x-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:w-8">
@@ -384,18 +391,18 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: dir > 0 ? -32 : 32 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
-                      className="grid"
+                      className="grid w-full justify-center"
                       style={gridStyle}
                     >
                       {pageItems.map((entry, i) =>
                         mode === "targets" ? (
-                          <div key={(entry as TargetDefinition).id} style={{ width: cardW, height: cardH }}>
+                          <div key={(entry as TargetDefinition).id} style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }} className="flex items-center justify-center">
                             <CollectionTargetCard target={entry as TargetDefinition} />
                           </div>
                         ) : (
-                          <div key={`${(entry as { id: string }).id}-${i}`} style={{ width: sylW, height: sylH }} className="flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
+                          <div key={`${(entry as { id: string }).id}-${i}`} style={{ width: "100%", maxWidth: sylW, height: sylH }} className="flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
                             <div className="origin-top scale-[0.85] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[0.72]">
-                              <SyllableCard syllable={(entry as { syllable: string }).syllable} selected={false} playable={false} disabled={false} staticDisplay onClick={() => {}} sizePreset="hand-desktop" />
+                              <SyllableCard syllable={(entry as { syllable: string }).syllable} selected={false} playable={false} disabled={false} staticDisplay onClick={() => { }} sizePreset="hand-desktop" />
                             </div>
                           </div>
                         )
@@ -429,88 +436,88 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
           {/* Sidebar rail */}
           <div className={cn("min-h-0 shrink-0", panelW)}>
-              <AnimatePresence mode="wait" initial={false}>
-                {sidebar === "decks" ? (
-                  <motion.div key="decks" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="h-full">
-                    <DeckRailPanel decks={decks} compact={compact} />
-                  </motion.div>
-                ) : (
-                  <motion.div key="filters" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/94 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                    <div className="flex shrink-0 items-center justify-between border-b border-[#d9c8a9] bg-[#fffaf3]/90 px-4 py-2.5">
-                      <div className="font-serif text-[1rem] font-black uppercase text-[#5b2408]">Filtros e Busca</div>
-                      <button type="button" onClick={() => setSidebar("decks")} className="flex h-6 w-6 touch-manipulation items-center justify-center rounded-full bg-amber-900/10 text-[0.65rem] font-black text-amber-950 transition hover:bg-amber-900/20">X</button>
+            <AnimatePresence mode="wait" initial={false}>
+              {sidebar === "decks" ? (
+                <motion.div key="decks" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="h-full">
+                  <DeckRailPanel decks={decks} compact={compact} />
+                </motion.div>
+              ) : (
+                <motion.div key="filters" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/94 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <div className="flex shrink-0 items-center justify-between border-b border-[#d9c8a9] bg-[#fffaf3]/90 px-4 py-2.5">
+                    <div className="font-serif text-[1rem] font-black uppercase text-[#5b2408]">Filtros e Busca</div>
+                    <button type="button" onClick={() => setSidebar("decks")} className="flex h-6 w-6 touch-manipulation items-center justify-center rounded-full bg-amber-900/10 text-[0.65rem] font-black text-amber-950 transition hover:bg-amber-900/20">X</button>
+                  </div>
+
+                  <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-3 no-scrollbar pb-10">
+                    {/* Search */}
+                    <div className="space-y-1.5">
+                      <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Buscar</label>
+                      <div className="relative flex items-center">
+                        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-950/40" />
+                        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome ou ID" className="h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 pl-8 pr-2 text-[0.8rem] font-bold text-amber-950 outline-none transition placeholder:text-amber-950/40 placeholder:font-normal focus:border-amber-500/40 focus:bg-white shadow-sm" />
+                      </div>
                     </div>
-                    
-                    <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-3 no-scrollbar pb-10">
-                      {/* Search */}
+
+                    {/* Superclass */}
+                    {superOpts.length > 0 && (
                       <div className="space-y-1.5">
-                        <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Buscar</label>
-                        <div className="relative flex items-center">
-                          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-950/40" />
-                          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome ou ID" className="h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 pl-8 pr-2 text-[0.8rem] font-bold text-amber-950 outline-none transition placeholder:text-amber-950/40 placeholder:font-normal focus:border-amber-500/40 focus:bg-white shadow-sm" />
+                        <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Superclasse</label>
+                        <select value={superF} onChange={(e) => { setSuperF(e.target.value); setClassF("all"); }} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", superF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
+                          <option value="all" className="font-normal text-amber-950/50">Todas as Superclasses</option>
+                          {superOpts.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Class */}
+                    {classOpts.length > 1 && (
+                      <div className="space-y-1.5">
+                        <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Classe</label>
+                        <select value={classF} onChange={(e) => setClassF(e.target.value)} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", classF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
+                          <option value="all" className="font-normal text-amber-950/50">Todas as Classes</option>
+                          {classOpts.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Rarity */}
+                    {mode === "targets" && (
+                      <div className="space-y-1.5">
+                        <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Raridade</label>
+                        <select value={rarF} onChange={(e) => setRarF(e.target.value)} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", rarF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
+                          <option value="all" className="font-normal text-amber-950/50">Todas as Raridades</option>
+                          {RARITY_OPT.map((r) => <option key={r} value={r} className="font-black text-amber-950">{RLBL[r]}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Sorting and reset */}
+                    {mode === "targets" && (
+                      <div className="mt-2 space-y-1.5">
+                        <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Ordenação</label>
+                        <div className="flex items-center gap-2">
+                          <Button type="button" variant="ghost" onClick={() => { if (sortMode !== "rarity") { setSortMode("rarity"); setSortDir("desc"); } else setSortMode("default"); }} className={cn("h-10 flex-1 rounded-xl border px-3 text-[0.8rem] font-black transition shadow-sm", sortMode === "rarity" ? "border-amber-500/40 bg-amber-100/90 hover:bg-amber-100 text-amber-950" : "border-amber-900/15 bg-white/70 hover:bg-amber-100/70 text-amber-950/60")}>
+                            <Layers3 className="mr-1.5 h-4 w-4" /> Raridade
+                          </Button>
+                          <Button type="button" variant="ghost" onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} disabled={sortMode !== "rarity"} className="flex h-10 w-12 items-center justify-center rounded-xl border border-amber-900/15 bg-white/70 text-amber-950 transition hover:bg-amber-100/70 disabled:opacity-45 shadow-sm">
+                            {sortDir === "desc" ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
+                          </Button>
                         </div>
                       </div>
+                    )}
 
-                      {/* Superclass */}
-                      {superOpts.length > 0 && (
-                        <div className="space-y-1.5">
-                          <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Superclasse</label>
-                          <select value={superF} onChange={(e) => { setSuperF(e.target.value); setClassF("all"); }} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", superF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
-                            <option value="all" className="font-normal text-amber-950/50">Todas as Superclasses</option>
-                            {superOpts.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Class */}
-                      {classOpts.length > 1 && (
-                        <div className="space-y-1.5">
-                          <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Classe</label>
-                          <select value={classF} onChange={(e) => setClassF(e.target.value)} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", classF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
-                            <option value="all" className="font-normal text-amber-950/50">Todas as Classes</option>
-                            {classOpts.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Rarity */}
-                      {mode === "targets" && (
-                        <div className="space-y-1.5">
-                          <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Raridade</label>
-                          <select value={rarF} onChange={(e) => setRarF(e.target.value)} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", rarF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
-                            <option value="all" className="font-normal text-amber-950/50">Todas as Raridades</option>
-                            {RARITY_OPT.map((r) => <option key={r} value={r} className="font-black text-amber-950">{RLBL[r]}</option>)}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Sorting and reset */}
-                      {mode === "targets" && (
-                        <div className="mt-2 space-y-1.5">
-                          <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Ordenação</label>
-                          <div className="flex items-center gap-2">
-                            <Button type="button" variant="ghost" onClick={() => { if (sortMode !== "rarity") { setSortMode("rarity"); setSortDir("desc"); } else setSortMode("default"); }} className={cn("h-10 flex-1 rounded-xl border px-3 text-[0.8rem] font-black transition shadow-sm", sortMode === "rarity" ? "border-amber-500/40 bg-amber-100/90 hover:bg-amber-100 text-amber-950" : "border-amber-900/15 bg-white/70 hover:bg-amber-100/70 text-amber-950/60")}>
-                              <Layers3 className="mr-1.5 h-4 w-4" /> Raridade
-                            </Button>
-                            <Button type="button" variant="ghost" onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} disabled={sortMode !== "rarity"} className="flex h-10 w-12 items-center justify-center rounded-xl border border-amber-900/15 bg-white/70 text-amber-950 transition hover:bg-amber-100/70 disabled:opacity-45 shadow-sm">
-                              {sortDir === "desc" ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="mt-auto pt-4 pb-2">
-                        <Button type="button" variant="ghost" onClick={() => { setSearch(""); setSuperF("all"); setClassF("all"); setRarF("all"); setSortMode("default"); }} disabled={!search && superF === "all" && classF === "all" && rarF === "all"} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-900/20 bg-amber-100/50 text-[0.75rem] font-black uppercase tracking-wider text-amber-950 transition hover:bg-amber-200/50 disabled:opacity-45 shadow-sm">
-                          <RotateCcw className="h-4 w-4" /> Limpar filtros
-                        </Button>
-                      </div>
+                    <div className="mt-auto pt-4 pb-2">
+                      <Button type="button" variant="ghost" onClick={() => { setSearch(""); setSuperF("all"); setClassF("all"); setRarF("all"); setSortMode("default"); }} disabled={!search && superF === "all" && classF === "all" && rarF === "all"} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-900/20 bg-amber-100/50 text-[0.75rem] font-black uppercase tracking-wider text-amber-950 transition hover:bg-amber-200/50 disabled:opacity-45 shadow-sm">
+                        <RotateCcw className="h-4 w-4" /> Limpar filtros
+                      </Button>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
+      </div>
     </motion.div>
   );
 };
