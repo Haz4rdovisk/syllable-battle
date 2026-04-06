@@ -181,43 +181,51 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
   );
 };
 
-// ─── CollectionScreen ─────────────────────────────────────────────────────────
 const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }) => {
   const rarityNormalized = normalizeRarity(target.rarity as Rarity);
   const damage = RARITY_DAMAGE[rarityNormalized] || 1;
   const syllables = target.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id);
 
-  let toneClass = "bg-slate-500/95 border-b-slate-400";
-  if (rarityNormalized === "raro") toneClass = "bg-amber-600/95 border-b-amber-500";
-  if (rarityNormalized === "épico") toneClass = "bg-purple-700/95 border-b-purple-500";
-  if (rarityNormalized === "lendário") toneClass = "bg-rose-800/95 border-b-rose-600";
+  // Exact tones from Content Editor
+  let toneClass = "bg-slate-500";
+  if (rarityNormalized === "raro") toneClass = "bg-amber-600";
+  if (rarityNormalized === "épico") toneClass = "bg-purple-700";
+  if (rarityNormalized === "lendário") toneClass = "bg-rose-800";
+
+  const getRarityLabel = (rarity: string) => {
+    if (rarity === "épico") return "EPICO";
+    if (rarity === "lendário") return "LENDARIO";
+    return rarity.toUpperCase();
+  };
 
   return (
     <div className="relative flex h-full w-full items-start justify-center pb-2 text-center [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
-      <div className="card-base relative flex aspect-[126/176] h-full flex-col overflow-hidden rounded-[1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]">
-        <div className={cn("flex items-center justify-between border-b-2 px-2 py-1 text-[9.5px] font-black uppercase text-white [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px]", toneClass)}>
-          <span className="truncate drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">{rarityNormalized.toUpperCase()}</span>
-          <div className="flex items-center gap-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-            <Swords className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" />
+      <div className="card-base relative flex w-full aspect-[126/176] h-full flex-col overflow-hidden rounded-[1.1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]">
+        
+        <div className={cn("flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[8px]", toneClass)}>
+          <span className="truncate">{getRarityLabel(rarityNormalized)}</span>
+          <div className="flex items-center gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+            <Swords className="h-4 w-4 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
             <span>{damage}</span>
           </div>
         </div>
 
-        <div className="relative flex min-h-0 flex-1 items-center justify-center bg-white/10 p-1.5">
+        <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
-          <div className="relative translate-y-1 text-[4rem] leading-none drop-shadow-[0_6px_12px_rgba(0,0,0,0.3)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[3.2rem]">
+          <div className="relative translate-y-3 text-[4.9rem] leading-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] [@media(pointer:coarse)_and_(max-height:480px)]:translate-y-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[3.2rem]">
             {target.emoji || "?"}
           </div>
         </div>
 
-        <div className="mt-auto shrink-0 bg-[#fffdf5]/95 px-2 pb-2 pt-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.5">
-          <div className="truncate text-center font-serif text-[0.82rem] font-black leading-none tracking-tight text-amber-950 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.65rem]">
+        <div className="mt-auto shrink-0 bg-[#fffdf5]/95 px-2.5 pb-2.5 pt-4 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-2.5">
+          <div className="truncate text-center font-serif text-[0.82rem] font-black tracking-tight text-amber-950 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.65rem]">
             {target.name || "NOVO ALVO"}
           </div>
-          <div className="mt-2 flex flex-wrap justify-center gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5">
+          
+          <div className="mt-2.5 flex flex-wrap justify-center gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5">
             {syllables.length > 0 ? (
               syllables.map((syllable, index) => (
-                <div key={`${target.id}-${syllable}-${index}`} className="rounded-full border border-amber-900/12 bg-white/85 px-1.5 py-0.5 text-[8.5px] font-black tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[6.5px]">
+                <div key={`${target.id}-${syllable}-${index}`} className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.1em]">
                   {syllable}
                 </div>
               ))
@@ -273,10 +281,10 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
   // Cards per page based on grid dimensions:
   // Desktop and Compact targets: 4 cols × 2 rows = 8
-  // Desktop syllables: 5 cols × 2 rows = 10 | Compact syllables: 4 cols × 2 rows = 8
+  // Desktop syllables: 6 cols × 3 rows = 18 | Compact syllables: 5 cols × 2 rows = 10
   const perPage = compact
-    ? (mode === "targets" ? 8 : 8)
-    : (mode === "targets" ? 8 : 10);
+    ? (mode === "targets" ? 8 : 10)
+    : (mode === "targets" ? 8 : 18);
 
   const items = mode === "targets" ? filtT : filtC;
   const totalPages = Math.max(1, Math.ceil(items.length / perPage));
@@ -293,7 +301,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const sylH  = compact ? SYL_H_C  : SYL_H_D;
 
   const targetCols = 4;
-  const sylCols    = compact ? 4 : 5;
+  const sylCols    = compact ? 5 : 6;
   const gap        = compact ? 10 : 16;
 
   const gridStyle = mode === "targets"
