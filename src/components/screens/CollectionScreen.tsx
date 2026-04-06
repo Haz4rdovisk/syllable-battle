@@ -262,8 +262,9 @@ const CardPreviewOverlay: React.FC<{
   target: TargetDefinition;
   originX: number;
   isDesktop?: boolean;
+  copies?: number;
   onClose: () => void;
-}> = ({ target, originX, isDesktop = false, onClose }) => {
+}> = ({ target, originX, isDesktop = false, copies, onClose }) => {
   const rn = normalizeRarity(target.rarity as Rarity);
   const damage = RARITY_DAMAGE[rn] || 1;
   const syllables = target.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id);
@@ -342,6 +343,16 @@ const CardPreviewOverlay: React.FC<{
         </div>
 
         <div>
+          {/* TODO: exibir aqui o número de cópias que o player tem no inventário pessoal dele,
+              em vez do total do pool compartilhado do catálogo */}
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">Cópias</div>
+          <div className="flex items-center gap-2">
+            <span className="font-serif text-2xl font-black text-amber-950">{copies ?? 0}</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/50">no pool</span>
+          </div>
+        </div>
+
+        <div>
           <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">S\u00edlabas ({syllables.length})</div>
           <div className="flex flex-wrap gap-1.5">
             {syllables.map((s, i) => (
@@ -411,8 +422,21 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const [preview, setPreview] = useState<TargetDefinition | null>(null);
   const [previewOriginX, setPreviewOriginX] = useState(0);
   const [previewIsDesktop, setPreviewIsDesktop] = useState(false);
+  const [previewCopies, setPreviewCopies] = useState(0);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressStart = useRef<{ x: number; y: number } | null>(null);
+
+  // Copies per target across all decks in the shared catalog pool.
+  // TODO: replace with player personal inventory count when that system exists.
+  const copiesByTargetId = useMemo(() => {
+    const m = new Map<string, number>();
+    APP_RESOLVED_DECKS.forEach((deck) => {
+      deck.deckModel.targetInstances.forEach((e) => {
+        m.set(e.target.id, (m.get(e.target.id) ?? 0) + 1);
+      });
+    });
+    return m;
+  }, []);
 
   const cancelLongPress = () => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
@@ -427,6 +451,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       if (e.pointerType === "mouse") {
         setPreviewOriginX(ox);
         setPreviewIsDesktop(true);
+        setPreviewCopies(copiesByTargetId.get(target.id) ?? 0);
         setPreview(target);
         return;
       }
@@ -435,6 +460,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       longPressTimer.current = setTimeout(() => {
         setPreviewOriginX(ox);
         setPreviewIsDesktop(false);
+        setPreviewCopies(copiesByTargetId.get(target.id) ?? 0);
         setPreview(target);
         longPressStart.current = null;
       }, 450);
@@ -722,6 +748,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
           target={preview}
           originX={previewOriginX}
           isDesktop={previewIsDesktop}
+          copies={previewCopies}
           onClose={() => setPreview(null)}
         />
       )}
