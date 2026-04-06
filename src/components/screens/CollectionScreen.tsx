@@ -1,6 +1,6 @@
-import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, RotateCcw, Search, Sparkles, Swords } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, RotateCcw, Search, Sparkles, Swords, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 import { SyllableCard, TargetCard } from "../game/GameComponents";
@@ -244,6 +244,155 @@ const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }
   );
 };
 
+// ─── Card Preview Overlay (hold-to-reveal) ────────────────────────────────────
+const RARITY_COLOR_FULL: Record<string, string> = {
+  "lend\u00e1rio": "bg-rose-800",
+  "\u00e9pico": "bg-purple-700",
+  "raro": "bg-amber-600",
+  "comum": "bg-slate-500",
+};
+const RARITY_LABEL_FULL: Record<string, string> = {
+  "lend\u00e1rio": "LEND\u00c1RIO",
+  "\u00e9pico": "\u00c9PICO",
+  "raro": "RARO",
+  "comum": "COMUM",
+};
+
+const CardPreviewOverlay: React.FC<{
+  target: TargetDefinition;
+  originX: number;
+  isDesktop?: boolean;
+  onClose: () => void;
+}> = ({ target, originX, isDesktop = false, onClose }) => {
+  const rn = normalizeRarity(target.rarity as Rarity);
+  const damage = RARITY_DAMAGE[rn] || 1;
+  const syllables = target.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id);
+  const toneClass = RARITY_COLOR_FULL[rn] ?? "bg-slate-500";
+
+  // Determine layout side: if press was on right half, show infopanel LEFT of card
+  const cardW = isDesktop ? 300 : 240;
+  const cardH = isDesktop ? 420 : 336;
+  const infoW = isDesktop ? "w-[300px]" : "w-[240px]";
+
+  const pressedLeft = typeof window !== "undefined" ? originX <= window.innerWidth / 2 : true;
+  // pressedLeft => card LEFT, info RIGHT; pressedRight => info LEFT, card RIGHT
+
+  const cardEl = (
+    <motion.div
+      initial={{ scale: 0.72, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.72, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 340, damping: 28 }}
+      className="relative flex-shrink-0"
+      style={{ width: cardW, height: cardH }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="card-base relative flex h-full w-full flex-col overflow-hidden rounded-[1.4rem] border-2 border-amber-300/60 shadow-[0_32px_64px_rgba(0,0,0,0.45)] ring-4 ring-amber-300/25">
+        <div className={cn("flex h-12 items-center justify-between border-b-2 border-[#d4af37] px-4 text-[11px] font-black uppercase text-white", toneClass)}>
+          <span>{RARITY_LABEL_FULL[rn] ?? rn.toUpperCase()}</span>
+          <div className="flex items-center gap-1.5"><Swords className="h-4 w-4" /><span>{damage}</span></div>
+        </div>
+        <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-2">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.14),transparent_42%)]" />
+          <div className="relative translate-y-4 text-[7rem] leading-none drop-shadow-[0_14px_22px_rgba(0,0,0,0.28)]">{target.emoji || "?"}</div>
+        </div>
+        <div className="mt-auto shrink-0 bg-[#fffdf5]/95 px-3 pb-3 pt-5">
+          <div className="text-center font-serif text-[1rem] font-black tracking-tight text-amber-950">{target.name || "ALVO"}</div>
+          <div className="mt-2 flex flex-wrap justify-center gap-1">
+            {syllables.map((s, i) => (
+              <span key={i} className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm">{s}</span>
+            ))}
+          </div>
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-b-full bg-white/20" />
+      </div>
+    </motion.div>
+  );
+
+  const infoEl = (
+    <motion.div
+      initial={{ opacity: 0, x: pressedLeft ? 24 : -24 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: pressedLeft ? 24 : -24 }}
+      transition={{ duration: 0.22, ease: "easeOut", delay: 0.08 }}
+      className={cn("paper-panel flex flex-shrink-0 flex-col gap-4 rounded-[1.5rem] border-2 border-[#8d6e63]/30 p-5 shadow-[0_24px_56px_rgba(0,0,0,0.35)]", infoW)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div>
+        <div className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-sm", toneClass)}>
+          <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
+          {RARITY_LABEL_FULL[rn] ?? rn}
+        </div>
+        <div className="mt-3 font-serif text-2xl font-black leading-tight tracking-tight text-amber-950">{target.name}</div>
+        {target.description && (
+          <p className="mt-2 text-[12px] leading-relaxed text-amber-900/70">{target.description}</p>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">Dano</div>
+          <div className="flex items-center gap-2">
+            {Array.from({ length: damage }).map((_, i) => (
+              <Swords key={i} className="h-4 w-4 text-amber-700" />
+            ))}
+            <span className="font-serif text-lg font-black text-amber-950">{damage}</span>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">S\u00edlabas ({syllables.length})</div>
+          <div className="flex flex-wrap gap-1.5">
+            {syllables.map((s, i) => (
+              <span key={i} className="rounded-full border border-amber-900/15 bg-amber-50 px-3 py-1 text-[11px] font-black tracking-[0.1em] text-amber-950 shadow-sm">{s}</span>
+            ))}
+          </div>
+        </div>
+
+        {(target.superclass || target.classKey) && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">Taxonomia</div>
+            <div className="flex flex-wrap gap-1.5">
+              {target.superclass && <span className="rounded-full border border-amber-900/12 bg-white/80 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-900">{target.superclass}</span>}
+              {target.classKey && <span className="rounded-full border border-amber-900/12 bg-white/80 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-900">{target.classKey}</span>}
+            </div>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="overlay-bg"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/65 backdrop-blur-[2px]"
+        onClick={onClose}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <div className={cn("flex items-center gap-6", !pressedLeft && "flex-row-reverse")}>
+          {cardEl}
+          {infoEl}
+        </div>
+
+        {/* Close button */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/15 text-white backdrop-blur-sm transition hover:bg-white/25"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) => {
   const decks = useMemo(() => APP_RESOLVED_DECKS, []);
   const [sidebar, setSidebar] = useState<"decks" | "filters">("decks");
@@ -257,6 +406,49 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const [sortMode, setSortMode] = useState<"default" | "rarity">("default");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const dSearch = useDeferredValue(search.trim().toLowerCase());
+
+  // ─── Hold-to-reveal preview state ───────────────────────────────────────────
+  const [preview, setPreview] = useState<TargetDefinition | null>(null);
+  const [previewOriginX, setPreviewOriginX] = useState(0);
+  const [previewIsDesktop, setPreviewIsDesktop] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressStart = useRef<{ x: number; y: number } | null>(null);
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    longPressStart.current = null;
+  };
+
+  const makeLongPressProps = (target: TargetDefinition) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      const ox = e.clientX;
+      // Desktop (mouse): open immediately on click
+      if (e.pointerType === "mouse") {
+        setPreviewOriginX(ox);
+        setPreviewIsDesktop(true);
+        setPreview(target);
+        return;
+      }
+      // Touch / pen: require hold of 450ms
+      longPressStart.current = { x: e.clientX, y: e.clientY };
+      longPressTimer.current = setTimeout(() => {
+        setPreviewOriginX(ox);
+        setPreviewIsDesktop(false);
+        setPreview(target);
+        longPressStart.current = null;
+      }, 450);
+    },
+    onPointerUp: (e: React.PointerEvent) => { if (e.pointerType !== "mouse") cancelLongPress(); },
+    onPointerCancel: cancelLongPress,
+    onPointerMove: (e: React.PointerEvent) => {
+      if (e.pointerType === "mouse" || !longPressStart.current) return;
+      const dx = e.clientX - longPressStart.current.x;
+      const dy = e.clientY - longPressStart.current.y;
+      if (Math.sqrt(dx * dx + dy * dy) > 9) cancelLongPress();
+    },
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+  });
 
   const [compact, setCompact] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse) and (max-height: 480px)").matches);
   useEffect(() => {
@@ -396,7 +588,12 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     >
                       {pageItems.map((entry, i) =>
                         mode === "targets" ? (
-                          <div key={(entry as TargetDefinition).id} style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }} className="flex items-center justify-center">
+                          <div
+                            key={(entry as TargetDefinition).id}
+                            style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }}
+                            className="flex items-center justify-center select-none"
+                            {...makeLongPressProps(entry as TargetDefinition)}
+                          >
                             <CollectionTargetCard target={entry as TargetDefinition} />
                           </div>
                         ) : (
@@ -518,6 +715,16 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
           </div>
         </div>
       </div>
+
+      {/* Hold-to-reveal overlay */}
+      {preview && (
+        <CardPreviewOverlay
+          target={preview}
+          originX={previewOriginX}
+          isDesktop={previewIsDesktop}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </motion.div>
   );
 };
