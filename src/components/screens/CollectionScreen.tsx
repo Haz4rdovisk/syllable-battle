@@ -312,7 +312,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
         <div className="absolute inset-y-[12px] left-[12px] right-[12px] rounded-[1.45rem] border border-[#d9c8a9] [@media(pointer:coarse)_and_(max-height:480px)]:inset-y-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]" />
         <div className="pointer-events-none absolute bottom-[14px] left-[8px] right-[8px] top-[14px] rounded-[1.2rem] border border-white/30 [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[9px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:top-[9px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.72rem]" />
 
-        <div className="relative flex h-full min-h-0 flex-col gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+        <div className="relative flex h-full min-h-0 flex-row gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+          {/* ── Left Content (Toolbar + Grid) ── */}
+          <div className="flex min-w-0 flex-1 flex-col gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
 
           {/* ── Toolbar ── */}
           <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 no-scrollbar">
@@ -353,11 +355,8 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
             </div>
           </div>
 
-          {/* ── Body ── */}
-          <div className="flex min-h-0 flex-1 gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
-
-            {/* Card pool panel */}
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border border-[#d8ccb8] bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2">
+          {/* Card pool panel */}
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border border-[#d8ccb8] bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2">
 
               {/* Card grid — explicit pixel sizes for proper portrait proportions */}
               <div className="relative flex min-h-0 flex-1 items-center justify-between">
@@ -418,9 +417,10 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Sidebar rail */}
-            <div className={cn("min-h-0 shrink-0", panelW)}>
+          {/* Sidebar rail */}
+          <div className={cn("min-h-0 shrink-0", panelW)}>
               <AnimatePresence mode="wait" initial={false}>
                 {sidebar === "decks" ? (
                   <motion.div key="decks" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="h-full">
@@ -503,7 +503,6 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
             </div>
           </div>
         </div>
-      </div>
     </motion.div>
   );
 };
