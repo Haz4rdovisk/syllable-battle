@@ -1,708 +1,506 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  BookOpenText,
-  ChevronLeft,
-  ChevronRight,
-  Layers3,
-  LibraryBig,
-  SlidersHorizontal,
-  Sparkles,
-  Swords,
-  Tags,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, RotateCcw, Search, Sparkles, Swords } from "lucide-react";
 import { Button } from "../ui/button";
-import { SyllableCard } from "../game/GameComponents";
 import { cn } from "../../lib/utils";
+import { SyllableCard, TargetCard } from "../game/GameComponents";
 import { APP_RESOLVED_DECKS, resolveAppDeck, type AppResolvedDeck } from "../../app/appDeckResolver";
 import { CONTENT_PIPELINE } from "../../data/content";
-import { getCardsForDeckModel, type CatalogCardUsage } from "../../data/content/selectors";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
-import { normalizeRarity, RARITY_DAMAGE, type Rarity } from "../../types/game";
+import type { TargetDefinition } from "../../data/content/types";
+import { RARITY_DAMAGE, normalizeRarity, type Rarity, type UITarget } from "../../types/game";
 
-interface CollectionScreenProps {
-  onBack: () => void;
-}
+interface CollectionScreenProps { onBack: () => void }
 
-type CollectionViewport = "mobile" | "tablet" | "desktop";
-type CollectionMode = "targets" | "syllables";
-type CollectionFilter = "all" | "raro" | "epico" | "lendario";
+// ─── Rarity palette ──────────────────────────────────────────────────────────
+const RBG: Record<string, string> = { "lendário": "bg-rose-800", "épico": "bg-purple-700", "raro": "bg-amber-600", "comum": "bg-slate-500" };
+const RSEP: Record<string, string> = { "lendário": "bg-rose-50/90 text-rose-900 border-rose-200/60", "épico": "bg-purple-50/90 text-purple-800 border-purple-200/60", "raro": "bg-amber-50/90 text-amber-800 border-amber-200/60", "comum": "bg-slate-50/90 text-slate-600 border-slate-200/60" };
+const RLBL = { "lendário": "Lendário", "épico": "Épico", "raro": "Raro", "comum": "Comum" } as const;
+const RORDER: Rarity[] = ["lendário", "épico", "raro", "comum"];
+const RARITY_OPT = ["comum", "raro", "épico", "lendário"] as const;
 
-type AggregatedTargetCard = {
-  id: string;
-  name: string;
-  emoji: string;
-  rarity: Rarity;
-  copies: number;
-  syllables: string[];
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const tier = (r: string) => { const n = normalizeRarity(r as Rarity); return n === "lendário" ? 3 : n === "épico" ? 2 : n === "raro" ? 1 : 0; };
+const normTax = (v: string) => v.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const fmtLbl = (v: string) => v.split("-").filter(Boolean).map((p) => p[0]?.toUpperCase() + p.slice(1)).join(" ") || v;
 
-const viewportByWidth = (width: number): CollectionViewport => {
-  if (width < 1080) return "mobile";
-  if (width < 1520) return "tablet";
-  return "desktop";
-};
+const toUITarget = (t: TargetDefinition): UITarget => ({
+  id: t.id, name: t.name, emoji: t.emoji, description: t.description,
+  syllables: t.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id),
+  rarity: t.rarity, progress: [], uiId: t.id,
+  entering: false, attacking: false, leaving: false, justArrived: false,
+});
 
-const targetPageSizeByViewport: Record<CollectionViewport, number> = {
-  mobile: 4,
-  tablet: 6,
-  desktop: 8,
-};
+// ─── Card grid sizes (portrait aspect ratio ~200:275 ≈ 0.73:1) ───────────────
+const CARD_W_D = 200; 
+const CARD_H_D = 275; 
+const CARD_W_C = 105; 
+const CARD_H_C = 158; 
+const SYL_W_D = 128;  
+const SYL_H_D = 179;  
+const SYL_W_C = 96;
+const SYL_H_C = 134;
 
-const syllablePageSizeByViewport: Record<CollectionViewport, number> = {
-  mobile: 4,
-  tablet: 6,
-  desktop: 8,
-};
-
-const decksPerPageByViewport: Record<CollectionViewport, number> = {
-  mobile: 3,
-  tablet: 4,
-  desktop: 5,
-};
-
-const targetGridClassByViewport: Record<CollectionViewport, string> = {
-  mobile: "grid-cols-2 gap-x-2.5 gap-y-3",
-  tablet: "grid-cols-3 gap-x-3 gap-y-3.5",
-  desktop: "grid-cols-4 gap-x-3.5 gap-y-4",
-};
-
-const syllableGridClassByViewport: Record<CollectionViewport, string> = {
-  mobile: "grid-cols-2 gap-x-2.5 gap-y-3",
-  tablet: "grid-cols-3 gap-x-3 gap-y-3.5",
-  desktop: "grid-cols-4 gap-x-3.5 gap-y-4",
-};
-
-const targetCardWidthClassByViewport: Record<CollectionViewport, string> = {
-  mobile: "w-[8.65rem]",
-  tablet: "w-[9.8rem]",
-  desktop: "w-[10.75rem]",
-};
-
-const syllableScaleClassByViewport: Record<CollectionViewport, string> = {
-  mobile: "scale-[0.68]",
-  tablet: "scale-[0.76]",
-  desktop: "scale-[0.84]",
-};
-
-const getRarityTier = (rarity: Rarity) => {
-  const normalized = normalizeRarity(rarity);
-  if (normalized === "lendário") return 3;
-  if (normalized === "épico") return 2;
-  if (normalized === "raro") return 1;
-  return 0;
-};
-
-const getFilterFloor = (filter: CollectionFilter) => {
-  if (filter === "lendario") return 3;
-  if (filter === "epico") return 2;
-  if (filter === "raro") return 1;
-  return 0;
-};
-
-const getRarityToneClass = (rarity: Rarity) => {
-  const normalized = normalizeRarity(rarity);
-  if (normalized === "comum") return "bg-slate-500";
-  if (normalized === "raro") return "bg-amber-600";
-  if (normalized === "épico") return "bg-purple-700";
-  return "bg-rose-800";
-};
-
-const getRarityLabel = (rarity: Rarity) => {
-  const normalized = normalizeRarity(rarity);
-  if (normalized === "épico") return "EPICO";
-  if (normalized === "lendário") return "LENDARIO";
-  return normalized.toUpperCase();
-};
-
-const aggregateTargetsForDeck = (deck: AppResolvedDeck | null): AggregatedTargetCard[] => {
-  if (!deck) return [];
-
-  const byId = new Map<string, AggregatedTargetCard>();
-
-  deck.deckModel.targetInstances.forEach((entry) => {
-    const current = byId.get(entry.target.id);
-    if (current) {
-      current.copies += 1;
-      return;
-    }
-
-    byId.set(entry.target.id, {
-      id: entry.target.id,
-      name: entry.target.name,
-      emoji: entry.target.emoji,
-      rarity: normalizeRarity(entry.target.rarity),
-      copies: 1,
-      syllables: entry.target.cardIds
-        .map((cardId) => CONTENT_PIPELINE.catalog.cardsById[cardId]?.syllable ?? cardId)
-        .slice(0, 4),
-    });
-  });
-
-  return [...byId.values()].sort((left, right) => {
-    const rarityDelta = getRarityTier(right.rarity) - getRarityTier(left.rarity);
-    if (rarityDelta !== 0) return rarityDelta;
-    if (right.copies !== left.copies) return right.copies - left.copies;
-    return left.name.localeCompare(right.name);
-  });
-};
-
-const FilterPill: React.FC<{
-  active?: boolean;
-  onClick?: () => void;
-  children: React.ReactNode;
-}> = ({ active = false, onClick, children }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={cn(
-      "inline-flex min-h-[2.2rem] items-center justify-center rounded-full border px-3.5 py-1 text-[0.54rem] font-black uppercase tracking-[0.16em] transition-all duration-150",
-      "[@media(pointer:coarse)]:min-h-[1.85rem] [@media(pointer:coarse)]:px-2.4 [@media(pointer:coarse)]:text-[0.42rem]",
-      active
-        ? "border-[#c7a561] bg-[#fff3d6] text-[#7c5821] shadow-[0_8px_16px_rgba(0,0,0,0.05)]"
-        : "border-[#d7ccb8] bg-white/78 text-[#7f6a52] hover:border-[#c7a561]/65 hover:text-[#6e4b1f]",
-    )}
-  >
-    {children}
-  </button>
+// ─── Pill ─────────────────────────────────────────────────────────────────────
+const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.ReactNode; sm?: boolean }> = ({ active, onClick, children, sm }) => (
+  <button type="button" onClick={onClick} className={cn(
+    "inline-flex touch-manipulation select-none items-center justify-center rounded-full border font-black uppercase transition-all duration-100",
+    sm ? "px-2.5 py-0.5 text-[0.62rem] tracking-[0.08em]" : "px-3.5 py-1 text-[0.72rem] tracking-[0.1em]",
+    active ? "border-[#c7a561] bg-[#fff3d6] text-[#7c5821]" : "border-[#d7ccb8] bg-white/72 text-[#7f6a52] [@media(hover:hover)]:hover:border-amber-400/50",
+  )}>{children}</button>
 );
 
-const CountPill: React.FC<{
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}> = ({ icon, children }) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#d7ccb8] bg-white/82 px-3 py-1 text-[0.52rem] font-black uppercase tracking-[0.16em] text-[#7f6a52] [@media(pointer:coarse)]:gap-1 [@media(pointer:coarse)]:px-2.2 [@media(pointer:coarse)]:text-[0.38rem]">
-    {icon}
-    {children}
-  </span>
-);
-
-const EditorDeckRailCard: React.FC<{
-  deck: AppResolvedDeck;
-  active: boolean;
-  compact: boolean;
-  onClick: () => void;
-}> = ({ deck, active, compact, onClick }) => {
-  const totalTargets = new Set(deck.deckModel.targetInstances.map((entry) => entry.targetId)).size;
-  const totalSyllables = deck.deckModel.cards.reduce((sum, entry) => sum + entry.copiesInDeck, 0);
-
+// ─── MiniCardRow — Hearthstone nicho (kept as-is per user request) ────────────
+const MiniCardRow: React.FC<{ emoji: string; name: string; rarity: string; copies: number }> = ({ emoji, name, rarity, copies }) => {
+  const rn = normalizeRarity(rarity as Rarity);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "w-full overflow-hidden rounded-[1.4rem] border text-left shadow-[0_14px_26px_rgba(0,0,0,0.12)] transition-all duration-300",
-        compact
-          ? "rounded-[1rem]"
-          : "hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.16)]",
-        active
-          ? "border-amber-300/60 bg-[#fffaf0]/96 ring-2 ring-amber-300/35"
-          : "border-amber-900/12 bg-[#fffaf0]/90 hover:border-amber-900/18 hover:bg-[#fffdf7]",
-      )}
-    >
-      <div
-        className={cn(
-          "relative border-b border-white/10 bg-gradient-to-br px-3 py-3",
-          compact && "px-2.5 py-2.5",
-          DECK_VISUAL_THEME_CLASSES[deck.visualTheme],
-        )}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_45%)]" />
-        <div className="relative flex items-start justify-between gap-2.5">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div
-              className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-amber-100/20 bg-black/15 text-[1.65rem] shadow-[0_10px_20px_rgba(0,0,0,0.2)]",
-                compact && "h-9 w-9 rounded-[0.8rem] text-[1.25rem]",
-              )}
-            >
-              {deck.emoji}
-            </div>
-            <div className="min-w-0">
-              <div
-                className={cn(
-                  "truncate font-serif text-[1.1rem] font-black text-amber-50",
-                  compact && "text-[0.86rem]",
-                )}
-              >
-                {deck.name}
-              </div>
-              <div
-                className={cn(
-                  "mt-1 truncate text-[0.46rem] font-black uppercase tracking-[0.18em] text-amber-100/72",
-                  compact && "text-[0.38rem] tracking-[0.14em]",
-                )}
-              >
-                {deck.definition.superclass.toUpperCase()}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="group flex cursor-grab items-center gap-1.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/70 px-2 py-1 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]">
+      <div className={cn("h-5 w-1.5 shrink-0 rounded-full", RBG[rn])} />
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1rem] shadow-sm">{emoji}</div>
+      <span className="min-w-0 flex-1 truncate font-serif text-[0.56rem] font-black leading-tight text-[#31271e]">{name}</span>
+      <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-1.5 py-0.5 text-[0.44rem] font-black text-amber-800">×{copies}</span>
+    </div>
+  );
+};
 
-      <div
-        className={cn(
-          "grid grid-cols-2 gap-2.5 bg-[rgba(255,248,235,0.94)] px-3 py-2.5 text-sm",
-          compact && "gap-2 px-2.5 py-2",
-        )}
-      >
-        <div>
-          <div className="text-[0.42rem] font-black uppercase tracking-[0.18em] text-amber-900/45">
-            Targets
-          </div>
-          <div className={cn("mt-0.5 font-serif text-[0.96rem] font-black text-amber-950", compact && "text-[0.74rem]")}>
-            {totalTargets}
-          </div>
-        </div>
-        <div>
-          <div className="text-[0.42rem] font-black uppercase tracking-[0.18em] text-amber-900/45">
-            Silabas
-          </div>
-          <div className={cn("mt-0.5 font-serif text-[0.96rem] font-black text-amber-950", compact && "text-[0.74rem]")}>
-            {totalSyllables}
-          </div>
-        </div>
+// ─── DeckBanner ───────────────────────────────────────────────────────────────
+const DeckBanner: React.FC<{ deck: AppResolvedDeck; isSelected: boolean; onClick: () => void }> = ({ deck, isSelected, onClick }) => {
+  const count = useMemo(() => new Set(deck.deckModel.targetInstances.map((e) => e.target.id)).size, [deck]);
+  return (
+    <button type="button" onClick={onClick} className={cn("relative flex w-full items-center gap-3 overflow-hidden rounded-xl border-2 px-3 py-3 text-left transition-all duration-200", isSelected ? cn("border-white/30 ring-2 ring-white/15 shadow-md bg-gradient-to-r", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]) : cn("border-[#d9c8a9] bg-gradient-to-r opacity-72 [@media(hover:hover)]:hover:opacity-95 [@media(hover:hover)]:hover:shadow-sm", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_left,rgba(255,255,255,0.12),transparent_55%)]" />
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.7rem] shadow">{deck.emoji}</div>
+      <div className="relative min-w-0 flex-1">
+        <div className="truncate font-serif text-[1.05rem] font-black leading-tight text-amber-50 drop-shadow-sm">{deck.name}</div>
+        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65">{deck.definition.superclass}</div>
       </div>
+      <div className="relative shrink-0 rounded-full border border-white/25 bg-black/20 px-2.5 py-1 text-[0.6rem] font-black text-amber-50">{count} alvos</div>
     </button>
   );
 };
 
-const EditorTargetCollectionCard: React.FC<{
-  entry: AggregatedTargetCard;
-  viewport: CollectionViewport;
-}> = ({ entry, viewport }) => {
-  const damage = RARITY_DAMAGE[normalizeRarity(entry.rarity)];
+// ─── DeckRailPanel ────────────────────────────────────────────────────────────
+const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = ({ decks, compact }) => {
+  const [selId, setSelId] = useState(() => decks[0]?.deckId ?? "");
+  const [view, setView] = useState<"list" | "cards">("list");
+  const deck = useMemo(() => resolveAppDeck(selId) ?? decks[0] ?? null, [selId, decks]);
+
+  const targets = useMemo(() => {
+    if (!deck) return [] as { id: string; name: string; emoji: string; rarity: string; copies: number }[];
+    const m = new Map<string, { id: string; name: string; emoji: string; rarity: string; copies: number }>();
+    deck.deckModel.targetInstances.forEach((e) => { const c = m.get(e.target.id); if (c) { c.copies++; return; } m.set(e.target.id, { id: e.target.id, name: e.target.name, emoji: e.target.emoji, rarity: e.target.rarity, copies: 1 }); });
+    return [...m.values()].sort((a, b) => tier(b.rarity) - tier(a.rarity));
+  }, [deck]);
+
+  const syls = useMemo(() => deck ? deck.deckModel.cards.map((c) => ({ syllable: CONTENT_PIPELINE.catalog.cardsById[c.cardId]?.syllable ?? c.cardId, copies: c.copiesInDeck })) : [], [deck]);
+  const grouped = useMemo(() => { const g = {} as Record<string, typeof targets>; RORDER.forEach((r) => { g[r] = []; }); targets.forEach((t) => { (g[normalizeRarity(t.rarity as Rarity)] ??= []).push(t); }); return g; }, [targets]);
+  const totalA = targets.reduce((s, t) => s + t.copies, 0);
+  const totalS = syls.reduce((s, c) => s + c.copies, 0);
 
   return (
-    <div className="relative flex w-full items-start justify-center text-center">
-      <div className={cn("relative flex w-full items-start justify-center pb-9", targetCardWidthClassByViewport[viewport])}>
-        <div className="card-base relative flex aspect-[126/176] w-full flex-col overflow-hidden rounded-[1.1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)]">
-          <div
-            className={cn(
-              "flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white",
-              getRarityToneClass(entry.rarity),
-              viewport === "mobile" && "h-8 px-2.5 text-[8px]",
-            )}
-          >
-            <span className="truncate">{getRarityLabel(entry.rarity)}</span>
-            <div className="flex items-center gap-1.5">
-              <Swords className={cn("h-4 w-4", viewport === "mobile" && "h-3 w-3")} />
-              <span>{damage}</span>
+    <div className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+      <AnimatePresence mode="wait" initial={false}>
+        {view === "list" ? (
+          <motion.div key="list" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col">
+            <div className="shrink-0 border-b border-[#d9c8a9] bg-[#fffaf3]/90 px-4 py-2.5">
+              <div className="font-serif text-[1rem] font-black uppercase text-[#5b2408]">Meus Decks</div>
+              <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#9a7f5c]">{decks.length} decks disponíveis</div>
             </div>
-          </div>
-
-          <div
-            className={cn(
-              "relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5",
-              viewport === "mobile" && "p-1",
-            )}
-          >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
-            <div
-              className={cn(
-                "relative translate-y-3 text-[4.8rem] leading-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]",
-                viewport === "mobile" && "translate-y-2 text-[3.9rem]",
-              )}
-            >
-              {entry.emoji || "?"}
+            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto bg-[#fffaf3]/94 p-3">
+              {decks.map((d) => <DeckBanner key={d.deckId} deck={d} isSelected={d.deckId === selId} onClick={() => { setSelId(d.deckId); setView("cards"); }} />)}
             </div>
-          </div>
-
-          <div className={cn("mt-auto shrink-0 bg-parchment/90 px-2.5 pb-2.5 pt-4", viewport === "mobile" && "px-2 pb-2 pt-3")}>
-            <div
-              className={cn(
-                "font-serif text-[0.82rem] font-black leading-tight tracking-tight text-amber-950",
-                viewport === "mobile" && "text-[0.72rem]",
-              )}
-            >
-              {entry.name}
-            </div>
-            <div className="mt-2.5 flex flex-wrap justify-center gap-1">
-              {entry.syllables.length > 0 ? (
-                entry.syllables.map((syllable, index) => (
-                  <div
-                    key={`${entry.id}-${syllable}-${index}`}
-                    className={cn(
-                      "rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm",
-                      viewport === "mobile" && "px-1.5 text-[8px]",
-                    )}
-                  >
-                    {syllable}
+          </motion.div>
+        ) : (
+          <motion.div key="cards" initial={{ opacity: 0, x: -28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col">
+            {deck && (
+              <div className={cn("relative shrink-0 overflow-hidden px-3 py-2.5", cn("bg-gradient-to-br", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.14),transparent_55%)]" />
+                <div className="relative flex items-center gap-2">
+                  <button type="button" onClick={() => setView("list")} className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/25 bg-black/20 text-amber-50 transition-all [@media(hover:hover)]:hover:bg-black/30">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.4rem] shadow">{deck.emoji}</div>
+                  <div className="min-w-0">
+                    <div className="truncate font-serif text-[1rem] font-black leading-none text-amber-50">{deck.name}</div>
+                    <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{deck.definition.superclass}</div>
                   </div>
-                ))
-              ) : (
-                <div className="rounded-full border border-amber-900/12 bg-white/70 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-900/40 shadow-sm">
-                  SEM SILABAS
+                </div>
+              </div>
+            )}
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fffaf3]/94 px-2.5 py-2">
+              {RORDER.map((rk) => {
+                const grp = grouped[rk]; if (!grp?.length) return null;
+                return (
+                  <div key={rk} className="mb-2">
+                    <div className={cn("mb-1.5 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase", RSEP[rk])}>
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", RBG[rk])} />{RLBL[rk]}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {grp.map((t) => <MiniCardRow key={t.id} emoji={t.emoji} name={t.name} rarity={t.rarity} copies={t.copies} />)}
+                    </div>
+                  </div>
+                );
+              })}
+              {syls.length > 0 && (
+                <div className="mb-1">
+                  <div className="mb-1.5 flex items-center gap-1.5 rounded-full border border-slate-200/60 bg-slate-50/82 px-2 py-0.5 text-[0.6rem] font-black uppercase text-slate-600">
+                    <Sparkles className="h-2.5 w-2.5" />Sílabas
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {syls.map((s, i) => (
+                      <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-0.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-2 py-0.5 text-[0.58rem] font-black text-amber-800">
+                        {s.syllable}<span className="rounded-full bg-amber-200/55 px-1 text-[0.48rem]">×{s.copies}</span>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
+            <div className="shrink-0 border-t border-[#d9c8a9] bg-[#fffaf3]/96 px-3 py-2">
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-3">
+                  <div className="text-center">
+                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{totalA}</div>
+                    <div className="text-[0.54rem] font-black uppercase tracking-[0.1em] text-[#9a7f5c]">Alvos</div>
+                  </div>
+                  <div className="h-5 w-px bg-[#d9c8a9]" />
+                  <div className="text-center">
+                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{totalS}</div>
+                    <div className="text-[0.54rem] font-black uppercase tracking-[0.1em] text-[#9a7f5c]">Sílabas</div>
+                  </div>
+                </div>
+                <div className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.06em]", totalA >= 2 ? "border-emerald-300/70 bg-emerald-50 text-emerald-700" : "border-amber-300/70 bg-amber-50 text-amber-700")}>
+                  <Swords className="h-3 w-3" />{totalA >= 2 ? "Pronto" : "Montar"}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
-          <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
+// ─── CollectionScreen ─────────────────────────────────────────────────────────
+const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }) => {
+  const rarityNormalized = normalizeRarity(target.rarity as Rarity);
+  const damage = RARITY_DAMAGE[rarityNormalized] || 1;
+  const syllables = target.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id);
+
+  let toneClass = "bg-slate-500/95 border-b-slate-400";
+  if (rarityNormalized === "raro") toneClass = "bg-amber-600/95 border-b-amber-500";
+  if (rarityNormalized === "épico") toneClass = "bg-purple-700/95 border-b-purple-500";
+  if (rarityNormalized === "lendário") toneClass = "bg-rose-800/95 border-b-rose-600";
+
+  return (
+    <div className="relative flex h-full w-full items-start justify-center pb-2 text-center [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
+      <div className="card-base relative flex aspect-[126/176] h-full flex-col overflow-hidden rounded-[1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]">
+        <div className={cn("flex items-center justify-between border-b-2 px-2 py-1 text-[9.5px] font-black uppercase text-white [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px]", toneClass)}>
+          <span className="truncate drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">{rarityNormalized.toUpperCase()}</span>
+          <div className="flex items-center gap-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
+            <Swords className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" />
+            <span>{damage}</span>
+          </div>
         </div>
 
-        <span
-          className={cn(
-            "absolute bottom-[6px] left-1/2 -translate-x-1/2 rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-0.5 text-xs font-black text-amber-950 shadow-sm",
-            viewport === "mobile" && "bottom-[5px] px-2 text-[10px]",
-          )}
-        >
-          x{entry.copies}
-        </span>
+        <div className="relative flex min-h-0 flex-1 items-center justify-center bg-white/10 p-1.5">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
+          <div className="relative translate-y-1 text-[4rem] leading-none drop-shadow-[0_6px_12px_rgba(0,0,0,0.3)] [@media(pointer:coarse)_and_(max-height:480px)]:text-[3.2rem]">
+            {target.emoji || "?"}
+          </div>
+        </div>
+
+        <div className="mt-auto shrink-0 bg-[#fffdf5]/95 px-2 pb-2 pt-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:pt-1.5">
+          <div className="truncate text-center font-serif text-[0.82rem] font-black leading-none tracking-tight text-amber-950 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.65rem]">
+            {target.name || "NOVO ALVO"}
+          </div>
+          <div className="mt-2 flex flex-wrap justify-center gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5">
+            {syllables.length > 0 ? (
+              syllables.map((syllable, index) => (
+                <div key={`${target.id}-${syllable}-${index}`} className="rounded-full border border-amber-900/12 bg-white/85 px-1.5 py-0.5 text-[8.5px] font-black tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[6.5px]">
+                  {syllable}
+                </div>
+              ))
+            ) : null}
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
       </div>
     </div>
   );
 };
 
-const EditorSyllableCollectionCard: React.FC<{
-  entry: CatalogCardUsage;
-  viewport: CollectionViewport;
-}> = ({ entry, viewport }) => (
-  <div className={cn("relative flex min-h-[10.6rem] w-full items-start justify-center pb-3 text-center", viewport === "mobile" && "min-h-[9.4rem]")}>
-    <div className={cn("origin-top", syllableScaleClassByViewport[viewport])}>
-      <SyllableCard
-        syllable={entry.card.syllable}
-        selected={false}
-        playable={false}
-        disabled={false}
-        staticDisplay
-        sizePreset="hand-desktop"
-        onClick={() => {}}
-      />
-    </div>
-    <span className="absolute bottom-[9px] left-1/2 -translate-x-1/2 rounded-full border border-amber-900/12 bg-white/90 px-2.5 py-0.5 text-xs font-black text-amber-950 shadow-sm [@media(pointer:coarse)]:text-[10px]">
-      x{entry.copiesInDeck}
-    </span>
-  </div>
-);
-
 export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) => {
-  const deckEntries = useMemo(() => APP_RESOLVED_DECKS, []);
-  const [viewport, setViewport] = useState<CollectionViewport>(() =>
-    typeof window === "undefined" ? "desktop" : viewportByWidth(window.innerWidth),
-  );
-  const [activeDeckId, setActiveDeckId] = useState<string>(() => deckEntries[0]?.deckId ?? "");
-  const [mode, setMode] = useState<CollectionMode>("targets");
-  const [filter, setFilter] = useState<CollectionFilter>("all");
-  const [collectionPage, setCollectionPage] = useState(0);
-  const [deckPage, setDeckPage] = useState(0);
-  const [pageDirection, setPageDirection] = useState(1);
-  const [deckPageDirection, setDeckPageDirection] = useState(1);
+  const decks = useMemo(() => APP_RESOLVED_DECKS, []);
+  const [mode, setMode] = useState<"targets" | "syllables">("targets");
+  const [page, setPage] = useState(0);
+  const [dir, setDir] = useState(1);
+  const [search, setSearch] = useState("");
+  const [superF, setSuperF] = useState("all");
+  const [classF, setClassF] = useState("all");
+  const [rarF, setRarF] = useState("all");
+  const [sortMode, setSortMode] = useState<"default" | "rarity">("default");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const dSearch = useDeferredValue(search.trim().toLowerCase());
 
+  const [compact, setCompact] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse) and (max-height: 480px)").matches);
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const handleResize = () => setViewport(viewportByWidth(window.innerWidth));
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const mq = window.matchMedia("(pointer: coarse) and (max-height: 480px)");
+    setCompact(mq.matches);
+    const h = (e: MediaQueryListEvent) => setCompact(e.matches);
+    mq.addEventListener("change", h); return () => mq.removeEventListener("change", h);
   }, []);
 
-  useEffect(() => {
-    if (!activeDeckId && deckEntries[0]) {
-      setActiveDeckId(deckEntries[0].deckId);
-    }
-  }, [activeDeckId, deckEntries]);
+  const allT = useMemo(() => CONTENT_PIPELINE.catalog.targets, []);
+  const allC = useMemo(() => CONTENT_PIPELINE.catalog.cards, []);
 
-  const activeDeck = useMemo(() => resolveAppDeck(activeDeckId) ?? deckEntries[0] ?? null, [activeDeckId, deckEntries]);
-  const aggregatedTargets = useMemo(() => aggregateTargetsForDeck(activeDeck), [activeDeck]);
-  const syllableCards = useMemo(() => (activeDeck ? getCardsForDeckModel(activeDeck.deckModel) : []), [activeDeck]);
+  const superOpts = useMemo(() => [...new Set(allT.map((t) => normTax(t.superclass ?? "")).filter(Boolean))].sort().map((id) => ({ id, label: fmtLbl(id) })), [allT]);
+  const classOpts = useMemo(() => { const base = superF !== "all" ? allT.filter((t) => normTax(t.superclass ?? "") === superF) : allT; return [...new Set(base.map((t) => normTax(t.classKey ?? "")).filter(Boolean))].sort().map((id) => ({ id, label: fmtLbl(id) })); }, [allT, superF]);
 
-  const filteredTargets = useMemo(() => {
-    if (filter === "all") return aggregatedTargets;
-    const filterFloor = getFilterFloor(filter);
-    return aggregatedTargets.filter((entry) => getRarityTier(entry.rarity) >= filterFloor);
-  }, [aggregatedTargets, filter]);
+  const filtT = useMemo(() => {
+    let items = allT;
+    if (superF !== "all") items = items.filter((t) => normTax(t.superclass ?? "") === superF);
+    if (classF !== "all") items = items.filter((t) => normTax(t.classKey ?? "") === classF);
+    if (rarF !== "all") items = items.filter((t) => normalizeRarity(t.rarity as Rarity) === rarF);
+    if (dSearch) items = items.filter((t) => [t.id, t.name, t.superclass ?? "", t.classKey ?? ""].join(" ").toLowerCase().includes(dSearch));
+    if (sortMode === "rarity") { items = [...items].sort((a, b) => { const d = tier(b.rarity) - tier(a.rarity); return sortDir === "desc" ? (d || a.name.localeCompare(b.name)) : (-d || a.name.localeCompare(b.name)); }); }
+    return items;
+  }, [allT, superF, classF, rarF, dSearch, sortMode, sortDir]);
 
-  const visibleEntries = mode === "targets" ? filteredTargets : syllableCards;
-  const cardsPerPage = mode === "targets" ? targetPageSizeByViewport[viewport] : syllablePageSizeByViewport[viewport];
-  const totalPages = Math.max(1, Math.ceil(visibleEntries.length / cardsPerPage));
-  const currentPage = Math.min(collectionPage, totalPages - 1);
-  const currentPageEntries = visibleEntries.slice(currentPage * cardsPerPage, currentPage * cardsPerPage + cardsPerPage);
+  const filtC = useMemo(() => !dSearch ? allC : allC.filter((c) => c.syllable.toLowerCase().includes(dSearch)), [allC, dSearch]);
 
-  const railPageSize = decksPerPageByViewport[viewport];
-  const totalDeckPages = Math.max(1, Math.ceil(deckEntries.length / railPageSize));
-  const currentDeckPage = Math.min(deckPage, totalDeckPages - 1);
-  const visibleDecks = deckEntries.slice(currentDeckPage * railPageSize, currentDeckPage * railPageSize + railPageSize);
+  // Cards per page based on grid dimensions:
+  // Desktop and Compact targets: 4 cols × 2 rows = 8
+  // Desktop syllables: 5 cols × 2 rows = 10 | Compact syllables: 4 cols × 2 rows = 8
+  const perPage = compact
+    ? (mode === "targets" ? 8 : 8)
+    : (mode === "targets" ? 8 : 10);
 
-  useEffect(() => {
-    setCollectionPage(0);
-  }, [activeDeckId, filter, mode, viewport]);
+  const items = mode === "targets" ? filtT : filtC;
+  const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+  const curPage = Math.min(page, totalPages - 1);
+  const pageItems = items.slice(curPage * perPage, curPage * perPage + perPage);
 
-  useEffect(() => {
-    setDeckPage(0);
-  }, [viewport]);
+  useEffect(() => { setPage(0); }, [mode, superF, classF, rarF, dSearch, sortMode, sortDir]);
+  const goPage = (n: number) => { const c = Math.max(0, Math.min(totalPages - 1, n)); if (c === curPage) return; setDir(c > curPage ? 1 : -1); setPage(c); };
 
-  const handleCollectionPageChange = (nextPage: number) => {
-    const clamped = Math.max(0, Math.min(totalPages - 1, nextPage));
-    if (clamped === currentPage) return;
-    setPageDirection(clamped > currentPage ? 1 : -1);
-    setCollectionPage(clamped);
-  };
+  // Card and grid dimensions
+  const cardW = compact ? CARD_W_C : CARD_W_D;
+  const cardH = compact ? CARD_H_C : CARD_H_D;
+  const sylW  = compact ? SYL_W_C  : SYL_W_D;
+  const sylH  = compact ? SYL_H_C  : SYL_H_D;
 
-  const handleDeckPageChange = (nextPage: number) => {
-    const clamped = Math.max(0, Math.min(totalDeckPages - 1, nextPage));
-    if (clamped === currentDeckPage) return;
-    setDeckPageDirection(clamped > currentDeckPage ? 1 : -1);
-    setDeckPage(clamped);
-  };
+  const targetCols = 4;
+  const sylCols    = compact ? 4 : 5;
+  const gap        = compact ? 10 : 16;
+
+  const gridStyle = mode === "targets"
+    ? { gridTemplateColumns: `repeat(${targetCols}, ${cardW}px)`, gap }
+    : { gridTemplateColumns: `repeat(${sylCols}, ${sylW}px)`, gap };
+
+  const panelW = compact ? "w-[min(40%,220px)]" : "w-[300px] xl:w-[340px]";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 24 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.28, ease: "easeOut" }}
-      className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#ece3d3] p-1.5 text-[#31271e] sm:p-3"
-    >
+    <motion.div initial={{ opacity: 0, x: 22 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.26, ease: "easeOut" }} className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#ece3d3] p-1.5 text-[#31271e] sm:p-3">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,#fff8ee_0%,#efe4d1_58%,#e2d2bb_100%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(120,92,64,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(120,92,64,0.08)_1px,transparent_1px)] bg-[size:44px_44px] opacity-45" />
+      <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/old-mathematics.png')] opacity-55" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(120,92,64,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(120,92,64,0.07)_1px,transparent_1px)] bg-[size:44px_44px] opacity-40" />
 
-      <div className="paper-panel relative z-10 h-[min(96vh,52rem)] w-[min(98vw,112rem)] overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-3 py-3 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)]:h-[calc(100dvh-8px)] [@media(pointer:coarse)]:w-[calc(100vw-8px)] [@media(pointer:coarse)]:rounded-[1.1rem] [@media(pointer:coarse)]:px-1.5 [@media(pointer:coarse)]:py-1.5 sm:px-5 sm:py-5">
-        <div className="absolute inset-y-[12px] left-[12px] right-[12px] rounded-[1.45rem] border border-[#d9c8a9] [@media(pointer:coarse)]:inset-y-[7px] [@media(pointer:coarse)]:left-[7px] [@media(pointer:coarse)]:right-[7px] [@media(pointer:coarse)]:rounded-[0.85rem]" />
-        <div className="pointer-events-none absolute bottom-[14px] left-[8px] right-[8px] top-[14px] rounded-[1.2rem] border border-white/32 [@media(pointer:coarse)]:bottom-[9px] [@media(pointer:coarse)]:left-[4px] [@media(pointer:coarse)]:right-[4px] [@media(pointer:coarse)]:top-[9px] [@media(pointer:coarse)]:rounded-[0.72rem]" />
+      <div className="paper-panel relative z-10 h-[min(96vh,54rem)] w-[min(98vw,120rem)] overflow-hidden rounded-[2rem] border-[4px] border-[#4b3527]/25 px-3 py-3 shadow-[0_35px_80px_rgba(0,0,0,0.16)] [@media(pointer:coarse)_and_(max-height:480px)]:h-[calc(100dvh-6px)] [@media(pointer:coarse)_and_(max-height:480px)]:w-[calc(100vw-6px)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[1.1rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-1.5 [@media(pointer:coarse)]:h-[calc(100dvh-8px)] [@media(pointer:coarse)]:w-[calc(100vw-8px)] sm:px-5 sm:py-5">
+        <div className="absolute inset-y-[12px] left-[12px] right-[12px] rounded-[1.45rem] border border-[#d9c8a9] [@media(pointer:coarse)_and_(max-height:480px)]:inset-y-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[7px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]" />
+        <div className="pointer-events-none absolute bottom-[14px] left-[8px] right-[8px] top-[14px] rounded-[1.2rem] border border-white/30 [@media(pointer:coarse)_and_(max-height:480px)]:bottom-[9px] [@media(pointer:coarse)_and_(max-height:480px)]:left-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:right-[4px] [@media(pointer:coarse)_and_(max-height:480px)]:top-[9px] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.72rem]" />
 
-        <div className="relative flex h-full min-h-0 flex-col gap-3 [@media(pointer:coarse)]:gap-1.5">
-          <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 [@media(pointer:coarse)]:gap-2">
-            <Button
-              variant="ghost"
-              onClick={onBack}
-              className="group relative flex h-[3rem] w-[8rem] shrink-0 items-center justify-center gap-2 overflow-hidden rounded-[1.1rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] px-3 font-serif text-[0.7rem] font-black uppercase tracking-[0.08em] text-[#6b4723] shadow-[0_5px_0_#8f5f12,0_12px_22px_rgba(88,52,8,0.16)] transition-all duration-150 [@media(pointer:coarse)]:h-[2.25rem] [@media(pointer:coarse)]:w-[5.4rem] [@media(pointer:coarse)]:rounded-[0.8rem] [@media(pointer:coarse)]:gap-1 [@media(pointer:coarse)]:px-2 [@media(pointer:coarse)]:text-[0.42rem]"
-            >
-              <span className="pointer-events-none absolute inset-[4px] rounded-[0.9rem] border border-white/24 [@media(pointer:coarse)]:inset-[2px] [@media(pointer:coarse)]:rounded-[0.55rem]" />
-              <ChevronLeft className="relative z-10 h-4 w-4 [@media(pointer:coarse)]:h-[0.8rem] [@media(pointer:coarse)]:w-[0.8rem]" />
-              <span className="relative z-10">Voltar</span>
+        <div className="relative flex h-full min-h-0 flex-col gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+
+          {/* ── Toolbar ── */}
+          <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 no-scrollbar">
+            {/* Back */}
+            <Button variant="ghost" onClick={onBack} className={cn("relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] font-serif font-black uppercase text-[#6b4723] shadow-[0_4px_0_#8f5f12] transition-all [@media(hover:hover)]:hover:-translate-y-px", compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]")}>
+              <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />
+              <ChevronLeft className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /><span className="relative z-10 hidden sm:inline">Voltar</span>
             </Button>
 
-            <div className="min-w-0 text-center">
-              <div className="font-serif text-[2.3rem] font-black uppercase leading-none text-[#5b2408] [@media(pointer:coarse)]:text-[1.42rem]">
-                Minha Colecao
-              </div>
-              <div className="mt-1 text-[0.58rem] font-black uppercase tracking-[0.24em] text-[#8b7357] [@media(pointer:coarse)]:text-[0.4rem] [@media(pointer:coarse)]:tracking-[0.16em]">
-                Biblioteca de decks e cartas do projeto
-              </div>
+            <div className="h-5 w-px shrink-0 bg-amber-900/12" />
+
+            {/* Mode toggle */}
+            <div className="flex shrink-0 items-center gap-1">
+              <Pill active={mode === "targets"} onClick={() => setMode("targets")}>Alvos</Pill>
+              <Pill active={mode === "syllables"} onClick={() => setMode("syllables")}>Sílabas</Pill>
             </div>
 
-            <div className="flex justify-end">
-              <CountPill icon={<LibraryBig className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                {deckEntries.length} decks
-              </CountPill>
-            </div>
-          </header>
+            <div className="flex-1" />
 
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 rounded-[1.15rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:gap-1.5 [@media(pointer:coarse)]:rounded-[0.78rem] [@media(pointer:coarse)]:px-1.75 [@media(pointer:coarse)]:py-1.25">
-            <div className="flex min-w-0 flex-wrap items-center gap-2 [@media(pointer:coarse)]:gap-1.25">
-              <div
-                className={cn(
-                  "inline-flex min-w-[15rem] max-w-[22rem] items-center gap-2.5 rounded-[1rem] border border-amber-200/10 bg-gradient-to-br px-3 py-2 shadow-[0_8px_18px_rgba(0,0,0,0.14)]",
-                  "[@media(pointer:coarse)]:min-w-[9.7rem] [@media(pointer:coarse)]:max-w-[12rem] [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:gap-1.5 [@media(pointer:coarse)]:px-2 [@media(pointer:coarse)]:py-1.5",
-                  activeDeck ? DECK_VISUAL_THEME_CLASSES[activeDeck.visualTheme] : "",
-                )}
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.85rem] border border-white/15 bg-black/15 text-[1.3rem] shadow-[0_8px_18px_rgba(0,0,0,0.18)] [@media(pointer:coarse)]:h-7 [@media(pointer:coarse)]:w-7 [@media(pointer:coarse)]:rounded-[0.6rem] [@media(pointer:coarse)]:text-[0.92rem]">
-                  {activeDeck?.emoji || "?"}
+            {/* FILTERS INLINE */}
+            <div className="flex items-center gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 shrink-0">
+              {/* Search */}
+              <div className="relative flex shrink-0 items-center min-w-[7rem] max-w-[10rem] w-[15vw]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-950/40 pointer-events-none [@media(pointer:coarse)_and_(max-height:480px)]:left-2 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nome ou ID"
+                  className="h-8 w-full rounded-xl border border-amber-900/15 bg-white/70 pl-7 pr-2 text-[0.7rem] text-amber-950 outline-none transition placeholder:text-amber-950/40 focus:border-amber-500/30 focus:bg-white [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:pl-6 [@media(pointer:coarse)_and_(max-height:480px)]:pr-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.6rem]"
+                />
+              </div>
+
+              {/* Superclass */}
+              {superOpts.length > 0 && (
+                <div className="w-[7.5rem] shrink-0 [@media(pointer:coarse)_and_(max-height:480px)]:w-[5.8rem]">
+                  <select
+                    value={superF}
+                    onChange={(e) => { setSuperF(e.target.value); setClassF("all"); }}
+                    className={cn(
+                      "h-8 w-full rounded-xl border border-amber-900/15 bg-white/70 px-2 py-0.5 text-[0.7rem] outline-none transition focus:border-amber-500/30 [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]",
+                      superF === "all" ? "text-amber-950/40" : "text-amber-950 font-semibold"
+                    )}
+                  >
+                    <option value="all" className="text-amber-950/40 font-normal">Superclasse</option>
+                    {superOpts.map((o) => <option key={o.id} value={o.id} className="text-amber-950 font-semibold">{o.label}</option>)}
+                  </select>
                 </div>
-                <div className="min-w-0">
-                  <div className="text-[0.42rem] font-black uppercase tracking-[0.18em] text-amber-50/70 [@media(pointer:coarse)]:text-[0.32rem]">
-                    Deck em foco
-                  </div>
-                  <div className="truncate font-serif text-[1.18rem] font-black leading-none tracking-tight text-amber-50 [@media(pointer:coarse)]:text-[0.78rem]">
-                    {activeDeck?.name || "Sem deck"}
-                  </div>
-                </div>
-              </div>
-
-              <CountPill icon={<LibraryBig className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                {activeDeck?.definition.superclass || "animal"}
-              </CountPill>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-1.5 [@media(pointer:coarse)]:gap-1">
-              <FilterPill active={mode === "targets"} onClick={() => setMode("targets")}>
-                Alvos
-              </FilterPill>
-              <FilterPill active={mode === "syllables"} onClick={() => setMode("syllables")}>
-                Silabas
-              </FilterPill>
-              {mode === "targets" ? (
-                <>
-                  <FilterPill active={filter === "all"} onClick={() => setFilter("all")}>
-                    Todas
-                  </FilterPill>
-                  <FilterPill active={filter === "raro"} onClick={() => setFilter("raro")}>
-                    Raro+
-                  </FilterPill>
-                  <FilterPill active={filter === "epico"} onClick={() => setFilter("epico")}>
-                    Epico+
-                  </FilterPill>
-                </>
-              ) : (
-                <CountPill icon={<Sparkles className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                  Pool do deck
-                </CountPill>
               )}
+
+              {/* Class */}
+              {classOpts.length > 1 && (
+                <div className="w-[7.5rem] shrink-0 [@media(pointer:coarse)_and_(max-height:480px)]:w-[5.8rem]">
+                  <select
+                    value={classF}
+                    onChange={(e) => setClassF(e.target.value)}
+                    className={cn(
+                      "h-8 w-full rounded-xl border border-amber-900/15 bg-white/70 px-2 py-0.5 text-[0.7rem] outline-none transition focus:border-amber-500/30 [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]",
+                      classF === "all" ? "text-amber-950/40" : "text-amber-950 font-semibold"
+                    )}
+                  >
+                    <option value="all" className="text-amber-950/40 font-normal">Classe</option>
+                    {classOpts.map((o) => <option key={o.id} value={o.id} className="text-amber-950 font-semibold">{o.label}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Rarity */}
+              {mode === "targets" && (
+                <div className="w-[7.5rem] shrink-0 [@media(pointer:coarse)_and_(max-height:480px)]:w-[5.8rem]">
+                  <select
+                    value={rarF}
+                    onChange={(e) => setRarF(e.target.value)}
+                    className={cn(
+                      "h-8 w-full rounded-xl border border-amber-900/15 bg-white/70 px-2 py-0.5 text-[0.7rem] outline-none transition focus:border-amber-500/30 [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]",
+                      rarF === "all" ? "text-amber-950/40" : "text-amber-950 font-semibold"
+                    )}
+                  >
+                    <option value="all" className="text-amber-950/40 font-normal">Raridade</option>
+                    {RARITY_OPT.map((r) => <option key={r} value={r} className="text-amber-950 font-semibold">{RLBL[r]}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 shrink-0">
+                {mode === "targets" && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => { if (sortMode !== "rarity") { setSortMode("rarity"); setSortDir("desc"); } else setSortMode("default"); }}
+                      className={cn("h-8 rounded-xl border px-2 text-amber-950 transition font-black [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]", sortMode === "rarity" ? "border-amber-500/30 bg-amber-100/80 hover:bg-amber-100" : "border-amber-900/12 bg-white/70 hover:bg-amber-100/70")}
+                    >
+                      <Layers3 className="h-3 w-3 mr-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" /> <span className="hidden xl:inline">Raridade</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")}
+                      disabled={sortMode !== "rarity"}
+                      className="h-8 rounded-xl border border-amber-900/12 bg-white/70 px-2 text-amber-950 hover:bg-amber-100/70 disabled:cursor-default disabled:opacity-45 [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg"
+                    >
+                      {sortDir === "desc" ? <ArrowDown className="h-3 w-3 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" /> : <ArrowUp className="h-3 w-3 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" />}
+                    </Button>
+                  </>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => { setSearch(""); setSuperF("all"); setClassF("all"); setRarF("all"); setSortMode("default"); }}
+                  disabled={!search && superF === "all" && classF === "all" && rarF === "all"}
+                  className="h-8 rounded-xl border border-amber-900/12 bg-white/70 px-2 text-amber-950 hover:bg-amber-100/70 disabled:cursor-default disabled:opacity-45 font-black [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]"
+                >
+                  <RotateCcw className="h-3 w-3 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" />
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_14.5rem] gap-3 [@media(pointer:coarse)]:grid-cols-[minmax(0,1fr)_9rem] [@media(pointer:coarse)]:gap-1.5 xl:grid-cols-[minmax(0,1fr)_16.5rem]">
-            <section className="min-h-0 rounded-[1.45rem] border border-[#d8ccb8] bg-[#fffaf3]/94 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:rounded-[0.86rem] [@media(pointer:coarse)]:px-1.75 [@media(pointer:coarse)]:py-1.6">
-              <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2.5 [@media(pointer:coarse)]:gap-1.6">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-[0.48rem] font-black uppercase tracking-[0.2em] text-[#9a7f5c] [@media(pointer:coarse)]:text-[0.36rem]">
-                      {mode === "targets" ? "Colecao paginada de cartas" : "Colecao paginada de silabas"}
-                    </div>
-                    <div className="truncate font-serif text-[1.18rem] font-black text-[#5b2408] [@media(pointer:coarse)]:text-[0.82rem]">
-                      {mode === "targets" ? "Cartas do Deck" : "Silabas do Deck"}
-                    </div>
-                  </div>
+          {/* ── Body ── */}
+          <div className="flex min-h-0 flex-1 gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
 
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <CountPill icon={<Tags className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                      {mode === "targets" ? `${filteredTargets.length} cartas` : `${syllableCards.length} silabas`}
-                    </CountPill>
-                    <CountPill icon={<SlidersHorizontal className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                      Pagina {currentPage + 1}
-                    </CountPill>
-                  </div>
+            {/* Card pool panel */}
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border border-[#d8ccb8] bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2">
+
+              {/* Card grid — explicit pixel sizes for proper portrait proportions */}
+              <div className="relative flex min-h-0 flex-1 items-center justify-between">
+                
+                {/* Prev Button */}
+                <div className="flex w-12 justify-start shrink-0 z-10 [@media(pointer:coarse)_and_(max-height:480px)]:w-8">
+                  <button type="button" onClick={() => goPage(curPage - 1)} disabled={curPage === 0} className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border-[2px] border-[#d0b98a] bg-[#fffaf3] text-[#8a6428] shadow-sm disabled:opacity-35 transition-all [@media(hover:hover)]:hover:-translate-x-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:w-8">
+                    <ChevronLeft className="h-5 w-5 [@media(pointer:coarse)_and_(max-height:480px)]:h-4 [@media(pointer:coarse)_and_(max-height:480px)]:w-4" />
+                  </button>
                 </div>
 
-                <div className="min-h-0 overflow-hidden rounded-[1.1rem] border border-amber-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.34),rgba(255,248,235,0.82))] px-2.5 py-3 [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-1 [@media(pointer:coarse)]:py-1.1">
+                <div className="flex min-w-0 flex-1 items-center justify-center overflow-hidden h-full">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.div
-                      key={`${activeDeck?.deckId ?? "none"}-${mode}-${filter}-${currentPage}`}
-                      initial={{ opacity: 0, x: pageDirection > 0 ? 56 : -56, rotateY: pageDirection > 0 ? -8 : 8 }}
-                      animate={{ opacity: 1, x: 0, rotateY: 0 }}
-                      exit={{ opacity: 0, x: pageDirection > 0 ? -56 : 56, rotateY: pageDirection > 0 ? 8 : -8 }}
-                      transition={{ duration: 0.24, ease: "easeOut" }}
-                      className={cn(
-                        "grid h-full justify-items-center content-start overflow-hidden",
-                        mode === "targets" ? targetGridClassByViewport[viewport] : syllableGridClassByViewport[viewport],
-                      )}
-                    >
-                      {currentPageEntries.map((entry) =>
-                        mode === "targets" ? (
-                          <EditorTargetCollectionCard
-                            key={`target-${(entry as AggregatedTargetCard).id}`}
-                            entry={entry as AggregatedTargetCard}
-                            viewport={viewport}
-                          />
-                        ) : (
-                          <EditorSyllableCollectionCard
-                            key={`syllable-${(entry as CatalogCardUsage).card.id}`}
-                            entry={entry as CatalogCardUsage}
-                            viewport={viewport}
-                          />
-                        ),
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </div>
-            </section>
-
-            <aside className="min-h-0 rounded-[1.45rem] border border-[#d8ccb8] bg-[#fffaf3]/94 px-2.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:rounded-[0.86rem] [@media(pointer:coarse)]:px-1.25 [@media(pointer:coarse)]:py-1.25">
-              <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2 [@media(pointer:coarse)]:gap-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-[0.46rem] font-black uppercase tracking-[0.18em] text-[#9a7f5c] [@media(pointer:coarse)]:text-[0.34rem]">
-                      Trilho de decks
-                    </div>
-                    <div className="truncate font-serif text-[1rem] font-black text-[#5b2408] [@media(pointer:coarse)]:text-[0.7rem]">
-                      Meus Decks
-                    </div>
-                  </div>
-                  {totalDeckPages > 1 ? (
-                    <div className="text-[0.44rem] font-black uppercase tracking-[0.14em] text-[#8b7357] [@media(pointer:coarse)]:text-[0.34rem]">
-                      {currentDeckPage + 1}/{totalDeckPages}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="min-h-0 overflow-hidden">
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.div
-                      key={`rail-${currentDeckPage}`}
-                      initial={{ opacity: 0, x: deckPageDirection > 0 ? 26 : -26 }}
+                      key={`${mode}-${superF}-${classF}-${rarF}-${dSearch}-${sortMode}-${sortDir}-${curPage}`}
+                      initial={{ opacity: 0, x: dir > 0 ? 32 : -32 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: deckPageDirection > 0 ? -26 : 26 }}
-                      transition={{ duration: 0.18, ease: "easeOut" }}
-                      className="flex h-full min-h-0 flex-col gap-2 [@media(pointer:coarse)]:gap-1.5"
+                      exit={{ opacity: 0, x: dir > 0 ? -32 : 32 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      className="grid"
+                      style={gridStyle}
                     >
-                      {visibleDecks.map((deck) => (
-                        <EditorDeckRailCard
-                          key={deck.deckId}
-                          deck={deck}
-                          active={deck.deckId === activeDeck?.deckId}
-                          compact={viewport !== "desktop"}
-                          onClick={() => setActiveDeckId(deck.deckId)}
-                        />
-                      ))}
+                      {pageItems.map((entry, i) =>
+                        mode === "targets" ? (
+                          <div key={(entry as TargetDefinition).id} style={{ width: cardW, height: cardH }}>
+                            <CollectionTargetCard target={entry as TargetDefinition} />
+                          </div>
+                        ) : (
+                          <div key={`${(entry as { id: string }).id}-${i}`} style={{ width: sylW, height: sylH }} className="flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
+                            <div className="origin-top scale-[0.85] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[0.72]">
+                              <SyllableCard syllable={(entry as { syllable: string }).syllable} selected={false} playable={false} disabled={false} staticDisplay onClick={() => {}} sizePreset="hand-desktop" />
+                            </div>
+                          </div>
+                        )
+                      )}
+                      {pageItems.length === 0 && (
+                        <div style={{ gridColumn: `1 / ${mode === "targets" ? targetCols + 1 : sylCols + 1}` }} className="flex flex-col items-center justify-center py-16 opacity-50">
+                          <span className="text-[3rem]">🃏</span>
+                          <span className="mt-2 font-serif text-[1rem] font-black text-[#8b7357]">Nenhuma carta</span>
+                        </div>
+                      )}
                     </motion.div>
                   </AnimatePresence>
                 </div>
 
-                <div className="flex items-center justify-between gap-2">
-                  <CountPill icon={<LibraryBig className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                    {deckEntries.length}
-                  </CountPill>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={currentDeckPage === 0}
-                      onClick={() => handleDeckPageChange(currentDeckPage - 1)}
-                      className="h-8 w-8 rounded-full border border-[#d0b98a] bg-[#fff5dd] text-[#8a6428] disabled:opacity-40 [@media(pointer:coarse)]:h-7 [@media(pointer:coarse)]:w-7"
-                    >
-                      <ChevronLeft className="h-4 w-4 [@media(pointer:coarse)]:h-3.5 [@media(pointer:coarse)]:w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={currentDeckPage >= totalDeckPages - 1}
-                      onClick={() => handleDeckPageChange(currentDeckPage + 1)}
-                      className="h-8 w-8 rounded-full border border-[#d0b98a] bg-[#fff5dd] text-[#8a6428] disabled:opacity-40 [@media(pointer:coarse)]:h-7 [@media(pointer:coarse)]:w-7"
-                    >
-                      <ChevronRight className="h-4 w-4 [@media(pointer:coarse)]:h-3.5 [@media(pointer:coarse)]:w-3.5" />
-                    </Button>
-                  </div>
+                {/* Next Button */}
+                <div className="flex w-12 justify-end shrink-0 z-10 [@media(pointer:coarse)_and_(max-height:480px)]:w-8">
+                  <button type="button" onClick={() => goPage(curPage + 1)} disabled={curPage >= totalPages - 1} className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border-[2px] border-[#d0b98a] bg-[#fffaf3] text-[#8a6428] shadow-sm disabled:opacity-35 transition-all [@media(hover:hover)]:hover:translate-x-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:w-8">
+                    <ChevronRight className="h-5 w-5 [@media(pointer:coarse)_and_(max-height:480px)]:h-4 [@media(pointer:coarse)_and_(max-height:480px)]:w-4" />
+                  </button>
+                </div>
+
+                {/* Page Indicator */}
+                <div className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 [@media(pointer:coarse)_and_(max-height:480px)]:bottom-0">
+                  <span className="rounded-full border border-[#d9c8a9]/60 bg-[#fffdfa]/85 px-3 py-1 text-[0.6rem] font-black tracking-widest text-[#8b7357] shadow-sm backdrop-blur-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]">
+                    {curPage + 1} / {totalPages}
+                  </span>
                 </div>
               </div>
-            </aside>
+            </div>
+
+            {/* Deck rail */}
+            <div className={cn("min-h-0 shrink-0", panelW)}>
+              <DeckRailPanel decks={decks} compact={compact} />
+            </div>
           </div>
-
-          <footer className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[1.2rem] border border-[#d8ccb8] bg-[#fff9ef]/92 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:rounded-[0.8rem] [@media(pointer:coarse)]:gap-2 [@media(pointer:coarse)]:px-2 [@media(pointer:coarse)]:py-1.5">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 [@media(pointer:coarse)]:gap-1">
-              <CountPill icon={<BookOpenText className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                Pagina {currentPage + 1} de {totalPages}
-              </CountPill>
-              <CountPill icon={<Layers3 className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                {aggregatedTargets.length} alvos
-              </CountPill>
-              <CountPill icon={<Sparkles className="h-3 w-3 [@media(pointer:coarse)]:h-2.5 [@media(pointer:coarse)]:w-2.5" />}>
-                {syllableCards.length} silabas
-              </CountPill>
-            </div>
-
-            <div className="flex items-center gap-2 [@media(pointer:coarse)]:gap-1.5">
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={currentPage === 0}
-                onClick={() => handleCollectionPageChange(currentPage - 1)}
-                className="h-11 w-11 rounded-full border border-[#d0b98a] bg-[#fff5dd] text-[#8a6428] shadow-[0_8px_14px_rgba(0,0,0,0.06)] disabled:opacity-40 [@media(pointer:coarse)]:h-8 [@media(pointer:coarse)]:w-8"
-              >
-                <ChevronLeft className="h-5 w-5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={currentPage >= totalPages - 1}
-                onClick={() => handleCollectionPageChange(currentPage + 1)}
-                className="h-11 w-11 rounded-full border border-[#d0b98a] bg-[#fff5dd] text-[#8a6428] shadow-[0_8px_14px_rgba(0,0,0,0.06)] disabled:opacity-40 [@media(pointer:coarse)]:h-8 [@media(pointer:coarse)]:w-8"
-              >
-                <ChevronRight className="h-5 w-5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
-              </Button>
-            </div>
-          </footer>
         </div>
       </div>
     </motion.div>
