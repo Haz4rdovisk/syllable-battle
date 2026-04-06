@@ -54,8 +54,10 @@ export default function App() {
   const [pendingBattleActions, setPendingBattleActions] = useState<BattleSubmittedAction[]>([]);
   const [sharedInitialGame, setSharedInitialGame] = useState<GameState | null>(null);
   const [sharedBattleSnapshot, setSharedBattleSnapshot] = useState<GameState | null>(null);
+  const [isMenuInputLocked, setIsMenuInputLocked] = useState(false);
   const battleTransitionSetupVersionRef = useRef<number | null>(null);
   const battleTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const menuInputLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastKnownRoomProfilesRef = useRef<RoomProfilesCache>({
     host: { name: "", avatar: "" },
     guest: { name: "", avatar: "" },
@@ -84,6 +86,21 @@ export default function App() {
     clearTimeout(battleTransitionTimerRef.current);
     battleTransitionTimerRef.current = null;
   }, []);
+
+  const clearMenuInputLockTimer = useCallback(() => {
+    if (!menuInputLockTimerRef.current) return;
+    clearTimeout(menuInputLockTimerRef.current);
+    menuInputLockTimerRef.current = null;
+  }, []);
+
+  const armMenuInputLock = useCallback((durationMs = 350) => {
+    setIsMenuInputLocked(true);
+    clearMenuInputLockTimer();
+    menuInputLockTimerRef.current = setTimeout(() => {
+      setIsMenuInputLocked(false);
+      menuInputLockTimerRef.current = null;
+    }, durationMs);
+  }, [clearMenuInputLockTimer]);
 
   const resetBattleFlowState = useCallback(() => {
     setPlayerDeckId(null);
@@ -183,6 +200,7 @@ export default function App() {
       name: normalizePlayerName(profile.name),
     };
     setPlayerProfile(normalizedProfile);
+    armMenuInputLock();
     setIsEditingProfile(false);
     if (typeof window !== "undefined") {
       persistPlayerProfile(window.localStorage, normalizedProfile);
@@ -222,7 +240,10 @@ export default function App() {
     setScreen,
   });
 
-  useEffect(() => () => clearBattleTransitionTimer(), []);
+  useEffect(() => () => {
+    clearBattleTransitionTimer();
+    clearMenuInputLockTimer();
+  }, [clearBattleTransitionTimer, clearMenuInputLockTimer]);
 
   const headPendingBattleAction = pendingBattleActions[0] ?? null;
   const localBattleName = normalizePlayerName(playerProfile?.name ?? "VOCE", "VOCE");
@@ -320,6 +341,7 @@ export default function App() {
               exit={{ opacity: 0, scale: 1.05 }}
               transition={{ duration: 0.3 }}
             >
+              {isMenuInputLocked ? <div className="absolute inset-0 z-[200] touch-manipulation" aria-hidden="true" /> : null}
               <Menu
                 onSelectMode={handleSelectMode}
                 onOpenCollection={handleOpenCollection}
