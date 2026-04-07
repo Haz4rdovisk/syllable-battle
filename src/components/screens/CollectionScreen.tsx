@@ -426,6 +426,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressStart = useRef<{ x: number; y: number } | null>(null);
 
+  const [isBackPressed, setIsBackPressed] = useState(false);
+  const backTouchActivatedRef = useRef(false);
+
   // Copies per target across all decks in the shared catalog pool.
   // TODO: replace with player personal inventory count when that system exists.
   const copiesByTargetId = useMemo(() => {
@@ -475,6 +478,33 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     },
     onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
   });
+
+  const handleBackPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") return;
+    backTouchActivatedRef.current = false;
+    setIsBackPressed(true);
+  };
+  const handleBackPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") return;
+    if (isBackPressed) {
+      backTouchActivatedRef.current = true;
+      onBack();
+    }
+    setIsBackPressed(false);
+  };
+  const handleBackPointerCancel = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") return;
+    setIsBackPressed(false);
+  };
+  const handleBackClick = (e: React.MouseEvent) => {
+    if (backTouchActivatedRef.current) {
+      backTouchActivatedRef.current = false;
+      e.preventDefault();
+      return;
+    }
+    setIsBackPressed(false);
+    onBack();
+  };
 
   const [compact, setCompact] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse) and (max-height: 480px)").matches);
   useEffect(() => {
@@ -563,11 +593,25 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
           <div className="flex min-w-0 flex-1 flex-col gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5">
 
             {/* ── Toolbar ── */}
-            <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 no-scrollbar">
+            <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/92 px-2 py-[0.85rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.7rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[0.55rem] no-scrollbar">
               {/* Voltar */}
-              <Button type="button" variant="ghost" onClick={onBack} className={cn("relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] font-serif font-black uppercase text-[#6b4723] shadow-[0_4px_0_#8f5f12] transition-all [@media(hover:hover)]:hover:-translate-y-px", compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]")}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleBackClick}
+                onPointerDown={handleBackPointerDown}
+                onPointerUp={handleBackPointerUp}
+                onPointerCancel={handleBackPointerCancel}
+                onPointerLeave={handleBackPointerCancel}
+                className={cn(
+                  "relative flex shrink-0 touch-manipulation select-none items-center gap-1.5 overflow-hidden rounded-[0.85rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] font-serif font-black uppercase text-[#6b4723] shadow-[0_5px_0_#8f5f12,0_12px_22px_rgba(88,52,8,0.16)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:shadow-[0_7px_0_#8f5f12,0_16px_26px_rgba(88,52,8,0.2)] [@media(hover:hover)]:active:translate-y-[3px] [@media(hover:hover)]:active:shadow-[0_2px_0_#8f5f12,0_8px_12px_rgba(88,52,8,0.12)]",
+                  isBackPressed ? "translate-y-[3px] shadow-[0_2px_0_#8f5f12,0_8px_12px_rgba(88,52,8,0.12)]" : "",
+                  compact ? "h-7 px-2 text-[0.55rem] tracking-[0.05em]" : "h-9 px-3 text-[0.65rem] tracking-[0.07em]"
+                )}
+              >
                 <span className="pointer-events-none absolute inset-[2px] rounded-[0.65rem] border border-white/22" />
-                <ChevronLeft className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /><span className="relative z-10 hidden sm:inline">Voltar</span>
+                <ChevronLeft className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
+                <span className="relative z-10 hidden sm:inline">Voltar</span>
               </Button>
 
               <div className="h-5 w-px shrink-0 bg-amber-900/12" />
@@ -583,30 +627,25 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
               {/* Sorting — Toolbar */}
               {mode === "targets" && (
                 <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-1.5")}>
-                  {!compact && <div className="flex h-5 w-px bg-amber-900/12" />}
-                  <span className={cn("font-black uppercase tracking-widest text-amber-950/40", compact ? "mx-1 text-[0.45rem] opacity-70" : "text-[0.55rem]")}>
-                    {compact ? "Ord." : "Ordenação"}
-                  </span>
-                  <div className={cn("flex items-center", compact ? "gap-1" : "gap-1.5")}>
-                    <Pill sm={compact} active={sortMode === "rarity"} onClick={() => { if (sortMode === "rarity") setSortMode("default"); else setSortMode("rarity"); }}>
-                      <Layers3 className={cn("mr-1", compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> Raridade
-                    </Pill>
-                    <Pill sm={compact} active={sortMode === "damage"} onClick={() => { if (sortMode === "damage") setSortMode("default"); else setSortMode("damage"); }}>
-                      <Swords className={cn("mr-1", compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> Dano
-                    </Pill>
-                    <button
-                      type="button"
-                      disabled={sortMode === "default"}
-                      onClick={() => setSortDir(d => d === "desc" ? "asc" : "desc")}
-                      className={cn(
-                        "flex shrink-0 items-center justify-center rounded-full border border-[#d7ccb8] bg-white text-[#7f6a52] transition-all disabled:opacity-30",
-                        compact ? "h-7 w-7" : "h-9 w-9",
-                        sortMode !== "default" && "border-amber-400 bg-amber-50 text-amber-800"
-                      )}
-                    >
-                      {sortDir === "desc" ? <ArrowDown className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} /> : <ArrowUp className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} />}
-                    </button>
-                  </div>
+                  {!compact && <div className="mr-1 flex h-5 w-px bg-amber-900/12" />}
+                  <Pill sm={compact} active={sortMode === "rarity"} onClick={() => { if (sortMode === "rarity") setSortMode("default"); else setSortMode("rarity"); }}>
+                    <Layers3 className={cn("mr-1", compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> Raridade
+                  </Pill>
+                  <Pill sm={compact} active={sortMode === "damage"} onClick={() => { if (sortMode === "damage") setSortMode("default"); else setSortMode("damage"); }}>
+                    <Swords className={cn("mr-1", compact ? "h-3 w-3" : "h-3.5 w-3.5")} /> Dano
+                  </Pill>
+                  <button
+                    type="button"
+                    disabled={sortMode === "default"}
+                    onClick={() => setSortDir(d => d === "desc" ? "asc" : "desc")}
+                    className={cn(
+                      "flex shrink-0 items-center justify-center rounded-full border border-[#d7ccb8] bg-white text-[#7f6a52] transition-all disabled:opacity-30",
+                      compact ? "h-7 w-7" : "h-9 w-9",
+                      sortMode !== "default" && "border-amber-400 bg-amber-50 text-amber-800"
+                    )}
+                  >
+                    {sortDir === "desc" ? <ArrowDown className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} /> : <ArrowUp className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} />}
+                  </button>
                 </div>
               )}
 
