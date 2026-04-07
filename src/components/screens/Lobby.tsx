@@ -3,10 +3,13 @@ import { Button } from "../ui/button";
 import { motion } from "motion/react";
 import { ChevronLeft, Copy, Check, Play, Loader2, ScrollText, Swords, Crown, DoorOpen, Star } from "lucide-react";
 import { nanoid } from "nanoid";
-import { BattleSide, PlayerProfile, normalizePlayerName } from "../../types/game";
+import { GameMode, BattleSide, PlayerProfile, normalizePlayerName } from "../../types/game";
 import { BattleRoomState } from "../../lib/battleRoomSession";
+import { DECK_VISUAL_THEME_CLASSES, DECK_VISUAL_THEME_TONE_CLASSES } from "../../data/content/themes";
+import { DeckVisualThemeId } from "../../data/content/types";
 
 interface LobbyProps {
+  mode?: GameMode;
   onBack: () => void;
   onCreateRoom: (roomId: string) => void;
   onJoinRoom: (roomId: string) => void;
@@ -15,6 +18,15 @@ interface LobbyProps {
   localSide?: BattleSide;
   roomState?: BattleRoomState | null;
   onStartRoom?: () => void;
+  onOpenDeckSelection?: (side: "player" | "enemy") => void;
+  localDeckId?: string | null;
+  remoteDeckId?: string | null;
+  localDeckName?: string;
+  remoteDeckName?: string;
+  localDeckEmoji?: string;
+  remoteDeckEmoji?: string;
+  localDeckTheme?: DeckVisualThemeId;
+  remoteDeckTheme?: DeckVisualThemeId;
 }
 
 interface ParticipantCardProps {
@@ -164,6 +176,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
 };
 
 export const Lobby: React.FC<LobbyProps> = ({
+  mode,
   onBack,
   onCreateRoom,
   onJoinRoom,
@@ -172,6 +185,15 @@ export const Lobby: React.FC<LobbyProps> = ({
   localSide = "player",
   roomState = null,
   onStartRoom,
+  onOpenDeckSelection,
+  localDeckId,
+  remoteDeckId,
+  localDeckName,
+  remoteDeckName,
+  localDeckEmoji,
+  remoteDeckEmoji,
+  localDeckTheme,
+  remoteDeckTheme,
 }) => {
   const [roomId, setRoomId] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -306,7 +328,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
             <div className="flex flex-1 flex-col items-center text-center">
               <span className="mt-1 font-serif text-[2rem] font-black uppercase leading-none text-[#5b2408] [@media(pointer:coarse)]:mt-0.5 [@media(pointer:coarse)]:text-[1.45rem] sm:text-[2.25rem]">
-                {activeRoomId ? "Sala de Duelo" : "Multiplayer"}
+                {activeRoomId ? "Sala de Duelo" : (mode === "bot" ? "Jogar Solo" : "Multiplayer")}
               </span>
             </div>
 
@@ -314,12 +336,12 @@ export const Lobby: React.FC<LobbyProps> = ({
               className={`flex h-[3.2rem] shrink-0 items-center justify-center [@media(pointer:coarse)]:h-[2.55rem] ${
                 activeRoomId
                   ? "w-[10.2rem] [@media(pointer:coarse)]:w-[7.7rem]"
-                  : "w-[7.2rem] [@media(pointer:coarse)]:w-[5.5rem]"
+                  : (mode === "bot" ? "w-[8.2rem] [@media(pointer:coarse)]:w-[6.2rem]" : "w-[7.2rem] [@media(pointer:coarse)]:w-[5.5rem]")
               }`}
             >
               <span className="inline-flex min-w-full items-center justify-center gap-2.5 rounded-full border border-[#c9b79a] bg-[#fff8ee] px-3.5 py-1.5 text-center text-[0.58rem] font-black uppercase tracking-[0.16em] text-[#7a6146] shadow-[0_8px_16px_rgba(0,0,0,0.05)] [@media(pointer:coarse)]:gap-1.25 [@media(pointer:coarse)]:px-2.25 [@media(pointer:coarse)]:py-1 [@media(pointer:coarse)]:text-[0.42rem] [@media(pointer:coarse)]:tracking-[0.08em]">
-                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeRoomId ? (opponentConnected ? "bg-emerald-500" : "bg-amber-400") : "bg-[#6aa36d]"}`} />
-                {activeRoomId ? roomStatusTitle : "Online"}
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeRoomId ? (opponentConnected ? "bg-emerald-500" : "bg-amber-400") : (mode === "bot" ? "bg-amber-500" : "bg-[#6aa36d]")}`} />
+                {activeRoomId ? roomStatusTitle : (mode === "bot" ? "Singleplayer" : "Online")}
               </span>
             </div>
           </div>
@@ -398,38 +420,69 @@ export const Lobby: React.FC<LobbyProps> = ({
               ) : (
                 <div className="flex h-full flex-col justify-between gap-4 [@media(pointer:coarse)]:gap-1.5">
                   <div className="grid flex-1 grid-cols-1 gap-4 [@media(pointer:coarse)]:gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-stretch">
-                    <div className="flex min-h-0 flex-col rounded-[1.25rem] border border-[#d2c1a1] bg-[#fff9ef] px-4 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[12.9rem] [@media(pointer:coarse)]:rounded-[0.7rem] [@media(pointer:coarse)]:px-1.15 [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[0.9rem]">
+                    {/* Coluna 1: SEU LADO */}
+                    <div className={`flex min-h-0 flex-col rounded-[1.25rem] border transition-all duration-300 px-4 pt-4 pb-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[12.9rem] [@media(pointer:coarse)]:rounded-[0.7rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:pt-[0.9rem] [@media(pointer:coarse)]:pb-[1.5rem] ${
+                      mode === "bot" && localDeckTheme 
+                        ? `bg-gradient-to-br ${DECK_VISUAL_THEME_TONE_CLASSES[localDeckTheme]} border-[#d2c1a1]` 
+                        : "border-[#d2c1a1] bg-[#fff9ef]"
+                    } text-[#5b2408]`}>
                       <div className="grid h-full grid-rows-[auto_1fr_auto]">
-                        <div className="space-y-2 [@media(pointer:coarse)]:space-y-[0.22rem]">
-                          <div className="mx-auto flex h-[3.9rem] w-[3.9rem] items-center justify-center rounded-[1.1rem] border-2 border-[#2f9a56]/25 bg-[#edf8ef] text-[#2f9a56] shadow-[0_12px_20px_rgba(0,0,0,0.07)] [@media(pointer:coarse)]:h-[2.15rem] [@media(pointer:coarse)]:w-[2.15rem] [@media(pointer:coarse)]:rounded-[0.66rem]">
-                            <ScrollText className="h-7 w-7 [@media(pointer:coarse)]:h-4.5 [@media(pointer:coarse)]:w-4.5" />
+                        <div className="flex flex-row items-center justify-center gap-3 text-left md:flex-col md:items-center md:gap-2 md:text-center">
+                          <div className={`flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-[0.9rem] border-2 shadow-[0_12px_20px_rgba(0,0,0,0.07)] transition-all duration-300 md:h-[3.9rem] md:w-[3.9rem] md:rounded-[1.1rem] ${
+                            mode === "bot" && localDeckTheme 
+                              ? "border-[#2f9a56]/40 bg-white/40" 
+                              : "border-[#2f9a56]/25 bg-[#edf8ef] text-[#2f9a56]"
+                          }`}>
+                            {mode === "bot" && localDeckEmoji ? (
+                              <span className="text-[1.9rem] leading-none md:text-[2.2rem]">{localDeckEmoji}</span>
+                            ) : (
+                              <ScrollText className="h-5.5 w-5.5 md:h-7 md:w-7" />
+                            )}
                           </div>
-                          <div className="font-serif text-[1.4rem] font-black text-[#5b2408] [@media(pointer:coarse)]:text-[1.28rem]">
-                            Criar Sala
-                          </div>
-                          <div className="text-[0.78rem] font-serif italic text-[#7f664e] [@media(pointer:coarse)]:text-[0.75rem]">
-                            Gere um codigo novo e envie para seu oponente.
+                          <div className="flex flex-col min-w-0">
+                            <div className="font-serif text-[1.2rem] font-black text-[#5b2408] leading-none md:text-[1.4rem] md:leading-normal">
+                              {mode === "bot" ? "Seu Lado" : "Criar Sala"}
+                            </div>
+                            <div className="text-[0.68rem] font-serif italic text-[#7f664e] whitespace-nowrap overflow-hidden text-ellipsis md:text-[0.78rem]">
+                              {mode === "bot" ? (
+                                localDeckId ? (
+                                  <span className="not-italic">
+                                    <span className="opacity-60 text-[0.62rem] font-black uppercase tracking-wider mr-1">Deck:</span>
+                                    <span className="font-serif font-black uppercase tracking-tight text-[#5b2408]">
+                                      {localDeckName}
+                                    </span>
+                                  </span>
+                                ) : "Mude para escolha seu deck"
+                              ) : "Gere um codigo novo e envie para seu oponente."}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center justify-center [@media(pointer:coarse)]:min-h-0">
-                          <div className="flex w-full items-center justify-center py-3 [@media(pointer:coarse)]:py-[0.08rem]">
-                            <ParticipantCard avatar={localProfile.avatar} name={localName} role="" tone="local" layout="vertical" mobileInline showLevelBadge />
+                          <div className="w-full py-4 [@media(pointer:coarse)]:py-2">
+                            <ParticipantCard 
+                              avatar={localProfile.avatar} 
+                              name={localName} 
+                              role="" 
+                              tone="local" 
+                              layout="horizontal"
+                              showLevelBadge 
+                            />
                           </div>
                         </div>
                         <div className="flex items-end [@media(pointer:coarse)]:pt-[0.62rem]">
                           <Button
-                            onClick={createButtonClickHandler("create", handleCreate)}
+                            onClick={createButtonClickHandler("create", mode === "bot" ? () => onOpenDeckSelection?.("player") : handleCreate)}
                             onPointerDown={createButtonPointerDownHandler("create")}
-                            onPointerUp={createButtonPointerUpHandler("create", handleCreate)}
+                            onPointerUp={createButtonPointerUpHandler("create", mode === "bot" ? () => onOpenDeckSelection?.("player") : handleCreate)}
                             onPointerCancel={createButtonPointerCancelHandler("create")}
                             onPointerLeave={createButtonPointerCancelHandler("create")}
-                            disabled={isCreating}
+                            disabled={mode === "bot" ? false : isCreating}
                             className={`group relative h-[4rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.2rem] border-[3px] border-[#1f7a46] bg-[#2f9a56] px-5 font-serif text-[1.05rem] font-black text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] [@media(pointer:coarse)]:h-[2.34rem] [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[1.04rem] [@media(pointer:coarse)]:shadow-[0_4px_0_#22673f,0_8px_14px_rgba(20,83,45,0.16)] ${pressedButtonId === "create" ? lobbyTouchPressedClassName.green : ""}`}
                           >
                             <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[0.95rem] border border-white/16 [@media(pointer:coarse)]:rounded-[0.72rem]" />
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                              {isCreating ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScrollText className="h-5 w-5" />}
-                              {isCreating ? "Criando..." : "Criar Sala"}
+                              {mode === "bot" ? <ScrollText className="h-5 w-5" /> : (isCreating ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScrollText className="h-5 w-5" />)}
+                              {mode === "bot" ? (localDeckId ? "Trocar Deck" : "Selecionar Deck") : (isCreating ? "Criando..." : "Criar Sala")}
                             </span>
                           </Button>
                         </div>
@@ -448,51 +501,104 @@ export const Lobby: React.FC<LobbyProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex min-h-0 flex-col rounded-[1.25rem] border border-[#d2c1a1] bg-[#fff9ef] px-4 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[12.9rem] [@media(pointer:coarse)]:rounded-[0.7rem] [@media(pointer:coarse)]:px-1.15 [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[0.9rem]">
+                    {/* Coluna 2: ADVERSARIO */}
+                    <div className={`flex min-h-0 flex-col rounded-[1.25rem] border transition-all duration-300 px-4 pt-4 pb-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[12.9rem] [@media(pointer:coarse)]:rounded-[0.7rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:pt-[0.9rem] [@media(pointer:coarse)]:pb-[1.5rem] ${
+                      mode === "bot" && remoteDeckTheme 
+                        ? `bg-gradient-to-br ${DECK_VISUAL_THEME_TONE_CLASSES[remoteDeckTheme]} border-[#d2c1a1]` 
+                        : "border-[#d2c1a1] bg-[#fff9ef]"
+                    } text-[#5b2408]`}>
                       <div className="grid h-full grid-rows-[auto_1fr_auto]">
-                        <div className="space-y-2 [@media(pointer:coarse)]:space-y-[0.22rem]">
-                          <div className="mx-auto flex h-[3.9rem] w-[3.9rem] items-center justify-center rounded-[1.1rem] border-2 border-[#c88a32]/25 bg-[#fff4df] text-[#c88a32] shadow-[0_12px_20px_rgba(0,0,0,0.07)] [@media(pointer:coarse)]:h-[2.15rem] [@media(pointer:coarse)]:w-[2.15rem] [@media(pointer:coarse)]:rounded-[0.66rem]">
-                            <DoorOpen className="h-7 w-7 [@media(pointer:coarse)]:h-4.5 [@media(pointer:coarse)]:w-4.5" />
+                        <div className="flex flex-row items-center justify-center gap-3 text-left md:flex-col md:items-center md:gap-2 md:text-center">
+                          <div className={`flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-[0.9rem] border-2 shadow-[0_12px_20px_rgba(0,0,0,0.07)] transition-all duration-300 md:h-[3.9rem] md:w-[3.9rem] md:rounded-[1.1rem] ${
+                            mode === "bot" && remoteDeckTheme 
+                              ? "border-[#c88a32]/40 bg-white/40" 
+                              : "border-[#c88a32]/25 bg-[#fff4df] text-[#c88a32]"
+                          }`}>
+                            {mode === "bot" && remoteDeckEmoji ? (
+                              <span className="text-[1.9rem] leading-none md:text-[2.2rem]">{remoteDeckEmoji}</span>
+                            ) : (
+                              mode === "bot" ? <Crown className="h-5.5 w-5.5 md:h-7 md:w-7" /> : <DoorOpen className="h-5.5 w-5.5 md:h-7 md:w-7" />
+                            )}
                           </div>
-                          <div className="font-serif text-[1.4rem] font-black text-[#5b2408] [@media(pointer:coarse)]:text-[1.28rem]">
-                            Entrar em Sala
-                          </div>
-                          <div className="text-[0.78rem] font-serif italic text-[#7f664e] [@media(pointer:coarse)]:text-[0.75rem]">
-                            Digite o codigo compartilhado pelo anfitriao.
+                          <div className="flex flex-col min-w-0">
+                            <div className="font-serif text-[1.2rem] font-black text-[#5b2408] leading-none md:text-[1.4rem] md:leading-normal">
+                              {mode === "bot" ? "Adversario (Bot)" : "Entrar em Sala"}
+                            </div>
+                            <div className="text-[0.68rem] font-serif italic text-[#7f664e] whitespace-nowrap overflow-hidden text-ellipsis md:text-[0.78rem]">
+                              {mode === "bot" ? (
+                                remoteDeckId ? (
+                                  <span className="not-italic">
+                                    <span className="opacity-60 text-[0.62rem] font-black uppercase tracking-wider mr-1">Deck:</span>
+                                    <span className="font-serif font-black uppercase tracking-tight text-[#5b2408]">
+                                      {remoteDeckName}
+                                    </span>
+                                  </span>
+                                ) : "Determine o deck do bot."
+                              ) : "Digite o codigo compartilhado pelo anfitriao."}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center justify-center [@media(pointer:coarse)]:min-h-0">
-                          <div className="w-full py-3 [@media(pointer:coarse)]:py-[0.08rem] [@media(pointer:coarse)]:h-[3.55rem] h-[5.65rem]">
-                            <input
-                              type="text"
-                              placeholder="EX: XJ82KP"
-                              value={roomId}
-                              onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                              className="h-full w-full rounded-[1.2rem] border-2 border-amber-900/18 bg-amber-50/84 px-4 text-center font-serif text-[1.55rem] font-black tracking-[0.18em] text-amber-950 outline-none transition-all placeholder:text-amber-900/18 focus:border-amber-500 [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-1.55 [@media(pointer:coarse)]:text-[1.12rem] [@media(pointer:coarse)]:tracking-[0.06em]"
-                            />
+                          <div className="w-full py-4 [@media(pointer:coarse)]:py-2">
+                            {mode === "bot" ? (
+                              <ParticipantCard 
+                                avatar="👹" 
+                                name="BOT" 
+                                role="" 
+                                tone="remote" 
+                                layout="horizontal"
+                                showLevelBadge 
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder="EX: XJ82KP"
+                                value={roomId}
+                                onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                                className="h-[4rem] w-full rounded-[1.2rem] border-2 border-amber-900/18 bg-amber-50/84 px-4 text-center font-serif text-[1.55rem] font-black tracking-[0.18em] text-amber-950 outline-none transition-all placeholder:text-amber-900/18 focus:border-amber-500 [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-1.55 [@media(pointer:coarse)]:text-[1.12rem] [@media(pointer:coarse)]:tracking-[0.06em]"
+                              />
+                            )}
                           </div>
                         </div>
                         <div className="flex items-end [@media(pointer:coarse)]:pt-[0.62rem]">
                           <Button
-                            onClick={createButtonClickHandler("join", handleJoin)}
+                            onClick={createButtonClickHandler("join", mode === "bot" ? () => onOpenDeckSelection?.("enemy") : handleJoin)}
                             onPointerDown={createButtonPointerDownHandler("join")}
-                            onPointerUp={createButtonPointerUpHandler("join", handleJoin)}
+                            onPointerUp={createButtonPointerUpHandler("join", mode === "bot" ? () => onOpenDeckSelection?.("enemy") : handleJoin)}
                             onPointerCancel={createButtonPointerCancelHandler("join")}
                             onPointerLeave={createButtonPointerCancelHandler("join")}
-                            disabled={isJoining || !roomId}
+                            disabled={mode === "bot" ? false : (isJoining || !roomId)}
                             className={`group relative h-[4rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.2rem] border-[3px] border-[#8f5f12] bg-[#c88a32] px-5 font-serif text-[1.05rem] font-black text-amber-50 shadow-[0_7px_0_#8f5f12,0_18px_28px_rgba(88,52,8,0.2)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(hover:hover)]:hover:bg-[#d29134] [@media(hover:hover)]:hover:shadow-[0_10px_0_#8f5f12,0_22px_32px_rgba(88,52,8,0.24)] disabled:cursor-not-allowed disabled:opacity-60 [@media(pointer:coarse)]:h-[2.34rem] [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[1.04rem] [@media(pointer:coarse)]:shadow-[0_4px_0_#8f5f12,0_8px_14px_rgba(88,52,8,0.16)] ${pressedButtonId === "join" ? lobbyTouchPressedClassName.amber : ""}`}
                           >
                             <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[0.95rem] border border-white/16 [@media(pointer:coarse)]:rounded-[0.72rem]" />
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                              {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <DoorOpen className="h-5 w-5" />}
-                              {isJoining ? "Entrando..." : "Entrar"}
+                              {mode === "bot" ? <ScrollText className="h-5 w-5" /> : (isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <DoorOpen className="h-5 w-5" />)}
+                              {mode === "bot" ? (remoteDeckId ? "Trocar Deck" : "Selecionar Deck") : (isJoining ? "Entrando..." : "Entrar")}
                             </span>
                           </Button>
                         </div>
                       </div>
                     </div>
                   </div>
-
+                  {mode === "bot" ? (
+                    <div className="mt-2 shrink-0">
+                      <Button
+                        onClick={createButtonClickHandler("start", onStartRoom)}
+                        onPointerDown={createButtonPointerDownHandler("start")}
+                        onPointerUp={createButtonPointerUpHandler("start", onStartRoom)}
+                        onPointerCancel={createButtonPointerCancelHandler("start")}
+                        onPointerLeave={createButtonPointerCancelHandler("start")}
+                        disabled={!localDeckId || !remoteDeckId}
+                        className={`group relative h-[4.2rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.3rem] border-[3px] border-[#1f7a46] bg-[#2f9a56] px-5 font-serif text-[1.15rem] font-black text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] disabled:cursor-not-allowed disabled:opacity-60 disabled:[@media(hover:hover)]:hover:translate-y-0 disabled:[@media(hover:hover)]:hover:bg-[#2f9a56] disabled:[@media(hover:hover)]:hover:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(pointer:coarse)]:h-[2.95rem] [@media(pointer:coarse)]:rounded-[0.95rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:text-[0.82rem] ${pressedButtonId === "start" ? lobbyTouchPressedClassName.green : ""}`}
+                      >
+                        <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[1rem] border border-white/16 [@media(pointer:coarse)]:rounded-[0.75rem]" />
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                          <Play className="h-5 w-5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
+                          Iniciar Duelo
+                        </span>
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

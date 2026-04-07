@@ -75,11 +75,7 @@ export default function App() {
     setPlayerDeckId(null);
     setEnemyBattleDeckId(null);
     setSoloDeckStep("player");
-    if (selectedMode === "multiplayer") {
-      setScreen("lobby");
-    } else {
-      setScreen("deck-selection");
-    }
+    setScreen("lobby");
   };
 
   const clearBattleTransitionTimer = useCallback(() => {
@@ -139,17 +135,13 @@ export default function App() {
       return;
     }
 
-    if (mode === "bot" && soloDeckStep === "player") {
-      setPlayerDeckId(selectedDeck.deckId);
-      setEnemyBattleDeckId(null);
-      setSoloDeckStep("enemy");
-      return;
-    }
-
-    if (mode === "bot" && soloDeckStep === "enemy") {
-      setEnemyBattleDeckId(selectedDeck.deckId);
-      setPendingBattleActions([]);
-      setScreen("battle");
+    if (mode === "bot") {
+      if (soloDeckStep === "player") {
+        setPlayerDeckId(selectedDeck.deckId);
+      } else {
+        setEnemyBattleDeckId(selectedDeck.deckId);
+      }
+      setScreen("lobby");
       return;
     }
 
@@ -157,6 +149,11 @@ export default function App() {
     setEnemyBattleDeckId(null);
     setPendingBattleActions([]);
     setScreen("battle");
+  };
+
+  const handleOpenDeckSelection = (side: "player" | "enemy") => {
+    setSoloDeckStep(side);
+    setScreen("deck-selection");
   };
 
   const handleCreateRoom = (id: string) =>
@@ -281,14 +278,7 @@ export default function App() {
   );
 
   const handleDeckSelectionBack = () => {
-    if (mode === "bot" && soloDeckStep === "enemy") {
-      setEnemyBattleDeckId(null);
-      setSoloDeckStep("player");
-      return;
-    }
-
-    setSoloDeckStep("player");
-    setScreen(mode === "multiplayer" ? "lobby" : "menu");
+    setScreen("lobby");
   };
 
   const handleBattleActionConsumed = (actionId: string) => {
@@ -406,6 +396,7 @@ export default function App() {
               transition={{ duration: 0.3 }}
             >
               <Lobby
+                mode={mode}
                 onBack={handleExit}
                 onCreateRoom={handleCreateRoom}
                 onJoinRoom={handleJoinRoom}
@@ -413,7 +404,23 @@ export default function App() {
                 activeRoomId={roomId}
                 localSide={roomLocalSide}
                 roomState={activeRoomState}
-                onStartRoom={handleStartRoom}
+                onStartRoom={
+                  mode === "bot"
+                    ? () => {
+                        setPendingBattleActions([]);
+                        setScreen("battle");
+                      }
+                    : handleStartRoom
+                }
+                onOpenDeckSelection={handleOpenDeckSelection}
+                localDeckId={playerDeckId}
+                remoteDeckId={enemyBattleDeckId}
+                localDeckName={battleDeckSelection.localDeck?.name}
+                remoteDeckName={battleDeckSelection.remoteDeck?.name}
+                localDeckEmoji={battleDeckSelection.localDeck?.emoji}
+                remoteDeckEmoji={battleDeckSelection.remoteDeck?.emoji}
+                localDeckTheme={battleDeckSelection.localDeck?.visualTheme}
+                remoteDeckTheme={battleDeckSelection.remoteDeck?.visualTheme}
               />
             </motion.div>
           )}
