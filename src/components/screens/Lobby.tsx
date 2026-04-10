@@ -5,7 +5,7 @@ import { ChevronLeft, Copy, Check, Play, Loader2, ScrollText, Swords, Crown, Doo
 import { nanoid } from "nanoid";
 import { GameMode, BattleSide, PlayerProfile, normalizePlayerName } from "../../types/game";
 import { BattleRoomState } from "../../lib/battleRoomSession";
-import { DECK_VISUAL_THEME_CLASSES, DECK_VISUAL_THEME_TONE_CLASSES } from "../../data/content/themes";
+import { DECK_LOBBY_THEME_ART } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
 
 interface LobbyProps {
@@ -109,12 +109,12 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   if (layout === "horizontal" && showLevelBadge) {
     return (
       <div
-        className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[1.2rem] border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)]:gap-2 [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-2.5 ${mobileInline ? "[@media(pointer:coarse)]:py-1.5" : "[@media(pointer:coarse)]:py-2"} ${participantToneClassName[tone]} ${muted ? "opacity-55" : ""}`}
+        className={`flex min-w-0 flex-col items-center justify-center gap-2.5 rounded-[1.2rem] border px-3 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)]:grid [@media(pointer:coarse)]:grid-cols-[auto_minmax(0,1fr)_auto] [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:gap-2 [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-left ${mobileInline ? "[@media(pointer:coarse)]:py-1.5" : "[@media(pointer:coarse)]:py-2"} ${participantToneClassName[tone]} ${muted ? "opacity-55" : ""}`}
       >
         <div className="flex h-[3.7rem] w-[3.7rem] shrink-0 items-center justify-center rounded-[1.05rem] border-2 border-current/18 bg-white/72 text-[1.85rem] shadow-[0_10px_18px_rgba(0,0,0,0.08)] [@media(pointer:coarse)]:h-[2.55rem] [@media(pointer:coarse)]:w-[2.55rem] [@media(pointer:coarse)]:rounded-[0.82rem] [@media(pointer:coarse)]:text-[1.35rem]">
           {avatar}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 text-center [@media(pointer:coarse)]:text-left">
           <div className="truncate font-serif text-[1.05rem] font-black uppercase tracking-[0.04em] [@media(pointer:coarse)]:text-[0.9rem]">
             {name}
           </div>
@@ -122,7 +122,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             {role}
           </div>
         </div>
-        <div className="justify-self-end">
+        <div className="justify-self-center [@media(pointer:coarse)]:justify-self-end">
           {levelBadge}
         </div>
       </div>
@@ -131,47 +131,42 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
 
   return (
     <div
-      className={`min-w-0 rounded-[1.2rem] border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:py-2 ${participantToneClassName[tone]} ${muted ? "opacity-55" : ""} ${
-      layout === "vertical"
-        ? `mx-auto flex w-[11.4rem] flex-col items-center gap-3 py-4.5 text-center [@media(pointer:coarse)]:w-[5.7rem] [@media(pointer:coarse)]:gap-[0.7rem] [@media(pointer:coarse)]:py-[1rem] ${
-            mobileInline
-              ? "[@media(pointer:coarse)]:h-[3.55rem] [@media(pointer:coarse)]:w-fit [@media(pointer:coarse)]:min-w-[8.9rem] [@media(pointer:coarse)]:max-w-[9.4rem] [@media(pointer:coarse)]:flex-row [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:justify-center [@media(pointer:coarse)]:gap-[0.55rem] [@media(pointer:coarse)]:px-[0.95rem] [@media(pointer:coarse)]:py-[0.6rem]"
-              : ""
+      className={`min-w-0 rounded-[1.2rem] border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:py-2 ${participantToneClassName[tone]} ${muted ? "opacity-55" : ""} ${layout === "vertical"
+          ? `mx-auto flex w-[11.4rem] flex-col items-center gap-3 py-4.5 text-center [@media(pointer:coarse)]:w-[5.7rem] [@media(pointer:coarse)]:gap-[0.7rem] [@media(pointer:coarse)]:py-[1rem] ${mobileInline
+            ? "[@media(pointer:coarse)]:h-[3.55rem] [@media(pointer:coarse)]:w-fit [@media(pointer:coarse)]:min-w-[8.9rem] [@media(pointer:coarse)]:max-w-[9.4rem] [@media(pointer:coarse)]:flex-row [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:justify-center [@media(pointer:coarse)]:gap-[0.55rem] [@media(pointer:coarse)]:px-[0.95rem] [@media(pointer:coarse)]:py-[0.6rem]"
+            : ""
           }`
-        : "flex items-center gap-3 [@media(pointer:coarse)]:gap-2"
-    }`}
-  >
-    <div
-      className={`flex shrink-0 items-center justify-center border-2 border-current/18 bg-white/72 text-[1.85rem] shadow-[0_10px_18px_rgba(0,0,0,0.08)] ${
-        layout === "vertical"
-          ? `h-[5.15rem] w-[5.15rem] rounded-[1.4rem] text-[3.15rem] [@media(pointer:coarse)]:h-[2.3rem] [@media(pointer:coarse)]:w-[2.3rem] [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:text-[1.85rem] ${
-              mobileInline ? "[@media(pointer:coarse)]:h-[1.9rem] [@media(pointer:coarse)]:w-[1.9rem] [@media(pointer:coarse)]:rounded-[0.6rem] [@media(pointer:coarse)]:text-[1.55rem]" : ""
-            }`
-          : "h-[3.7rem] w-[3.7rem] rounded-[1.05rem] [@media(pointer:coarse)]:h-[2.55rem] [@media(pointer:coarse)]:w-[2.55rem] [@media(pointer:coarse)]:rounded-[0.82rem] [@media(pointer:coarse)]:text-[1.35rem]"
-      }`}
-    >
-      {avatar}
-    </div>
-    <div className={`min-w-0 ${layout === "vertical" ? `w-full text-center ${mobileInline ? "[@media(pointer:coarse)]:w-auto [@media(pointer:coarse)]:text-left" : ""}` : "flex-1"}`}>
-      <div
-        className={`font-serif text-[1.05rem] font-black uppercase tracking-[0.04em] [@media(pointer:coarse)]:text-[0.9rem] ${
-          layout === "vertical" ? `truncate text-center text-[1.2rem] [@media(pointer:coarse)]:text-[0.9rem] ${mobileInline ? "[@media(pointer:coarse)]:text-left [@media(pointer:coarse)]:text-[0.86rem] [@media(pointer:coarse)]:whitespace-nowrap" : ""}` : "truncate"
+          : "flex items-center gap-3 [@media(pointer:coarse)]:gap-2"
         }`}
+    >
+      <div
+        className={`flex shrink-0 items-center justify-center border-2 border-current/18 bg-white/72 text-[1.85rem] shadow-[0_10px_18px_rgba(0,0,0,0.08)] ${layout === "vertical"
+            ? `h-[5.15rem] w-[5.15rem] rounded-[1.4rem] text-[3.15rem] [@media(pointer:coarse)]:h-[2.3rem] [@media(pointer:coarse)]:w-[2.3rem] [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:text-[1.85rem] ${mobileInline ? "[@media(pointer:coarse)]:h-[1.9rem] [@media(pointer:coarse)]:w-[1.9rem] [@media(pointer:coarse)]:rounded-[0.6rem] [@media(pointer:coarse)]:text-[1.55rem]" : ""
+            }`
+            : "h-[3.7rem] w-[3.7rem] rounded-[1.05rem] [@media(pointer:coarse)]:h-[2.55rem] [@media(pointer:coarse)]:w-[2.55rem] [@media(pointer:coarse)]:rounded-[0.82rem] [@media(pointer:coarse)]:text-[1.35rem]"
+          }`}
       >
-        {name}
+        {avatar}
       </div>
-      {(role || showLevelBadge) ? (
-        <div className={`mt-1 flex items-center gap-2 ${layout === "vertical" ? "justify-center" : "justify-between"} [@media(pointer:coarse)]:mt-0.2 [@media(pointer:coarse)]:gap-1`}>
-          {role ? (
-            <div className={`text-[0.58rem] font-black uppercase tracking-[0.24em] text-current/70 [@media(pointer:coarse)]:text-[0.5rem] [@media(pointer:coarse)]:tracking-[0.12em] ${layout === "vertical" ? "text-[0.62rem] [@media(pointer:coarse)]:text-[0.5rem]" : ""}`}>
-              {role}
-            </div>
-          ) : <span />}
-          {showLevelBadge ? levelBadge : null}
+      <div className={`min-w-0 ${layout === "vertical" ? `w-full text-center ${mobileInline ? "[@media(pointer:coarse)]:w-auto [@media(pointer:coarse)]:text-left" : ""}` : "flex-1"}`}>
+        <div
+          className={`font-serif text-[1.05rem] font-black uppercase tracking-[0.04em] [@media(pointer:coarse)]:text-[0.9rem] ${layout === "vertical" ? `truncate text-center text-[1.2rem] [@media(pointer:coarse)]:text-[0.9rem] ${mobileInline ? "[@media(pointer:coarse)]:text-left [@media(pointer:coarse)]:text-[0.86rem] [@media(pointer:coarse)]:whitespace-nowrap" : ""}` : "truncate"
+            }`}
+        >
+          {name}
         </div>
-      ) : null}
+        {(role || showLevelBadge) ? (
+          <div className={`mt-1 flex items-center gap-2 ${layout === "vertical" ? "justify-center" : "justify-between"} [@media(pointer:coarse)]:mt-0.2 [@media(pointer:coarse)]:gap-1`}>
+            {role ? (
+              <div className={`text-[0.58rem] font-black uppercase tracking-[0.24em] text-current/70 [@media(pointer:coarse)]:text-[0.5rem] [@media(pointer:coarse)]:tracking-[0.12em] ${layout === "vertical" ? "text-[0.62rem] [@media(pointer:coarse)]:text-[0.5rem]" : ""}`}>
+                {role}
+              </div>
+            ) : <span />}
+            {showLevelBadge ? levelBadge : null}
+          </div>
+        ) : null}
+      </div>
     </div>
-  </div>
   );
 };
 
@@ -210,6 +205,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   const localName = normalizePlayerName(localProfile.name);
   const opponentName = opponentConnected ? normalizePlayerName(opponentParticipant?.name ?? "Adversario", "Adversario") : "Aguardando...";
   const opponentAvatar = opponentConnected ? opponentParticipant?.avatar ?? "\u{1F52E}" : <Loader2 className="h-6 w-6 animate-spin text-slate-500" />;
+  const localLobbyTheme = mode === "bot" && localDeckTheme ? DECK_LOBBY_THEME_ART[localDeckTheme] : null;
+  const remoteLobbyTheme = mode === "bot" && remoteDeckTheme ? DECK_LOBBY_THEME_ART[remoteDeckTheme] : null;
 
   const clearPressedButton = React.useCallback((buttonId?: LobbyButtonId) => {
     setPressedButtonId((current) => (buttonId === undefined || current === buttonId ? null : current));
@@ -333,11 +330,10 @@ export const Lobby: React.FC<LobbyProps> = ({
             </div>
 
             <div
-              className={`flex h-[3.2rem] shrink-0 items-center justify-center [@media(pointer:coarse)]:h-[2.55rem] ${
-                activeRoomId
+              className={`flex h-[3.2rem] shrink-0 items-center justify-center [@media(pointer:coarse)]:h-[2.55rem] ${activeRoomId
                   ? "w-[10.2rem] [@media(pointer:coarse)]:w-[7.7rem]"
                   : (mode === "bot" ? "w-[8.2rem] [@media(pointer:coarse)]:w-[6.2rem]" : "w-[7.2rem] [@media(pointer:coarse)]:w-[5.5rem]")
-              }`}
+                }`}
             >
               <span className="inline-flex min-w-full items-center justify-center gap-2.5 rounded-full border border-[#c9b79a] bg-[#fff8ee] px-3.5 py-1.5 text-center text-[0.58rem] font-black uppercase tracking-[0.16em] text-[#7a6146] shadow-[0_8px_16px_rgba(0,0,0,0.05)] [@media(pointer:coarse)]:gap-1.25 [@media(pointer:coarse)]:px-2.25 [@media(pointer:coarse)]:py-1 [@media(pointer:coarse)]:text-[0.42rem] [@media(pointer:coarse)]:tracking-[0.08em]">
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeRoomId ? (opponentConnected ? "bg-emerald-500" : "bg-amber-400") : (mode === "bot" ? "bg-amber-500" : "bg-[#6aa36d]")}`} />
@@ -355,11 +351,11 @@ export const Lobby: React.FC<LobbyProps> = ({
                       <Crown className="h-3.5 w-3.5 [@media(pointer:coarse)]:h-3 [@media(pointer:coarse)]:w-3" />
                       {isHost ? "Voce controla a sala" : "Aguardando anfitriao"}
                     </div>
-                    <div className="rounded-[1.25rem] border border-[#ceb991] bg-[#fff6e8] px-4 py-3 shadow-inner [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:py-2.5">
+                    <div className="rounded-[1.25rem] border border-[#ceb991] bg-[#fff6e8] px-4 py-3 shadow-inner [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-[3.55rem] [@media(pointer:coarse)]:flex-col [@media(pointer:coarse)]:justify-center [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:py-0">
                       <div className="text-[0.56rem] font-black uppercase tracking-[0.28em] text-[#9a7f5c] [@media(pointer:coarse)]:text-[0.42rem] [@media(pointer:coarse)]:tracking-[0.18em]">
                         Codigo da sala
                       </div>
-                      <div className="mt-2 flex items-center justify-center gap-3 [@media(pointer:coarse)]:mt-1.5 [@media(pointer:coarse)]:gap-2">
+                      <div className="mt-2 flex items-center justify-center gap-3 [@media(pointer:coarse)]:mt-0 [@media(pointer:coarse)]:gap-2">
                         <span className="font-serif text-[2.7rem] font-black tracking-[0.1em] text-[#5b2408] [@media(pointer:coarse)]:text-[1.55rem] sm:text-[3rem]">
                           {activeRoomId}
                         </span>
@@ -421,20 +417,26 @@ export const Lobby: React.FC<LobbyProps> = ({
                 <div className={`flex h-full flex-col justify-between gap-4 [@media(pointer:coarse)]:gap-3 ${mode === "bot" ? "[@media(pointer:coarse)]:justify-start [@media(pointer:coarse)]:gap-[0.8rem]" : ""}`}>
                   <div className={`grid flex-1 grid-cols-1 gap-5 [@media(pointer:coarse)]:gap-[0.8rem] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-stretch ${mode === "bot" ? "[@media(pointer:coarse)]:gap-[0.7rem]" : ""}`}>
                     {/* Coluna 1: SEU LADO */}
-                    <div className={`flex min-h-0 flex-col rounded-[1.25rem] border transition-all duration-300 px-4 pt-4 pb-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[10rem] [@media(pointer:coarse)]:rounded-[0.95rem] [@media(pointer:coarse)]:px-[1.1rem] [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[0.9rem] ${
-                      mode === "bot" && localDeckTheme 
-                        ? `bg-gradient-to-br ${DECK_VISUAL_THEME_TONE_CLASSES[localDeckTheme]} border-[#d2c1a1]` 
+                    <div className={`relative flex min-h-0 flex-col overflow-hidden rounded-[1.25rem] border transition-all duration-300 px-4 pt-4 pb-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[10rem] [@media(pointer:coarse)]:rounded-[0.95rem] [@media(pointer:coarse)]:px-[1.1rem] [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[0.9rem] ${localLobbyTheme
+                        ? localLobbyTheme.panelClassName
                         : "border-[#d2c1a1] bg-[#fff9ef]"
-                    } text-[#5b2408] ${mode === "bot" ? "[@media(pointer:coarse)]:min-h-[10.2rem] [@media(pointer:coarse)]:px-[0.9rem] [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[1.2rem]" : ""}`}>
-                      <div className={`grid h-full grid-rows-[auto_1fr_auto] ${mode === "bot" ? "[@media(pointer:coarse)]:grid-rows-[auto_1fr_auto] [@media(pointer:coarse)]:content-start [@media(pointer:coarse)]:gap-[0.55rem]" : ""}`}>
+                      } text-[#5b2408] ${mode === "bot" ? "[@media(pointer:coarse)]:min-h-[10.2rem] [@media(pointer:coarse)]:px-[0.9rem] [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[1.2rem]" : ""}`}>
+                      {localLobbyTheme ? (
+                        <>
+                          <div className="pointer-events-none absolute inset-0 opacity-70 mix-blend-multiply" style={localLobbyTheme.artStyle} />
+                          <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-20 mix-blend-soft-light" />
+                          <div className={`pointer-events-none absolute inset-x-5 top-0 h-[3px] rounded-b-full ${localLobbyTheme.accentClassName}`} />
+                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.5),rgba(255,255,255,0.18)_58%,rgba(255,255,255,0.08))]" />
+                        </>
+                      ) : null}
+                      <div className={`relative z-10 grid h-full grid-rows-[auto_1fr_auto] ${mode === "bot" ? "[@media(pointer:coarse)]:grid-rows-[auto_1fr_auto] [@media(pointer:coarse)]:content-start [@media(pointer:coarse)]:gap-[0.55rem]" : ""}`}>
                         <div className={`flex flex-row items-center justify-center gap-4 text-left ${mode === "bot" ? "md:flex-row md:items-center md:gap-4 md:text-left" : "md:flex-col md:items-center md:gap-2 md:text-center"} ${mode === "bot" ? "[@media(pointer:coarse)]:gap-[0.8rem]" : ""}`}>
-                          <div className={`flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-[0.9rem] border-2 shadow-[0_12px_20px_rgba(0,0,0,0.07)] transition-all duration-300 [@media(pointer:coarse)]:h-[2.4rem] [@media(pointer:coarse)]:w-[2.4rem] [@media(pointer:coarse)]:rounded-[0.75rem] md:h-[3.9rem] md:w-[3.9rem] md:rounded-[1.1rem] ${
-                            mode === "bot" && localDeckTheme 
-                              ? "border-[#2f9a56]/40 bg-white/40" 
+                          <div className={`flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-[0.9rem] border-2 shadow-[0_12px_20px_rgba(0,0,0,0.07)] transition-all duration-300 [@media(pointer:coarse)]:h-[2.4rem] [@media(pointer:coarse)]:w-[2.4rem] [@media(pointer:coarse)]:rounded-[0.75rem] md:h-[3.9rem] md:w-[3.9rem] md:rounded-[1.1rem] ${localLobbyTheme
+                              ? localLobbyTheme.avatarClassName
                               : "border-[#2f9a56]/25 bg-[#edf8ef] text-[#2f9a56]"
-                          } ${mode === "bot" ? "[@media(pointer:coarse)]:h-[2.35rem] [@media(pointer:coarse)]:w-[2.35rem] [@media(pointer:coarse)]:rounded-[0.7rem]" : ""}`}>
+                            } ${mode === "bot" ? "[@media(pointer:coarse)]:h-[2.35rem] [@media(pointer:coarse)]:w-[2.35rem] [@media(pointer:coarse)]:rounded-[0.7rem]" : ""}`}>
                             {mode === "bot" && localDeckEmoji ? (
-                               <span className={`text-[1.9rem] leading-none [@media(pointer:coarse)]:text-[1.45rem] md:text-[2.2rem] ${mode === "bot" ? "[@media(pointer:coarse)]:text-[1.35rem]" : ""}`}>{localDeckEmoji}</span>
+                              <span className={`text-[1.9rem] leading-none [@media(pointer:coarse)]:text-[1.45rem] md:text-[2.2rem] ${mode === "bot" ? "[@media(pointer:coarse)]:text-[1.35rem]" : ""}`}>{localDeckEmoji}</span>
                             ) : (
                               <ScrollText className="h-5.5 w-5.5 [@media(pointer:coarse)]:h-4.5 [@media(pointer:coarse)]:w-4.5 md:h-7 md:w-7" />
                             )}
@@ -459,14 +461,14 @@ export const Lobby: React.FC<LobbyProps> = ({
                         </div>
                         <div className="flex items-center justify-center [@media(pointer:coarse)]:min-h-0">
                           <div className={`w-full py-4 [@media(pointer:coarse)]:pt-[0.35rem] [@media(pointer:coarse)]:pb-0 ${mode === "bot" ? "[@media(pointer:coarse)]:pt-[0.1rem] [@media(pointer:coarse)]:pb-0 [@media(pointer:coarse)]:px-[0.35rem]" : ""}`}>
-                            <ParticipantCard 
-                              avatar={localProfile.avatar} 
-                              name={localName} 
-                              role="" 
-                              tone="local" 
+                            <ParticipantCard
+                              avatar={localProfile.avatar}
+                              name={localName}
+                              role=""
+                              tone="local"
                               layout="horizontal"
                               mobileInline={mode === "bot"}
-                              showLevelBadge 
+                              showLevelBadge
                             />
                           </div>
                         </div>
@@ -503,28 +505,34 @@ export const Lobby: React.FC<LobbyProps> = ({
                     </div>
 
                     {/* Coluna 2: ADVERSARIO */}
-                    <div className={`flex min-h-0 flex-col rounded-[1.25rem] border transition-all duration-300 px-4 pt-4 pb-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[10rem] [@media(pointer:coarse)]:rounded-[0.95rem] [@media(pointer:coarse)]:px-[1.1rem] [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[0.9rem] ${
-                      mode === "bot" && remoteDeckTheme 
-                        ? `bg-gradient-to-br ${DECK_VISUAL_THEME_TONE_CLASSES[remoteDeckTheme]} border-[#d2c1a1]` 
+                    <div className={`relative flex min-h-0 flex-col overflow-hidden rounded-[1.25rem] border transition-all duration-300 px-4 pt-4 pb-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] [@media(pointer:coarse)]:min-h-[10rem] [@media(pointer:coarse)]:rounded-[0.95rem] [@media(pointer:coarse)]:px-[1.1rem] [@media(pointer:coarse)]:pt-[0.7rem] [@media(pointer:coarse)]:pb-[0.9rem] ${remoteLobbyTheme
+                        ? remoteLobbyTheme.panelClassName
                         : "border-[#d2c1a1] bg-[#fff9ef]"
-                    } text-[#5b2408] ${mode === "bot" ? "[@media(pointer:coarse)]:min-h-[10.2rem] [@media(pointer:coarse)]:px-[0.9rem] [@media(pointer:coarse)]:pt-[1rem] [@media(pointer:coarse)]:pb-[1.2rem]" : ""}`}>
-                      <div className={`grid h-full grid-rows-[auto_1fr_auto] ${mode === "bot" ? "[@media(pointer:coarse)]:grid-rows-[auto_1fr_auto] [@media(pointer:coarse)]:content-start [@media(pointer:coarse)]:gap-[0.55rem]" : ""}`}>
+                      } text-[#5b2408] ${mode === "bot" ? "[@media(pointer:coarse)]:min-h-[10.2rem] [@media(pointer:coarse)]:px-[0.9rem] [@media(pointer:coarse)]:pt-[1rem] [@media(pointer:coarse)]:pb-[1.2rem]" : ""}`}>
+                      {remoteLobbyTheme ? (
+                        <>
+                          <div className="pointer-events-none absolute inset-0 opacity-70 mix-blend-multiply" style={remoteLobbyTheme.artStyle} />
+                          <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-20 mix-blend-soft-light" />
+                          <div className={`pointer-events-none absolute inset-x-5 top-0 h-[3px] rounded-b-full ${remoteLobbyTheme.accentClassName}`} />
+                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.5),rgba(255,255,255,0.18)_58%,rgba(255,255,255,0.08))]" />
+                        </>
+                      ) : null}
+                      <div className={`relative z-10 grid h-full grid-rows-[auto_1fr_auto] ${mode === "bot" ? "[@media(pointer:coarse)]:grid-rows-[auto_1fr_auto] [@media(pointer:coarse)]:content-start [@media(pointer:coarse)]:gap-[0.55rem]" : ""}`}>
                         <div className={`flex flex-row items-center justify-center gap-4 text-left ${mode === "bot" ? "md:flex-row md:items-center md:gap-4 md:text-left" : "md:flex-col md:items-center md:gap-2 md:text-center"} ${mode === "bot" ? "[@media(pointer:coarse)]:gap-[0.8rem]" : ""}`}>
-                          <div className={`flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-[0.9rem] border-2 shadow-[0_12px_20px_rgba(0,0,0,0.07)] transition-all duration-300 [@media(pointer:coarse)]:h-[2.4rem] [@media(pointer:coarse)]:w-[2.4rem] [@media(pointer:coarse)]:rounded-[0.75rem] md:h-[3.9rem] md:w-[3.9rem] md:rounded-[1.1rem] ${
-                            mode === "bot" && remoteDeckTheme 
-                              ? "border-[#c88a32]/40 bg-white/40" 
+                          <div className={`flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-[0.9rem] border-2 shadow-[0_12px_20px_rgba(0,0,0,0.07)] transition-all duration-300 [@media(pointer:coarse)]:h-[2.4rem] [@media(pointer:coarse)]:w-[2.4rem] [@media(pointer:coarse)]:rounded-[0.75rem] md:h-[3.9rem] md:w-[3.9rem] md:rounded-[1.1rem] ${remoteLobbyTheme
+                              ? remoteLobbyTheme.avatarClassName
                               : "border-[#c88a32]/25 bg-[#fff4df] text-[#c88a32]"
-                          } ${mode === "bot" ? "[@media(pointer:coarse)]:h-[2.35rem] [@media(pointer:coarse)]:w-[2.35rem] [@media(pointer:coarse)]:rounded-[0.7rem]" : ""}`}>
+                            } ${mode === "bot" ? "[@media(pointer:coarse)]:h-[2.35rem] [@media(pointer:coarse)]:w-[2.35rem] [@media(pointer:coarse)]:rounded-[0.7rem]" : ""}`}>
                             {mode === "bot" && remoteDeckEmoji ? (
-                               <span className={`text-[1.9rem] leading-none [@media(pointer:coarse)]:text-[1.45rem] md:text-[2.2rem] ${mode === "bot" ? "[@media(pointer:coarse)]:text-[1.35rem]" : ""}`}>{remoteDeckEmoji}</span>
+                              <span className={`text-[1.9rem] leading-none [@media(pointer:coarse)]:text-[1.45rem] md:text-[2.2rem] ${mode === "bot" ? "[@media(pointer:coarse)]:text-[1.35rem]" : ""}`}>{remoteDeckEmoji}</span>
                             ) : (
                               mode === "bot" ? <Crown className="h-5.5 w-5.5 [@media(pointer:coarse)]:h-4.5 [@media(pointer:coarse)]:w-4.5 md:h-7 md:w-7" /> : <DoorOpen className="h-5.5 w-5.5 [@media(pointer:coarse)]:h-4.5 [@media(pointer:coarse)]:w-4.5 md:h-7 md:w-7" />
                             )}
                           </div>
                           <div className="flex flex-col min-w-0">
-                             <div className={`font-serif text-[1.2rem] font-black text-[#5b2408] leading-none [@media(pointer:coarse)]:text-[1.12rem] md:text-[1.4rem] md:leading-normal ${mode === "bot" ? "[@media(pointer:coarse)]:text-[1.12rem]" : ""}`}>
-                               {mode === "bot" ? "Adversario (Bot)" : "Entrar em Sala"}
-                             </div>
+                            <div className={`font-serif text-[1.2rem] font-black text-[#5b2408] leading-none [@media(pointer:coarse)]:text-[1.12rem] md:text-[1.4rem] md:leading-normal ${mode === "bot" ? "[@media(pointer:coarse)]:text-[1.12rem]" : ""}`}>
+                              {mode === "bot" ? "Adversario (Bot)" : "Entrar em Sala"}
+                            </div>
                             <div className={`text-[0.68rem] font-serif italic text-[#7f664e] whitespace-nowrap overflow-hidden text-ellipsis [@media(pointer:coarse)]:text-[0.62rem] md:text-[0.78rem] ${mode === "bot" ? "[@media(pointer:coarse)]:text-[0.58rem]" : ""}`}>
                               {mode === "bot" ? (
                                 remoteDeckId ? (
@@ -542,14 +550,14 @@ export const Lobby: React.FC<LobbyProps> = ({
                         <div className="flex items-center justify-center [@media(pointer:coarse)]:min-h-0">
                           <div className={`w-full py-4 [@media(pointer:coarse)]:pt-[0.35rem] [@media(pointer:coarse)]:pb-0 ${mode === "bot" ? "[@media(pointer:coarse)]:pt-[0.1rem] [@media(pointer:coarse)]:pb-0 [@media(pointer:coarse)]:px-[0.35rem]" : ""}`}>
                             {mode === "bot" ? (
-                              <ParticipantCard 
-                                avatar="👹" 
-                                name="BOT" 
-                                role="" 
-                                tone="remote" 
+                              <ParticipantCard
+                                avatar="👹"
+                                name="BOT"
+                                role=""
+                                tone="remote"
                                 layout="horizontal"
                                 mobileInline={true}
-                                showLevelBadge 
+                                showLevelBadge
                               />
                             ) : (
                               <input
@@ -557,7 +565,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                                 placeholder="EX: XJ82KP"
                                 value={roomId}
                                 onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                                className="h-[4rem] w-full rounded-[1.2rem] border-2 border-amber-900/18 bg-amber-50/84 px-4 text-center font-serif text-[1.55rem] font-black tracking-[0.18em] text-amber-950 outline-none transition-all placeholder:text-amber-900/18 focus:border-amber-500 [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-1.55 [@media(pointer:coarse)]:text-[1.12rem] [@media(pointer:coarse)]:tracking-[0.06em]"
+                                className="h-[4rem] w-full rounded-[1.2rem] border-2 border-amber-900/18 bg-amber-50/84 px-4 text-center font-serif text-[1.55rem] font-black tracking-[0.18em] text-amber-950 outline-none transition-all placeholder:text-amber-900/18 focus:border-amber-500 [@media(pointer:coarse)]:h-[3.55rem] [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-1.55 [@media(pointer:coarse)]:text-[1.12rem] [@media(pointer:coarse)]:tracking-[0.06em]"
                               />
                             )}
                           </div>
