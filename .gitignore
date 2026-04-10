@@ -18,3 +18,15 @@ android-app/*.jks
 android-app/*.keystore
 .kilo/
 *.tsbuildinfo
+
+# Ghost session data (local only)
+.ai-sessions/
+
+# Local AI/tooling state
+.claude/
+.taskmaster/
+memory/
+.mcp.json
+skills-lock.json
+autoskills.cmd
+.agents/skills/
