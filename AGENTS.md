@@ -70,6 +70,7 @@ docs/             # Documentacao tecnica
 - Sempre citar os arquivos principais envolvidos.
 - Sempre validar o comportamento alterado.
 - Sempre resumir riscos remanescentes ao final.
+- Usar ferramentas disponiveis e relevantes proativamente quando ajudarem a tarefa; o usuario nao precisa lembrar explicitamente.
 
 ## Definicao de pronto
 
