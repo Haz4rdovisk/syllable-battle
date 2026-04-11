@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ghost-sessions": {
+      "type": "stdio",
+      "command": "qmd",
+      "args": [
+        "-c",
+        "ghost-syllable-battle_-deck-master",
+        "mcp"
+      ]
+    }
+  }
+}

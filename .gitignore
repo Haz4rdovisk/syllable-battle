@@ -35,13 +35,13 @@ android-app/*.keystore
 
 # AI / Agent tooling (local only)
 .ai-sessions/
-.claude/
+.claude/*
+!.claude/settings.json
 .codex/
 .kilo/
 .taskmaster/
 memory/
 artifacts/
-.mcp.json
 skills-lock.json
 tools/autoskills.cmd
 .agents/skills/
