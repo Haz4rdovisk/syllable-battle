@@ -1,60 +1,138 @@
-# AGENTS.md
+# AGENTS.md — Syllable Battle
+
+Documento compartilhado para todos os agentes de IA (Claude, Codex, Gemini, OpenCode).
+Fonte unica de verdade sobre o projeto, regras e constraints.
 
 ## Projeto
 
-Este repositório é um card game digital/mobile em desenvolvimento, com foco em battle landscape, animações, UX de jogo e tooling interno de layout/animação.
+Syllable Battle e um card game digital de silabas em portugues com estetica fantasy/tabletop.
+O jogador coloca silabas da mao em alvos (animais) do oponente para completar palavras e causar dano.
+Roda em navegador (landscape) e em Android via WebView. Suporta bot, multiplayer local e multiplayer remoto via relay SSE.
 
-## Objetivo atual
+URL de producao: `https://syllable-battle.vercel.app/`
 
-Evoluir a base com segurança, preservando o loop jogável, a identidade visual e a confiabilidade do runtime.
+## Stack
+
+| Camada       | Tecnologia                          |
+|--------------|-------------------------------------|
+| Frontend     | React 19 + Vite 6 + TypeScript 5.8 |
+| Estilo       | Tailwind CSS v4 (`@tailwindcss/vite`) |
+| Animacao     | `motion` (Framer Motion v12)        |
+| IDs          | `nanoid`                            |
+| Icones       | `lucide-react`                      |
+| Testes       | Node.js `--test` nativo via `tsx`   |
+| Relay server | Express + SSE (`server/relayServer.ts`) |
+| Android      | WebView nativo (`android-app/`)     |
+| Deploy       | Vercel (frontend) + Render (relay)  |
+
+## Estrutura
+
+```
+src/
+  app/            # Bootstrap, perfil, resolucao de decks
+  types/game.ts   # Tipos core: GameState, PlayerState, Target, Deck, BattleTurnAction
+  logic/          # gameLogic.ts — funcoes puras de regra (shuffle, canPlace, draw, makeInitialGame)
+  data/content/   # Definicoes de conteudo (targets, decks, selectors, editor, themes)
+  lib/            # Networking: room protocol, session, state controller, SSE connector
+  components/
+    screens/      # ~79 arquivos — todas as telas e todo o battle runtime
+    game/         # Componentes visuais de card/target
+    ui/           # Primitivos UI reutilizaveis
+  App.tsx         # Root: roteador de telas + gestao de sessao multiplayer
+server/           # relayServer.ts — Express SSE relay (porta 3010)
+tools/            # Scripts dev: vite wrapper, edge debug, android build/install
+android-app/      # App nativo Android (WebView)
+docs/             # Documentacao tecnica
+```
+
+## Subsistemas
+
+1. **Battle runtime** — loop de jogo, turnos, combate, animacoes. Centro: `BattleController.tsx`.
+2. **Layout system** — posicionamento configuravel do stage. Editor: `BattleLayoutEditor.tsx`. Preset: `BattleLayoutPreset.ts`.
+3. **Content pipeline** — decks, targets, cards. Validacao em `data/content/index.ts`.
+4. **Networking** — sala multiplayer com mock local, broadcast e relay SSE remoto. Em `src/lib/battleRoom*.ts`.
+5. **Menus/UI** — Menu, Lobby, DeckSelection, ProfileSetup, CollectionScreen.
+6. **Android wrapper** — WebView nativo com loading overlay e version sync.
+
+## Invariantes (nunca violar)
+
+1. **Paridade geometrica**: editor → preview → runtime devem ter a mesma posicao efetiva no stage. Paridade visual aproximada NAO basta.
+2. **Regras do jogo**: nao alterar `gameLogic.ts` (CONFIG, TIMINGS, funcoes de validacao) sem instrucao explicita.
+3. **Design language**: preservar identidade visual — paleta quente/parchment, Cinzel display, botoes 3D, paineis tipo livro. Ver `.agents/rules/design-language.md`.
+4. **Pipeline de conteudo**: validacao em `loadContentCatalog()` garante integridade. Nao pular.
+5. **Suite de testes**: `npm test` deve passar antes e depois de qualquer mudanca.
 
 ## Regras de trabalho
 
-- Não fazer refactor amplo sem necessidade.
-- Não alterar regras do jogo sem instrução explícita.
-- Não mexer em múltiplas frentes grandes ao mesmo tempo.
-- Trabalhar em objetivos pequenos, revisáveis e verificáveis.
-- Sempre começar tarefas complexas propondo um plano antes de editar código.
+- Trabalhar em objetivos pequenos, revisaveis e verificaveis.
+- Tarefas complexas: propor plano antes de editar codigo.
+- Refactors grandes: exigem plano documentado + testes passando antes/depois.
 - Sempre citar os arquivos principais envolvidos.
 - Sempre validar o comportamento alterado.
 - Sempre resumir riscos remanescentes ao final.
 
-## Restrições importantes
+## Definicao de pronto
 
-- No curto prazo, a battle deve ser tratada como landscape-only.
-- Melhorias mobile devem respeitar a estratégia atual de stage, salvo instrução explícita em contrário.
-- Preservar a identidade visual do projeto.
-- Preservar o fluxo audiovisual já existente sempre que possível.
-- Não quebrar editor/preset, watcher/dump, geometria de stage ou sincronização de room sem extrema cautela.
-
-## Definição de pronto
-
-Uma tarefa só está concluída quando:
-
-- o objetivo solicitado foi implementado;
+Uma tarefa so esta concluida quando:
+- o objetivo foi implementado;
 - os arquivos alterados foram listados;
-- a validação executada foi descrita;
+- a validacao executada foi descrita;
 - os riscos remanescentes foram apontados;
-- o diff está pequeno e revisável.
+- o diff esta pequeno e revisavel.
 
-## Forma de resposta esperada
+## Forma de resposta
 
-Sempre responder nesta ordem:
+1. Entendimento do objetivo
+2. Plano curto
+3. Arquivos que pretende inspecionar/alterar
+4. Implementacao
+5. Validacao
+6. Resumo final
+7. Riscos remanescentes
 
-1. entendimento do objetivo
-2. plano curto
-3. arquivos que pretende inspecionar/alterar
-4. implementação
-5. validação
-6. resumo final
-7. riscos remanescentes
+## Comandos essenciais
 
-## Invariante crítico de autoria/layout
+```bash
+npm run dev         # Dev server (localhost:3000)
+npm run relay       # Relay SSE local (localhost:3010)
+npm test            # Testes (content, logic, battle, layout, animation)
+npm run lint        # Type-check TypeScript
+npm run build       # Build de producao
+npm run edge:editor # Abre layout editor no Edge
+npm run edge:debug  # Abre preview com debug overlay
+```
 
-Mover objetos no editor deve refletir no preview e no runtime live na mesma posição efetiva no stage.
+## DevSceneModes (URL params)
 
-Ajustar âncoras, endpoints e referências de animação no editor deve refletir no runtime live com a mesma geometria efetiva.
+- `?battle-layout-editor=1` — editor WYSIWYG de layout
+- `?battle-layout-preview=1` — preview de layout
+- `?battle-layout-debug=1` — overlay de debug geometrico
+- `?content-editor=1` — editor de decks/targets
+- `?content-inspector=1` — inspector de conteudo
 
-Não são aceitas soluções que mantenham apenas “paridade visual aproximada” e percam paridade geométrica.
+## Areas criticas
 
-Qualquer mudança em shell, layout compacto, passthrough, wrappers ou fluxo CSS deve preservar essa garantia.
+- **`BattleController.tsx`** — maquina de estados central da battle.
+- **`BattleLayoutConfig.ts` + `BattleLayoutPreset.ts`** — geometria do stage.
+- **`gameLogic.ts`** — regras puras do jogo.
+- **`data/content/index.ts`** — pipeline de validacao e normalizacao de conteudo.
+- **`BattleCombatFlow.ts`** — orquestracao de combate com animacoes encadeadas.
+- **`battleRoomStateController.ts`** — maquina de estados da sala multiplayer.
+
+## Legado ativo
+
+- `discard[]` em PlayerState: reservado para sistema futuro, nao usado.
+- `BattleSceneFixtureView.tsx`: fixture viewer de debug, nao e producao.
+- `ENABLE_LOCAL_MULTIPLAYER_MOCK`: flag hardcoded em App.tsx.
+- Temas visuais (harvest, abyss, canopy, dune): existem mas a battle nao consome tematizacao por deck ainda.
+
+## Documentacao de referencia
+
+| Documento | Conteudo |
+|-----------|----------|
+| `docs/repo-architecture.md` | Arquitetura detalhada de todos os subsistemas |
+| `docs/battle-functional-baseline.md` | Cenarios-ouro para validar a battle |
+| `docs/battle-layout-contract.md` | Contrato do editor/preset e watcher/dump |
+| `docs/battle-non-regression-checklist.md` | Checklist de nao-regressao |
+| `docs/battle-visual-catalog.md` | Catalogo do sistema visual da battle |
+| `.agents/rules/design-language.md` | Regras consolidadas da design language |
