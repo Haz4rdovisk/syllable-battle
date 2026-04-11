@@ -7,6 +7,10 @@ const PHASE_ORDER: Record<BattleRoomPhase, number> = {
   battle: 2,
 };
 
+export function normalizeActiveRoomPhase(phase: BattleRoomPhase): BattleRoomPhase {
+  return phase === "deck-selection" ? "lobby" : phase;
+}
+
 export function normalizeRoomId(roomId: string) {
   return roomId.trim().toUpperCase();
 }
@@ -51,7 +55,9 @@ function withParticipantUpdate(
 
 export function mergeRoomState(base: BattleRoomState, incoming: BattleRoomState) {
   const merged = cloneRoomState(base);
-  merged.phase = PHASE_ORDER[incoming.phase] > PHASE_ORDER[merged.phase] ? incoming.phase : merged.phase;
+  const incomingPhase = normalizeActiveRoomPhase(incoming.phase);
+  const mergedPhase = normalizeActiveRoomPhase(merged.phase);
+  merged.phase = PHASE_ORDER[incomingPhase] > PHASE_ORDER[mergedPhase] ? incomingPhase : mergedPhase;
   merged.host.connected = merged.host.connected || incoming.host.connected;
   merged.guest.connected = merged.guest.connected || incoming.guest.connected;
   merged.host.deckId = merged.host.deckId ?? incoming.host.deckId;
@@ -118,14 +124,7 @@ export class MockRoomStateController implements RoomStateController {
   }
 
   startDeckSelection() {
-    this.update((state) => ({
-      ...cloneRoomState(state),
-      phase: "deck-selection",
-      initialGame: undefined,
-      battleSnapshot: undefined,
-      host: { ...state.host, deckId: undefined },
-      guest: { ...state.guest, deckId: undefined },
-    }));
+    this.returnToLobby();
   }
 
   selectDeck(side: BattleSide, deckId: string) {
@@ -226,16 +225,7 @@ export class BroadcastRoomStateController implements RoomStateController {
   }
 
   startDeckSelection() {
-    this.state = {
-      ...cloneRoomState(this.state),
-      phase: "deck-selection",
-      initialGame: undefined,
-      battleSnapshot: undefined,
-      host: { ...this.state.host, deckId: undefined },
-      guest: { ...this.state.guest, deckId: undefined },
-    };
-    this.emitLocal();
-    this.post({ type: "phase", senderId: this.clientId, phase: "deck-selection" });
+    this.returnToLobby();
   }
 
   selectDeck(side: BattleSide, deckId: string) {
@@ -317,9 +307,25 @@ export class BroadcastRoomStateController implements RoomStateController {
         this.emitLocal();
         break;
       case "phase":
+        if (message.phase === "deck-selection") {
+          if (PHASE_ORDER[message.phase] < PHASE_ORDER[normalizeActiveRoomPhase(this.state.phase)]) {
+            this.emitLocal();
+            break;
+          }
+
+          this.state = {
+            ...cloneRoomState(this.state),
+            phase: "lobby",
+            initialGame: undefined,
+            battleSnapshot: undefined,
+          };
+          this.emitLocal();
+          break;
+        }
+
         if (PHASE_ORDER[message.phase] >= PHASE_ORDER[this.state.phase] || message.phase === "lobby") {
           this.state = { ...cloneRoomState(this.state), phase: message.phase };
-          if (message.phase === "deck-selection" || message.phase === "lobby") {
+          if (message.phase === "lobby") {
             this.state.initialGame = undefined;
             this.state.battleSnapshot = undefined;
             this.state.host.deckId = undefined;

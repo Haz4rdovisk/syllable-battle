@@ -7,6 +7,7 @@ import {
   createEmptyRoomState,
   getParticipant,
   mergeRoomState,
+  normalizeActiveRoomPhase,
   normalizeRoomId,
   RoomStateController,
 } from "./battleRoomStateController";
@@ -101,16 +102,7 @@ class RemoteRoomStateController implements RoomStateController {
   }
 
   startDeckSelection() {
-    this.state = {
-      ...cloneRoomState(this.state),
-      phase: "deck-selection",
-      initialGame: undefined,
-      battleSnapshot: undefined,
-      host: { ...this.state.host, deckId: undefined },
-      guest: { ...this.state.guest, deckId: undefined },
-    };
-    this.emitLocal();
-    this.post({ type: "phase", senderId: this.clientId, phase: "deck-selection" });
+    this.returnToLobby();
   }
 
   selectDeck(side: BattleSide, deckId: string) {
@@ -229,12 +221,27 @@ class RemoteRoomStateController implements RoomStateController {
           this.emitLocal();
           break;
         }
+        if (message.phase === "deck-selection") {
+          if (PHASE_ORDER[message.phase] < PHASE_ORDER[normalizeActiveRoomPhase(this.state.phase)]) {
+            this.emitLocal();
+            break;
+          }
+
+          this.state = {
+            ...cloneRoomState(this.state),
+            phase: "lobby",
+            initialGame: undefined,
+            battleSnapshot: undefined,
+          };
+          this.emitLocal();
+          break;
+        }
         if (PHASE_ORDER[message.phase] < PHASE_ORDER[this.state.phase] && message.phase !== "lobby") {
           this.emitLocal();
           break;
         }
         this.state = { ...cloneRoomState(this.state), phase: message.phase };
-        if (message.phase === "deck-selection" || message.phase === "lobby") {
+        if (message.phase === "lobby") {
           this.state.initialGame = undefined;
           this.state.battleSnapshot = undefined;
           this.state.host.deckId = undefined;

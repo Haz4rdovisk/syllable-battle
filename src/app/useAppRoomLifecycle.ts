@@ -118,44 +118,17 @@ export function useAppRoomLifecycle({
       roomLocalSide === "player"
         ? activeRoomState.guest.deckId
         : activeRoomState.host.deckId;
-    const bothDecksSelected = !!localDeckId && !!remoteDeckId;
 
-    if (activeRoomState.phase === "lobby") {
-      clearBattleTransitionTimer();
-      setIsPreparingBattle(false);
-      battleTransitionSetupVersionRef.current = null;
-      setPlayerDeckId(null);
-      setEnemyBattleDeckId(null);
-      setPendingBattleActions([]);
-      setSharedInitialGame(null);
-      setSharedBattleSnapshot(null);
-      setScreen("lobby");
-      return;
-    }
-
-    if (activeRoomState.phase === "deck-selection") {
+    if (activeRoomState.phase === "lobby" || activeRoomState.phase === "deck-selection") {
       clearBattleTransitionTimer();
       setIsPreparingBattle(false);
       battleTransitionSetupVersionRef.current = null;
       setPlayerDeckId(localDeckId ?? null);
       setEnemyBattleDeckId(remoteDeckId ?? null);
       setPendingBattleActions([]);
-
-      if (bothDecksSelected && !activeRoomState.initialGame && roomLocalSide === "player") {
-        const battleSetup = resolveAppBattleSetup({
-          mode: "multiplayer",
-          localDeckId,
-          remoteDeckId,
-          localSide: roomLocalSide,
-          roomId,
-        });
-
-        if (battleSetup) {
-          activeRoomSession.publishBattleSetup(createBattleRuntimeInitialGameState(battleSetup));
-        }
-      }
-
-      setScreen("deck-selection");
+      setSharedInitialGame(null);
+      setSharedBattleSnapshot(null);
+      setScreen((currentScreen) => (currentScreen === "deck-selection" ? currentScreen : "lobby"));
       return;
     }
 
@@ -192,12 +165,6 @@ export function useAppRoomLifecycle({
       setScreen("battle");
       battleTransitionTimerRef.current = null;
     }, 2000);
-
-    return () => {
-      if (!battleTransitionTimerRef.current) return;
-      clearTimeout(battleTransitionTimerRef.current);
-      battleTransitionTimerRef.current = null;
-    };
   }, [
     activeRoomSession,
     activeRoomState,

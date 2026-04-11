@@ -22,8 +22,10 @@ import {
 import { RoomProfilesCache, useAppRoomLifecycle } from "./app/useAppRoomLifecycle";
 import {
   resolveAppDeck,
+  resolveAppBattleSetup,
   resolveAppBattleSetupSelection,
 } from "./app/appDeckResolver";
+import { createBattleRuntimeInitialGameState } from "./components/screens/BattleRuntimeSetup";
 
 type Screen = "menu" | "deck-selection" | "collection" | "lobby" | "battle";
 type SoloDeckStep = "player" | "enemy";
@@ -132,6 +134,7 @@ export default function App() {
     if (mode === "multiplayer" && activeRoomSession) {
       setPlayerDeckId(selectedDeck.deckId);
       activeRoomSession.selectDeck(selectedDeck.deckId);
+      setScreen("lobby");
       return;
     }
 
@@ -163,7 +166,35 @@ export default function App() {
     openRoomSession(battleRoomServiceRef.current.joinRoom.bind(battleRoomServiceRef.current), id);
 
   const handleStartRoom = () => {
-    activeRoomSession?.startDeckSelection();
+    if (!activeRoomSession) return;
+
+    if (activeRoomState?.phase === "lobby") {
+      const localDeckId =
+        roomLocalSide === "player"
+          ? activeRoomState.host.deckId
+          : activeRoomState.guest.deckId;
+      const remoteDeckId =
+        roomLocalSide === "player"
+          ? activeRoomState.guest.deckId
+          : activeRoomState.host.deckId;
+
+      if (roomLocalSide !== "player" || !localDeckId || !remoteDeckId) return;
+
+      const battleSetup = resolveAppBattleSetup({
+        mode: "multiplayer",
+        localDeckId,
+        remoteDeckId,
+        localSide: roomLocalSide,
+        roomId,
+      });
+
+      if (battleSetup) {
+        activeRoomSession.publishBattleSetup(createBattleRuntimeInitialGameState(battleSetup));
+      }
+      return;
+    }
+
+    return;
   };
 
   const handleReturnToLobby = () => {
@@ -176,7 +207,7 @@ export default function App() {
   };
 
   const handleChooseDecksAgain = () => {
-    activeRoomSession?.startDeckSelection();
+    activeRoomSession?.returnToLobby();
   };
 
   const handleExit = () => {
@@ -263,8 +294,6 @@ export default function App() {
   const deckSelectionTitle = "DECKS DISPONIVEIS";
   const deckSelectionPhaseKey =
     mode === "bot" ? `bot-${soloDeckStep}` : mode === "multiplayer" ? "multiplayer-deck-selection" : "solo-deck-selection";
-  const deckSelectionIdleStatusTitle =
-    mode === "bot" && soloDeckStep === "enemy" ? "DEFINA O DECK DO ADVERSARIO" : "ESCOLHA SEU DECK";
   const battleDeckSelection = useMemo(
     () =>
       resolveAppBattleSetupSelection({
@@ -358,17 +387,8 @@ export default function App() {
                     ? battleDeckSelection.remoteDeck?.deckId
                     : battleDeckSelection.localDeck?.deckId
                 }
-                isPreparingBattle={isPreparingBattle}
                 title={deckSelectionTitle}
-                idleStatusTitle={deckSelectionIdleStatusTitle}
                 phaseKey={deckSelectionPhaseKey}
-                remoteSelectedDeckId={
-                  mode === "multiplayer"
-                    ? roomLocalSide === "player"
-                      ? activeRoomState?.guest.deckId
-                      : activeRoomState?.host.deckId
-                    : undefined
-                }
               />
             </motion.div>
           )}

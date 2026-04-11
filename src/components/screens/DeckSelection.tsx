@@ -14,10 +14,7 @@ interface DeckSelectionProps {
   onSelectDeck: (deckId: string) => void;
   onBack: () => void;
   selectedDeckId?: string;
-  remoteSelectedDeckId?: string;
-  isPreparingBattle?: boolean;
   title?: string;
-  idleStatusTitle?: string;
   phaseKey?: string;
 }
 
@@ -25,10 +22,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
   onSelectDeck,
   onBack,
   selectedDeckId,
-  remoteSelectedDeckId,
-  isPreparingBattle = false,
   title = "ESCOLHA SEU DECK",
-  idleStatusTitle = "ESCOLHA SEU DECK",
   phaseKey,
 }) => {
   const [openedDeckId, setOpenedDeckId] = useState<string | null>(null);
@@ -46,24 +40,6 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
 
   const getDeckThemeClassName = (visualTheme: DeckVisualThemeId) =>
     DECK_VISUAL_THEME_CLASSES[visualTheme] ?? DECK_VISUAL_THEME_CLASSES.harvest;
-
-  const statusTitle = isPreparingBattle
-    ? "AMBOS OS DECKS FORAM ESCOLHIDOS - PARTIDA INICIANDO..."
-    : selectedDeckId
-      ? remoteSelectedDeckId
-        ? "AMBOS OS DECKS ESTAO PRONTOS"
-        : "SEU DECK PRONTO - AGUARDANDO O ADVERSARIO"
-      : remoteSelectedDeckId
-        ? "ADVERSARIO PRONTO - ESCOLHA SEU DECK"
-        : idleStatusTitle;
-
-  const statusDotClass = isPreparingBattle
-    ? "bg-emerald-400 shadow-[0_0_16px_rgba(74,222,128,0.85)]"
-    : selectedDeckId
-      ? "bg-amber-300 shadow-[0_0_16px_rgba(252,211,77,0.55)]"
-      : remoteSelectedDeckId
-        ? "bg-sky-300 shadow-[0_0_16px_rgba(125,211,252,0.75)]"
-        : "bg-slate-300 shadow-[0_0_16px_rgba(203,213,225,0.45)]";
 
   const openedDeckSyllables = useMemo(() => {
     if (!openedDeck) return [];
@@ -159,25 +135,6 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
         <div className="flex flex-col items-center">
           <h2 className="text-3xl font-serif font-black tracking-tight text-amber-100">{title}</h2>
           <div className="mt-1 h-1 w-24 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-          <div className="mt-4 flex flex-col items-center gap-3">
-            <div className="inline-flex items-center gap-3 rounded-full border border-amber-300/20 bg-black/25 px-5 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={statusTitle}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.28, ease: "easeOut" }}
-                  className="inline-flex items-center gap-3"
-                >
-                  <div className={cn("h-2.5 w-2.5 rounded-full", statusDotClass)} />
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100/80 sm:text-[11px] sm:tracking-[0.26em]">
-                    {statusTitle}
-                  </span>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </div>
         </div>
         <div className="w-24" />
       </div>
@@ -199,9 +156,9 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
             >
               <motion.div
                 whileHover={
-                  !cardsInteractive || selectedDeckId === deckEntry.deckId || isPreparingBattle ? undefined : { y: -12 }
+                  !cardsInteractive || selectedDeckId === deckEntry.deckId ? undefined : { y: -12 }
                 }
-                whileTap={!cardsInteractive || isPreparingBattle ? undefined : { scale: 0.98 }}
+                whileTap={!cardsInteractive ? undefined : { scale: 0.98 }}
                 animate={
                   selectedDeckId === deckEntry.deckId
                     ? {
@@ -223,11 +180,10 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({
                   "group relative cursor-pointer overflow-hidden rounded-[40px] border-4 border-[#d4af37] bg-[#3e2723] p-1 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.6)]",
                   "before:absolute before:inset-0 before:bg-[url('https://www.transparenttextures.com/patterns/leather.png')] before:opacity-40",
                   selectedDeckId === deckEntry.deckId && "ring-4 ring-emerald-300/70 shadow-[0_0_0_2px_rgba(110,231,183,0.3)]",
-                  (!cardsInteractive || isPreparingBattle) && "pointer-events-none",
-                  isPreparingBattle && "opacity-90",
+                  !cardsInteractive && "pointer-events-none",
                 )}
                 onClick={() => {
-                  if (!cardsInteractive || isPreparingBattle) return;
+                  if (!cardsInteractive) return;
                   onSelectDeck(deckEntry.deckId);
                 }}
               >
