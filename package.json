@@ -16,7 +16,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "lint": "tsc --noEmit",
     "android:build": "node tools/build-android-webview.mjs",
-    "android:install": "node tools/install-android-webview.mjs"
+    "android:install": "node tools/install-android-webview.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
@@ -38,6 +39,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "husky": "^9.1.7",
     "playwright": "^1.58.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
