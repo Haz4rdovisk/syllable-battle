@@ -43,6 +43,6 @@ memory/
 artifacts/
 .mcp.json
 skills-lock.json
-autoskills.cmd
+tools/autoskills.cmd
 .agents/skills/
 CLAUDE.ghost-backup.md
