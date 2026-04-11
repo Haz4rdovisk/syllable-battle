@@ -46,26 +46,28 @@ type LobbyButtonId = "back" | "copy" | "create" | "join" | "start";
 
 
 const participantToneClassName: Record<ParticipantCardProps["tone"], string> = {
-  local: "border-[#2e7d32]/22 bg-[#f4fbf4] text-[#1f5b2a]",
+  local: "border-[#2e7d32]/22 bg-[#f4fbf4] text-[#5b2408]",
   remote: "border-[#8f5f12]/18 bg-[#fff8ef] text-[#6b4723]",
 };
 
 const participantThemeClasses: Record<DeckVisualThemeId, string> = {
   harvest: "border-[#d89a35]/24 bg-[#d89a35]/12 text-[#5b2408]",
   abyss: "border-[#4c95c4]/24 bg-[#4c95c4]/12 text-[#1f4a66]",
-  canopy: "border-[#2f9a56]/24 bg-[#2f9a56]/12 text-[#1f5b2a]",
+  canopy: "border-[#2f9a56]/24 bg-[#2f9a56]/12 text-[#5b2408]",
   dune: "border-[#d9a22b]/24 bg-[#d9a22b]/12 text-[#5b2408]",
 };
 
 const lobbyTouchPressedClassName = {
   gold:
-    "[@media(pointer:coarse)]:translate-y-[3px] [@media(pointer:coarse)]:shadow-[0_2px_0_#8f5f12,0_8px_12px_rgba(88,52,8,0.14)]",
+    "[@media(pointer:coarse)]:translate-y-[4px] [@media(pointer:coarse)]:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)]",
   green:
-    "[@media(pointer:coarse)]:translate-y-[4px] [@media(pointer:coarse)]:shadow-[0_2px_0_#22673f,0_8px_12px_rgba(20,83,45,0.16)]",
+    "[@media(pointer:coarse)]:translate-y-[4px] [@media(pointer:coarse)]:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)]",
   amber:
-    "[@media(pointer:coarse)]:translate-y-[4px] [@media(pointer:coarse)]:shadow-[0_2px_0_#8f5f12,0_8px_12px_rgba(88,52,8,0.16)]",
+    "[@media(pointer:coarse)]:translate-y-[4px] [@media(pointer:coarse)]:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)]",
   blue:
-    "[@media(pointer:coarse)]:translate-y-[4px] [@media(pointer:coarse)]:shadow-[0_2px_0_#28597d,0_8px_12px_rgba(40,89,125,0.16)]",
+    "[@media(pointer:coarse)]:translate-y-[4px] [@media(pointer:coarse)]:shadow-[0_3px_0_#28597d,0_10px_16px_rgba(35,74,110,0.18)]",
+  paper:
+    "[@media(pointer:coarse)]:translate-y-[3px] [@media(pointer:coarse)]:shadow-[0_1px_0_#cdb68b,0_5px_8px_rgba(0,0,0,0.05)]",
 } as const;
 
 const PlayerLevelBadge: React.FC = () => (
@@ -240,6 +242,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [isJoining, setIsJoining] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pressedButtonId, setPressedButtonId] = React.useState<LobbyButtonId | null>(null);
+  const pressedButtonRef = React.useRef<LobbyButtonId | null>(null);
   const touchActivatedButtonRef = React.useRef<LobbyButtonId | null>(null);
 
   const isHost = localSide === "player";
@@ -280,6 +283,10 @@ export const Lobby: React.FC<LobbyProps> = ({
   const remoteRoomTheme = activeRoomId && remoteDeckTheme && opponentConnected ? DECK_LOBBY_THEME_ART[remoteDeckTheme] : null;
 
   const clearPressedButton = React.useCallback((buttonId?: LobbyButtonId) => {
+    if (buttonId === undefined || pressedButtonRef.current === buttonId) {
+      pressedButtonRef.current = null;
+    }
+
     setPressedButtonId((current) => (buttonId === undefined || current === buttonId ? null : current));
   }, []);
 
@@ -291,6 +298,7 @@ export const Lobby: React.FC<LobbyProps> = ({
         }
 
         touchActivatedButtonRef.current = null;
+        pressedButtonRef.current = buttonId;
         setPressedButtonId(buttonId);
       },
     [],
@@ -303,14 +311,14 @@ export const Lobby: React.FC<LobbyProps> = ({
           return;
         }
 
-        if (pressedButtonId === buttonId) {
+        if (pressedButtonRef.current === buttonId) {
           touchActivatedButtonRef.current = buttonId;
           action?.();
         }
 
         clearPressedButton(buttonId);
       },
-    [clearPressedButton, pressedButtonId],
+    [clearPressedButton],
   );
 
   const createButtonPointerCancelHandler = React.useCallback(
@@ -388,7 +396,7 @@ export const Lobby: React.FC<LobbyProps> = ({
     isRemote?: boolean;
   }) => {
     const fallbackTone = tone === "local"
-      ? "border-[#2e7d32]/18 bg-[#f4fbf4] text-[#1f5b2a]"
+      ? "border-[#2e7d32]/18 bg-[#f4fbf4] text-[#5b2408]"
       : "border-[#8f5f12]/18 bg-[#fff8ef] text-[#6b4723]";
     const remoteIsWaitingForConnection = isRemote && !opponentConnected;
     const statusLabel = ready
@@ -398,10 +406,18 @@ export const Lobby: React.FC<LobbyProps> = ({
           ? "Aguardando deck"
           : "Aguardando"
         : "Escolher deck";
+    const deckButtonTone = ready && theme
+      ? theme.raisedButtonClassName
+      : isRemote
+        ? "border-[#8f5f12] bg-[#c88a32] text-amber-50 shadow-[0_7px_0_#8f5f12,0_18px_28px_rgba(88,52,8,0.2)]"
+        : "border-[#1f7a46] bg-[#2f9a56] text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)]";
+    const localDeckPressedClassName = ready && theme
+      ? lobbyTouchPressedClassName[theme.pressedClassName]
+      : lobbyTouchPressedClassName.green;
 
     return (
       <div
-        className={`relative min-w-0 overflow-hidden rounded-[1.2rem] border px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:py-2 ${theme ? theme.panelClassName : fallbackTone} ${muted ? "opacity-65" : ""}`}
+        className={`relative flex h-full min-h-[10.8rem] min-w-0 flex-col justify-center gap-4 overflow-hidden rounded-[1.2rem] border px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)]:min-h-0 [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:py-2.25 [@media(pointer:coarse)]:gap-1.75 ${theme ? theme.panelClassName : fallbackTone} ${muted ? "opacity-65" : ""}`}
       >
         {theme ? (
           <>
@@ -410,12 +426,12 @@ export const Lobby: React.FC<LobbyProps> = ({
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.58),rgba(255,255,255,0.2)_62%,rgba(255,255,255,0.1))]" />
           </>
         ) : null}
-        <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 [@media(pointer:coarse)]:grid-cols-[auto_minmax(0,1fr)_auto_auto] [@media(pointer:coarse)]:gap-2">
+        <div className="relative z-10 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[1rem] border border-current/10 bg-white/38 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] [@media(pointer:coarse)]:gap-2.5 [@media(pointer:coarse)]:rounded-[0.78rem] [@media(pointer:coarse)]:px-2.25 [@media(pointer:coarse)]:py-1.75">
           <div className="flex h-[4rem] w-[4rem] shrink-0 items-center justify-center rounded-[1.05rem] border-2 border-current/18 bg-white/72 text-[2rem] shadow-[0_10px_18px_rgba(0,0,0,0.08)] [@media(pointer:coarse)]:h-[2.55rem] [@media(pointer:coarse)]:w-[2.55rem] [@media(pointer:coarse)]:rounded-[0.78rem] [@media(pointer:coarse)]:text-[1.35rem]">
             {avatar}
           </div>
           <div className="min-w-0 text-left">
-            <div className="[@media(pointer:coarse)]:truncate font-serif text-[1.12rem] font-black uppercase tracking-[0.04em] text-[#1f5b2a] [@media(pointer:coarse)]:text-[0.9rem]">
+            <div className="[@media(pointer:coarse)]:truncate font-serif text-[1.12rem] font-black uppercase tracking-[0.04em] text-[#5b2408] [@media(pointer:coarse)]:text-[0.9rem]">
               {name}
             </div>
             <div className="mt-1 text-[0.56rem] font-black uppercase tracking-[0.22em] text-current/65 [@media(pointer:coarse)]:mt-0 [@media(pointer:coarse)]:text-[0.48rem] [@media(pointer:coarse)]:tracking-[0.12em]">
@@ -425,37 +441,47 @@ export const Lobby: React.FC<LobbyProps> = ({
           <div className="origin-right scale-[0.82] justify-self-end [@media(pointer:coarse)]:scale-[0.74]">
             {!remoteIsWaitingForConnection ? <PlayerLevelBadge /> : null}
           </div>
-          <div className="col-start-3 flex min-w-[8.5rem] justify-end [@media(pointer:coarse)]:col-start-auto [@media(pointer:coarse)]:min-w-[6rem]">
-            {isRemote ? (
-              <span className={`inline-flex min-w-[8.4rem] items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.52rem] font-black uppercase tracking-[0.14em] [@media(pointer:coarse)]:min-w-[5.8rem] [@media(pointer:coarse)]:px-1.5 [@media(pointer:coarse)]:py-1 [@media(pointer:coarse)]:text-[0.36rem] ${ready ? "border-emerald-600/18 bg-emerald-100/78 text-emerald-800" : "border-amber-700/18 bg-amber-100/72 text-amber-800"}`}>
-                {ready && deckEmoji ? <span className="text-[0.82rem] leading-none [@media(pointer:coarse)]:text-[0.62rem]">{deckEmoji}</span> : null}
+        </div>
+        <div className="relative z-10">
+          {isRemote ? (
+            <div
+              className={`group relative flex h-[4rem] w-full select-none items-center justify-center overflow-hidden rounded-[1.2rem] border-[3px] px-5 font-serif text-[1.05rem] font-black uppercase tracking-[0.04em] transition-all duration-150 ease-out [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:rounded-[0.85rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[0.82rem] ${deckButtonTone}`}
+            >
+              <span className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22 [@media(pointer:coarse)]:!inset-x-1.5 [@media(pointer:coarse)]:!h-[1.5px] [@media(pointer:coarse)]:!bg-white/18" />
+              <span className="pointer-events-none absolute inset-x-5 bottom-0 z-0 h-[2px] rounded-t-full bg-white/14 [@media(pointer:coarse)]:!inset-x-2 [@media(pointer:coarse)]:!h-px [@media(pointer:coarse)]:!bg-white/10" />
+              <span className="pointer-events-none absolute inset-[3px] z-0 rounded-[0.95rem] border border-white/18 [@media(pointer:coarse)]:rounded-[0.72rem]" />
+              <span className="relative z-10 flex min-w-0 items-center justify-center gap-2">
+                {ready && deckEmoji ? (
+                  <span className="shrink-0 text-[1rem] leading-none [@media(pointer:coarse)]:text-[0.75rem]">{deckEmoji}</span>
+                ) : (
+                  <ScrollText className="h-5 w-5 shrink-0 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
+                )}
                 <span className="truncate">{statusLabel}</span>
               </span>
-            ) : (
-              <Button
-                onClick={createButtonClickHandler("create", () => onOpenDeckSelection?.("player"))}
-                onPointerDown={createButtonPointerDownHandler("create")}
-                onPointerUp={createButtonPointerUpHandler("create", () => onOpenDeckSelection?.("player"))}
-                onPointerCancel={createButtonPointerCancelHandler("create")}
-                onPointerLeave={createButtonPointerCancelHandler("create")}
-                className={`group relative h-[2.45rem] min-w-[8.4rem] max-w-[11rem] touch-manipulation select-none overflow-hidden rounded-[0.85rem] border-[2px] px-3 font-serif text-[0.72rem] font-black uppercase tracking-[0.04em] transition-all duration-150 [@media(hover:hover)]:hover:-translate-y-0.5 [@media(pointer:coarse)]:h-[2.05rem] [@media(pointer:coarse)]:min-w-[5.8rem] [@media(pointer:coarse)]:max-w-[7.2rem] [@media(pointer:coarse)]:rounded-[0.65rem] [@media(pointer:coarse)]:px-1.75 [@media(pointer:coarse)]:text-[0.48rem] ${ready && theme
-                  ? `${theme.buttonClassName} ${pressedButtonId === "create" ? lobbyTouchPressedClassName[theme.pressedClassName] : ""}`
-                  : `border-[#1f7a46] bg-[#2f9a56] text-emerald-50 shadow-[0_4px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] [@media(hover:hover)]:hover:bg-[#35a55d] ${pressedButtonId === "create" ? lobbyTouchPressedClassName.green : ""}`
-                  }`}
-                aria-label={ready ? "Trocar deck multiplayer" : "Escolher deck multiplayer"}
-              >
-                <span className="pointer-events-none absolute inset-[3px] rounded-[0.62rem] border border-white/16" />
-                <span className="relative z-10 flex min-w-0 items-center justify-center gap-1.5">
-                  {ready && deckEmoji ? (
-                    <span className="shrink-0 text-[0.95rem] leading-none [@media(pointer:coarse)]:text-[0.68rem]">{deckEmoji}</span>
-                  ) : (
-                    <ScrollText className="h-3.5 w-3.5 shrink-0 [@media(pointer:coarse)]:h-3 [@media(pointer:coarse)]:w-3" />
-                  )}
-                  <span className="truncate">{statusLabel}</span>
-                </span>
-              </Button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <Button
+              onClick={createButtonClickHandler("create", () => onOpenDeckSelection?.("player"))}
+              onPointerDown={createButtonPointerDownHandler("create")}
+              onPointerUp={createButtonPointerUpHandler("create", () => onOpenDeckSelection?.("player"))}
+              onPointerCancel={createButtonPointerCancelHandler("create")}
+              onPointerLeave={createButtonPointerCancelHandler("create")}
+              className={`group relative h-[4rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.2rem] border-[3px] px-5 font-serif text-[1.05rem] font-black uppercase tracking-[0.04em] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:rounded-[0.85rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[0.82rem] ${deckButtonTone} ${pressedButtonId === "create" ? localDeckPressedClassName : ""}`}
+              aria-label={ready ? "Trocar deck multiplayer" : "Escolher deck multiplayer"}
+            >
+              <span className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22 [@media(pointer:coarse)]:!inset-x-1.5 [@media(pointer:coarse)]:!h-[1.5px] [@media(pointer:coarse)]:!bg-white/18" />
+              <span className="pointer-events-none absolute inset-x-5 bottom-0 z-0 h-[2px] rounded-t-full bg-white/14 [@media(pointer:coarse)]:!inset-x-2 [@media(pointer:coarse)]:!h-px [@media(pointer:coarse)]:!bg-white/10" />
+              <span className="pointer-events-none absolute inset-[3px] z-0 rounded-[0.95rem] border border-white/18 [@media(pointer:coarse)]:rounded-[0.72rem]" />
+              <span className="relative z-10 flex min-w-0 items-center justify-center gap-2">
+                {ready && deckEmoji ? (
+                  <span className="shrink-0 text-[1rem] leading-none [@media(pointer:coarse)]:text-[0.75rem]">{deckEmoji}</span>
+                ) : (
+                  <ScrollText className="h-5 w-5 shrink-0 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
+                )}
+                <span className="truncate">{statusLabel}</span>
+              </span>
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -484,11 +510,11 @@ export const Lobby: React.FC<LobbyProps> = ({
               onPointerUp={createButtonPointerUpHandler("back", onBack)}
               onPointerCancel={createButtonPointerCancelHandler("back")}
               onPointerLeave={createButtonPointerCancelHandler("back")}
-              className={`group relative flex h-[3.2rem] w-[8.6rem] shrink-0 touch-manipulation select-none items-center justify-center gap-2 overflow-hidden rounded-[1.15rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] px-3 font-serif text-[0.74rem] font-black uppercase tracking-[0.08em] text-[#6b4723] shadow-[0_5px_0_#8f5f12,0_12px_22px_rgba(88,52,8,0.16)] transition-all duration-150 [@media(hover:hover)]:hover:-translate-y-0.5 [@media(pointer:coarse)]:h-[2.08rem] [@media(pointer:coarse)]:w-[5.15rem] [@media(pointer:coarse)]:rounded-[0.78rem] [@media(pointer:coarse)]:gap-[0.42rem] [@media(pointer:coarse)]:px-[1.05rem] [@media(pointer:coarse)]:text-[0.4rem] ${pressedButtonId === "back" ? lobbyTouchPressedClassName.gold : ""}`}
+              className={`group relative flex h-[3.2rem] w-[8.6rem] shrink-0 touch-manipulation select-none items-center justify-center gap-2 overflow-hidden rounded-[1.15rem] border-[2px] border-[#8f5f12] bg-[#f0dfc4] px-3 font-serif text-[0.74rem] font-black uppercase tracking-[0.08em] text-[#6b4723] shadow-[0_5px_0_#8f5f12,0_12px_22px_rgba(88,52,8,0.16)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:shadow-[0_7px_0_#8f5f12,0_16px_26px_rgba(88,52,8,0.2)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)] [@media(pointer:coarse)]:h-[2.08rem] [@media(pointer:coarse)]:w-[5.15rem] [@media(pointer:coarse)]:rounded-[0.78rem] [@media(pointer:coarse)]:gap-[0.42rem] [@media(pointer:coarse)]:px-[1.05rem] [@media(pointer:coarse)]:text-[0.4rem] ${pressedButtonId === "back" ? lobbyTouchPressedClassName.gold : ""}`}
             >
               <span className="pointer-events-none absolute inset-[4px] rounded-[0.9rem] border border-white/24 [@media(pointer:coarse)]:inset-[2px] [@media(pointer:coarse)]:rounded-[0.6rem]" />
               <ChevronLeft className="relative z-10 h-4 w-4 [@media(pointer:coarse)]:h-[0.7rem] [@media(pointer:coarse)]:w-[0.7rem]" />
-              <span className="relative z-10">{activeRoomId ? (isHost ? "Dissolver" : "Sair") : "Voltar"}</span>
+              <span className="relative z-10">Voltar</span>
             </Button>
 
             <div className="flex flex-1 flex-col items-center text-center">
@@ -513,18 +539,18 @@ export const Lobby: React.FC<LobbyProps> = ({
           <div className="mt-4 flex min-h-0 flex-1 items-center [@media(pointer:coarse)]:mt-0 [@media(pointer:coarse)]:items-start [@media(pointer:coarse)]:pt-[0.9rem] [@media(pointer:coarse)]:pb-[0.25rem]">
             <div className="flex h-full w-full flex-col rounded-[1.55rem] border border-[#d8c9b0] bg-white/38 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)]:mx-auto [@media(pointer:coarse)]:h-[calc(100%-0.7rem)] [@media(pointer:coarse)]:w-[calc(100%-1rem)] [@media(pointer:coarse)]:rounded-[1rem] [@media(pointer:coarse)]:px-[1.2rem] [@media(pointer:coarse)]:py-[1rem] sm:px-6 sm:py-6">
               {activeRoomId ? (
-                <div className="flex h-full flex-col justify-between gap-4 [@media(pointer:coarse)]:gap-2">
-                  <div className="space-y-3 text-center [@media(pointer:coarse)]:space-y-2">
+                <div className="flex h-full flex-col justify-between gap-3 [@media(pointer:coarse)]:gap-2">
+                  <div className="space-y-2 text-center [@media(pointer:coarse)]:space-y-1">
                     <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#d8b97d] bg-[#fff5dd] px-3 py-1.5 text-[0.58rem] font-black uppercase tracking-[0.2em] text-[#8a6428] shadow-[0_10px_20px_rgba(0,0,0,0.05)] [@media(pointer:coarse)]:-translate-y-[0.5rem] [@media(pointer:coarse)]:gap-1.5 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:py-1 [@media(pointer:coarse)]:text-[0.42rem]">
                       <Crown className="h-3.5 w-3.5 [@media(pointer:coarse)]:h-3 [@media(pointer:coarse)]:w-3" />
                       {isHost ? "Voce controla a sala" : "Aguardando anfitriao"}
                     </div>
-                    <div className="rounded-[1.25rem] border border-[#ceb991] bg-[#fff6e8] px-4 py-3 shadow-inner [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-[3.55rem] [@media(pointer:coarse)]:flex-col [@media(pointer:coarse)]:justify-center [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:py-0">
-                      <div className="text-[0.56rem] font-black uppercase tracking-[0.28em] text-[#9a7f5c] [@media(pointer:coarse)]:text-[0.42rem] [@media(pointer:coarse)]:tracking-[0.18em]">
+                    <div className="rounded-[1.15rem] border border-[#ceb991] bg-[#fff6e8] px-4 py-2.5 shadow-inner [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-[2.25rem] [@media(pointer:coarse)]:flex-col [@media(pointer:coarse)]:justify-center [@media(pointer:coarse)]:rounded-[0.72rem] [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:py-0">
+                      <div className="text-[0.5rem] font-black uppercase tracking-[0.26em] text-[#9a7f5c] [@media(pointer:coarse)]:hidden">
                         Codigo da sala
                       </div>
-                      <div className="mt-2 flex items-center justify-center gap-3 [@media(pointer:coarse)]:mt-0 [@media(pointer:coarse)]:gap-2">
-                        <span className="font-serif text-[2.7rem] font-black tracking-[0.1em] text-[#5b2408] [@media(pointer:coarse)]:text-[1.55rem] sm:text-[3rem]">
+                      <div className="mt-1.5 flex items-center justify-center gap-2.5 [@media(pointer:coarse)]:mt-0 [@media(pointer:coarse)]:gap-1.75">
+                        <span className="font-serif text-[2.25rem] font-black tracking-[0.1em] text-[#5b2408] [@media(pointer:coarse)]:text-[1.1rem] [@media(pointer:coarse)]:tracking-[0.08em] sm:text-[2.55rem]">
                           {activeRoomId}
                         </span>
                         <Button
@@ -535,7 +561,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                           onPointerUp={createButtonPointerUpHandler("copy", copyRoomId)}
                           onPointerCancel={createButtonPointerCancelHandler("copy")}
                           onPointerLeave={createButtonPointerCancelHandler("copy")}
-                          className={`h-[3rem] w-[3rem] touch-manipulation select-none rounded-full border border-[#cdb68b] bg-white/80 text-[#7a5c3f] shadow-[0_2px_0_#cdb68b,0_6px_10px_rgba(0,0,0,0.06)] transition-all duration-150 [@media(hover:hover)]:hover:bg-white [@media(pointer:coarse)]:h-[2rem] [@media(pointer:coarse)]:w-[2rem] ${pressedButtonId === "copy" ? lobbyTouchPressedClassName.gold : ""}`}
+                          className={`h-[2.55rem] w-[2.55rem] touch-manipulation select-none rounded-full border border-[#cdb68b] bg-white/80 text-[#7a5c3f] shadow-[0_2px_0_#cdb68b,0_6px_10px_rgba(0,0,0,0.06)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:bg-white [@media(hover:hover)]:hover:shadow-[0_4px_0_#cdb68b,0_8px_14px_rgba(0,0,0,0.07)] [@media(hover:hover)]:active:translate-y-[3px] [@media(hover:hover)]:active:shadow-[0_1px_0_#cdb68b,0_5px_8px_rgba(0,0,0,0.05)] [@media(pointer:coarse)]:h-[1.55rem] [@media(pointer:coarse)]:w-[1.55rem] ${pressedButtonId === "copy" ? lobbyTouchPressedClassName.paper : ""}`}
                         >
                           {copied ? <Check className="h-4.5 w-4.5" /> : <Copy className="h-4.5 w-4.5" />}
                         </Button>
@@ -543,7 +569,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 [@media(pointer:coarse)]:gap-2">
+                  <div className="grid flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-3 [@media(pointer:coarse)]:gap-1.75">
                     {renderRoomDuelistSetupCard({
                       tone: "local",
                       avatar: localProfile.avatar,
@@ -554,8 +580,12 @@ export const Lobby: React.FC<LobbyProps> = ({
                       theme: localRoomTheme,
                       ready: localDeckReady,
                     })}
-                    <div className="flex h-[3.15rem] w-[3.15rem] items-center justify-center rounded-full border border-[#d7c19a] bg-[#f8ecd8] text-[#8a6428] shadow-inner [@media(pointer:coarse)]:h-[2.1rem] [@media(pointer:coarse)]:w-[2.1rem]">
+                    <div className="relative flex h-full min-h-[10.8rem] w-[4.1rem] items-center justify-center [@media(pointer:coarse)]:min-h-0 [@media(pointer:coarse)]:w-[2.05rem]">
+                      <div className="absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-[#8f5f12]/12 md:block" />
+                      <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[#8f5f12]/12 md:hidden" />
+                      <div className="relative z-10 flex h-[3.15rem] w-[3.15rem] items-center justify-center rounded-full border border-[#d7c19a] bg-[#f8ecd8] text-[#8a6428] shadow-inner [@media(pointer:coarse)]:h-[2.05rem] [@media(pointer:coarse)]:w-[2.05rem]">
                       <Swords className="h-5 w-5 [@media(pointer:coarse)]:h-3.5 [@media(pointer:coarse)]:w-3.5" />
+                      </div>
                     </div>
                     {renderRoomDuelistSetupCard({
                       tone: "remote",
@@ -579,9 +609,11 @@ export const Lobby: React.FC<LobbyProps> = ({
                       onPointerCancel={createButtonPointerCancelHandler("start")}
                       onPointerLeave={createButtonPointerCancelHandler("start")}
                       disabled={!canStartActiveRoom}
-                      className={`group relative h-[4.2rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.3rem] border-[3px] border-[#1f7a46] bg-[#2f9a56] px-5 font-serif text-[1.15rem] font-black text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] disabled:cursor-not-allowed disabled:opacity-60 disabled:[@media(hover:hover)]:hover:translate-y-0 disabled:[@media(hover:hover)]:hover:bg-[#2f9a56] disabled:[@media(hover:hover)]:hover:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(pointer:coarse)]:h-[2.95rem] [@media(pointer:coarse)]:rounded-[0.95rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:text-[0.82rem] ${pressedButtonId === "start" ? lobbyTouchPressedClassName.green : ""}`}
+                      className={`group relative h-[4.2rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.3rem] border-[3px] border-[#1f7a46] bg-[#2f9a56] px-5 font-serif text-[1.15rem] font-black text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] disabled:cursor-not-allowed disabled:opacity-60 disabled:[@media(hover:hover)]:hover:translate-y-0 disabled:[@media(hover:hover)]:hover:bg-[#2f9a56] disabled:[@media(hover:hover)]:hover:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] disabled:[@media(hover:hover)]:active:translate-y-0 disabled:[@media(hover:hover)]:active:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(pointer:coarse)]:h-[2.95rem] [@media(pointer:coarse)]:rounded-[0.95rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:text-[0.82rem] ${pressedButtonId === "start" ? lobbyTouchPressedClassName.green : ""}`}
                     >
-                      <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[1rem] border border-white/16 [@media(pointer:coarse)]:rounded-[0.75rem]" />
+                      <span className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22 [@media(pointer:coarse)]:!inset-x-1.5 [@media(pointer:coarse)]:!h-[1.5px] [@media(pointer:coarse)]:!bg-white/18" />
+                      <span className="pointer-events-none absolute inset-x-5 bottom-0 z-0 h-[2px] rounded-t-full bg-white/14 [@media(pointer:coarse)]:!inset-x-2 [@media(pointer:coarse)]:!h-px [@media(pointer:coarse)]:!bg-white/10" />
+                      <span className="pointer-events-none absolute inset-[3px] z-0 rounded-[1rem] border border-white/18 [@media(pointer:coarse)]:rounded-[0.75rem]" />
                       <span className="relative z-10 flex items-center justify-center gap-2">
                         <Play className="h-5 w-5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
                         {roomStartLabel}
@@ -662,12 +694,14 @@ export const Lobby: React.FC<LobbyProps> = ({
                             onPointerCancel={createButtonPointerCancelHandler("create")}
                             onPointerLeave={createButtonPointerCancelHandler("create")}
                             disabled={mode === "bot" ? false : isCreating}
-                            className={`group relative h-[4rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.2rem] border-[3px] px-5 font-serif text-[1.05rem] font-black transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:rounded-[0.85rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[1.04rem] [@media(pointer:coarse)]:shadow-[0_4px_0_#22673f,0_8px_14px_rgba(20,83,45,0.16)] ${mode === "bot" ? "[@media(pointer:coarse)]:mx-auto [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:w-[100%] [@media(pointer:coarse)]:text-[0.92rem]" : ""} ${mode === "bot" && localDeckId && localLobbyTheme
-                              ? `${localLobbyTheme.buttonClassName} ${pressedButtonId === "create" ? lobbyTouchPressedClassName[localLobbyTheme.pressedClassName] : ""}`
-                              : `border-[#1f7a46] bg-[#2f9a56] text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] ${pressedButtonId === "create" ? lobbyTouchPressedClassName.green : ""}`
+                            className={`group relative h-[4rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.2rem] border-[3px] px-5 font-serif text-[1.05rem] font-black transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:rounded-[0.85rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[1.04rem] ${mode === "bot" ? "[@media(pointer:coarse)]:mx-auto [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:w-[100%] [@media(pointer:coarse)]:text-[0.92rem]" : ""} ${mode === "bot" && localDeckId && localLobbyTheme
+                              ? `${localLobbyTheme.raisedButtonClassName} ${pressedButtonId === "create" ? lobbyTouchPressedClassName[localLobbyTheme.pressedClassName] : ""}`
+                              : `border-[#1f7a46] bg-[#2f9a56] text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] ${pressedButtonId === "create" ? lobbyTouchPressedClassName.green : ""}`
                               }`}
                           >
-                            <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[0.95rem] border border-white/16 [@media(pointer:coarse)]:rounded-[0.72rem]" />
+                            <span className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22 [@media(pointer:coarse)]:!inset-x-1.5 [@media(pointer:coarse)]:!h-[1.5px] [@media(pointer:coarse)]:!bg-white/18" />
+                            <span className="pointer-events-none absolute inset-x-5 bottom-0 z-0 h-[2px] rounded-t-full bg-white/14 [@media(pointer:coarse)]:!inset-x-2 [@media(pointer:coarse)]:!h-px [@media(pointer:coarse)]:!bg-white/10" />
+                            <span className="pointer-events-none absolute inset-[3px] z-0 rounded-[0.95rem] border border-white/18 [@media(pointer:coarse)]:rounded-[0.72rem]" />
                             <span className="relative z-10 flex items-center justify-center gap-2">
                               {mode === "bot" ? <ScrollText className="h-5 w-5" /> : (isCreating ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScrollText className="h-5 w-5" />)}
                               {mode === "bot" ? (localDeckId ? "Trocar Deck" : "Selecionar Deck") : (isCreating ? "Criando..." : "Criar Sala")}
@@ -716,7 +750,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                           </div>
                           <div className="flex flex-col min-w-0">
                             <div className={`font-serif text-[1.2rem] font-black text-[#5b2408] leading-none [@media(pointer:coarse)]:text-[1.12rem] md:text-[1.4rem] md:leading-normal ${mode === "bot" ? "[@media(pointer:coarse)]:text-[1.12rem]" : ""}`}>
-                              {mode === "bot" ? "Adversario (Bot)" : "Entrar em Sala"}
+                              {mode === "bot" ? "Adversario" : "Entrar em Sala"}
                             </div>
                             <div className={`text-[0.68rem] font-serif italic text-[#7f664e] whitespace-nowrap overflow-hidden text-ellipsis [@media(pointer:coarse)]:text-[0.62rem] md:text-[0.78rem] ${mode === "bot" ? "[@media(pointer:coarse)]:text-[0.58rem]" : ""}`}>
                               {mode === "bot" ? (
@@ -764,12 +798,14 @@ export const Lobby: React.FC<LobbyProps> = ({
                             onPointerCancel={createButtonPointerCancelHandler("join")}
                             onPointerLeave={createButtonPointerCancelHandler("join")}
                             disabled={mode === "bot" ? false : (isJoining || !roomId)}
-                            className={`group relative h-[4rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.2rem] border-[3px] px-5 font-serif text-[1.05rem] font-black transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:rounded-[0.85rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[1.04rem] [@media(pointer:coarse)]:shadow-[0_4px_0_#8f5f12,0_8px_14px_rgba(88,52,8,0.16)] ${mode === "bot" ? "[@media(pointer:coarse)]:mx-auto [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:w-[100%] [@media(pointer:coarse)]:text-[0.92rem]" : ""} ${mode === "bot" && remoteDeckId && remoteLobbyTheme
-                              ? `${remoteLobbyTheme.buttonClassName} ${pressedButtonId === "join" ? lobbyTouchPressedClassName[remoteLobbyTheme.pressedClassName] : ""}`
-                              : `border-[#8f5f12] bg-[#c88a32] text-amber-50 shadow-[0_7px_0_#8f5f12,0_18px_28px_rgba(88,52,8,0.2)] [@media(hover:hover)]:hover:bg-[#d29134] [@media(hover:hover)]:hover:shadow-[0_10px_0_#8f5f12,0_22px_32px_rgba(88,52,8,0.24)] ${pressedButtonId === "join" ? lobbyTouchPressedClassName.amber : ""}`
+                            className={`group relative h-[4rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.2rem] border-[3px] px-5 font-serif text-[1.05rem] font-black transition-all duration-150 ease-out [@media(hover:hover)]:hover:-translate-y-1 [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:rounded-[0.85rem] [@media(pointer:coarse)]:px-1.4 [@media(pointer:coarse)]:text-[1.04rem] ${mode === "bot" ? "[@media(pointer:coarse)]:mx-auto [@media(pointer:coarse)]:h-[2.8rem] [@media(pointer:coarse)]:w-[100%] [@media(pointer:coarse)]:text-[0.92rem]" : ""} ${mode === "bot" && remoteDeckId && remoteLobbyTheme
+                              ? `${remoteLobbyTheme.raisedButtonClassName} ${pressedButtonId === "join" ? lobbyTouchPressedClassName[remoteLobbyTheme.pressedClassName] : ""}`
+                              : `border-[#8f5f12] bg-[#c88a32] text-amber-50 shadow-[0_7px_0_#8f5f12,0_18px_28px_rgba(88,52,8,0.2)] [@media(hover:hover)]:hover:bg-[#d29134] [@media(hover:hover)]:hover:shadow-[0_10px_0_#8f5f12,0_22px_32px_rgba(88,52,8,0.24)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)] ${pressedButtonId === "join" ? lobbyTouchPressedClassName.amber : ""}`
                               }`}
                           >
-                            <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[0.95rem] border border-white/16 [@media(pointer:coarse)]:rounded-[0.72rem]" />
+                            <span className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22 [@media(pointer:coarse)]:!inset-x-1.5 [@media(pointer:coarse)]:!h-[1.5px] [@media(pointer:coarse)]:!bg-white/18" />
+                            <span className="pointer-events-none absolute inset-x-5 bottom-0 z-0 h-[2px] rounded-t-full bg-white/14 [@media(pointer:coarse)]:!inset-x-2 [@media(pointer:coarse)]:!h-px [@media(pointer:coarse)]:!bg-white/10" />
+                            <span className="pointer-events-none absolute inset-[3px] z-0 rounded-[0.95rem] border border-white/18 [@media(pointer:coarse)]:rounded-[0.72rem]" />
                             <span className="relative z-10 flex items-center justify-center gap-2">
                               {mode === "bot" ? <ScrollText className="h-5 w-5" /> : (isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <DoorOpen className="h-5 w-5" />)}
                               {mode === "bot" ? (remoteDeckId ? "Trocar Deck" : "Selecionar Deck") : (isJoining ? "Entrando..." : "Entrar")}
@@ -788,9 +824,11 @@ export const Lobby: React.FC<LobbyProps> = ({
                         onPointerCancel={createButtonPointerCancelHandler("start")}
                         onPointerLeave={createButtonPointerCancelHandler("start")}
                         disabled={!localDeckId || !remoteDeckId}
-                        className={`group relative h-[4.2rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.3rem] border-[3px] border-[#1f7a46] bg-[#2f9a56] px-5 font-serif text-[1.15rem] font-black text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] transition-all duration-150 ease-out [@media(hover:hover)]:-top-[0.65rem] [@media(hover:hover)]:hover:-translate-y-1 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] disabled:cursor-not-allowed disabled:opacity-60 disabled:[@media(hover:hover)]:hover:translate-y-0 disabled:[@media(hover:hover)]:hover:bg-[#2f9a56] disabled:[@media(hover:hover)]:hover:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(pointer:coarse)]:h-[2.7rem] [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:text-[0.76rem] [@media(pointer:coarse)]:shadow-[0_4px_0_#22673f,0_8px_12px_rgba(20,83,45,0.15)] ${pressedButtonId === "start" ? lobbyTouchPressedClassName.green : ""}`}
+                        className={`group relative h-[4.2rem] w-full touch-manipulation select-none overflow-hidden rounded-[1.3rem] border-[3px] border-[#1f7a46] bg-[#2f9a56] px-5 font-serif text-[1.15rem] font-black text-emerald-50 shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] transition-all duration-150 ease-out [@media(hover:hover)]:-top-[0.65rem] [@media(hover:hover)]:hover:-translate-y-1 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_22px_32px_rgba(20,83,45,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] disabled:cursor-not-allowed disabled:opacity-60 disabled:[@media(hover:hover)]:hover:translate-y-0 disabled:[@media(hover:hover)]:hover:bg-[#2f9a56] disabled:[@media(hover:hover)]:hover:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] disabled:[@media(hover:hover)]:active:translate-y-0 disabled:[@media(hover:hover)]:active:shadow-[0_7px_0_#22673f,0_18px_28px_rgba(20,83,45,0.22)] [@media(pointer:coarse)]:h-[2.7rem] [@media(pointer:coarse)]:rounded-[0.9rem] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:text-[0.76rem] ${pressedButtonId === "start" ? lobbyTouchPressedClassName.green : ""}`}
                       >
-                        <span className="pointer-events-none absolute inset-[5px] z-0 rounded-[1rem] border border-white/16 [@media(pointer:coarse)]:rounded-[0.75rem]" />
+                        <span className="pointer-events-none absolute inset-x-4 top-0 z-0 h-[3px] rounded-b-full bg-white/22 [@media(pointer:coarse)]:!inset-x-1.5 [@media(pointer:coarse)]:!h-[1.5px] [@media(pointer:coarse)]:!bg-white/18" />
+                        <span className="pointer-events-none absolute inset-x-5 bottom-0 z-0 h-[2px] rounded-t-full bg-white/14 [@media(pointer:coarse)]:!inset-x-2 [@media(pointer:coarse)]:!h-px [@media(pointer:coarse)]:!bg-white/10" />
+                        <span className="pointer-events-none absolute inset-[3px] z-0 rounded-[1rem] border border-white/18 [@media(pointer:coarse)]:rounded-[0.75rem]" />
                         <span className="relative z-10 flex items-center justify-center gap-2">
                           <Play className="h-5 w-5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
                           Iniciar Duelo

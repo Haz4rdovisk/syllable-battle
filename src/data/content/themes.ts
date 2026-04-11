@@ -21,6 +21,7 @@ export const DECK_LOBBY_THEME_ART: Record<
     avatarClassName: string;
     accentClassName: string;
     buttonClassName: string;
+    raisedButtonClassName: string;
     pressedClassName: "gold" | "green" | "amber" | "blue";
     artStyle: { backgroundImage: string };
   }
@@ -29,7 +30,8 @@ export const DECK_LOBBY_THEME_ART: Record<
     panelClassName: "border-[#d2ac69] bg-[#fff8e8]",
     avatarClassName: "border-[#d89a35]/42 bg-[#fff2c7] text-[#9b5b16]",
     accentClassName: "bg-[#d89a35]/70",
-    buttonClassName: "border-[#8f5f12] bg-[#c88a32] shadow-[0_4px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.16)] text-amber-50 [@media(hover:hover)]:hover:bg-[#d29134]",
+    buttonClassName: "border-[#8f5f12] bg-[#c88a32] shadow-[0_4px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.16)] text-amber-50 [@media(hover:hover)]:hover:bg-[#d29134] [@media(hover:hover)]:hover:shadow-[0_7px_0_#8f5f12,0_14px_22px_rgba(88,52,8,0.2)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)] [@media(pointer:coarse)]:shadow-[0_4px_0_#8f5f12,0_8px_14px_rgba(88,52,8,0.16)]",
+    raisedButtonClassName: "border-[#8f5f12] bg-[#c88a32] shadow-[0_7px_0_#8f5f12,0_20px_28px_rgba(88,52,8,0.24)] text-amber-50 [@media(hover:hover)]:hover:bg-[#d29134] [@media(hover:hover)]:hover:shadow-[0_10px_0_#8f5f12,0_24px_34px_rgba(88,52,8,0.28)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)]",
     pressedClassName: "amber",
     artStyle: {
       backgroundImage:
@@ -40,7 +42,8 @@ export const DECK_LOBBY_THEME_ART: Record<
     panelClassName: "border-[#96b6c9] bg-[#f4f9fb]",
     avatarClassName: "border-[#4f8fb7]/38 bg-[#e5f4fb] text-[#1f5f86]",
     accentClassName: "bg-[#3c89b8]/62",
-    buttonClassName: "border-[#2b6d9a] bg-[#4c95c4] shadow-[0_4px_0_#28597d,0_10px_16px_rgba(40,89,125,0.18)] text-blue-50 [@media(hover:hover)]:hover:bg-[#5aa1ce]",
+    buttonClassName: "border-[#2b6d9a] bg-[#4c95c4] shadow-[0_4px_0_#28597d,0_10px_16px_rgba(40,89,125,0.18)] text-blue-50 [@media(hover:hover)]:hover:bg-[#5aa1ce] [@media(hover:hover)]:hover:shadow-[0_7px_0_#28597d,0_14px_22px_rgba(40,89,125,0.22)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#28597d,0_10px_16px_rgba(35,74,110,0.18)] [@media(pointer:coarse)]:shadow-[0_4px_0_#28597d,0_8px_14px_rgba(40,89,125,0.16)]",
+    raisedButtonClassName: "border-[#2b6d9a] bg-[#4c95c4] shadow-[0_7px_0_#28597d,0_20px_28px_rgba(35,74,110,0.22)] text-blue-50 [@media(hover:hover)]:hover:bg-[#5aa1ce] [@media(hover:hover)]:hover:shadow-[0_10px_0_#28597d,0_24px_34px_rgba(35,74,110,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#28597d,0_10px_16px_rgba(35,74,110,0.18)]",
     pressedClassName: "blue",
     artStyle: {
       backgroundImage:
@@ -51,7 +54,8 @@ export const DECK_LOBBY_THEME_ART: Record<
     panelClassName: "border-[#9bbc8e] bg-[#f3fbef]",
     avatarClassName: "border-[#3f9b57]/36 bg-[#e7f7e7] text-[#226b37]",
     accentClassName: "bg-[#4f9f58]/62",
-    buttonClassName: "border-[#1f7a46] bg-[#2f9a56] shadow-[0_4px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] text-emerald-50 [@media(hover:hover)]:hover:bg-[#35a55d]",
+    buttonClassName: "border-[#1f7a46] bg-[#2f9a56] shadow-[0_4px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] text-emerald-50 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_7px_0_#22673f,0_14px_22px_rgba(20,83,45,0.22)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)] [@media(pointer:coarse)]:shadow-[0_4px_0_#22673f,0_8px_14px_rgba(20,83,45,0.16)]",
+    raisedButtonClassName: "border-[#1f7a46] bg-[#2f9a56] shadow-[0_7px_0_#22673f,0_20px_28px_rgba(20,83,45,0.24)] text-emerald-50 [@media(hover:hover)]:hover:bg-[#35a55d] [@media(hover:hover)]:hover:shadow-[0_10px_0_#22673f,0_24px_34px_rgba(20,83,45,0.28)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#22673f,0_10px_16px_rgba(20,83,45,0.18)]",
     pressedClassName: "green",
     artStyle: {
       backgroundImage:
@@ -62,7 +66,8 @@ export const DECK_LOBBY_THEME_ART: Record<
     panelClassName: "border-[#ccb27a] bg-[#fff6e5]",
     avatarClassName: "border-[#be8b3a]/40 bg-[#f8e8c4] text-[#8a5c19]",
     accentClassName: "bg-[#c18a35]/64",
-    buttonClassName: "border-[#b77912] bg-[#d9a22b] shadow-[0_4px_0_#8f5f12,0_10px_16px_rgba(143,95,18,0.14)] text-yellow-50 [@media(hover:hover)]:hover:bg-[#e0ac37]",
+    buttonClassName: "border-[#b77912] bg-[#d9a22b] shadow-[0_4px_0_#8f5f12,0_10px_16px_rgba(143,95,18,0.14)] text-yellow-50 [@media(hover:hover)]:hover:bg-[#e0ac37] [@media(hover:hover)]:hover:shadow-[0_7px_0_#8f5f12,0_14px_22px_rgba(143,95,18,0.2)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)] [@media(pointer:coarse)]:shadow-[0_4px_0_#8f5f12,0_8px_14px_rgba(143,95,18,0.15)]",
+    raisedButtonClassName: "border-[#b77912] bg-[#d9a22b] shadow-[0_7px_0_#8f5f12,0_20px_28px_rgba(88,52,8,0.22)] text-yellow-50 [@media(hover:hover)]:hover:bg-[#e0ac37] [@media(hover:hover)]:hover:shadow-[0_10px_0_#8f5f12,0_24px_34px_rgba(88,52,8,0.26)] [@media(hover:hover)]:active:translate-y-[4px] [@media(hover:hover)]:active:shadow-[0_3px_0_#8f5f12,0_10px_16px_rgba(88,52,8,0.18)]",
     pressedClassName: "gold",
     artStyle: {
       backgroundImage:
