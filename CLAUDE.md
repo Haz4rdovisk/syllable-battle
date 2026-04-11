@@ -157,7 +157,6 @@ npm run edge:debug  # Abre preview com debug overlay
 - `docs/battle-layout-contract.md` — contrato do editor/preset e watcher/dump
 - `docs/battle-non-regression-checklist.md` — checklist de nao-regressao
 - `docs/battle-visual-catalog.md` — catalogo do sistema visual da battle
-- `design_language.md` — estudo da linguagem de design dos menus
 - `.agents/rules/design-language.md` — regras consolidadas da design language
 - `.agents/rules/repo-overview.md` — visao geral do repo para agentes
 

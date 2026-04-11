@@ -2,13 +2,26 @@ node_modules/
 build/
 dist/
 coverage/
-.DS_Store
 *.log
+*.tsbuildinfo
+
+# Environment
 .env*
-!.env.example
-.codex/
-artifacts/
-.npm-cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Android build artifacts
 android-app/.gradle/
 android-app/.gradle-home/
 android-app/build/
@@ -16,17 +29,20 @@ android-app/app/build/
 android-app/local.properties
 android-app/*.jks
 android-app/*.keystore
-.kilo/
-*.tsbuildinfo
 
-# Ghost session data (local only)
+# Package manager
+.npm-cache/
+
+# AI / Agent tooling (local only)
 .ai-sessions/
-
-# Local AI/tooling state
 .claude/
+.codex/
+.kilo/
 .taskmaster/
 memory/
+artifacts/
 .mcp.json
 skills-lock.json
 autoskills.cmd
 .agents/skills/
+CLAUDE.ghost-backup.md

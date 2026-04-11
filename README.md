@@ -27,7 +27,7 @@ Se quiser testar a sala com relay local:
 
 O guia completo de deploy esta em:
 
-- [DEPLOY.md](./DEPLOY.md)
+- [Deploy Guide](./docs/deploy.md)
 
 ## Android WebView
 

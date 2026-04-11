@@ -96,8 +96,7 @@ Syllable Battle e um card game digital educativo/casual em portugues brasileiro.
 ├── public/                        # Assets estaticos
 ├── docs/                          # Documentacao tecnica
 ├── .agents/rules/                 # Regras para agentes IA
-├── AGENTS.md                      # Regras de trabalho
-└── design_language.md             # Estudo da linguagem de design
+└── AGENTS.md                      # Regras de trabalho
 ```
 
 ### Peso dos diretorios (por complexidade, nao por linhas)
