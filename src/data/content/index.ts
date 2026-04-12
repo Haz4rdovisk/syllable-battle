@@ -553,6 +553,8 @@ export function loadDeckCatalog(rawDecks: RawDeckDefinition[], rawTargets: RawTa
 
 export { rawDeckCatalog };
 export { rawTargetCatalog };
+export * from "./helpers";
+export * from "./readModels";
 export * from "./selectors";
 export * from "./battleSetup";
 

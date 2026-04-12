@@ -3,33 +3,26 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, RotateCcw, Search, Sparkles, Swords, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
-import { SyllableCard, TargetCard } from "../game/GameComponents";
+import { SyllableCard } from "../game/GameComponents";
+import { ContentSyllableChips, ContentTargetRarityHeader } from "../content/ContentMicroBlocks";
 import { APP_RESOLVED_DECKS, resolveAppDeck, type AppResolvedDeck } from "../../app/appDeckResolver";
-import { CONTENT_PIPELINE } from "../../data/content";
+import {
+  CONTENT_PIPELINE,
+  CONTENT_RARITY_DESCENDING,
+  createContentCatalogFiltersView,
+  createContentCatalogSyllableViews,
+  createContentCatalogTargetViews,
+  createContentDeckSummaryView,
+  filterAndSortContentTargetViews,
+  getContentRarityLabel,
+  getContentRaritySoftToneClass,
+  getContentRarityToneClass,
+  type ContentSyllableView,
+  type ContentTargetView,
+} from "../../data/content";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
-import type { TargetDefinition } from "../../data/content/types";
-import { RARITY_DAMAGE, normalizeRarity, type Rarity, type UITarget } from "../../types/game";
 
 interface CollectionScreenProps { onBack: () => void }
-
-// ─── Rarity palette ──────────────────────────────────────────────────────────
-const RBG: Record<string, string> = { "lendário": "bg-rose-800", "épico": "bg-purple-700", "raro": "bg-amber-600", "comum": "bg-slate-500" };
-const RSEP: Record<string, string> = { "lendário": "bg-rose-50/90 text-rose-900 border-rose-200/60", "épico": "bg-purple-50/90 text-purple-800 border-purple-200/60", "raro": "bg-amber-50/90 text-amber-800 border-amber-200/60", "comum": "bg-slate-50/90 text-slate-600 border-slate-200/60" };
-const RLBL = { "lendário": "Lendário", "épico": "Épico", "raro": "Raro", "comum": "Comum" } as const;
-const RORDER: Rarity[] = ["lendário", "épico", "raro", "comum"];
-const RARITY_OPT = ["comum", "raro", "épico", "lendário"] as const;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const tier = (r: string) => { const n = normalizeRarity(r as Rarity); return n === "lendário" ? 3 : n === "épico" ? 2 : n === "raro" ? 1 : 0; };
-const normTax = (v: string) => v.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-const fmtLbl = (v: string) => v.split("-").filter(Boolean).map((p) => p[0]?.toUpperCase() + p.slice(1)).join(" ") || v;
-
-const toUITarget = (t: TargetDefinition): UITarget => ({
-  id: t.id, name: t.name, emoji: t.emoji, description: t.description,
-  syllables: t.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id),
-  rarity: t.rarity, progress: [], uiId: t.id,
-  entering: false, attacking: false, leaving: false, justArrived: false,
-});
 
 // ─── Card grid sizes (portrait aspect ratio ~200:275 ≈ 0.73:1) ───────────────
 const CARD_W_D = 200;
@@ -50,23 +43,23 @@ const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.R
   )}>{children}</button>
 );
 
-// ─── MiniCardRow — Hearthstone nicho (kept as-is per user request) ────────────
-const MiniCardRow: React.FC<{ emoji: string; name: string; rarity: string; copies: number }> = ({ emoji, name, rarity, copies }) => {
-  const rn = normalizeRarity(rarity as Rarity);
+// ─── DeckRailTargetRow ───────────────────────────────────────────────────────
+const DeckRailTargetRow: React.FC<{ target: ContentTargetView }> = ({ target }) => {
   return (
     <div className="group flex cursor-grab items-center gap-1.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/70 px-2 py-1 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]">
-      <div className={cn("h-5 w-1.5 shrink-0 rounded-full", RBG[rn])} />
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1rem] shadow-sm">{emoji}</div>
-      <span className="min-w-0 flex-1 truncate font-serif text-[0.56rem] font-black leading-tight text-[#31271e]">{name}</span>
-      <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-1.5 py-0.5 text-[0.44rem] font-black text-amber-800">×{copies}</span>
+      <div className={cn("h-5 w-1.5 shrink-0 rounded-full", target.rarityView.toneClass)} />
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1rem] shadow-sm">{target.emoji}</div>
+      <span className="min-w-0 flex-1 truncate font-serif text-[0.56rem] font-black leading-tight text-[#31271e]">{target.name}</span>
+      <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-1.5 py-0.5 text-[0.44rem] font-black text-amber-800">×{target.copies}</span>
     </div>
   );
 };
 
 // ─── DeckBanner ───────────────────────────────────────────────────────────────
 const DeckBanner: React.FC<{ deck: AppResolvedDeck; isSelected: boolean; onClick: () => void }> = ({ deck, isSelected, onClick }) => {
-  const count = useMemo(() => new Set(deck.deckModel.targetInstances.map((e) => e.target.id)).size, [deck]);
-  const sylCount = useMemo(() => deck.deckModel.cards.reduce((sum, c) => sum + c.copiesInDeck, 0), [deck]);
+  const deckSummary = useMemo(() => createContentDeckSummaryView(deck.deckModel), [deck]);
+  const count = deckSummary.metrics.uniqueTargets;
+  const sylCount = deckSummary.metrics.totalSyllables;
 
   return (
     <div role="button" onClick={onClick} className={cn("relative flex w-full shrink-0 cursor-pointer select-none items-center gap-3 overflow-hidden rounded-xl border-2 px-3 py-3 text-left transition-all duration-200 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-2", isSelected ? cn("border-white/30 ring-2 ring-white/15 shadow-md bg-gradient-to-r", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]) : cn("border-[#d9c8a9] bg-gradient-to-r opacity-72 [@media(hover:hover)]:hover:opacity-95 [@media(hover:hover)]:hover:shadow-sm", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
@@ -89,18 +82,12 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
   const [selId, setSelId] = useState(() => decks[0]?.deckId ?? "");
   const [view, setView] = useState<"list" | "cards">("list");
   const deck = useMemo(() => resolveAppDeck(selId) ?? decks[0] ?? null, [selId, decks]);
-
-  const targets = useMemo(() => {
-    if (!deck) return [] as { id: string; name: string; emoji: string; rarity: string; copies: number }[];
-    const m = new Map<string, { id: string; name: string; emoji: string; rarity: string; copies: number }>();
-    deck.deckModel.targetInstances.forEach((e) => { const c = m.get(e.target.id); if (c) { c.copies++; return; } m.set(e.target.id, { id: e.target.id, name: e.target.name, emoji: e.target.emoji, rarity: e.target.rarity, copies: 1 }); });
-    return [...m.values()].sort((a, b) => tier(b.rarity) - tier(a.rarity));
-  }, [deck]);
-
-  const syls = useMemo(() => deck ? deck.deckModel.cards.map((c) => ({ syllable: CONTENT_PIPELINE.catalog.cardsById[c.cardId]?.syllable ?? c.cardId, copies: c.copiesInDeck })) : [], [deck]);
-  const grouped = useMemo(() => { const g = {} as Record<string, typeof targets>; RORDER.forEach((r) => { g[r] = []; }); targets.forEach((t) => { (g[normalizeRarity(t.rarity as Rarity)] ??= []).push(t); }); return g; }, [targets]);
-  const totalA = targets.reduce((s, t) => s + t.copies, 0);
-  const totalS = syls.reduce((s, c) => s + c.copies, 0);
+  const deckSummary = useMemo(() => (deck ? createContentDeckSummaryView(deck.deckModel) : null), [deck]);
+  const deckTargetViews = deckSummary?.targets ?? [];
+  const deckSyllableViews = deckSummary?.syllables ?? [];
+  const deckTargetsByRarity = useMemo(() => { const g = {} as Record<string, typeof deckTargetViews>; CONTENT_RARITY_DESCENDING.forEach((r) => { g[r] = []; }); deckTargetViews.forEach((target) => { (g[target.rarity] ??= []).push(target); }); return g; }, [deckTargetViews]);
+  const deckTargetTotal = deckSummary?.metrics.totalTargets ?? 0;
+  const deckSyllableTotal = deckSummary?.metrics.totalSyllables ?? 0;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
@@ -133,28 +120,28 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
               </div>
             )}
             <div className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 py-2">
-              {RORDER.map((rk) => {
-                const grp = grouped[rk]; if (!grp?.length) return null;
+              {CONTENT_RARITY_DESCENDING.map((rk) => {
+                const grp = deckTargetsByRarity[rk]; if (!grp?.length) return null;
                 return (
                   <div key={rk} className="mb-2">
-                    <div className={cn("mb-1.5 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase", RSEP[rk])}>
-                      <span className={cn("h-2 w-2 shrink-0 rounded-full", RBG[rk])} />{RLBL[rk]}
+                    <div className={cn("mb-1.5 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase", getContentRaritySoftToneClass(rk))}>
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", getContentRarityToneClass(rk))} />{getContentRarityLabel(rk)}
                     </div>
                     <div className="flex flex-col gap-1">
-                      {grp.map((t) => <MiniCardRow key={t.id} emoji={t.emoji} name={t.name} rarity={t.rarity} copies={t.copies} />)}
+                      {grp.map((t) => <DeckRailTargetRow key={t.id} target={t} />)}
                     </div>
                   </div>
                 );
               })}
-              {syls.length > 0 && (
+              {deckSyllableViews.length > 0 && (
                 <div className="mb-1">
                   <div className="mb-1.5 flex items-center gap-1.5 rounded-full border border-slate-200/60 bg-slate-50/82 px-2 py-0.5 text-[0.6rem] font-black uppercase text-slate-600">
                     <Sparkles className="h-2.5 w-2.5" />Sílabas
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {syls.map((s, i) => (
+                    {deckSyllableViews.map((s, i) => (
                       <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-0.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-2 py-0.5 text-[0.58rem] font-black text-amber-800">
-                        {s.syllable}<span className="rounded-full bg-amber-200/55 px-1 text-[0.48rem]">×{s.copies}</span>
+                        {s.syllable}<span className="rounded-full bg-amber-200/55 px-1 text-[0.48rem]">×{s.copies ?? 0}</span>
                       </span>
                     ))}
                   </div>
@@ -165,17 +152,17 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
               <div className="flex items-center justify-between gap-1">
                 <div className="flex items-center gap-3">
                   <div className="text-center">
-                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{totalA}</div>
+                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{deckTargetTotal}</div>
                     <div className="text-[0.54rem] font-black uppercase tracking-[0.1em] text-[#9a7f5c]">Alvos</div>
                   </div>
                   <div className="h-5 w-px bg-[#d9c8a9]" />
                   <div className="text-center">
-                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{totalS}</div>
+                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{deckSyllableTotal}</div>
                     <div className="text-[0.54rem] font-black uppercase tracking-[0.1em] text-[#9a7f5c]">Sílabas</div>
                   </div>
                 </div>
-                <div className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.06em]", totalA >= 2 ? "border-emerald-300/70 bg-emerald-50 text-emerald-700" : "border-amber-300/70 bg-amber-50 text-amber-700")}>
-                  <Swords className="h-3 w-3" />{totalA >= 2 ? "Pronto" : "Montar"}
+                <div className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.06em]", deckTargetTotal >= 2 ? "border-emerald-300/70 bg-emerald-50 text-emerald-700" : "border-amber-300/70 bg-amber-50 text-amber-700")}>
+                  <Swords className="h-3 w-3" />{deckTargetTotal >= 2 ? "Pronto" : "Montar"}
                 </div>
               </div>
             </div>
@@ -186,34 +173,12 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
   );
 };
 
-const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }) => {
-  const rarityNormalized = normalizeRarity(target.rarity as Rarity);
-  const damage = RARITY_DAMAGE[rarityNormalized] || 1;
-  const syllables = target.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id);
-
-  // Exact tones from Content Editor
-  let toneClass = "bg-slate-500";
-  if (rarityNormalized === "raro") toneClass = "bg-amber-600";
-  if (rarityNormalized === "épico") toneClass = "bg-purple-700";
-  if (rarityNormalized === "lendário") toneClass = "bg-rose-800";
-
-  const getRarityLabel = (rarity: string) => {
-    if (rarity === "épico") return "EPICO";
-    if (rarity === "lendário") return "LENDARIO";
-    return rarity.toUpperCase();
-  };
-
+const CollectionTargetCard: React.FC<{ target: ContentTargetView }> = ({ target }) => {
   return (
     <div className="relative flex h-full w-full items-start justify-center pb-2 text-center [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
       <div className="card-base relative flex w-full aspect-[126/176] h-full flex-col overflow-hidden rounded-[1.1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]">
 
-        <div className={cn("flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[8px]", toneClass)}>
-          <span className="truncate">{getRarityLabel(rarityNormalized)}</span>
-          <div className="flex items-center gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
-            <Swords className="h-4 w-4 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
-            <span>{damage}</span>
-          </div>
-        </div>
+        <ContentTargetRarityHeader rarityView={target.rarityView} damage={target.damage} />
 
         <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
@@ -227,15 +192,12 @@ const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }
             {target.name || "NOVO ALVO"}
           </div>
 
-          <div className="mt-2.5 flex flex-wrap justify-center gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5">
-            {syllables.length > 0 ? (
-              syllables.map((syllable, index) => (
-                <div key={`${target.id}-${syllable}-${index}`} className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.1em]">
-                  {syllable}
-                </div>
-              ))
-            ) : null}
-          </div>
+          <ContentSyllableChips
+            syllables={target.syllables}
+            idPrefix={target.id}
+            className="mt-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5"
+            chipClassName="[@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.1em]"
+          />
         </div>
 
         <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
@@ -245,30 +207,16 @@ const CollectionTargetCard: React.FC<{ target: TargetDefinition }> = ({ target }
 };
 
 // ─── Card Preview Overlay (hold-to-reveal) ────────────────────────────────────
-const RARITY_COLOR_FULL: Record<string, string> = {
-  "lend\u00e1rio": "bg-rose-800",
-  "\u00e9pico": "bg-purple-700",
-  "raro": "bg-amber-600",
-  "comum": "bg-slate-500",
-};
-const RARITY_LABEL_FULL: Record<string, string> = {
-  "lend\u00e1rio": "LEND\u00c1RIO",
-  "\u00e9pico": "\u00c9PICO",
-  "raro": "RARO",
-  "comum": "COMUM",
-};
-
 const CardPreviewOverlay: React.FC<{
-  target: TargetDefinition;
+  target: ContentTargetView;
   originX: number;
   isDesktop?: boolean;
   copies?: number;
   onClose: () => void;
 }> = ({ target, originX, isDesktop = false, copies, onClose }) => {
-  const rn = normalizeRarity(target.rarity as Rarity);
-  const damage = RARITY_DAMAGE[rn] || 1;
-  const syllables = target.cardIds.map((id) => CONTENT_PIPELINE.catalog.cardsById[id]?.syllable ?? id);
-  const toneClass = RARITY_COLOR_FULL[rn] ?? "bg-slate-500";
+  const damage = target.damage;
+  const syllables = target.syllables;
+  const toneClass = target.rarityView.toneClass;
 
   // Determine layout side: if press was on right half, show infopanel LEFT of card
   const cardW = isDesktop ? 300 : 240;
@@ -290,7 +238,7 @@ const CardPreviewOverlay: React.FC<{
     >
       <div className="card-base relative flex h-full w-full flex-col overflow-hidden rounded-[1.4rem] border-2 border-amber-300/60 shadow-[0_32px_64px_rgba(0,0,0,0.45)] ring-4 ring-amber-300/25">
         <div className={cn("flex h-12 items-center justify-between border-b-2 border-[#d4af37] px-4 text-[11px] font-black uppercase text-white", toneClass)}>
-          <span>{RARITY_LABEL_FULL[rn] ?? rn.toUpperCase()}</span>
+          <span>{getContentRarityLabel(target.rarity, { uppercase: true })}</span>
           <div className="flex items-center gap-1.5"><Swords className="h-4 w-4" /><span>{damage}</span></div>
         </div>
         <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-2">
@@ -299,11 +247,7 @@ const CardPreviewOverlay: React.FC<{
         </div>
         <div className="mt-auto shrink-0 bg-[#fffdf5]/95 px-3 pb-3 pt-5">
           <div className="text-center font-serif text-[1rem] font-black tracking-tight text-amber-950">{target.name || "ALVO"}</div>
-          <div className="mt-2 flex flex-wrap justify-center gap-1">
-            {syllables.map((s, i) => (
-              <span key={i} className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm">{s}</span>
-            ))}
-          </div>
+          <ContentSyllableChips syllables={syllables} idPrefix={`${target.id}-preview-card`} className="mt-2" />
         </div>
         <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-b-full bg-white/20" />
@@ -323,7 +267,7 @@ const CardPreviewOverlay: React.FC<{
       <div>
         <div className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-sm", toneClass)}>
           <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
-          {RARITY_LABEL_FULL[rn] ?? rn}
+          {getContentRarityLabel(target.rarity, { uppercase: true })}
         </div>
         <div className="mt-3 font-serif text-2xl font-black leading-tight tracking-tight text-amber-950">{target.name}</div>
         {target.description && (
@@ -354,11 +298,12 @@ const CardPreviewOverlay: React.FC<{
 
         <div>
           <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">S\u00edlabas ({syllables.length})</div>
-          <div className="flex flex-wrap gap-1.5">
-            {syllables.map((s, i) => (
-              <span key={i} className="rounded-full border border-amber-900/15 bg-amber-50 px-3 py-1 text-[11px] font-black tracking-[0.1em] text-amber-950 shadow-sm">{s}</span>
-            ))}
-          </div>
+          <ContentSyllableChips
+            syllables={syllables}
+            idPrefix={`${target.id}-preview-info`}
+            className="justify-start gap-1.5"
+            chipClassName="border-amber-900/15 bg-amber-50 px-3 py-1 text-[11px] tracking-[0.1em]"
+          />
         </div>
 
         {(target.superclass || target.classKey) && (
@@ -419,7 +364,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const dSearch = useDeferredValue(search.trim().toLowerCase());
 
   // ─── Hold-to-reveal preview state ───────────────────────────────────────────
-  const [preview, setPreview] = useState<TargetDefinition | null>(null);
+  const [preview, setPreview] = useState<ContentTargetView | null>(null);
   const [previewOriginX, setPreviewOriginX] = useState(0);
   const [previewIsDesktop, setPreviewIsDesktop] = useState(false);
   const [previewCopies, setPreviewCopies] = useState(0);
@@ -429,24 +374,12 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const [isBackPressed, setIsBackPressed] = useState(false);
   const backTouchActivatedRef = useRef(false);
 
-  // Copies per target across all decks in the shared catalog pool.
-  // TODO: replace with player personal inventory count when that system exists.
-  const copiesByTargetId = useMemo(() => {
-    const m = new Map<string, number>();
-    APP_RESOLVED_DECKS.forEach((deck) => {
-      deck.deckModel.targetInstances.forEach((e) => {
-        m.set(e.target.id, (m.get(e.target.id) ?? 0) + 1);
-      });
-    });
-    return m;
-  }, []);
-
   const cancelLongPress = () => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressStart.current = null;
   };
 
-  const makeLongPressProps = (target: TargetDefinition) => ({
+  const makeLongPressProps = (target: ContentTargetView) => ({
     onPointerDown: (e: React.PointerEvent) => {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       const ox = e.clientX;
@@ -454,7 +387,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       if (e.pointerType === "mouse") {
         setPreviewOriginX(ox);
         setPreviewIsDesktop(true);
-        setPreviewCopies(copiesByTargetId.get(target.id) ?? 0);
+        setPreviewCopies(target.copies);
         setPreview(target);
         return;
       }
@@ -463,7 +396,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       longPressTimer.current = setTimeout(() => {
         setPreviewOriginX(ox);
         setPreviewIsDesktop(false);
-        setPreviewCopies(copiesByTargetId.get(target.id) ?? 0);
+        setPreviewCopies(target.copies);
         setPreview(target);
         longPressStart.current = null;
       }, 450);
@@ -514,36 +447,30 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     mq.addEventListener("change", h); return () => mq.removeEventListener("change", h);
   }, []);
 
-  const allT = useMemo(() => CONTENT_PIPELINE.catalog.targets, []);
-  const allC = useMemo(() => CONTENT_PIPELINE.catalog.cards, []);
+  const targetViews = useMemo(
+    () => createContentCatalogTargetViews(CONTENT_PIPELINE.catalog, { deckModels: CONTENT_PIPELINE.deckModels }),
+    [],
+  );
+  const syllableViews = useMemo(() => createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog), []);
+  const filterOptionsView = useMemo(
+    () => createContentCatalogFiltersView(targetViews, { superclassFilter: superF }),
+    [targetViews, superF],
+  );
+  const superclassOptions = filterOptionsView.superclassOptions;
+  const classOptions = filterOptionsView.classOptions;
 
-  const superOpts = useMemo(() => [...new Set(allT.map((t) => normTax(t.superclass ?? "")).filter(Boolean))].sort().map((id) => ({ id, label: fmtLbl(id) })), [allT]);
-  const classOpts = useMemo(() => { const base = superF !== "all" ? allT.filter((t) => normTax(t.superclass ?? "") === superF) : allT; return [...new Set(base.map((t) => normTax(t.classKey ?? "")).filter(Boolean))].sort().map((id) => ({ id, label: fmtLbl(id) })); }, [allT, superF]);
+  const filteredTargetViews = useMemo(() => {
+    return filterAndSortContentTargetViews(targetViews, {
+      search: dSearch,
+      superclass: superF,
+      classKey: classF,
+      rarity: rarF,
+      sortMode,
+      sortDirection: sortDir,
+    });
+  }, [targetViews, superF, classF, rarF, dSearch, sortMode, sortDir]);
 
-  const filtT = useMemo(() => {
-    let items = allT;
-    if (superF !== "all") items = items.filter((t) => normTax(t.superclass ?? "") === superF);
-    if (classF !== "all") items = items.filter((t) => normTax(t.classKey ?? "") === classF);
-    if (rarF !== "all") items = items.filter((t) => normalizeRarity(t.rarity as Rarity) === rarF);
-    if (dSearch) items = items.filter((t) => [t.id, t.name, t.superclass ?? "", t.classKey ?? ""].join(" ").toLowerCase().includes(dSearch));
-    if (sortMode === "rarity") {
-      items = [...items].sort((a, b) => {
-        const d = tier(b.rarity) - tier(a.rarity);
-        return sortDir === "desc" ? (d || a.name.localeCompare(b.name)) : (-d || a.name.localeCompare(b.name));
-      });
-    }
-    if (sortMode === "damage") {
-      items = [...items].sort((a, b) => {
-        const da = RARITY_DAMAGE[normalizeRarity(a.rarity as Rarity)] || 1;
-        const db = RARITY_DAMAGE[normalizeRarity(b.rarity as Rarity)] || 1;
-        const d = db - da;
-        return sortDir === "desc" ? (d || a.name.localeCompare(b.name)) : (-d || a.name.localeCompare(b.name));
-      });
-    }
-    return items;
-  }, [allT, superF, classF, rarF, dSearch, sortMode, sortDir]);
-
-  const filtC = useMemo(() => !dSearch ? allC : allC.filter((c) => c.syllable.toLowerCase().includes(dSearch)), [allC, dSearch]);
+  const filteredSyllableViews = useMemo(() => !dSearch ? syllableViews : syllableViews.filter((c) => c.syllable.toLowerCase().includes(dSearch)), [syllableViews, dSearch]);
 
   // Cards per page based on grid dimensions:
   // Desktop and Compact targets: 4 cols × 2 rows = 8
@@ -552,10 +479,10 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     ? (mode === "targets" ? 8 : 8)
     : (mode === "targets" ? 8 : 18);
 
-  const items = mode === "targets" ? filtT : filtC;
-  const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+  const pageSourceItems = mode === "targets" ? filteredTargetViews : filteredSyllableViews;
+  const totalPages = Math.max(1, Math.ceil(pageSourceItems.length / perPage));
   const curPage = Math.min(page, totalPages - 1);
-  const pageItems = items.slice(curPage * perPage, curPage * perPage + perPage);
+  const pageItems = pageSourceItems.slice(curPage * perPage, curPage * perPage + perPage);
 
   useEffect(() => { setPage(0); }, [mode, superF, classF, rarF, dSearch, sortMode, sortDir]);
   const goPage = (n: number) => { const c = Math.max(0, Math.min(totalPages - 1, n)); if (c === curPage) return; setDir(c > curPage ? 1 : -1); setPage(c); };
@@ -704,24 +631,30 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                       className="grid w-full justify-center"
                       style={gridStyle}
                     >
-                      {pageItems.map((entry, i) =>
-                        mode === "targets" ? (
+                      {pageItems.map((entry, i) => {
+                        if (mode === "targets") {
+                          const targetEntry = entry as ContentTargetView;
+                          return (
                           <div
-                            key={(entry as TargetDefinition).id}
+                            key={targetEntry.id}
                             style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }}
                             className="flex items-center justify-center select-none"
-                            {...makeLongPressProps(entry as TargetDefinition)}
+                            {...makeLongPressProps(targetEntry)}
                           >
-                            <CollectionTargetCard target={entry as TargetDefinition} />
+                            <CollectionTargetCard target={targetEntry} />
                           </div>
-                        ) : (
-                          <div key={`${(entry as { id: string }).id}-${i}`} style={{ width: "100%", maxWidth: sylW, height: sylH }} className="flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
+                          );
+                        }
+
+                        const syllableEntry = entry as ContentSyllableView;
+                        return (
+                          <div key={`${syllableEntry.id}-${i}`} style={{ width: "100%", maxWidth: sylW, height: sylH }} className="flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
                             <div className="origin-top scale-[0.85] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[0.72]">
-                              <SyllableCard syllable={(entry as { syllable: string }).syllable} selected={false} playable={false} disabled={false} staticDisplay onClick={() => { }} sizePreset="hand-desktop" />
+                              <SyllableCard syllable={syllableEntry.syllable} selected={false} playable={false} disabled={false} staticDisplay onClick={() => { }} sizePreset="hand-desktop" />
                             </div>
                           </div>
-                        )
-                      )}
+                        );
+                      })}
                       {pageItems.length === 0 && (
                         <div style={{ gridColumn: `1 / ${mode === "targets" ? targetCols + 1 : sylCols + 1}` }} className="flex flex-col items-center justify-center py-16 opacity-50">
                           <span className="text-[3rem]">🃏</span>
@@ -768,23 +701,23 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     </div>
 
                     {/* Superclass */}
-                    {superOpts.length > 0 && (
+                    {superclassOptions.length > 0 && (
                       <div className="space-y-1.5">
                         <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Superclasse</label>
                         <select value={superF} onChange={(e) => { setSuperF(e.target.value); setClassF("all"); }} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", superF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
                           <option value="all" className="font-normal text-amber-950/50">Todas as Superclasses</option>
-                          {superOpts.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
+                          {superclassOptions.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
                         </select>
                       </div>
                     )}
 
                     {/* Class */}
-                    {classOpts.length > 1 && (
+                    {classOptions.length > 1 && (
                       <div className="space-y-1.5">
                         <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Classe</label>
                         <select value={classF} onChange={(e) => setClassF(e.target.value)} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", classF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
                           <option value="all" className="font-normal text-amber-950/50">Todas as Classes</option>
-                          {classOpts.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
+                          {classOptions.map((o) => <option key={o.id} value={o.id} className="font-black text-amber-950">{o.label}</option>)}
                         </select>
                       </div>
                     )}
@@ -795,7 +728,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                         <label className="ml-1 text-[0.6rem] font-black uppercase tracking-widest text-amber-950/60">Raridade</label>
                         <select value={rarF} onChange={(e) => setRarF(e.target.value)} className={cn("h-10 w-full rounded-xl border border-amber-900/15 bg-white/70 px-3 text-[0.8rem] outline-none transition focus:border-amber-500/40 shadow-sm", rarF === "all" ? "text-amber-950/50" : "text-amber-950 font-black")}>
                           <option value="all" className="font-normal text-amber-950/50">Todas as Raridades</option>
-                          {RARITY_OPT.map((r) => <option key={r} value={r} className="font-black text-amber-950">{RLBL[r]}</option>)}
+                          {filterOptionsView.rarityOptions.map((option) => <option key={option.id} value={option.id} className="font-black text-amber-950">{option.label}</option>)}
                         </select>
                       </div>
                     )}

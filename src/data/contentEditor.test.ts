@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DECK_MODELS_BY_ID, RUNTIME_DECKS_BY_ID } from "./content";
+import { DECK_MODELS_BY_ID, RUNTIME_DECKS_BY_ID, createContentDeckSummaryView } from "./content";
 import {
   appendContentEditorTargetSyllable,
   buildContentEditorDuplicateTargetIdMap,
@@ -78,6 +78,31 @@ test("content editor roundtrip preserva o deck bruto e o deck final do runtime",
 
   assert.deepEqual(preview.selectedDeckModel, DECK_MODELS_BY_ID[entry.id]);
   assert.deepEqual(preview.selectedRuntimeDeck, RUNTIME_DECKS_BY_ID[entry.id] ?? null);
+});
+
+test("content editor preview recompilado alimenta read model canonico sem acoplar save dev-only", () => {
+  const entry = getRawDeckCatalogEntry("fazenda");
+
+  assert.ok(entry);
+
+  const draft = createContentEditorDeckDraft(entry.deck, rawTargetCatalog);
+  const preview = buildContentEditorPreview(rawDeckCatalogEntries, rawTargetCatalog, entry.id, draft);
+
+  assert.equal(preview.ok, true);
+  if (!preview.ok || !preview.selectedDeckModel || !preview.selectedRuntimeDeck) return;
+
+  const summary = createContentDeckSummaryView(preview.selectedDeckModel);
+  const runtimeSyllableTotal = Object.values(preview.selectedRuntimeDeck.syllables).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+
+  assert.equal(summary.id, entry.id);
+  assert.equal(summary.name, preview.selectedRuntimeDeck.name);
+  assert.equal(summary.metrics.totalTargets, preview.selectedRuntimeDeck.targets.length);
+  assert.equal(summary.metrics.totalSyllables, runtimeSyllableTotal);
+  assert.deepEqual(summary.cardIds, preview.selectedDeckModel.definition.cardIds);
+  assert.deepEqual(summary.targetIds, preview.selectedDeckModel.definition.targetIds);
 });
 
 test("content editor draft guarda apenas ajustes manuais do pool e deriva o resto dos alvos", () => {

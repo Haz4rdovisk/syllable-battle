@@ -58,7 +58,20 @@ import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import { DeckVisualThemeId } from "../../data/content/types";
 import { RawDeckCatalogEntry, rawDeckCatalogEntries } from "../../data/content/decks";
 import { rawTargetCatalog } from "../../data/content/targets";
-import { RARITY_DAMAGE, normalizeRarity } from "../../types/game";
+import {
+  CONTENT_RARITY_ASCENDING,
+  filterAndSortContentTargets,
+  formatTaxonomyLabel,
+  getContentRarityLabel,
+  normalizeContentSearchValue,
+  normalizeTaxonomyValue,
+} from "../../data/content/helpers";
+import {
+  createContentCatalogFiltersView,
+  createContentDeckSummaryView,
+  createContentTargetViewFromSyllables,
+} from "../../data/content/readModels";
+import { ContentSyllableChips, ContentTargetRarityHeader } from "../content/ContentMicroBlocks";
 
 type SaveStatus = {
   tone: "idle" | "success" | "error";
@@ -96,32 +109,12 @@ const idleSaveStatus: SaveStatus = {
 };
 
 const DECK_SUPERCLASS_OPTIONS = [{ id: "animal", label: "Animais" }] as const;
-const TARGET_RARITY_OPTIONS = [
-  { id: "comum", label: "Comum" },
-  { id: "raro", label: "Raro" },
-  { id: "épico", label: "Epico" },
-  { id: "lendário", label: "Lendario" },
-] as const;
+const TARGET_RARITY_OPTIONS = CONTENT_RARITY_ASCENDING.map((id) => ({
+  id,
+  label: getContentRarityLabel(id, { stripAccents: true }),
+}));
 
 const normalizeEditorSyllable = (value: string) => value.trim().toUpperCase();
-const normalizeCatalogFilterValue = (value: string) => value.trim().toLowerCase();
-const normalizeTaxonomyValue = (value: string) =>
-  normalizeCatalogFilterValue(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-const formatTaxonomyLabel = (value: string, emptyLabel: string) => {
-  const normalized = normalizeTaxonomyValue(value);
-  if (!normalized) return emptyLabel;
-
-  return normalized
-    .split("-")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-};
 
 const getTargetSuperclassLabel = (superclass: string) =>
   formatTaxonomyLabel(superclass, "Sem superclasse");
@@ -131,14 +124,6 @@ const getDeckSuperclassLabel = (superclass: string) =>
 
 const getTargetClassLabel = (classKey: string) =>
   formatTaxonomyLabel(classKey, "Sem classe");
-
-const getTargetRarityOrder = (rarity: string) => {
-  const normalized = normalizeRarity(rarity);
-  if (normalized === "lendário") return 3;
-  if (normalized === "épico") return 2;
-  if (normalized === "raro") return 1;
-  return 0;
-};
 
 const getDerivedCardsGridColumns = (width: number) => {
   if (width >= 1280) return 4;
@@ -176,21 +161,6 @@ const findNearestScrollContainer = (element: HTMLElement | null) => {
 const getTargetCopiesDisplayValue = (copiesText: string) => {
   const copies = Number(copiesText);
   return Number.isInteger(copies) && copies > 0 ? copies : 0;
-};
-
-const getRarityToneClass = (rarity: string) => {
-  const normalized = normalizeRarity(rarity);
-  if (normalized === "comum") return "bg-slate-500";
-  if (normalized === "raro") return "bg-amber-600";
-  if (normalized === "épico") return "bg-purple-700";
-  return "bg-rose-800";
-};
-
-const getRarityLabel = (rarity: string) => {
-  const normalized = normalizeRarity(rarity);
-  if (normalized === "épico") return "EPICO";
-  if (normalized === "lendário") return "LENDARIO";
-  return normalized.toUpperCase();
 };
 
 type LocalizedIssue = {
@@ -444,7 +414,7 @@ export const ContentEditor: React.FC = () => {
   const contentTopRef = useRef<HTMLDivElement | null>(null);
   const previousSelectedDeckIdRef = useRef(selectedDeckId);
   const deferredDeckSearch = useDeferredValue(deckSearchValue.trim().toLowerCase());
-  const deferredCatalogSearch = useDeferredValue(normalizeCatalogFilterValue(catalogSearchValue));
+  const deferredCatalogSearch = useDeferredValue(normalizeContentSearchValue(catalogSearchValue));
   const sourceDecksById = useMemo(
     () =>
       sourceEntries.reduce<Record<string, ReturnType<typeof cloneRawDeckDefinition>>>((acc, entry) => {
@@ -503,9 +473,13 @@ export const ContentEditor: React.FC = () => {
     () => (preview.ok ? preview.selectedDeckModel : null),
     [preview],
   );
-  const selectedDeckDefinition = useMemo(
-    () => selectedDeckModel?.definition ?? null,
+  const previewDeckSummary = useMemo(
+    () => (selectedDeckModel ? createContentDeckSummaryView(selectedDeckModel) : null),
     [selectedDeckModel],
+  );
+  const selectedDeckDefinition = useMemo(
+    () => previewDeckSummary?.definition ?? null,
+    [previewDeckSummary],
   );
   const effectivePoolRows = useMemo(
     () => syncDeckPoolWithTargetMinimums(draft.manualPoolAdjustments, draft.targets),
@@ -605,11 +579,11 @@ export const ContentEditor: React.FC = () => {
   );
   const derivedTargetIdsLabel = useMemo(() => {
     if (!preview.ok) return "draft invalido";
-    return selectedDeckDefinition?.targetIds.join(", ") || "nenhum";
-  }, [preview, selectedDeckDefinition]);
+    return previewDeckSummary?.targetIds.join(", ") || "nenhum";
+  }, [preview, previewDeckSummary]);
   const derivedTargetIdCount = useMemo(
-    () => (preview.ok ? selectedDeckDefinition?.targetIds.length ?? 0 : 0),
-    [preview, selectedDeckDefinition],
+    () => (preview.ok ? previewDeckSummary?.metrics.totalTargets ?? 0 : 0),
+    [preview, previewDeckSummary],
   );
   const catalogTargetUsageById = useMemo(() => {
     const usage = new Map<string, string[]>();
@@ -655,19 +629,15 @@ export const ContentEditor: React.FC = () => {
     () => Boolean(selectedCatalogTargetDraft && catalogReadyForDeckTargetIds.has(selectedCatalogTargetDraft.id)),
     [catalogReadyForDeckTargetIds, selectedCatalogTargetDraft],
   );
-  const catalogSuperclassOptions = useMemo(
+  const catalogFilterOptionsView = useMemo(
     () =>
-      Array.from(
-        new Set(
-          catalogValidTaxonomyTargets
-            .map((target) => normalizeTaxonomyValue(target.superclass ?? ""))
-            .filter(Boolean),
-        ),
-      )
-        .sort((left, right) => left.localeCompare(right, "pt-BR"))
-        .map((id) => ({ id, label: getTargetSuperclassLabel(id) })),
-    [catalogValidTaxonomyTargets],
+      createContentCatalogFiltersView(catalogValidTaxonomyTargets, {
+        superclassFilter: catalogSuperclassFilter,
+        locale: "pt-BR",
+      }),
+    [catalogSuperclassFilter, catalogValidTaxonomyTargets],
   );
+  const catalogSuperclassOptions = catalogFilterOptionsView.superclassOptions;
   const deckSuperclassOptions = useMemo(
     () =>
       Array.from(
@@ -680,76 +650,20 @@ export const ContentEditor: React.FC = () => {
         .map((id) => ({ id, label: getDeckSuperclassLabel(id) })),
     [catalogSuperclassOptions, draft.superclass],
   );
-  const catalogClassOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          catalogValidTaxonomyTargets
-            .filter((target) => {
-              const normalizedSuperclass = normalizeTaxonomyValue(target.superclass ?? "");
-              return catalogSuperclassFilter === "all" || normalizedSuperclass === catalogSuperclassFilter;
-            })
-            .map((target) => normalizeTaxonomyValue(target.classKey ?? ""))
-            .filter(Boolean),
-        ),
-      )
-        .sort((left, right) => left.localeCompare(right, "pt-BR"))
-        .map((id) => ({ id, label: getTargetClassLabel(id) })),
-    [catalogSuperclassFilter, catalogValidTaxonomyTargets],
-  );
+  const catalogClassOptions = catalogFilterOptionsView.classOptions;
   const filteredCatalogDraftTargets = useMemo(
-    () => {
-      const nextTargets = catalogDraftTargets.filter((target) => {
-        const normalizedSuperclass = normalizeTaxonomyValue(target.superclass ?? "");
-        const normalizedClassKey = normalizeTaxonomyValue(target.classKey ?? "");
-
-        if (catalogSuperclassFilter !== "all" && normalizedSuperclass !== catalogSuperclassFilter) {
-          return false;
-        }
-
-        if (catalogClassFilter !== "all" && normalizedClassKey !== catalogClassFilter) {
-          return false;
-        }
-
-        if (catalogRarityFilter !== "all" && normalizeRarity(target.rarity) !== catalogRarityFilter) {
-          return false;
-        }
-
-        if (!deferredCatalogSearch) {
-          return true;
-        }
-
-        const searchCorpus = [
-          target.id,
-          target.name,
-          target.superclass,
-          target.classKey,
-          normalizedSuperclass,
-          normalizedClassKey,
-          getTargetSuperclassLabel(target.superclass ?? ""),
-          getTargetClassLabel(target.classKey ?? ""),
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        return searchCorpus.includes(deferredCatalogSearch);
-      });
-
-      if (catalogSortMode === "rarity") {
-        nextTargets.sort((left, right) => {
-          const rarityDelta =
-            getTargetRarityOrder(right.rarity) - getTargetRarityOrder(left.rarity);
-
-          if (rarityDelta !== 0) {
-            return catalogSortDirection === "desc" ? rarityDelta : -rarityDelta;
-          }
-
-          return left.name.localeCompare(right.name, "pt-BR");
-        });
-      }
-
-      return nextTargets;
-    },
+    () =>
+      filterAndSortContentTargets(catalogDraftTargets, {
+        search: deferredCatalogSearch,
+        superclass: catalogSuperclassFilter,
+        classKey: catalogClassFilter,
+        rarity: catalogRarityFilter,
+        sortMode: catalogSortMode,
+        sortDirection: catalogSortDirection,
+        locale: "pt-BR",
+        includeNormalizedTaxonomyInSearch: true,
+        includeFormattedTaxonomyInSearch: true,
+      }),
     [
       catalogClassFilter,
       catalogDraftTargets,
@@ -2503,12 +2417,12 @@ export const ContentEditor: React.FC = () => {
                     }
                   >
                     {isPreviewExpanded ? (
-                      preview.ok && selectedDeckDefinition && preview.selectedRuntimeDeck ? (
+                      preview.ok && previewDeckSummary ? (
                         <div className="space-y-4">
                           <div className="grid gap-3 md:grid-cols-3">
                             <InfoTile
                               label="Deck final runtime"
-                              value={preview.selectedRuntimeDeck.name}
+                              value={previewDeckSummary.name}
                               tone="success"
                               compact
                               slim
@@ -2516,16 +2430,14 @@ export const ContentEditor: React.FC = () => {
                             />
                             <InfoTile
                               label="Targets finais"
-                              value={String(preview.selectedRuntimeDeck.targets.length)}
+                              value={String(previewDeckSummary.metrics.totalTargets)}
                               tone="success"
                               slim
                               plainValue
                             />
                             <InfoTile
                               label="Silabas totais runtime"
-                              value={String(
-                                Object.values(preview.selectedRuntimeDeck.syllables).reduce((sum, count) => sum + count, 0),
-                              )}
+                              value={String(previewDeckSummary.metrics.totalSyllables)}
                               tone="success"
                               mini
                               slim
@@ -2533,8 +2445,8 @@ export const ContentEditor: React.FC = () => {
                             />
                           </div>
                           <div className="grid gap-3">
-                            <InfoTile label="CardIds derivados" value={selectedDeckDefinition.cardIds.join(", ")} compact slim plainValue />
-                            <InfoTile label="TargetIds derivados" value={selectedDeckDefinition.targetIds.join(", ")} compact slim plainValue />
+                            <InfoTile label="CardIds derivados" value={previewDeckSummary.cardIds.join(", ")} compact slim plainValue />
+                            <InfoTile label="TargetIds derivados" value={previewDeckSummary.targetIds.join(", ")} compact slim plainValue />
                           </div>
 
                         </div>
@@ -2883,9 +2795,17 @@ const DraftTargetCard: React.FC<{
   showCopies?: boolean;
   nameValidation?: ReturnType<typeof buildContentEditorTargetNameValidation>;
 }> = ({ target, active, copies, showCopies = true, nameValidation }) => {
-  const normalizedRarity = normalizeRarity(target.rarity);
-  const damage = RARITY_DAMAGE[normalizedRarity];
-  const syllables = parseContentEditorTargetSyllables(target.syllablesText);
+  const targetView = createContentTargetViewFromSyllables({
+    id: target.id,
+    name: target.name,
+    emoji: target.emoji,
+    description: target.description,
+    rarity: target.rarity,
+    syllables: parseContentEditorTargetSyllables(target.syllablesText),
+    superclass: target.superclass,
+    classKey: target.classKey,
+    copies,
+  });
   const hasNameIssue = Boolean(nameValidation?.canValidate && !nameValidation.matchesName);
 
   return (
@@ -2898,18 +2818,7 @@ const DraftTargetCard: React.FC<{
             : "border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)]",
         )}
       >
-        <div
-          className={cn(
-            "flex h-10 items-center justify-between border-b-2 border-[#d4af37] px-3 text-[10px] font-black uppercase text-white",
-            getRarityToneClass(target.rarity),
-          )}
-        >
-          <span className="truncate">{getRarityLabel(target.rarity)}</span>
-          <div className="flex items-center gap-1.5">
-            <Swords className="h-4 w-4" />
-            <span>{damage}</span>
-          </div>
-        </div>
+        <ContentTargetRarityHeader rarityView={targetView.rarityView} damage={targetView.damage} />
 
         <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
@@ -2929,22 +2838,12 @@ const DraftTargetCard: React.FC<{
               </span>
             </div>
           ) : null}
-          <div className="mt-2.5 flex flex-wrap justify-center gap-1">
-            {syllables.length > 0 ? (
-              syllables.map((syllable, index) => (
-                <div
-                  key={`${target.id}-${syllable}-${index}`}
-                  className="rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-950 shadow-sm"
-                >
-                  {syllable}
-                </div>
-              ))
-            ) : (
-              <div className="rounded-full border border-amber-900/12 bg-white/70 px-2 py-0.5 text-[9px] font-black tracking-[0.14em] text-amber-900/40 shadow-sm">
-                SEM SILABAS
-              </div>
-            )}
-          </div>
+          <ContentSyllableChips
+            syllables={targetView.syllables}
+            idPrefix={target.id}
+            emptyLabel="SEM SILABAS"
+            className="mt-2.5"
+          />
         </div>
 
         <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
