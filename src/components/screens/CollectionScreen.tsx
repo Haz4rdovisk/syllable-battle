@@ -1849,21 +1849,21 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                       {playerCollectionView.summary.availableTargets}/{playerCollectionView.summary.totalTargets} alvos · {targetDrag?.source === "deck-target" ? "solte no catalogo para remover" : "toque + ou arraste"}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-black/10 bg-white/65 p-0.5">
-                    {(["catalog-full", "qa-partial"] as const).map((modeOption) => (
+                  <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-black/10 bg-white/65 p-0.5">
+                    {(["catalog-full", "qa-partial", "qa-scarce", "qa-almost-empty"] as const).map((modeOption) => (
                       <button
                         key={modeOption}
                         type="button"
                         title={`Usar inventario ${getPlayerInventoryLocalModeLabel(modeOption)}`}
                         onClick={() => handlePlayerInventoryModeChange(modeOption)}
                         className={cn(
-                          "h-6 touch-manipulation rounded-md px-2 text-[0.48rem] font-black uppercase tracking-[0.05em] transition [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.4rem]",
+                          "h-6 touch-manipulation rounded-md px-1.5 text-[0.48rem] font-black uppercase tracking-[0.05em] transition [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.4rem]",
                           playerInventoryMode === modeOption
                             ? "bg-amber-900/12 text-amber-950 shadow-sm"
                             : "text-amber-950/48",
                         )}
                       >
-                        {modeOption === "catalog-full" ? "Tudo" : "QA"}
+                        {modeOption === "catalog-full" ? "Tudo" : modeOption === "qa-partial" ? "QA" : modeOption === "qa-scarce" ? "Escasso" : "Vazio"}
                       </button>
                     ))}
                   </div>

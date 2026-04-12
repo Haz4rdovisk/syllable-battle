@@ -275,6 +275,12 @@ test("player inventory local salva modo e tolera payload invalido", () => {
   assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-partial" }), true);
   assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-partial" });
 
+  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-scarce" }), true);
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-scarce" });
+
+  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-almost-empty" }), true);
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-almost-empty" });
+
   storage.setItem(PLAYER_INVENTORY_LOCAL_STORAGE_KEY, JSON.stringify({ version: 1, mode: "modo-inexistente" }));
   assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "catalog-full" });
 });
@@ -324,4 +330,53 @@ test("player inventory local cria fixture parcial com disponiveis nao possuidos 
   });
   assert.equal(exhaustedView.targetsById[firstOwnedTarget.id].inventory.remainingCopies, 0);
   assert.equal(exhaustedView.targetsById[firstOwnedTarget.id].availability.canAdd, false);
+});
+
+test("player inventory local qa-scarce produz inventario muito limitado com pelo menos 1 target", () => {
+  const targetViews = createContentCatalogTargetViews(CONTENT_PIPELINE.catalog, { deckModels: CONTENT_PIPELINE.deckModels });
+  const syllableViews = createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog);
+  const scarceInventory = createLocalPlayerInventorySnapshot(CONTENT_PIPELINE.catalog, "qa-scarce");
+
+  assert.equal(scarceInventory.source, "local-snapshot");
+  assert.equal(scarceInventory.sourceLabel, "Colecao escassa");
+  assert.ok(scarceInventory.targetCopies);
+
+  const scarceView = createCatalogBackedPlayerCollectionView({
+    catalog: CONTENT_PIPELINE.catalog,
+    targetViews,
+    syllableViews,
+    inventory: scarceInventory,
+  });
+
+  assert.equal(scarceView.summary.hasLimitedInventory, true);
+  assert.ok(scarceView.summary.availableTargets > 0, "qa-scarce deve ter pelo menos 1 target disponivel");
+  assert.ok(
+    scarceView.summary.availableTargets < scarceView.summary.totalTargets,
+    "qa-scarce deve ter menos targets que o total",
+  );
+});
+
+test("player inventory local qa-almost-empty produz inventario minimo com 1-2 targets", () => {
+  const targetViews = createContentCatalogTargetViews(CONTENT_PIPELINE.catalog, { deckModels: CONTENT_PIPELINE.deckModels });
+  const syllableViews = createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog);
+  const almostEmptyInventory = createLocalPlayerInventorySnapshot(CONTENT_PIPELINE.catalog, "qa-almost-empty");
+
+  assert.equal(almostEmptyInventory.source, "local-snapshot");
+  assert.equal(almostEmptyInventory.sourceLabel, "Colecao quase vazia");
+  assert.ok(almostEmptyInventory.targetCopies);
+
+  const almostEmptyView = createCatalogBackedPlayerCollectionView({
+    catalog: CONTENT_PIPELINE.catalog,
+    targetViews,
+    syllableViews,
+    inventory: almostEmptyInventory,
+  });
+
+  assert.equal(almostEmptyView.summary.hasLimitedInventory, true);
+  assert.ok(almostEmptyView.summary.availableTargets > 0, "qa-almost-empty deve ter pelo menos 1 target disponivel");
+  assert.ok(almostEmptyView.summary.availableTargets <= 2, "qa-almost-empty deve ter no maximo 2 targets disponiveis");
+  assert.ok(
+    almostEmptyView.summary.availableTargets < almostEmptyView.summary.totalTargets,
+    "qa-almost-empty deve ter muito menos targets que o total",
+  );
 });
