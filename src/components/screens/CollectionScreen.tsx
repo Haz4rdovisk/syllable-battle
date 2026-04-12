@@ -39,10 +39,14 @@ import {
   createEmptyDeckBuilderDraft,
   getDeckBuilderCardCopies,
   getDeckBuilderTargetCopies,
+  getDeckBuilderTargetFormalCanAdd,
+  getDeckBuilderSyllableFamilyCopies,
+  getDeckBuilderSyllableFormalCanAdd,
+  DECK_BUILDER_CONSTRUCTION_RULES,
   renameDeckBuilderDraft,
   removeCardFromDeckBuilderDraft,
   removeTargetFromDeckBuilderDraft,
-  validateDeckBuilderDefinition,
+  validateDeckBuilderFormal,
   type DeckBuilderCompositionView,
   type DeckBuilderValidationView,
   type DeckBuilderDraft,
@@ -53,7 +57,7 @@ import {
 } from "../../data/content/deckBuilderStorage";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import type { DeckDefinition, DeckModel } from "../../data/content/types";
-import { CONFIG } from "../../logic/gameLogic";
+// CONFIG is no longer imported here — builder uses formal construction rules, not battle runtime config
 
 interface CollectionScreenProps { onBack: () => void }
 
@@ -70,7 +74,7 @@ interface CollectionDeckEntry {
 }
 
 type DeckRailViewMode = "list" | "cards";
-type DeckBuilderFeedback = "saved" | "cancelled" | "storage-error" | "duplicated" | "renamed" | "deleted" | "target-added" | "target-removed" | "card-added" | "card-removed" | "target-unavailable" | "card-unavailable" | null;
+type DeckBuilderFeedback = "saved" | "cancelled" | "storage-error" | "duplicated" | "renamed" | "deleted" | "target-added" | "target-removed" | "card-added" | "card-removed" | "target-unavailable" | "card-unavailable" | "target-copy-limit" | "syllable-copy-limit" | null;
 type DeckBuilderTargetDragSource = "catalog-target" | "deck-target";
 type DeckBuilderTargetDragOverZone = "deck" | "remove" | "catalog" | null;
 
@@ -118,13 +122,15 @@ const getDeckBuilderStateLabel = (deck: Pick<CollectionDeckEntry, "localStatus">
 };
 
 const getDeckBuilderValidationToneClass = (status: DeckBuilderValidationView["status"]) => {
-  if (status === "ready") return "border-emerald-300/75 bg-emerald-50 text-emerald-800";
+  if (status === "ideal") return "border-emerald-400/75 bg-emerald-100 text-emerald-900";
+  if (status === "valid-min" || status === "ready") return "border-emerald-300/75 bg-emerald-50 text-emerald-800";
   if (status === "incomplete") return "border-amber-300/75 bg-amber-50 text-amber-800";
-  return "border-rose-200/75 bg-rose-50 text-rose-700";
+  if (status === "exceeded") return "border-rose-300/75 bg-rose-50 text-rose-700";
+  return "border-rose-200/75 bg-rose-50 text-rose-700"; // empty
 };
 
 const getDeckBuilderFeedbackToneClass = (feedback: DeckBuilderFeedback) => {
-  if (feedback === "storage-error" || feedback === "target-unavailable" || feedback === "card-unavailable") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (feedback === "storage-error" || feedback === "target-unavailable" || feedback === "card-unavailable" || feedback === "target-copy-limit" || feedback === "syllable-copy-limit") return "border-rose-200 bg-rose-50 text-rose-700";
   if (feedback === "target-removed" || feedback === "card-removed" || feedback === "cancelled" || feedback === "deleted") {
     return "border-amber-200 bg-amber-50 text-amber-800";
   }
@@ -215,20 +221,29 @@ const DeckBanner: React.FC<{ deck: CollectionDeckEntry; isSelected: boolean; isD
   );
 };
 
-const DeckCompositionMeter: React.FC<{ label: string; value: number; minimum: number; progress: number }> = ({ label, value, minimum, progress }) => (
-  <div className="min-w-0 rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-    <div className="mb-1 flex items-center justify-between gap-1 text-[0.5rem] font-black uppercase tracking-[0.07em] text-[#8b7357]">
-      <span>{label}</span>
-      <span className={value >= minimum ? "text-emerald-700" : "text-amber-800"}>{formatDeckBuilderCount(value, minimum)}</span>
+const DeckCompositionMeter: React.FC<{ label: string; value: number; minimum: number; progress: number; ideal?: number; max?: number }> = ({ label, value, minimum, progress, ideal, max }) => {
+  const hasFormal = (ideal ?? 0) > 0 && (max ?? 0) > 0;
+  const exceeded = hasFormal && value > max!;
+  const inIdeal = hasFormal && value >= ideal! && value <= max!;
+  const aboveMin = value >= minimum;
+  const displayTarget = hasFormal ? ideal! : minimum;
+  const countClass = exceeded ? "text-rose-700" : inIdeal ? "text-emerald-700" : aboveMin ? "text-emerald-600" : "text-amber-800";
+  const barClass = exceeded ? "bg-rose-500" : inIdeal ? "bg-emerald-600" : aboveMin ? "bg-emerald-400" : "bg-amber-500";
+  return (
+    <div className="min-w-0 rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+      <div className="mb-1 flex items-center justify-between gap-1 text-[0.5rem] font-black uppercase tracking-[0.07em] text-[#8b7357]">
+        <span>{label}</span>
+        <span className={countClass}>{formatDeckBuilderCount(value, displayTarget)}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10">
+        <div
+          className={cn("h-full rounded-full transition-all duration-200", barClass)}
+          style={{ width: `${Math.max(6, Math.min(100, progress * 100))}%` }}
+        />
+      </div>
     </div>
-    <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10">
-      <div
-        className={cn("h-full rounded-full transition-all duration-200", value >= minimum ? "bg-emerald-500" : "bg-amber-500")}
-        style={{ width: `${Math.max(6, Math.min(100, progress * 100))}%` }}
-      />
-    </div>
-  </div>
-);
+  );
+};
 
 const TargetDragOverlay: React.FC<{ drag: DeckBuilderTargetDragState }> = ({ drag }) => {
   if (drag.phase === "pressing") return null;
@@ -403,9 +418,13 @@ const DeckRailPanel: React.FC<{
                         ? "Alvo indisponivel"
                         : feedback === "card-unavailable"
                           ? "Silaba indisponivel"
-                          : feedback === "storage-error"
-                            ? "Storage indisponivel"
-                            : null;
+                          : feedback === "target-copy-limit"
+                            ? "Limite de copias atingido"
+                            : feedback === "syllable-copy-limit"
+                              ? "Limite de silaba atingido"
+                              : feedback === "storage-error"
+                                ? "Storage indisponivel"
+                                : null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
@@ -682,7 +701,7 @@ const DeckRailPanel: React.FC<{
                   getDeckBuilderValidationToneClass(validation.status),
                 )}>
                   <div className="flex min-w-0 items-center gap-1">
-                    {validation.status === "ready" ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <AlertTriangle className="h-3 w-3 shrink-0" />}
+                    {(validation.status === "ready" || validation.status === "valid-min" || validation.status === "ideal") ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <AlertTriangle className="h-3 w-3 shrink-0" />}
                     <span className="shrink-0">{validation.label}</span>
                   </div>
                   <span className="min-w-0 truncate text-right opacity-80">{validation.detail}</span>
@@ -690,8 +709,8 @@ const DeckRailPanel: React.FC<{
               )}
               {composition && (
                 <div className="mb-1.5 grid grid-cols-[1fr_1fr_auto] gap-1.5">
-                  <DeckCompositionMeter label="Alvos" value={composition.totalTargets} minimum={composition.minTargets} progress={composition.targetProgress} />
-                  <DeckCompositionMeter label="Sílabas" value={composition.totalSyllables} minimum={composition.minSyllables} progress={composition.syllableProgress} />
+                  <DeckCompositionMeter label="Alvos" value={composition.totalTargets} minimum={composition.minTargets} progress={composition.targetProgress} ideal={composition.idealTargets || undefined} max={composition.maxTargets || undefined} />
+                  <DeckCompositionMeter label="Sílabas" value={composition.totalSyllables} minimum={composition.minSyllables} progress={composition.syllableProgress} ideal={composition.idealSyllables || undefined} max={composition.maxSyllables || undefined} />
                   <div className="flex min-w-[3.7rem] flex-col items-center justify-center rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                     <div className="font-serif text-[1rem] font-black leading-none text-[#5b2408]">{deckRepeatedCopies}</div>
                     <div className="mt-0.5 text-[0.46rem] font-black uppercase tracking-[0.06em] text-[#8b7357]">Cópias</div>
@@ -703,8 +722,20 @@ const DeckRailPanel: React.FC<{
                   <div className="truncate text-[0.55rem] font-black uppercase tracking-[0.07em] text-[#7f6a52]">{composition?.label ?? "Composição"}</div>
                   <div className="truncate text-[0.5rem] font-semibold text-[#9a7f5c]">{composition?.detail ?? `${deckTargetTotal} alvos · ${deckSyllableTotal} sílabas`}</div>
                 </div>
-                <div className={cn("flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.06em]", validation?.status === "ready" ? "border-emerald-300/70 bg-emerald-50 text-emerald-700" : "border-amber-300/70 bg-amber-50 text-amber-700")}>
-                  <Swords className="h-3 w-3" />{isEditing ? (isDirty ? "Alterado" : "Sem mudanças") : validation?.status === "ready" ? "Pronto" : "Montar"}
+                <div className={cn(
+                  "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.06em]",
+                  validation?.status === "ideal" ? "border-emerald-400/70 bg-emerald-100 text-emerald-800"
+                    : (validation?.status === "valid-min" || validation?.status === "ready") ? "border-emerald-300/70 bg-emerald-50 text-emerald-700"
+                    : validation?.status === "exceeded" ? "border-rose-300/70 bg-rose-50 text-rose-700"
+                    : "border-amber-300/70 bg-amber-50 text-amber-700",
+                )}>
+                  <Swords className="h-3 w-3" />{isEditing
+                    ? (isDirty ? "Alterado" : "Sem mudanças")
+                    : validation?.status === "ideal" ? "Ideal"
+                    : validation?.status === "valid-min" ? "Valido"
+                    : validation?.status === "ready" ? "Pronto"
+                    : validation?.status === "exceeded" ? "Excedido"
+                    : "Montar"}
                 </div>
               </div>
               {isEditing && (
@@ -1076,19 +1107,20 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const selectedDeckValidation = useMemo(
     () =>
       selectedDeck
-        ? validateDeckBuilderDefinition(selectedDeck.definition, {
-          minTargets: CONFIG.targetsInPlay,
-          minSyllables: CONFIG.handSize,
-        })
+        ? validateDeckBuilderFormal(selectedDeck.definition, catalog, DECK_BUILDER_CONSTRUCTION_RULES)
         : null,
-    [selectedDeck],
+    [selectedDeck, catalog],
   );
   const selectedDeckComposition = useMemo(
     () =>
       selectedDeck
         ? createDeckBuilderCompositionView(selectedDeck.definition, {
-          minTargets: CONFIG.targetsInPlay,
-          minSyllables: CONFIG.handSize,
+          minTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.min,
+          idealTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.ideal,
+          maxTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.max,
+          minSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.min,
+          idealSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.ideal,
+          maxSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.max,
         })
         : null,
     [selectedDeck],
@@ -1103,6 +1135,10 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   );
   const draftTargetCopies = useMemo(() => (deckDraft ? getDeckBuilderTargetCopies(deckDraft) : {}), [deckDraft]);
   const draftCardCopies = useMemo(() => (deckDraft ? getDeckBuilderCardCopies(deckDraft) : {}), [deckDraft]);
+  const draftSyllableFamilyCopies = useMemo(
+    () => getDeckBuilderSyllableFamilyCopies(draftCardCopies, catalog),
+    [draftCardCopies, catalog],
+  );
 
   useEffect(() => {
     if (visibleDecks.some((entry) => entry.deckId === selectedDeckId)) return;
@@ -1318,6 +1354,10 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       setBuilderFeedback("target-unavailable");
       return;
     }
+    if (deckDraft && !getDeckBuilderTargetFormalCanAdd(target.id, target.rarity, draftTargetCopies, DECK_BUILDER_CONSTRUCTION_RULES)) {
+      setBuilderFeedback("target-copy-limit");
+      return;
+    }
     setBuilderFeedback("target-added");
     setPendingDeleteDeckId(null);
     setDeckDraft((current) => (current ? addTargetToDeckBuilderDraft(current, targetDefinition) : current));
@@ -1337,6 +1377,10 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     const collectionItem = playerCollectionView.syllablesByCardId[cardId];
     if (collectionItem && !collectionItem.availability.canAdd) {
       setBuilderFeedback("card-unavailable");
+      return;
+    }
+    if (deckDraft && !getDeckBuilderSyllableFormalCanAdd(cardId, card.syllable, draftCardCopies, draftSyllableFamilyCopies, DECK_BUILDER_CONSTRUCTION_RULES)) {
+      setBuilderFeedback("syllable-copy-limit");
       return;
     }
     setBuilderFeedback("card-added");

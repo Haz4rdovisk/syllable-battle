@@ -13,6 +13,12 @@ import {
   removeCardFromDeckBuilderDraft,
   removeTargetFromDeckBuilderDraft,
   validateDeckBuilderDefinition,
+  validateDeckBuilderFormal,
+  getDeckBuilderTargetCopyLimit,
+  getDeckBuilderTargetFormalCanAdd,
+  getDeckBuilderSyllableFamilyCopies,
+  getDeckBuilderSyllableFormalCanAdd,
+  DECK_BUILDER_CONSTRUCTION_RULES,
 } from "./content/deckBuilder";
 import {
   DECK_BUILDER_STORAGE_KEY,
@@ -433,4 +439,275 @@ test("player inventory local qa-almost-empty produz inventario minimo com 1-2 ta
     almostEmptyView.summary.availableTargets < almostEmptyView.summary.totalTargets,
     "qa-almost-empty deve ter muito menos targets que o total",
   );
+});
+
+// ─── Formal construction rules ───────────────────────────────────────────────
+
+const catalog = CONTENT_PIPELINE.catalog;
+
+// Helper: build a definition with the given targetIds and cardPool
+function buildDefinitionWithTargets(targetIds: string[], cardPool: Record<string, number>) {
+  return { targetIds, cardPool };
+}
+
+/**
+ * Builds a clean syllable pool that:
+ * - has exactly ≥ 60 total copies (valid-min range: 60–71)
+ * - gives multi-family cards (used by 3+ targets) ≥ 3 copies (avoids multi-family issue)
+ * - all other cards get 2 copies
+ * - stays within 60–80 total (never exceeds max)
+ */
+function buildCleanMinSyllablePool(): Record<string, number> {
+  const multiFamilyCardIds = new Set(
+    catalog.cards
+      .filter((c) => catalog.targets.filter((t) => t.cardIds.includes(c.id)).length >= 3)
+      .map((c) => c.id),
+  );
+  const pool: Record<string, number> = {};
+  let total = 0;
+  // Multi-family cards: give 3 copies (satisfies multi-family min rule)
+  for (const cardId of multiFamilyCardIds) {
+    pool[cardId] = 3;
+    total += 3;
+  }
+  // Regular cards: 2 copies each until we reach 60 (but stop before 80)
+  for (const card of catalog.cards) {
+    if (multiFamilyCardIds.has(card.id)) continue;
+    if (total + 2 > 80) break;
+    pool[card.id] = 2;
+    total += 2;
+    if (total >= 60) break;
+  }
+  return pool;
+}
+
+/**
+ * Builds a clean ideal pool in the [72, 80] range with no rule violations.
+ */
+function buildCleanIdealSyllablePool(): Record<string, number> {
+  const multiFamilyCardIds = new Set(
+    catalog.cards
+      .filter((c) => catalog.targets.filter((t) => t.cardIds.includes(c.id)).length >= 3)
+      .map((c) => c.id),
+  );
+  const pool: Record<string, number> = {};
+  let total = 0;
+  for (const cardId of multiFamilyCardIds) {
+    pool[cardId] = 3;
+    total += 3;
+  }
+  // Fill with regular cards at 2 copies up to ~72 total
+  for (const card of catalog.cards) {
+    if (multiFamilyCardIds.has(card.id)) continue;
+    if (total + 2 > 80) break;
+    pool[card.id] = 2;
+    total += 2;
+    if (total >= 72) break;
+  }
+  return pool;
+}
+
+const allTargetIds = catalog.targets.map((t) => t.id); // 24 targets
+const minSyllablePool = buildCleanMinSyllablePool();
+const idealSyllablePool = buildCleanIdealSyllablePool();
+
+test("deck builder formal valida deck vazio", () => {
+  const result = validateDeckBuilderFormal({ targetIds: [], cardPool: {} }, catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.equal(result.status, "empty");
+  assert.ok(result.issues.some((i) => i.id === "empty"));
+});
+
+test("deck builder formal valida deck de alvos abaixo de 24 (caso 1)", () => {
+  const targetIds = allTargetIds.slice(0, 10);
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(targetIds, minSyllablePool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.equal(result.status, "incomplete");
+  assert.ok(result.issues.some((i) => i.id === "min-targets"), "deve ter issue min-targets");
+});
+
+test("deck builder formal valida deck de alvos entre 24 e 31 (caso 2: valid-min)", () => {
+  // Exactly 24 targets (= min, below ideal 32) with a clean syllable pool in [60, 71]
+  const targetIds = allTargetIds.slice(0, 24);
+  const minTotal = Object.values(minSyllablePool).reduce((s, v) => s + v, 0);
+  assert.ok(minTotal >= 60 && minTotal <= 80, `minSyllablePool deve estar em [60,80], got ${minTotal}`);
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(targetIds, minSyllablePool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.ok(
+    result.status === "valid-min" || result.status === "ideal",
+    `status deve ser valid-min ou ideal, got ${result.status}; issues: ${result.issues.map((i) => i.id).join(", ")}`,
+  );
+  assert.deepEqual(result.issues, []);
+});
+
+test("deck builder formal valida deck de alvos acima de 36 (caso 4: exceeded)", () => {
+  // Build 37 targets by repeating within rarity limits
+  const padded: string[] = [];
+  for (const t of catalog.targets) {
+    const copies = DECK_BUILDER_CONSTRUCTION_RULES.maxTargetCopiesByRarity[t.rarity] ?? 1;
+    for (let i = 0; i < copies; i++) padded.push(t.id);
+    if (padded.length >= 37) break;
+  }
+  if (padded.length < 37) return; // catalog too small to reach 37, skip
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(padded.slice(0, 37), minSyllablePool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.equal(result.status, "exceeded", `status deve ser exceeded, got ${result.status}`);
+  assert.ok(result.issues.some((i) => i.id === "max-targets"), "deve ter issue max-targets");
+});
+
+test("deck builder formal bloqueia alvo comum acima de 3 copias (caso 5)", () => {
+  const comumTarget = catalog.targets.find((t) => t.rarity === "comum")!;
+  assert.ok(comumTarget, "deve existir alvo comum");
+  // 4 copies of a comum target (limit is 3) — force the copy count without growing total too much
+  const targetIds = [...allTargetIds.slice(0, 20), comumTarget.id, comumTarget.id, comumTarget.id, comumTarget.id];
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(targetIds, minSyllablePool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.ok(result.issues.some((i) => i.id === "target-copy-limit"), "deve ter issue target-copy-limit");
+});
+
+test("deck builder formal bloqueia alvo raro acima de 2 copias (caso 6)", () => {
+  const raroTarget = catalog.targets.find((t) => t.rarity === "raro")!;
+  assert.ok(raroTarget, "deve existir alvo raro");
+  // 3 copies of a raro target (limit is 2) with only 24 total targets
+  const otherTargets = allTargetIds.filter((id) => id !== raroTarget.id).slice(0, 21);
+  const targetIds = [...otherTargets, raroTarget.id, raroTarget.id, raroTarget.id];
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(targetIds, minSyllablePool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.ok(result.issues.some((i) => i.id === "target-copy-limit"), "deve ter issue target-copy-limit para raro");
+});
+
+test("deck builder formal valida deck de silabas abaixo de 60 (caso 9)", () => {
+  const smallPool: Record<string, number> = {};
+  catalog.cards.slice(0, 5).forEach((c) => { smallPool[c.id] = 2; });
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(allTargetIds, smallPool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.equal(result.status, "incomplete");
+  assert.ok(result.issues.some((i) => i.id === "min-syllables"), "deve ter issue min-syllables");
+});
+
+test("deck builder formal valida deck de silabas acima de 80 (caso 12)", () => {
+  const largePool: Record<string, number> = {};
+  catalog.cards.forEach((c) => { largePool[c.id] = 4; }); // 46 × 4 = 184 syllables
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(allTargetIds, largePool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.equal(result.status, "exceeded");
+  assert.ok(result.issues.some((i) => i.id === "max-syllables"), "deve ter issue max-syllables");
+});
+
+test("deck builder formal bloqueia silaba versao exata acima de 4 (caso 14)", () => {
+  const pool = { ...minSyllablePool };
+  // Pick a non-multi-family card to avoid conflating issues
+  const regularCard = catalog.cards.find((c) =>
+    catalog.targets.filter((t) => t.cardIds.includes(c.id)).length < 3,
+  )!;
+  pool[regularCard.id] = 5; // over exact limit (4)
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(allTargetIds, pool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.ok(result.issues.some((i) => i.id === "syllable-exact-limit"), "deve ter issue syllable-exact-limit");
+});
+
+test("deck builder formal detecta silaba abaixo de 2 copias (caso 15)", () => {
+  const pool = { ...minSyllablePool };
+  // Pick a non-multi-family card to isolate the issue
+  const regularCard = catalog.cards.find((c) =>
+    catalog.targets.filter((t) => t.cardIds.includes(c.id)).length < 3,
+  )!;
+  pool[regularCard.id] = 1; // below min copies (2)
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(allTargetIds, pool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.ok(result.issues.some((i) => i.id === "syllable-min-copies"), "deve ter issue syllable-min-copies");
+});
+
+test("deck builder formal detecta silaba multi-familia com menos de 3 copias (caso 16)", () => {
+  // CA, CO, LO are each used by 3+ targets in the full catalog
+  const multiCard = catalog.cards.find((c) =>
+    catalog.targets.filter((t) => t.cardIds.includes(c.id)).length >= 3,
+  );
+  if (!multiCard) return; // skip if catalog changed
+  // Use clean min pool but override the multi-family card to 2 copies (below min 3 required)
+  const pool = { ...minSyllablePool, [multiCard.id]: 2 };
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(allTargetIds, pool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.ok(
+    result.issues.some((i) => i.id === "syllable-multi-family-min"),
+    `silaba ${multiCard.syllable} usada por 3+ alvos com 2 copias deve gerar issue syllable-multi-family-min`,
+  );
+});
+
+test("deck builder formal retorna ideal quando 32-36 alvos e 72-80 silabas", () => {
+  // Build exactly 32 targets (requires repeating some with copies ≥ 2)
+  const targetIds: string[] = [];
+  for (const t of catalog.targets) {
+    const limit = DECK_BUILDER_CONSTRUCTION_RULES.maxTargetCopiesByRarity[t.rarity] ?? 1;
+    const copies = Math.min(limit, 2); // use up to 2 copies per target to fill up
+    for (let i = 0; i < copies && targetIds.length < 32; i++) {
+      targetIds.push(t.id);
+    }
+    if (targetIds.length >= 32) break;
+  }
+  if (targetIds.length < 32) return; // catalog too small to reach 32, skip
+
+  const idealPool = buildCleanIdealSyllablePool();
+  const idealTotal = Object.values(idealPool).reduce((s, v) => s + v, 0);
+  if (idealTotal < 72 || idealTotal > 80) return; // can't form ideal pool with this catalog, skip
+
+  const result = validateDeckBuilderFormal(buildDefinitionWithTargets(targetIds.slice(0, 32), idealPool), catalog, DECK_BUILDER_CONSTRUCTION_RULES);
+  assert.equal(result.status, "ideal", `esperado ideal, got ${result.status}; issues: ${result.issues.map((i) => i.id).join(", ")}`);
+});
+
+test("deck builder formal getDeckBuilderTargetCopyLimit retorna limite por raridade", () => {
+  assert.equal(getDeckBuilderTargetCopyLimit("comum", DECK_BUILDER_CONSTRUCTION_RULES), 3);
+  assert.equal(getDeckBuilderTargetCopyLimit("raro", DECK_BUILDER_CONSTRUCTION_RULES), 2);
+  assert.equal(getDeckBuilderTargetCopyLimit("épico", DECK_BUILDER_CONSTRUCTION_RULES), 2);
+  assert.equal(getDeckBuilderTargetCopyLimit("lendário", DECK_BUILDER_CONSTRUCTION_RULES), 1);
+  assert.equal(getDeckBuilderTargetCopyLimit("inexistente", DECK_BUILDER_CONSTRUCTION_RULES), 1);
+});
+
+test("deck builder formal getDeckBuilderTargetFormalCanAdd bloqueia quando acima do limite", () => {
+  const copies = { "vaca": 3 };
+  assert.equal(getDeckBuilderTargetFormalCanAdd("vaca", "comum", copies, DECK_BUILDER_CONSTRUCTION_RULES), false, "3 copias = no limite, nao pode adicionar");
+  assert.equal(getDeckBuilderTargetFormalCanAdd("vaca", "comum", { "vaca": 2 }, DECK_BUILDER_CONSTRUCTION_RULES), true, "2 copias = abaixo do limite");
+  assert.equal(getDeckBuilderTargetFormalCanAdd("pato", "raro", { "pato": 2 }, DECK_BUILDER_CONSTRUCTION_RULES), false, "2 copias de raro = no limite");
+  assert.equal(getDeckBuilderTargetFormalCanAdd("pato", "raro", { "pato": 1 }, DECK_BUILDER_CONSTRUCTION_RULES), true, "1 copia de raro = abaixo do limite");
+});
+
+test("deck builder formal getDeckBuilderSyllableFamilyCopies agrupa por texto de silaba", () => {
+  const pool = { "syllable.va": 3, "syllable.ca": 2 };
+  const families = getDeckBuilderSyllableFamilyCopies(pool, catalog);
+  assert.equal(families["VA"], 3);
+  assert.equal(families["CA"], 2);
+  assert.equal(families["inexistente"], undefined);
+});
+
+test("deck builder formal getDeckBuilderSyllableFormalCanAdd bloqueia quando acima do limite exato ou de familia", () => {
+  const pool = { "syllable.va": 4 };
+  const families = getDeckBuilderSyllableFamilyCopies(pool, catalog);
+  // exact limit (4) reached
+  assert.equal(getDeckBuilderSyllableFormalCanAdd("syllable.va", "VA", pool, families, DECK_BUILDER_CONSTRUCTION_RULES), false);
+  // one below exact limit
+  assert.equal(getDeckBuilderSyllableFormalCanAdd("syllable.va", "VA", { "syllable.va": 3 }, getDeckBuilderSyllableFamilyCopies({ "syllable.va": 3 }, catalog), DECK_BUILDER_CONSTRUCTION_RULES), true);
+});
+
+test("deck builder formal createDeckBuilderCompositionView com regras formais retorna faixa correta", () => {
+  const emptyResult = createDeckBuilderCompositionView({ targetIds: [], cardPool: {} }, {
+    minTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.min,
+    idealTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.ideal,
+    maxTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.max,
+    minSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.min,
+    idealSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.ideal,
+    maxSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.max,
+  });
+  assert.equal(emptyResult.label, "Sem composicao");
+  assert.equal(emptyResult.idealTargets, 32);
+  assert.equal(emptyResult.maxTargets, 36);
+  assert.equal(emptyResult.idealSyllables, 72);
+  assert.equal(emptyResult.maxSyllables, 80);
+
+  const incompleteResult = createDeckBuilderCompositionView({ targetIds: ["vaca"], cardPool: { "syllable.va": 2 } }, {
+    minTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.min,
+    idealTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.ideal,
+    maxTargets: DECK_BUILDER_CONSTRUCTION_RULES.targets.max,
+    minSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.min,
+    idealSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.ideal,
+    maxSyllables: DECK_BUILDER_CONSTRUCTION_RULES.syllables.max,
+  });
+  assert.equal(incompleteResult.label, "Abaixo do minimo");
+
+  // Old tests are still valid (no ideal/max → old label logic)
+  const oldStyleResult = createDeckBuilderCompositionView(
+    { targetIds: ["vaca", "vaca"], cardPool: { "syllable.va": 5 } },
+    { minTargets: 2, minSyllables: 5 },
+  );
+  assert.equal(oldStyleResult.label, "Minimo atendido");
+  assert.equal(oldStyleResult.idealTargets, 0);
+  assert.equal(oldStyleResult.maxTargets, 0);
 });
