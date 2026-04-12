@@ -4,6 +4,8 @@
 
 **Leia `AGENTS.md` antes de qualquer tarefa.** Ele contem todo o contexto do projeto, regras de trabalho, constraints e referencias.
 
+**Depois de ler `AGENTS.md`, leia `docs/handoffs/CURRENT.md`.** Esse arquivo contem o estado operacional mais recente do projeto.
+
 ## Safety gates
 
 1. **Paridade geometrica**: editor === preview === runtime (invariante inviolavel)

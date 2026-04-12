@@ -1,4 +1,5 @@
 <!-- ghost:header -->
+
 ## Ghost — AI Session Memory
 
 **ALWAYS search Ghost before reading code or grepping.** When asked about a feature, bug, scenario,
@@ -6,6 +7,7 @@ or component — your FIRST action must be a Ghost search. Past sessions contain
 dead ends, failed approaches, and reasoning that code cannot reveal. Do not skip this step.
 
 Use the `ghost-sessions` MCP tool with `deep_search` (not `search`). Fallback CLI: `ghost search <query>`
+
 <!-- ghost:header -->
 
 ---
@@ -15,6 +17,8 @@ Use the `ghost-sessions` MCP tool with `deep_search` (not `search`). Fallback CL
 ## Instrucao principal
 
 **Leia `AGENTS.md` no inicio de cada conversa.** Ele contem todo o contexto do projeto, regras de trabalho, constraints e referencias.
+
+**Depois de ler `AGENTS.md`, leia `docs/handoffs/CURRENT.md`.** Esse arquivo contem o estado operacional mais recente do projeto.
 
 ## Safety gates
 

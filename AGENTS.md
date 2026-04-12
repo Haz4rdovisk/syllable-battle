@@ -13,17 +13,17 @@ URL de producao: `https://syllable-battle.vercel.app/`
 
 ## Stack
 
-| Camada       | Tecnologia                          |
-|--------------|-------------------------------------|
-| Frontend     | React 19 + Vite 6 + TypeScript 5.8 |
-| Estilo       | Tailwind CSS v4 (`@tailwindcss/vite`) |
-| Animacao     | `motion` (Framer Motion v12)        |
-| IDs          | `nanoid`                            |
-| Icones       | `lucide-react`                      |
-| Testes       | Node.js `--test` nativo via `tsx`   |
+| Camada       | Tecnologia                              |
+| ------------ | --------------------------------------- |
+| Frontend     | React 19 + Vite 6 + TypeScript 5.8      |
+| Estilo       | Tailwind CSS v4 (`@tailwindcss/vite`)   |
+| Animacao     | `motion` (Framer Motion v12)            |
+| IDs          | `nanoid`                                |
+| Icones       | `lucide-react`                          |
+| Testes       | Node.js `--test` nativo via `tsx`       |
 | Relay server | Express + SSE (`server/relayServer.ts`) |
-| Android      | WebView nativo (`android-app/`)     |
-| Deploy       | Vercel (frontend) + Render (relay)  |
+| Android      | WebView nativo (`android-app/`)         |
+| Deploy       | Vercel (frontend) + Render (relay)      |
 
 ## Estrutura
 
@@ -62,6 +62,34 @@ docs/             # Documentacao tecnica
 4. **Pipeline de conteudo**: validacao em `loadContentCatalog()` garante integridade. Nao pular.
 5. **Suite de testes**: `npm test` deve passar antes e depois de qualquer mudanca.
 
+## Handoff operacional
+
+O estado operacional mais recente do projeto fica em:
+
+- `docs/handoffs/CURRENT.md`
+
+Regras obrigatorias:
+
+- `AGENTS.md` continua sendo a fonte de verdade de projeto, arquitetura base, subsistemas, invariantes e regras duraveis.
+- `docs/handoffs/CURRENT.md` e a fonte de verdade do estado atual de execucao.
+- Todo agente deve ler `docs/handoffs/CURRENT.md` no inicio de tarefas que dependam do estado recente do projeto, antes de propor plano, interpretar contexto recente ou alterar codigo.
+- Handoffs anteriores devem ser movidos para `docs/handoffs/archive/`.
+- O arquivo `docs/handoffs/CURRENT.md` deve ser curto, operacional e sempre refletir a rodada mais recente concluida.
+- Ao concluir uma rodada importante, atualizar `docs/handoffs/CURRENT.md` e mover o handoff anterior relevante para `docs/handoffs/archive/`, se existir historico separado.
+- Se houver conflito entre `AGENTS.md` e `docs/handoffs/CURRENT.md`, prevalecem:
+  1. os invariantes e safety gates de `AGENTS.md`
+  2. depois o estado atual descrito em `docs/handoffs/CURRENT.md`
+
+Formato esperado de `docs/handoffs/CURRENT.md`:
+
+- Estado atual
+- Ultimas rodadas concluidas
+- O que esta estavel
+- O que nao mexer
+- Proximo passo recomendado
+- Riscos remanescentes
+- Arquivos-chave da frente atual
+
 ## Regras de trabalho
 
 - Trabalhar em objetivos pequenos, revisaveis e verificaveis.
@@ -75,6 +103,7 @@ docs/             # Documentacao tecnica
 ## Definicao de pronto
 
 Uma tarefa so esta concluida quando:
+
 - o objetivo foi implementado;
 - os arquivos alterados foram listados;
 - a validacao executada foi descrita;
@@ -129,11 +158,11 @@ npm run edge:debug  # Abre preview com debug overlay
 
 ## Documentacao de referencia
 
-| Documento | Conteudo |
-|-----------|----------|
-| `docs/repo-architecture.md` | Arquitetura detalhada de todos os subsistemas |
-| `docs/battle-functional-baseline.md` | Cenarios-ouro para validar a battle |
-| `docs/battle-layout-contract.md` | Contrato do editor/preset e watcher/dump |
-| `docs/battle-non-regression-checklist.md` | Checklist de nao-regressao |
-| `docs/battle-visual-catalog.md` | Catalogo do sistema visual da battle |
-| `.agents/rules/design-language.md` | Regras consolidadas da design language |
+| Documento                                 | Conteudo                                      |
+| ----------------------------------------- | --------------------------------------------- |
+| `docs/repo-architecture.md`               | Arquitetura detalhada de todos os subsistemas |
+| `docs/battle-functional-baseline.md`      | Cenarios-ouro para validar a battle           |
+| `docs/battle-layout-contract.md`          | Contrato do editor/preset e watcher/dump      |
+| `docs/battle-non-regression-checklist.md` | Checklist de nao-regressao                    |
+| `docs/battle-visual-catalog.md`           | Catalogo do sistema visual da battle          |
+| `.agents/rules/design-language.md`        | Regras consolidadas da design language        |
