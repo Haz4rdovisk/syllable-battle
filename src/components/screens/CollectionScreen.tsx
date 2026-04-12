@@ -18,6 +18,7 @@ import {
   createDeckModel,
   filterAndSortContentTargetViews,
   getPlayerInventoryLocalModeLabel,
+  loadPlayerInventoryLocalState,
   savePlayerInventoryLocalState,
   getContentRarityLabel,
   getContentRaritySoftToneClass,
@@ -945,6 +946,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   );
   const [localDeckDefinitions, setLocalDeckDefinitions] = useState<DeckDefinition[]>(() => initialLocalBuilderState.decks);
   const [playerInventoryMode, setPlayerInventoryMode] = useState<PlayerInventoryLocalMode>("catalog-full");
+  const [playerInventoryOverrides, setPlayerInventoryOverrides] = useState<Record<string, number>>(
+    () => loadPlayerInventoryLocalState(getDeckBuilderBrowserStorage()).targetCopiesOverride,
+  );
   const [selectedDeckId, setSelectedDeckId] = useState(
     () => initialLocalBuilderState.selectedDeckId ?? baseDeckEntries[0]?.deckId ?? "",
   );
@@ -1113,8 +1117,11 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   }, [catalog, localDeckDefinitions, selectedDeckId]);
 
   useEffect(() => {
-    savePlayerInventoryLocalState(getDeckBuilderBrowserStorage(), { mode: playerInventoryMode });
-  }, [playerInventoryMode]);
+    savePlayerInventoryLocalState(getDeckBuilderBrowserStorage(), {
+      mode: playerInventoryMode,
+      targetCopiesOverride: playerInventoryOverrides,
+    });
+  }, [playerInventoryMode, playerInventoryOverrides]);
 
   useEffect(() => {
     if (!builderFeedback) return;
@@ -1140,8 +1147,26 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
   const handlePlayerInventoryModeChange = (mode: PlayerInventoryLocalMode) => {
     setPlayerInventoryMode(mode);
-    savePlayerInventoryLocalState(getDeckBuilderBrowserStorage(), { mode });
+    savePlayerInventoryLocalState(getDeckBuilderBrowserStorage(), { mode, targetCopiesOverride: playerInventoryOverrides });
     setBuilderFeedback(null);
+  };
+
+  const handleQaTargetOverrideDelta = (targetId: string, delta: number) => {
+    const collectionItem = playerCollectionView.targetsById[targetId];
+    const current = collectionItem?.inventory.ownedCopies ?? 0;
+    const next = Math.max(0, current + delta);
+    setPlayerInventoryOverrides((prev) => ({ ...prev, [targetId]: next }));
+  };
+
+  const handleQaTargetOverrideReset = (targetId: string) => {
+    setPlayerInventoryOverrides((prev) => {
+      const { [targetId]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const handleClearAllQaOverrides = () => {
+    setPlayerInventoryOverrides({});
   };
 
   const handleSelectDeck = (deckId: string) => {
@@ -1628,8 +1653,8 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   );
   const syllableViews = useMemo(() => createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog), []);
   const playerInventorySnapshot = useMemo(
-    () => createLocalPlayerInventorySnapshot(catalog, playerInventoryMode),
-    [catalog, playerInventoryMode],
+    () => createLocalPlayerInventorySnapshot(catalog, playerInventoryMode, playerInventoryOverrides),
+    [catalog, playerInventoryMode, playerInventoryOverrides],
   );
   const playerCollectionView = useMemo(
     () =>
@@ -1861,6 +1886,19 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                         {modeOption === "catalog-full" ? "Tudo" : modeOption === "qa-partial" ? "QA" : modeOption === "qa-scarce" ? "Escasso" : "Vazio"}
                       </button>
                     ))}
+                    {Object.keys(playerInventoryOverrides).length > 0 && playerInventoryMode !== "catalog-full" && (
+                      <>
+                        <div className="mx-0.5 h-3.5 w-px bg-amber-900/20" />
+                        <button
+                          type="button"
+                          title="Limpar todos os overrides QA"
+                          onClick={handleClearAllQaOverrides}
+                          className="flex h-6 w-6 touch-manipulation items-center justify-center rounded-md text-[0.65rem] text-amber-700 transition hover:bg-amber-200/60 [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:w-5"
+                        >
+                          ↺
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -1944,6 +1982,49 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                                 )}
                               </button>
                             )}
+                            {deckDraft && playerInventoryMode !== "catalog-full" && (() => {
+                              const ownedCopies = collectionTargetEntry.inventory.ownedCopies ?? 0;
+                              const hasOverride = Object.prototype.hasOwnProperty.call(playerInventoryOverrides, targetEntry.id);
+                              return (
+                                <div
+                                  className="absolute bottom-2 left-2 z-10 flex items-center overflow-hidden rounded-lg border border-amber-900/20 bg-white/82 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:bottom-1 [@media(pointer:coarse)_and_(max-height:480px)]:left-1"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQaTargetOverrideDelta(targetEntry.id, -1)}
+                                    disabled={ownedCopies <= 0}
+                                    className="flex h-7 w-6 touch-manipulation items-center justify-center text-[0.75rem] font-black text-amber-900/60 transition disabled:opacity-25 hover:bg-amber-50/80 [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:w-5"
+                                  >
+                                    −
+                                  </button>
+                                  <span className={cn(
+                                    "min-w-[1.1rem] text-center text-[0.5rem] font-black leading-none",
+                                    hasOverride ? "text-amber-600" : "text-amber-950/40",
+                                  )}>
+                                    {ownedCopies}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQaTargetOverrideDelta(targetEntry.id, 1)}
+                                    className="flex h-7 w-6 touch-manipulation items-center justify-center text-[0.75rem] font-black text-amber-900/60 transition hover:bg-amber-50/80 [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:w-5"
+                                  >
+                                    +
+                                  </button>
+                                  {hasOverride && (
+                                    <button
+                                      type="button"
+                                      title="Resetar para o preset"
+                                      onClick={() => handleQaTargetOverrideReset(targetEntry.id)}
+                                      className="flex h-7 w-6 touch-manipulation items-center justify-center border-l border-amber-900/15 text-[0.6rem] text-amber-600 transition hover:bg-amber-100/80 [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:w-5"
+                                    >
+                                      ↺
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                           );
                         }

@@ -270,19 +270,73 @@ test("player collection adapter suporta inventario limitado e itens indisponivei
 
 test("player inventory local salva modo e tolera payload invalido", () => {
   const storage = new MemoryStorage();
+  const empty = { mode: "catalog-full" as const, targetCopiesOverride: {} };
 
-  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "catalog-full" });
-  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-partial" }), true);
-  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-partial" });
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), empty);
+  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-partial", targetCopiesOverride: {} }), true);
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-partial", targetCopiesOverride: {} });
 
-  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-scarce" }), true);
-  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-scarce" });
+  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-scarce", targetCopiesOverride: {} }), true);
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-scarce", targetCopiesOverride: {} });
 
-  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-almost-empty" }), true);
-  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-almost-empty" });
+  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-almost-empty", targetCopiesOverride: {} }), true);
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-almost-empty", targetCopiesOverride: {} });
 
-  storage.setItem(PLAYER_INVENTORY_LOCAL_STORAGE_KEY, JSON.stringify({ version: 1, mode: "modo-inexistente" }));
-  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "catalog-full" });
+  // v1 data (version mismatch) → fallback para default
+  storage.setItem(PLAYER_INVENTORY_LOCAL_STORAGE_KEY, JSON.stringify({ version: 1, mode: "qa-partial" }));
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), empty);
+
+  // modo invalido → fallback para default
+  storage.setItem(PLAYER_INVENTORY_LOCAL_STORAGE_KEY, JSON.stringify({ version: 2, mode: "modo-inexistente" }));
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), empty);
+});
+
+test("player inventory local v2 persiste e restaura targetCopiesOverride", () => {
+  const storage = new MemoryStorage();
+  const overrides = { "target-abc": 3, "target-xyz": 0 };
+
+  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-partial", targetCopiesOverride: overrides }), true);
+  const loaded = loadPlayerInventoryLocalState(storage);
+  assert.equal(loaded.mode, "qa-partial");
+  assert.deepEqual(loaded.targetCopiesOverride, overrides);
+});
+
+test("player inventory local override manual aplica-se sobre o preset e recalcula cards derivadas", () => {
+  const catalog = CONTENT_PIPELINE.catalog;
+  const targetViews = createContentCatalogTargetViews(catalog, { deckModels: CONTENT_PIPELINE.deckModels });
+  const syllableViews = createContentCatalogSyllableViews(catalog);
+
+  // qa-almost-empty: targets[0] e targets[1] tem 1 copia, targets[2] tem 0
+  const targetWithZeroCopies = catalog.targets[2];
+  assert.ok(targetWithZeroCopies, "catalogo deve ter pelo menos 3 targets para este teste");
+
+  const noOverride = createLocalPlayerInventorySnapshot(catalog, "qa-almost-empty");
+  assert.equal(noOverride.targetCopies?.[targetWithZeroCopies.id], 0);
+
+  const withOverride = createLocalPlayerInventorySnapshot(catalog, "qa-almost-empty", { [targetWithZeroCopies.id]: 2 });
+  assert.equal(withOverride.targetCopies?.[targetWithZeroCopies.id], 2);
+
+  // override deve propagar para as cards do target
+  const overrideView = createCatalogBackedPlayerCollectionView({
+    catalog,
+    targetViews,
+    syllableViews,
+    inventory: withOverride,
+  });
+  assert.equal(overrideView.targetsById[targetWithZeroCopies.id].inventory.ownedCopies, 2);
+
+  // override 0 torna target indisponivel independente do preset
+  const firstTarget = catalog.targets[0];
+  assert.ok(firstTarget);
+  const zeroOverride = createLocalPlayerInventorySnapshot(catalog, "qa-almost-empty", { [firstTarget.id]: 0 });
+  const zeroView = createCatalogBackedPlayerCollectionView({
+    catalog,
+    targetViews,
+    syllableViews,
+    inventory: zeroOverride,
+  });
+  assert.equal(zeroView.targetsById[firstTarget.id].inventory.ownedCopies, 0);
+  assert.equal(zeroView.targetsById[firstTarget.id].availability.canAdd, false);
 });
 
 test("player inventory local cria fixture parcial com disponiveis nao possuidos e sem copias", () => {

@@ -1,24 +1,27 @@
 import type { NormalizedContentCatalog } from "./types";
 import type { PlayerCollectionInventorySnapshot } from "./playerCollection";
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 export const PLAYER_INVENTORY_LOCAL_STORAGE_KEY = "syllable-battle.collection.player-inventory-local.v1";
 
 export type PlayerInventoryLocalMode = "catalog-full" | "qa-partial" | "qa-scarce" | "qa-almost-empty";
 
 export interface PlayerInventoryLocalState {
   mode: PlayerInventoryLocalMode;
+  targetCopiesOverride: Record<string, number>;
 }
 
-interface PersistedPlayerInventoryLocalStateV1 {
+interface PersistedPlayerInventoryLocalStateV2 {
   version: typeof STORAGE_VERSION;
   mode: PlayerInventoryLocalMode;
+  targetCopiesOverride: Record<string, number>;
 }
 
 type PlayerInventoryStorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 const DEFAULT_PLAYER_INVENTORY_LOCAL_STATE: PlayerInventoryLocalState = {
   mode: "catalog-full",
+  targetCopiesOverride: {},
 };
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -27,6 +30,16 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 export const isPlayerInventoryLocalMode = (value: unknown): value is PlayerInventoryLocalMode =>
   value === "catalog-full" || value === "qa-partial" || value === "qa-scarce" || value === "qa-almost-empty";
 
+function sanitizeTargetCopiesOverride(value: unknown): Record<string, number> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+  const result: Record<string, number> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) result[k] = Math.trunc(n);
+  }
+  return result;
+}
+
 export function sanitizePlayerInventoryLocalState(value: unknown): PlayerInventoryLocalState {
   if (!isPlainObject(value) || value.version !== STORAGE_VERSION || !isPlayerInventoryLocalMode(value.mode)) {
     return DEFAULT_PLAYER_INVENTORY_LOCAL_STATE;
@@ -34,6 +47,7 @@ export function sanitizePlayerInventoryLocalState(value: unknown): PlayerInvento
 
   return {
     mode: value.mode,
+    targetCopiesOverride: sanitizeTargetCopiesOverride(value.targetCopiesOverride),
   };
 }
 
@@ -59,7 +73,8 @@ export function savePlayerInventoryLocalState(
   const sanitizedState = sanitizePlayerInventoryLocalState({
     version: STORAGE_VERSION,
     mode: state.mode,
-  } satisfies PersistedPlayerInventoryLocalStateV1);
+    targetCopiesOverride: state.targetCopiesOverride,
+  } satisfies PersistedPlayerInventoryLocalStateV2);
 
   try {
     storage.setItem(
@@ -67,7 +82,8 @@ export function savePlayerInventoryLocalState(
       JSON.stringify({
         version: STORAGE_VERSION,
         mode: sanitizedState.mode,
-      } satisfies PersistedPlayerInventoryLocalStateV1),
+        targetCopiesOverride: sanitizedState.targetCopiesOverride,
+      } satisfies PersistedPlayerInventoryLocalStateV2),
     );
     return true;
   } catch {
@@ -97,14 +113,14 @@ export function getPlayerInventoryLocalModeLabel(mode: PlayerInventoryLocalMode)
 
 function createPartialInventory(
   catalog: NormalizedContentCatalog,
-  targetRule: (index: number) => number,
+  targetRule: (index: number, targetId: string) => number,
   looseCardRule: (index: number) => number,
 ): { targetCopies: Record<string, number>; cardCopies: Record<string, number> } {
   const targetCopies: Record<string, number> = {};
   const cardCopies: Record<string, number> = {};
 
   catalog.targets.forEach((target, index) => {
-    const ownedCopies = targetRule(index);
+    const ownedCopies = targetRule(index, target.id);
     targetCopies[target.id] = ownedCopies;
 
     if (ownedCopies <= 0) return;
@@ -124,6 +140,7 @@ function createPartialInventory(
 export function createLocalPlayerInventorySnapshot(
   catalog: NormalizedContentCatalog,
   mode: PlayerInventoryLocalMode,
+  targetCopiesOverride: Record<string, number> = {},
 ): PlayerCollectionInventorySnapshot {
   if (mode === "catalog-full") {
     return {
@@ -133,10 +150,16 @@ export function createLocalPlayerInventorySnapshot(
     };
   }
 
+  const withOverride = (baseRule: (i: number) => number) =>
+    (i: number, id: string): number =>
+      Object.prototype.hasOwnProperty.call(targetCopiesOverride, id)
+        ? Math.max(0, targetCopiesOverride[id])
+        : baseRule(i);
+
   if (mode === "qa-partial") {
     const { targetCopies, cardCopies } = createPartialInventory(
       catalog,
-      (i) => (i % 3 === 0 ? 1 : i % 7 === 0 ? 2 : 0),
+      withOverride((i) => (i % 3 === 0 ? 1 : i % 7 === 0 ? 2 : 0)),
       (i) => (i % 5 === 0 ? 1 : 0),
     );
     return {
@@ -151,7 +174,7 @@ export function createLocalPlayerInventorySnapshot(
   if (mode === "qa-scarce") {
     const { targetCopies, cardCopies } = createPartialInventory(
       catalog,
-      (i) => (i === 0 ? 1 : i % 11 === 0 ? 1 : 0),
+      withOverride((i) => (i === 0 ? 1 : i % 11 === 0 ? 1 : 0)),
       (i) => (i % 13 === 0 ? 1 : 0),
     );
     return {
@@ -166,8 +189,8 @@ export function createLocalPlayerInventorySnapshot(
   // qa-almost-empty: first 2 targets guaranteed, everything else empty
   const { targetCopies, cardCopies } = createPartialInventory(
     catalog,
-    (i) => (i < 2 ? 1 : 0),
-    (_i) => 0,
+    withOverride((i) => (i < 2 ? 1 : 0)),
+    () => 0,
   );
   return {
     source: "local-snapshot",
