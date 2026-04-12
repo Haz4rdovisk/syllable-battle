@@ -18,7 +18,6 @@ import {
   createDeckModel,
   filterAndSortContentTargetViews,
   getPlayerInventoryLocalModeLabel,
-  loadPlayerInventoryLocalState,
   savePlayerInventoryLocalState,
   getContentRarityLabel,
   getContentRaritySoftToneClass,
@@ -944,12 +943,8 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     () => loadDeckBuilderLocalState(getDeckBuilderBrowserStorage(), catalog),
     [catalog],
   );
-  const initialPlayerInventoryState = useMemo(
-    () => loadPlayerInventoryLocalState(getDeckBuilderBrowserStorage()),
-    [],
-  );
   const [localDeckDefinitions, setLocalDeckDefinitions] = useState<DeckDefinition[]>(() => initialLocalBuilderState.decks);
-  const [playerInventoryMode, setPlayerInventoryMode] = useState<PlayerInventoryLocalMode>(() => initialPlayerInventoryState.mode);
+  const [playerInventoryMode, setPlayerInventoryMode] = useState<PlayerInventoryLocalMode>("catalog-full");
   const [selectedDeckId, setSelectedDeckId] = useState(
     () => initialLocalBuilderState.selectedDeckId ?? baseDeckEntries[0]?.deckId ?? "",
   );
@@ -1867,6 +1862,20 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {!deckDraft && playerInventoryMode !== "catalog-full" && (
+                <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-amber-400/40 bg-amber-50/80 px-2.5 py-1 text-[0.52rem] font-black uppercase tracking-[0.08em] text-amber-800 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.44rem]">
+                  <span>Modo QA: {getPlayerInventoryLocalModeLabel(playerInventoryMode)}</span>
+                  <button
+                    type="button"
+                    title="Voltar para inventario completo"
+                    onClick={() => handlePlayerInventoryModeChange("catalog-full")}
+                    className="touch-manipulation rounded px-1.5 py-0.5 transition hover:bg-amber-200/70 [@media(pointer:coarse)_and_(max-height:480px)]:px-1"
+                  >
+                    Voltar para Tudo
+                  </button>
                 </div>
               )}
 
