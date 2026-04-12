@@ -1,11 +1,11 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, RotateCcw, Search, Sparkles, Swords, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FilePlus2, Layers3, Minus, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Swords, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
 import { ContentSyllableChips, ContentTargetRarityHeader } from "../content/ContentMicroBlocks";
-import { APP_RESOLVED_DECKS, resolveAppDeck, type AppResolvedDeck } from "../../app/appDeckResolver";
+import { APP_RESOLVED_DECKS } from "../../app/appDeckResolver";
 import {
   CONTENT_PIPELINE,
   CONTENT_RARITY_DESCENDING,
@@ -13,6 +13,7 @@ import {
   createContentCatalogSyllableViews,
   createContentCatalogTargetViews,
   createContentDeckSummaryView,
+  createDeckModel,
   filterAndSortContentTargetViews,
   getContentRarityLabel,
   getContentRaritySoftToneClass,
@@ -20,9 +21,34 @@ import {
   type ContentSyllableView,
   type ContentTargetView,
 } from "../../data/content";
+import {
+  addCardToDeckBuilderDraft,
+  addTargetToDeckBuilderDraft,
+  createDeckBuilderDraftFromDeckModel,
+  createDeckDefinitionFromBuilderDraft,
+  createEmptyDeckBuilderDraft,
+  getDeckBuilderCardCopies,
+  getDeckBuilderTargetCopies,
+  removeCardFromDeckBuilderDraft,
+  removeTargetFromDeckBuilderDraft,
+  type DeckBuilderDraft,
+} from "../../data/content/deckBuilder";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
+import type { DeckDefinition, DeckModel } from "../../data/content/types";
 
 interface CollectionScreenProps { onBack: () => void }
+
+interface CollectionDeckEntry {
+  deckId: string;
+  deckModel: DeckModel;
+  definition: DeckDefinition;
+  name: string;
+  description: string;
+  emoji: string;
+  visualTheme: DeckDefinition["visualTheme"];
+}
+
+type DeckRailViewMode = "list" | "cards";
 
 // ─── Card grid sizes (portrait aspect ratio ~200:275 ≈ 0.73:1) ───────────────
 const CARD_W_D = 200;
@@ -44,19 +70,29 @@ const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.R
 );
 
 // ─── DeckRailTargetRow ───────────────────────────────────────────────────────
-const DeckRailTargetRow: React.FC<{ target: ContentTargetView }> = ({ target }) => {
+const DeckRailTargetRow: React.FC<{ target: ContentTargetView; editable?: boolean; onRemove?: () => void }> = ({ target, editable, onRemove }) => {
   return (
-    <div className="group flex cursor-grab items-center gap-1.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/70 px-2 py-1 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]">
+    <div className="group flex items-center gap-1.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/70 px-2 py-1 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]">
       <div className={cn("h-5 w-1.5 shrink-0 rounded-full", target.rarityView.toneClass)} />
       <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1rem] shadow-sm">{target.emoji}</div>
       <span className="min-w-0 flex-1 truncate font-serif text-[0.56rem] font-black leading-tight text-[#31271e]">{target.name}</span>
       <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-1.5 py-0.5 text-[0.44rem] font-black text-amber-800">×{target.copies}</span>
+      {editable && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex h-6 w-6 shrink-0 touch-manipulation items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-700 transition [@media(hover:hover)]:hover:bg-rose-100"
+          aria-label={`Remover ${target.name} do deck`}
+        >
+          <Minus className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 };
 
 // ─── DeckBanner ───────────────────────────────────────────────────────────────
-const DeckBanner: React.FC<{ deck: AppResolvedDeck; isSelected: boolean; onClick: () => void }> = ({ deck, isSelected, onClick }) => {
+const DeckBanner: React.FC<{ deck: CollectionDeckEntry; isSelected: boolean; isDirty?: boolean; onClick: () => void }> = ({ deck, isSelected, isDirty, onClick }) => {
   const deckSummary = useMemo(() => createContentDeckSummaryView(deck.deckModel), [deck]);
   const count = deckSummary.metrics.uniqueTargets;
   const sylCount = deckSummary.metrics.totalSyllables;
@@ -67,7 +103,7 @@ const DeckBanner: React.FC<{ deck: AppResolvedDeck; isSelected: boolean; onClick
       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.7rem] shadow [@media(pointer:coarse)_and_(max-height:480px)]:h-10 [@media(pointer:coarse)_and_(max-height:480px)]:w-10 [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.4rem]">{deck.emoji}</div>
       <div className="relative min-w-0 flex-1 flex flex-col justify-center py-0.5">
         <div className="truncate font-serif text-[1.05rem] font-black leading-tight text-amber-50 drop-shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.95rem]">{deck.name}</div>
-        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]">{deck.definition.superclass || "SEM CLASSE"}</div>
+        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]">{isDirty ? "RASCUNHO LOCAL" : deck.definition.superclass || "SEM CLASSE"}</div>
         <div className="mt-2 flex items-center gap-1.5 overflow-hidden [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
           <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{count} alvo{count !== 1 ? 's' : ''}</div>
           <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{sylCount} sílaba{sylCount !== 1 ? 's' : ''}</div>
@@ -78,10 +114,38 @@ const DeckBanner: React.FC<{ deck: AppResolvedDeck; isSelected: boolean; onClick
 };
 
 // ─── DeckRailPanel ────────────────────────────────────────────────────────────
-const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = ({ decks, compact }) => {
-  const [selId, setSelId] = useState(() => decks[0]?.deckId ?? "");
-  const [view, setView] = useState<"list" | "cards">("list");
-  const deck = useMemo(() => resolveAppDeck(selId) ?? decks[0] ?? null, [selId, decks]);
+const DeckRailPanel: React.FC<{
+  decks: CollectionDeckEntry[];
+  compact: boolean;
+  selectedDeckId: string;
+  view: DeckRailViewMode;
+  isEditing: boolean;
+  isDirty: boolean;
+  onSelectDeck: (deckId: string) => void;
+  onViewChange: (view: DeckRailViewMode) => void;
+  onCreateDeck: () => void;
+  onStartEdit: () => void;
+  onSaveDraft: () => void;
+  onCancelDraft: () => void;
+  onRemoveTarget: (targetId: string) => void;
+  onRemoveCard: (cardId: string) => void;
+}> = ({
+  decks,
+  compact,
+  selectedDeckId,
+  view,
+  isEditing,
+  isDirty,
+  onSelectDeck,
+  onViewChange,
+  onCreateDeck,
+  onStartEdit,
+  onSaveDraft,
+  onCancelDraft,
+  onRemoveTarget,
+  onRemoveCard,
+}) => {
+  const deck = useMemo(() => decks.find((entry) => entry.deckId === selectedDeckId) ?? decks[0] ?? null, [selectedDeckId, decks]);
   const deckSummary = useMemo(() => (deck ? createContentDeckSummaryView(deck.deckModel) : null), [deck]);
   const deckTargetViews = deckSummary?.targets ?? [];
   const deckSyllableViews = deckSummary?.syllables ?? [];
@@ -95,11 +159,22 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
         {view === "list" ? (
           <motion.div key="list" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col">
             <div className="shrink-0 border-b border-[#d9c8a9] bg-[#fffaf3]/90 px-4 py-2.5">
-              <div className="font-serif text-[1rem] font-black uppercase text-[#5b2408]">Meus Decks</div>
-              <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#9a7f5c]">{decks.length} decks disponíveis</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-serif text-[1rem] font-black uppercase text-[#5b2408]">Meus Decks</div>
+                  <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#9a7f5c]">{decks.length} decks disponíveis</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCreateDeck}
+                  className="flex h-8 shrink-0 touch-manipulation items-center gap-1 rounded-lg border border-emerald-700/20 bg-emerald-50 px-2 text-[0.58rem] font-black uppercase tracking-[0.06em] text-emerald-800 shadow-sm transition [@media(hover:hover)]:hover:bg-emerald-100"
+                >
+                  <FilePlus2 className="h-3.5 w-3.5" /> Novo
+                </button>
+              </div>
             </div>
             <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto bg-[#fffaf3]/94 p-3">
-              {decks.map((d) => <DeckBanner key={d.deckId} deck={d} isSelected={d.deckId === selId} onClick={() => { setSelId(d.deckId); setView("cards"); }} />)}
+              {decks.map((d) => <DeckBanner key={d.deckId} deck={d} isSelected={d.deckId === selectedDeckId} isDirty={isDirty && d.deckId === selectedDeckId} onClick={() => { onSelectDeck(d.deckId); onViewChange("cards"); }} />)}
             </div>
           </motion.div>
         ) : (
@@ -108,14 +183,41 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
               <div className={cn("relative shrink-0 overflow-hidden px-3 py-2.5", cn("bg-gradient-to-br", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.14),transparent_55%)]" />
                 <div className="relative flex items-center gap-2">
-                  <button type="button" onClick={() => setView("list")} className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/25 bg-black/20 text-amber-50 transition-all [@media(hover:hover)]:hover:bg-black/30">
+                  <button type="button" onClick={() => onViewChange("list")} className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/25 bg-black/20 text-amber-50 transition-all [@media(hover:hover)]:hover:bg-black/30">
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.4rem] shadow">{deck.emoji}</div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="truncate font-serif text-[1rem] font-black leading-none text-amber-50">{deck.name}</div>
-                    <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{deck.definition.superclass}</div>
+                    <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{isEditing ? "Editando deck" : deck.definition.superclass}</div>
                   </div>
+                  {!isEditing ? (
+                    <button
+                      type="button"
+                      onClick={onStartEdit}
+                      className="flex h-7 shrink-0 touch-manipulation items-center gap-1 rounded-lg border border-white/25 bg-black/20 px-2 text-[0.55rem] font-black uppercase tracking-[0.06em] text-amber-50 transition [@media(hover:hover)]:hover:bg-black/30"
+                    >
+                      <Pencil className="h-3 w-3" /> Editar
+                    </button>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={onCancelDraft}
+                        className="flex h-7 touch-manipulation items-center gap-1 rounded-lg border border-white/20 bg-black/20 px-2 text-[0.52rem] font-black uppercase tracking-[0.05em] text-amber-50 transition [@media(hover:hover)]:hover:bg-black/30"
+                      >
+                        <X className="h-3 w-3" /> Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onSaveDraft}
+                        disabled={!isDirty}
+                        className="flex h-7 touch-manipulation items-center gap-1 rounded-lg border border-emerald-200/55 bg-emerald-50 px-2 text-[0.52rem] font-black uppercase tracking-[0.05em] text-emerald-800 transition disabled:opacity-45 [@media(hover:hover)]:hover:bg-emerald-100"
+                      >
+                        <Save className="h-3 w-3" /> Salvar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -128,7 +230,7 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
                       <span className={cn("h-2 w-2 shrink-0 rounded-full", getContentRarityToneClass(rk))} />{getContentRarityLabel(rk)}
                     </div>
                     <div className="flex flex-col gap-1">
-                      {grp.map((t) => <DeckRailTargetRow key={t.id} target={t} />)}
+                      {grp.map((t) => <DeckRailTargetRow key={t.id} target={t} editable={isEditing} onRemove={() => onRemoveTarget(t.id)} />)}
                     </div>
                   </div>
                 );
@@ -142,6 +244,16 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
                     {deckSyllableViews.map((s, i) => (
                       <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-0.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-2 py-0.5 text-[0.58rem] font-black text-amber-800">
                         {s.syllable}<span className="rounded-full bg-amber-200/55 px-1 text-[0.48rem]">×{s.copies ?? 0}</span>
+                        {isEditing && (
+                          <button
+                            type="button"
+                            onClick={() => onRemoveCard(s.cardId)}
+                            className="-mr-1 ml-0.5 flex h-4 w-4 touch-manipulation items-center justify-center rounded-full bg-rose-100 text-rose-700"
+                            aria-label={`Remover carta ${s.syllable} do deck`}
+                          >
+                            <Minus className="h-2.5 w-2.5" />
+                          </button>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -162,7 +274,7 @@ const DeckRailPanel: React.FC<{ decks: AppResolvedDeck[]; compact: boolean }> = 
                   </div>
                 </div>
                 <div className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.06em]", deckTargetTotal >= 2 ? "border-emerald-300/70 bg-emerald-50 text-emerald-700" : "border-amber-300/70 bg-amber-50 text-amber-700")}>
-                  <Swords className="h-3 w-3" />{deckTargetTotal >= 2 ? "Pronto" : "Montar"}
+                  <Swords className="h-3 w-3" />{isEditing ? (isDirty ? "Alterado" : "Sem mudanças") : deckTargetTotal >= 2 ? "Pronto" : "Montar"}
                 </div>
               </div>
             </div>
@@ -350,7 +462,24 @@ const CardPreviewOverlay: React.FC<{
 };
 
 export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) => {
-  const decks = useMemo(() => APP_RESOLVED_DECKS, []);
+  const catalog = CONTENT_PIPELINE.catalog;
+  const baseDeckEntries = useMemo<CollectionDeckEntry[]>(
+    () =>
+      APP_RESOLVED_DECKS.map((deck) => ({
+        deckId: deck.deckId,
+        deckModel: deck.deckModel,
+        definition: deck.definition,
+        name: deck.name,
+        description: deck.description,
+        emoji: deck.emoji,
+        visualTheme: deck.visualTheme,
+      })),
+    [],
+  );
+  const [localDeckDefinitions, setLocalDeckDefinitions] = useState<DeckDefinition[]>([]);
+  const [selectedDeckId, setSelectedDeckId] = useState(() => baseDeckEntries[0]?.deckId ?? "");
+  const [deckRailView, setDeckRailView] = useState<DeckRailViewMode>("list");
+  const [deckDraft, setDeckDraft] = useState<DeckBuilderDraft | null>(null);
   const [sidebar, setSidebar] = useState<"decks" | "filters">("decks");
   const [mode, setMode] = useState<"targets" | "syllables">("targets");
   const [page, setPage] = useState(0);
@@ -374,6 +503,159 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const [isBackPressed, setIsBackPressed] = useState(false);
   const backTouchActivatedRef = useRef(false);
 
+  const collectionDecks = useMemo<CollectionDeckEntry[]>(() => {
+    const overridesById = new Map(localDeckDefinitions.map((definition) => [definition.id, definition]));
+    const baseDeckIds = new Set(baseDeckEntries.map((entry) => entry.deckId));
+    const resolvedBaseEntries = baseDeckEntries.map((entry) => {
+      const override = overridesById.get(entry.deckId);
+      if (!override) return entry;
+      const deckModel = createDeckModel(override, catalog);
+
+      return {
+        deckId: override.id,
+        deckModel,
+        definition: override,
+        name: override.name,
+        description: override.description,
+        emoji: override.emoji,
+        visualTheme: override.visualTheme,
+      };
+    });
+    const localOnlyEntries = localDeckDefinitions
+      .filter((definition) => !baseDeckIds.has(definition.id))
+      .map((definition) => {
+        const deckModel = createDeckModel(definition, catalog);
+
+        return {
+          deckId: definition.id,
+          deckModel,
+          definition,
+          name: definition.name,
+          description: definition.description,
+          emoji: definition.emoji,
+          visualTheme: definition.visualTheme,
+        };
+      });
+
+    return [...resolvedBaseEntries, ...localOnlyEntries];
+  }, [baseDeckEntries, catalog, localDeckDefinitions]);
+
+  const draftDeckDefinition = useMemo(
+    () => (deckDraft ? createDeckDefinitionFromBuilderDraft(deckDraft, catalog) : null),
+    [catalog, deckDraft],
+  );
+  const draftDeckModel = useMemo(
+    () => (draftDeckDefinition ? createDeckModel(draftDeckDefinition, catalog) : null),
+    [catalog, draftDeckDefinition],
+  );
+  const visibleDecks = useMemo<CollectionDeckEntry[]>(() => {
+    if (!draftDeckDefinition || !draftDeckModel) return collectionDecks;
+
+    const draftEntry: CollectionDeckEntry = {
+      deckId: draftDeckDefinition.id,
+      deckModel: draftDeckModel,
+      definition: draftDeckDefinition,
+      name: draftDeckDefinition.name,
+      description: draftDeckDefinition.description,
+      emoji: draftDeckDefinition.emoji,
+      visualTheme: draftDeckDefinition.visualTheme,
+    };
+    let replaced = false;
+    const entries = collectionDecks.map((entry) => {
+      if (entry.deckId !== draftEntry.deckId) return entry;
+      replaced = true;
+      return draftEntry;
+    });
+
+    return replaced ? entries : [...entries, draftEntry];
+  }, [collectionDecks, draftDeckDefinition, draftDeckModel]);
+  const selectedDeck = useMemo(
+    () => visibleDecks.find((entry) => entry.deckId === selectedDeckId) ?? visibleDecks[0] ?? null,
+    [selectedDeckId, visibleDecks],
+  );
+  const persistedDraftBaseline = useMemo(() => {
+    if (!deckDraft) return null;
+    const persistedDeck = collectionDecks.find((entry) => entry.deckId === deckDraft.id);
+    return persistedDeck ? createDeckBuilderDraftFromDeckModel(persistedDeck.deckModel) : null;
+  }, [collectionDecks, deckDraft]);
+  const isDeckDraftDirty = Boolean(
+    deckDraft && (!persistedDraftBaseline || JSON.stringify(deckDraft) !== JSON.stringify(persistedDraftBaseline)),
+  );
+  const draftTargetCopies = useMemo(() => (deckDraft ? getDeckBuilderTargetCopies(deckDraft) : {}), [deckDraft]);
+  const draftCardCopies = useMemo(() => (deckDraft ? getDeckBuilderCardCopies(deckDraft) : {}), [deckDraft]);
+
+  useEffect(() => {
+    if (visibleDecks.some((entry) => entry.deckId === selectedDeckId)) return;
+    setSelectedDeckId(visibleDecks[0]?.deckId ?? "");
+  }, [selectedDeckId, visibleDecks]);
+
+  const handleSelectDeck = (deckId: string) => {
+    if (deckDraft && deckId !== deckDraft.id) {
+      setDeckDraft(null);
+    }
+    setSelectedDeckId(deckId);
+  };
+
+  const handleCreateDeck = () => {
+    const draft = createEmptyDeckBuilderDraft(catalog, visibleDecks.map((entry) => entry.deckId));
+    setDeckDraft(draft);
+    setSelectedDeckId(draft.id);
+    setDeckRailView("cards");
+    setSidebar("decks");
+    setMode("targets");
+  };
+
+  const handleStartEditDeck = () => {
+    if (!selectedDeck) return;
+    setDeckDraft(createDeckBuilderDraftFromDeckModel(selectedDeck.deckModel));
+    setDeckRailView("cards");
+    setSidebar("decks");
+  };
+
+  const handleSaveDeckDraft = () => {
+    if (!deckDraft || !draftDeckDefinition) return;
+    setLocalDeckDefinitions((current) => {
+      const next = current.filter((definition) => definition.id !== draftDeckDefinition.id);
+      return [...next, draftDeckDefinition];
+    });
+    setSelectedDeckId(draftDeckDefinition.id);
+    setDeckDraft(null);
+    setDeckRailView("cards");
+  };
+
+  const handleCancelDeckDraft = () => {
+    const fallbackDeckId = collectionDecks.some((entry) => entry.deckId === selectedDeckId)
+      ? selectedDeckId
+      : collectionDecks[0]?.deckId ?? "";
+    setDeckDraft(null);
+    setSelectedDeckId(fallbackDeckId);
+    setDeckRailView(fallbackDeckId ? "cards" : "list");
+  };
+
+  const handleAddTargetToDraft = (target: ContentTargetView) => {
+    const targetDefinition = target.definition ?? catalog.targetsById[target.id];
+    if (!targetDefinition) return;
+    setDeckDraft((current) => (current ? addTargetToDeckBuilderDraft(current, targetDefinition) : current));
+  };
+
+  const handleRemoveTargetFromDraft = (targetId: string) => {
+    const targetDefinition = catalog.targetsById[targetId];
+    if (!targetDefinition) return;
+    setDeckDraft((current) => (current ? removeTargetFromDeckBuilderDraft(current, targetDefinition) : current));
+  };
+
+  const handleAddCardToDraft = (cardId: string) => {
+    const card = catalog.cardsById[cardId];
+    if (!card) return;
+    setDeckDraft((current) => (current ? addCardToDeckBuilderDraft(current, card) : current));
+  };
+
+  const handleRemoveCardFromDraft = (cardId: string) => {
+    const card = catalog.cardsById[cardId];
+    if (!card) return;
+    setDeckDraft((current) => (current ? removeCardFromDeckBuilderDraft(current, card) : current));
+  };
+
   const cancelLongPress = () => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressStart.current = null;
@@ -387,7 +669,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       if (e.pointerType === "mouse") {
         setPreviewOriginX(ox);
         setPreviewIsDesktop(true);
-        setPreviewCopies(target.copies);
+        setPreviewCopies(deckDraft ? draftTargetCopies[target.id] ?? 0 : target.copies);
         setPreview(target);
         return;
       }
@@ -396,7 +678,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       longPressTimer.current = setTimeout(() => {
         setPreviewOriginX(ox);
         setPreviewIsDesktop(false);
-        setPreviewCopies(target.copies);
+        setPreviewCopies(deckDraft ? draftTargetCopies[target.id] ?? 0 : target.copies);
         setPreview(target);
         longPressStart.current = null;
       }, 450);
@@ -551,6 +833,16 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
               <div className="flex-1" />
 
+              {deckDraft && (
+                <div className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 font-black uppercase tracking-[0.08em] text-emerald-800 shadow-sm",
+                  compact ? "h-7 text-[0.52rem]" : "h-9 text-[0.6rem]",
+                )}>
+                  <Pencil className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")} />
+                  Editando
+                </div>
+              )}
+
               {/* Sorting — Toolbar */}
               {mode === "targets" && (
                 <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-1.5")}>
@@ -638,20 +930,55 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                           <div
                             key={targetEntry.id}
                             style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }}
-                            className="flex items-center justify-center select-none"
+                            className="relative flex items-center justify-center select-none"
                             {...makeLongPressProps(targetEntry)}
                           >
                             <CollectionTargetCard target={targetEntry} />
+                            {deckDraft && (
+                              <button
+                                type="button"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddTargetToDraft(targetEntry);
+                                }}
+                                className="absolute bottom-2 right-2 z-10 flex h-9 min-w-9 touch-manipulation items-center justify-center gap-1 rounded-lg border-[2px] border-emerald-700/30 bg-emerald-50 px-2 font-serif text-[0.62rem] font-black uppercase tracking-[0.06em] text-emerald-800 shadow-[0_4px_0_rgba(4,120,87,0.25),0_10px_18px_rgba(15,23,42,0.18)] transition [@media(hover:hover)]:hover:-translate-y-px [@media(pointer:coarse)_and_(max-height:480px)]:bottom-1 [@media(pointer:coarse)_and_(max-height:480px)]:right-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:min-w-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]"
+                                aria-label={`Adicionar ${targetEntry.name} ao deck`}
+                              >
+                                <Plus className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
+                                <span className="[@media(pointer:coarse)_and_(max-height:480px)]:sr-only">Add</span>
+                                {(draftTargetCopies[targetEntry.id] ?? 0) > 0 && (
+                                  <span className="rounded-full bg-emerald-200/80 px-1 text-[0.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.45rem]">
+                                    ×{draftTargetCopies[targetEntry.id]}
+                                  </span>
+                                )}
+                              </button>
+                            )}
                           </div>
                           );
                         }
 
                         const syllableEntry = entry as ContentSyllableView;
                         return (
-                          <div key={`${syllableEntry.id}-${i}`} style={{ width: "100%", maxWidth: sylW, height: sylH }} className="flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
+                          <div key={`${syllableEntry.id}-${i}`} style={{ width: "100%", maxWidth: sylW, height: sylH }} className="relative flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
                             <div className="origin-top scale-[0.85] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[0.72]">
                               <SyllableCard syllable={syllableEntry.syllable} selected={false} playable={false} disabled={false} staticDisplay onClick={() => { }} sizePreset="hand-desktop" />
                             </div>
+                            {deckDraft && (
+                              <button
+                                type="button"
+                                onClick={() => handleAddCardToDraft(syllableEntry.cardId)}
+                                className="absolute bottom-1 right-1 z-10 flex h-7 min-w-7 touch-manipulation items-center justify-center gap-1 rounded-lg border border-emerald-700/25 bg-emerald-50 px-1.5 text-[0.55rem] font-black text-emerald-800 shadow-sm"
+                                aria-label={`Adicionar carta ${syllableEntry.syllable} ao deck`}
+                              >
+                                <Plus className="h-3 w-3" />
+                                {(draftCardCopies[syllableEntry.cardId] ?? 0) > 0 && (
+                                  <span className="rounded-full bg-emerald-200/80 px-1 text-[0.48rem]">
+                                    ×{draftCardCopies[syllableEntry.cardId]}
+                                  </span>
+                                )}
+                              </button>
+                            )}
                           </div>
                         );
                       })}
@@ -681,7 +1008,22 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
             <AnimatePresence mode="wait" initial={false}>
               {sidebar === "decks" ? (
                 <motion.div key="decks" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="h-full">
-                  <DeckRailPanel decks={decks} compact={compact} />
+                  <DeckRailPanel
+                    decks={visibleDecks}
+                    compact={compact}
+                    selectedDeckId={selectedDeck?.deckId ?? selectedDeckId}
+                    view={deckRailView}
+                    isEditing={Boolean(deckDraft)}
+                    isDirty={isDeckDraftDirty}
+                    onSelectDeck={handleSelectDeck}
+                    onViewChange={setDeckRailView}
+                    onCreateDeck={handleCreateDeck}
+                    onStartEdit={handleStartEditDeck}
+                    onSaveDraft={handleSaveDeckDraft}
+                    onCancelDraft={handleCancelDeckDraft}
+                    onRemoveTarget={handleRemoveTargetFromDraft}
+                    onRemoveCard={handleRemoveCardFromDraft}
+                  />
                 </motion.div>
               ) : (
                 <motion.div key="filters" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] bg-[#fffaf3]/94 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
