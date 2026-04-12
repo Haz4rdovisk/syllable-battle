@@ -557,6 +557,8 @@ export * from "./helpers";
 export * from "./readModels";
 export * from "./selectors";
 export * from "./battleSetup";
+export * from "./playerCollection";
+export * from "./playerInventoryLocal";
 
 export const CONTENT_PIPELINE = buildContentPipeline(rawDeckCatalog, rawTargetCatalog);
 export const CONTENT_CATALOG = CONTENT_PIPELINE.catalog;

@@ -12,14 +12,22 @@ import {
   createContentCatalogFiltersView,
   createContentCatalogSyllableViews,
   createContentCatalogTargetViews,
+  createCatalogBackedPlayerCollectionView,
+  createLocalPlayerInventorySnapshot,
   createContentDeckSummaryView,
   createDeckModel,
   filterAndSortContentTargetViews,
+  getPlayerInventoryLocalModeLabel,
+  loadPlayerInventoryLocalState,
+  savePlayerInventoryLocalState,
   getContentRarityLabel,
   getContentRaritySoftToneClass,
   getContentRarityToneClass,
   type ContentSyllableView,
   type ContentTargetView,
+  type PlayerCollectionSyllableItemView,
+  type PlayerCollectionTargetItemView,
+  type PlayerInventoryLocalMode,
 } from "../../data/content";
 import {
   addCardToDeckBuilderDraft,
@@ -62,7 +70,24 @@ interface CollectionDeckEntry {
 }
 
 type DeckRailViewMode = "list" | "cards";
-type DeckBuilderFeedback = "saved" | "cancelled" | "storage-error" | "duplicated" | "renamed" | "deleted" | "target-added" | "target-removed" | "card-added" | "card-removed" | null;
+type DeckBuilderFeedback = "saved" | "cancelled" | "storage-error" | "duplicated" | "renamed" | "deleted" | "target-added" | "target-removed" | "card-added" | "card-removed" | "target-unavailable" | "card-unavailable" | null;
+type DeckBuilderTargetDragSource = "catalog-target" | "deck-target";
+type DeckBuilderTargetDragOverZone = "deck" | "remove" | "catalog" | null;
+
+interface DeckBuilderTargetDragState {
+  source: DeckBuilderTargetDragSource;
+  target: ContentTargetView;
+  pointerId: number;
+  phase: "pressing" | "dragging" | "settling";
+  x: number;
+  y: number;
+  originX: number;
+  originY: number;
+  overZone: DeckBuilderTargetDragOverZone;
+  dropX?: number;
+  dropY?: number;
+  validDrop?: boolean;
+}
 
 // ─── Card grid sizes (portrait aspect ratio ~200:275 ≈ 0.73:1) ───────────────
 const CARD_W_D = 200;
@@ -73,6 +98,8 @@ const SYL_W_D = 128;
 const SYL_H_D = 179;
 const SYL_W_C = 96;
 const SYL_H_C = 134;
+const TARGET_DRAG_START_DISTANCE = 10;
+const TARGET_DRAG_SETTLE_MS = 170;
 
 const getDeckBuilderBrowserStorage = () => {
   if (typeof window === "undefined") return null;
@@ -97,7 +124,7 @@ const getDeckBuilderValidationToneClass = (status: DeckBuilderValidationView["st
 };
 
 const getDeckBuilderFeedbackToneClass = (feedback: DeckBuilderFeedback) => {
-  if (feedback === "storage-error") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (feedback === "storage-error" || feedback === "target-unavailable" || feedback === "card-unavailable") return "border-rose-200 bg-rose-50 text-rose-700";
   if (feedback === "target-removed" || feedback === "card-removed" || feedback === "cancelled" || feedback === "deleted") {
     return "border-amber-200 bg-amber-50 text-amber-800";
   }
@@ -105,6 +132,20 @@ const getDeckBuilderFeedbackToneClass = (feedback: DeckBuilderFeedback) => {
 };
 
 const formatDeckBuilderCount = (value: number, minimum: number) => `${value}/${minimum}`;
+
+const formatPlayerCollectionCopies = (ownedCopies: number | null) =>
+  ownedCopies === null ? "∞" : String(ownedCopies);
+
+const formatPlayerCollectionUsage = (inventory: PlayerCollectionTargetItemView["inventory"] | PlayerCollectionSyllableItemView["inventory"]) => {
+  if (inventory.unlimited) return `usado ${inventory.usedCopies}/∞`;
+  if ((inventory.ownedCopies ?? 0) <= 0) return "não possuído";
+  return `usado ${inventory.usedCopies}/${formatPlayerCollectionCopies(inventory.ownedCopies)} · resta ${inventory.remainingCopies ?? 0}`;
+};
+
+const getPlayerCollectionAvailabilityToneClass = (available: boolean) =>
+  available
+    ? "border-emerald-200/80 bg-emerald-50/90 text-emerald-800"
+    : "border-rose-200/80 bg-rose-50/90 text-rose-700";
 
 // ─── Pill ─────────────────────────────────────────────────────────────────────
 const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.ReactNode; sm?: boolean }> = ({ active, onClick, children, sm }) => (
@@ -116,9 +157,23 @@ const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.R
 );
 
 // ─── DeckRailTargetRow ───────────────────────────────────────────────────────
-const DeckRailTargetRow: React.FC<{ target: ContentTargetView; editable?: boolean; onRemove?: () => void }> = ({ target, editable, onRemove }) => {
+const DeckRailTargetRow: React.FC<{
+  target: ContentTargetView;
+  editable?: boolean;
+  onRemove?: () => void;
+  dragProps?: React.HTMLAttributes<HTMLDivElement>;
+  isDragging?: boolean;
+}> = ({ target, editable, onRemove, dragProps, isDragging }) => {
   return (
-    <div className="group flex items-center gap-1.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/70 px-2 py-1 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]">
+    <div
+      {...dragProps}
+      className={cn(
+        "group flex items-center gap-1.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/70 px-2 py-1 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]",
+        editable && "cursor-grab touch-none active:cursor-grabbing",
+        isDragging && "opacity-45 ring-2 ring-rose-300/65",
+        dragProps?.className,
+      )}
+    >
       <div className={cn("h-5 w-1.5 shrink-0 rounded-full", target.rarityView.toneClass)} />
       <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1rem] shadow-sm">{target.emoji}</div>
       <span className="min-w-0 flex-1 truncate font-serif text-[0.56rem] font-black leading-tight text-[#31271e]">{target.name}</span>
@@ -126,6 +181,7 @@ const DeckRailTargetRow: React.FC<{ target: ContentTargetView; editable?: boolea
       {editable && (
         <button
           type="button"
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={onRemove}
           className="flex h-6 w-6 shrink-0 touch-manipulation items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-700 transition [@media(hover:hover)]:hover:bg-rose-100"
           aria-label={`Remover ${target.name} do deck`}
@@ -174,6 +230,54 @@ const DeckCompositionMeter: React.FC<{ label: string; value: number; minimum: nu
   </div>
 );
 
+const TargetDragOverlay: React.FC<{ drag: DeckBuilderTargetDragState }> = ({ drag }) => {
+  if (drag.phase === "pressing") return null;
+
+  const isAdding = drag.source === "catalog-target";
+  const label = drag.validDrop === false
+    ? "Solte em uma zona marcada"
+    : drag.overZone === "deck"
+      ? "Adicionar ao deck"
+      : drag.overZone === "remove" || drag.overZone === "catalog"
+        ? "Remover do deck"
+        : isAdding
+          ? "Leve até o deck"
+          : "Leve até remover";
+
+  return (
+    <motion.div
+      className="pointer-events-none fixed z-[90] flex w-[8.5rem] flex-col items-center"
+      initial={false}
+      animate={{
+        left: drag.phase === "settling" ? drag.dropX ?? drag.x : drag.x,
+        top: drag.phase === "settling" ? drag.dropY ?? drag.y : drag.y,
+        scale: drag.phase === "settling" ? 0.72 : 1,
+        opacity: drag.phase === "settling" ? 0.28 : 0.96,
+      }}
+      transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.6 }}
+      style={{ left: drag.x, top: drag.y, translateX: "-50%", translateY: "-50%" }}
+    >
+      <div className={cn(
+        "relative flex w-full items-center gap-2 rounded-xl border-2 px-2 py-2 shadow-[0_20px_38px_rgba(44,31,12,0.30)] backdrop-blur-sm",
+        drag.validDrop === false
+          ? "border-amber-300 bg-amber-50/94 text-amber-900"
+          : drag.overZone === "remove" || drag.overZone === "catalog"
+            ? "border-rose-300 bg-rose-50/94 text-rose-900"
+            : "border-emerald-300 bg-emerald-50/94 text-emerald-900",
+      )}>
+        <div className={cn("h-8 w-1.5 shrink-0 rounded-full", drag.target.rarityView.toneClass)} />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-900/10 bg-white/75 text-[1.4rem] shadow-sm">
+          {drag.target.emoji}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-serif text-[0.72rem] font-black leading-none">{drag.target.name}</div>
+          <div className="mt-1 truncate text-[0.48rem] font-black uppercase tracking-[0.07em] opacity-75">{label}</div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 // ─── DeckRailPanel ────────────────────────────────────────────────────────────
 const DeckRailPanel: React.FC<{
   decks: CollectionDeckEntry[];
@@ -188,6 +292,12 @@ const DeckRailPanel: React.FC<{
   renameValue: string;
   isRenaming: boolean;
   pendingDeleteDeckId: string | null;
+  dragOverZone: DeckBuilderTargetDragOverZone;
+  dragSource: DeckBuilderTargetDragSource | null;
+  draggingTargetId: string | null;
+  onDeckDropZoneRef: (node: HTMLDivElement | null) => void;
+  onRemoveDropZoneRef: (node: HTMLDivElement | null) => void;
+  getDeckTargetDragProps: (target: ContentTargetView) => React.HTMLAttributes<HTMLDivElement>;
   onSelectDeck: (deckId: string) => void;
   onViewChange: (view: DeckRailViewMode) => void;
   onCreateDeck: () => void;
@@ -217,6 +327,12 @@ const DeckRailPanel: React.FC<{
   renameValue,
   isRenaming,
   pendingDeleteDeckId,
+  dragOverZone,
+  dragSource,
+  draggingTargetId,
+  onDeckDropZoneRef,
+  onRemoveDropZoneRef,
+  getDeckTargetDragProps,
   onSelectDeck,
   onViewChange,
   onCreateDeck,
@@ -260,6 +376,10 @@ const DeckRailPanel: React.FC<{
   const deckSyllableTotal = deckSummary?.metrics.totalSyllables ?? 0;
   const deckRepeatedCopies = composition?.repeatedCopies ?? 0;
   const isDeletePending = Boolean(deck && pendingDeleteDeckId === deck.deckId);
+  const isDeckDropActive = isEditing && dragSource === "catalog-target";
+  const isDeckDropHighlighted = isDeckDropActive && dragOverZone === "deck";
+  const isRemoveDropActive = isEditing && dragSource === "deck-target";
+  const isRemoveDropHighlighted = isRemoveDropActive && dragOverZone === "remove";
   const feedbackText =
     feedback === "saved"
       ? "Salvo neste dispositivo"
@@ -279,9 +399,13 @@ const DeckRailPanel: React.FC<{
                     ? "+ silaba no rascunho"
                     : feedback === "card-removed"
                       ? "- silaba do rascunho"
-                      : feedback === "storage-error"
-                        ? "Storage indisponivel"
-                        : null;
+                      : feedback === "target-unavailable"
+                        ? "Alvo indisponivel"
+                        : feedback === "card-unavailable"
+                          ? "Silaba indisponivel"
+                          : feedback === "storage-error"
+                            ? "Storage indisponivel"
+                            : null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
@@ -375,6 +499,22 @@ const DeckRailPanel: React.FC<{
                 </span>
               )}
             </div>
+            {isEditing && (
+              <div
+                ref={onRemoveDropZoneRef}
+                className={cn(
+                  "flex h-8 shrink-0 items-center justify-center gap-1.5 border-b px-2 text-[0.52rem] font-black uppercase tracking-[0.07em] transition-all",
+                  isRemoveDropHighlighted
+                    ? "border-rose-300 bg-rose-100 text-rose-800 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.16)]"
+                    : isRemoveDropActive
+                      ? "border-rose-200/80 bg-rose-50/85 text-rose-700"
+                      : "border-[#d9c8a9] bg-[#fffaf3]/92 text-[#9a7f5c]",
+                )}
+              >
+                <Trash2 className="h-3 w-3" />
+                {isRemoveDropActive ? "Solte aqui para remover" : "Arraste um alvo do deck para remover"}
+              </div>
+            )}
             {!isEditing && deck && (
               <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-[#d9c8a9] bg-[#fffaf3]/92 px-2 py-1.5">
                 <button
@@ -456,7 +596,27 @@ const DeckRailPanel: React.FC<{
                 </button>
               </div>
             )}
-            <div className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 py-2">
+            <div
+              ref={onDeckDropZoneRef}
+              className={cn(
+                "no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 py-2 transition-all",
+                isDeckDropHighlighted
+                  ? "bg-emerald-50/80 shadow-[inset_0_0_0_2px_rgba(16,185,129,0.28)]"
+                  : isDeckDropActive
+                    ? "bg-emerald-50/35 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.16)]"
+                    : "",
+              )}
+            >
+              {isDeckDropActive && (
+                <div className={cn(
+                  "mb-2 rounded-lg border border-dashed px-3 py-2 text-center text-[0.56rem] font-black uppercase tracking-[0.08em] transition-all",
+                  isDeckDropHighlighted
+                    ? "border-emerald-400 bg-emerald-100/80 text-emerald-800"
+                    : "border-emerald-300/75 bg-emerald-50/75 text-emerald-700",
+                )}>
+                  {isDeckDropHighlighted ? "Solte para adicionar ao deck" : "Arraste o alvo para este painel"}
+                </div>
+              )}
               {deckTargetViews.length === 0 && deckSyllableViews.length === 0 && (
                 <div className="mb-2 rounded-lg border border-dashed border-amber-300/80 bg-amber-50/75 px-3 py-3 text-center">
                   <div className="font-serif text-[0.9rem] font-black text-[#5b2408]">Deck vazio</div>
@@ -475,7 +635,16 @@ const DeckRailPanel: React.FC<{
                       <span className="ml-auto text-[0.48rem] opacity-75">{groupCopies} copia{groupCopies !== 1 ? "s" : ""}</span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      {grp.map((t) => <DeckRailTargetRow key={t.id} target={t} editable={isEditing} onRemove={() => onRemoveTarget(t.id)} />)}
+                      {grp.map((t) => (
+                        <DeckRailTargetRow
+                          key={t.id}
+                          target={t}
+                          editable={isEditing}
+                          onRemove={() => onRemoveTarget(t.id)}
+                          dragProps={isEditing ? getDeckTargetDragProps(t) : undefined}
+                          isDragging={draggingTargetId === t.id && dragSource === "deck-target"}
+                        />
+                      ))}
                     </div>
                   </div>
                 );
@@ -565,10 +734,16 @@ const DeckRailPanel: React.FC<{
   );
 };
 
-const CollectionTargetCard: React.FC<{ target: ContentTargetView }> = ({ target }) => {
+const CollectionTargetCard: React.FC<{ item: PlayerCollectionTargetItemView }> = ({ item }) => {
+  const { target } = item;
+  const available = item.availability.canAdd;
+
   return (
     <div className="relative flex h-full w-full items-start justify-center pb-2 text-center [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
-      <div className="card-base relative flex w-full aspect-[126/176] h-full flex-col overflow-hidden rounded-[1.1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]">
+      <div className={cn(
+        "card-base relative flex w-full aspect-[126/176] h-full flex-col overflow-hidden rounded-[1.1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]",
+        !available && "grayscale opacity-62",
+      )}>
 
         <ContentTargetRarityHeader rarityView={target.rarityView} damage={target.damage} />
 
@@ -590,6 +765,13 @@ const CollectionTargetCard: React.FC<{ target: ContentTargetView }> = ({ target 
             className="mt-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5"
             chipClassName="[@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.1em]"
           />
+          <div className={cn(
+            "mx-auto mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[0.48rem] font-black uppercase tracking-[0.06em] [@media(pointer:coarse)_and_(max-height:480px)]:mt-1 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem]",
+            getPlayerCollectionAvailabilityToneClass(available),
+          )}>
+            <span>{available ? "Disponível" : "Indisponível"}</span>
+            <span className="opacity-75">· {formatPlayerCollectionUsage(item.inventory)}</span>
+          </div>
         </div>
 
         <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
@@ -762,7 +944,12 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     () => loadDeckBuilderLocalState(getDeckBuilderBrowserStorage(), catalog),
     [catalog],
   );
+  const initialPlayerInventoryState = useMemo(
+    () => loadPlayerInventoryLocalState(getDeckBuilderBrowserStorage()),
+    [],
+  );
   const [localDeckDefinitions, setLocalDeckDefinitions] = useState<DeckDefinition[]>(() => initialLocalBuilderState.decks);
+  const [playerInventoryMode, setPlayerInventoryMode] = useState<PlayerInventoryLocalMode>(() => initialPlayerInventoryState.mode);
   const [selectedDeckId, setSelectedDeckId] = useState(
     () => initialLocalBuilderState.selectedDeckId ?? baseDeckEntries[0]?.deckId ?? "",
   );
@@ -791,6 +978,21 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const [previewCopies, setPreviewCopies] = useState(0);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressStart = useRef<{ x: number; y: number } | null>(null);
+  const [targetDrag, setTargetDrag] = useState<DeckBuilderTargetDragState | null>(null);
+  const targetDragRef = useRef<DeckBuilderTargetDragState | null>(null);
+  const targetDragPressRef = useRef<{
+    source: DeckBuilderTargetDragSource;
+    target: ContentTargetView;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const targetDragSettleTimer = useRef<number | null>(null);
+  const deckDropZoneRef = useRef<HTMLDivElement | null>(null);
+  const removeDropZoneRef = useRef<HTMLDivElement | null>(null);
+  const catalogDropZoneRef = useRef<HTMLDivElement | null>(null);
 
   const [isBackPressed, setIsBackPressed] = useState(false);
   const backTouchActivatedRef = useRef(false);
@@ -916,10 +1118,22 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   }, [catalog, localDeckDefinitions, selectedDeckId]);
 
   useEffect(() => {
+    savePlayerInventoryLocalState(getDeckBuilderBrowserStorage(), { mode: playerInventoryMode });
+  }, [playerInventoryMode]);
+
+  useEffect(() => {
     if (!builderFeedback) return;
     const timeoutId = window.setTimeout(() => setBuilderFeedback(null), 2400);
     return () => window.clearTimeout(timeoutId);
   }, [builderFeedback]);
+
+  useEffect(() => {
+    return () => {
+      if (targetDragSettleTimer.current) {
+        window.clearTimeout(targetDragSettleTimer.current);
+      }
+    };
+  }, []);
 
   const persistLocalDeckDefinitions = (nextDeckDefinitions: DeckDefinition[], nextSelectedDeckId = selectedDeckId) => {
     setLocalDeckDefinitions(nextDeckDefinitions);
@@ -927,6 +1141,12 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       decks: nextDeckDefinitions,
       selectedDeckId: nextSelectedDeckId,
     }, catalog);
+  };
+
+  const handlePlayerInventoryModeChange = (mode: PlayerInventoryLocalMode) => {
+    setPlayerInventoryMode(mode);
+    savePlayerInventoryLocalState(getDeckBuilderBrowserStorage(), { mode });
+    setBuilderFeedback(null);
   };
 
   const handleSelectDeck = (deckId: string) => {
@@ -1073,6 +1293,11 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const handleAddTargetToDraft = (target: ContentTargetView) => {
     const targetDefinition = target.definition ?? catalog.targetsById[target.id];
     if (!targetDefinition) return;
+    const collectionItem = playerCollectionView.targetsById[target.id];
+    if (collectionItem && !collectionItem.availability.canAdd) {
+      setBuilderFeedback("target-unavailable");
+      return;
+    }
     setBuilderFeedback("target-added");
     setPendingDeleteDeckId(null);
     setDeckDraft((current) => (current ? addTargetToDeckBuilderDraft(current, targetDefinition) : current));
@@ -1089,6 +1314,11 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const handleAddCardToDraft = (cardId: string) => {
     const card = catalog.cardsById[cardId];
     if (!card) return;
+    const collectionItem = playerCollectionView.syllablesByCardId[cardId];
+    if (collectionItem && !collectionItem.availability.canAdd) {
+      setBuilderFeedback("card-unavailable");
+      return;
+    }
     setBuilderFeedback("card-added");
     setPendingDeleteDeckId(null);
     setDeckDraft((current) => (current ? addCardToDeckBuilderDraft(current, card) : current));
@@ -1107,37 +1337,259 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     longPressStart.current = null;
   };
 
-  const makeLongPressProps = (target: ContentTargetView) => ({
-    onPointerDown: (e: React.PointerEvent) => {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      const ox = e.clientX;
-      // Desktop (mouse): open immediately on click
-      if (e.pointerType === "mouse") {
-        setPreviewOriginX(ox);
-        setPreviewIsDesktop(true);
-        setPreviewCopies(deckDraft ? draftTargetCopies[target.id] ?? 0 : target.copies);
-        setPreview(target);
+  const setTargetDragState = (next: DeckBuilderTargetDragState | null) => {
+    targetDragRef.current = next;
+    setTargetDrag(next);
+  };
+
+  const openTargetPreview = (target: ContentTargetView, originX: number, isDesktop: boolean) => {
+    setPreviewOriginX(originX);
+    setPreviewIsDesktop(isDesktop);
+    setPreviewCopies(deckDraft ? draftTargetCopies[target.id] ?? 0 : target.copies);
+    setPreview(target);
+  };
+
+  const isPointInsideNode = (node: HTMLElement | null, x: number, y: number) => {
+    if (!node) return false;
+    const rect = node.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  };
+
+  const getNodeCenter = (node: HTMLElement | null, fallbackX: number, fallbackY: number) => {
+    if (!node) return { x: fallbackX, y: fallbackY };
+    const rect = node.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  };
+
+  const getTargetDragOverZone = (
+    source: DeckBuilderTargetDragSource,
+    x: number,
+    y: number,
+  ): DeckBuilderTargetDragOverZone => {
+    if (source === "catalog-target" && isPointInsideNode(deckDropZoneRef.current, x, y)) return "deck";
+    if (source === "deck-target" && isPointInsideNode(removeDropZoneRef.current, x, y)) return "remove";
+    if (source === "deck-target" && isPointInsideNode(catalogDropZoneRef.current, x, y)) return "catalog";
+    if (isPointInsideNode(deckDropZoneRef.current, x, y)) return "deck";
+    return null;
+  };
+
+  const isValidTargetDragZone = (source: DeckBuilderTargetDragSource, zone: DeckBuilderTargetDragOverZone) =>
+    (source === "catalog-target" && zone === "deck")
+    || (source === "deck-target" && (zone === "remove" || zone === "catalog"));
+
+  const beginTargetDragCandidate = (
+    event: React.PointerEvent<HTMLElement>,
+    target: ContentTargetView,
+    source: DeckBuilderTargetDragSource,
+  ) => {
+    if (!deckDraft) return;
+    if (targetDragSettleTimer.current) {
+      window.clearTimeout(targetDragSettleTimer.current);
+      targetDragSettleTimer.current = null;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const originX = rect.left + rect.width / 2;
+    const originY = rect.top + rect.height / 2;
+
+    targetDragPressRef.current = {
+      source,
+      target,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX,
+      originY,
+    };
+    setTargetDragState({
+      source,
+      target,
+      pointerId: event.pointerId,
+      phase: "pressing",
+      x: event.clientX,
+      y: event.clientY,
+      originX,
+      originY,
+      overZone: null,
+    });
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture can fail in synthetic browser runs; drag still works through local handlers.
+    }
+  };
+
+  const updateTargetDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const press = targetDragPressRef.current;
+    if (!press || press.pointerId !== event.pointerId) return;
+
+    const dx = event.clientX - press.startX;
+    const dy = event.clientY - press.startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const current = targetDragRef.current;
+
+    if (current?.phase === "pressing" && distance < TARGET_DRAG_START_DISTANCE) return;
+    if (current?.phase === "pressing") {
+      cancelLongPress();
+      setPreview(null);
+    }
+    if (current?.phase === "settling") return;
+
+    event.preventDefault();
+    const overZone = getTargetDragOverZone(press.source, event.clientX, event.clientY);
+    setTargetDragState({
+      source: press.source,
+      target: press.target,
+      pointerId: press.pointerId,
+      phase: "dragging",
+      x: event.clientX,
+      y: event.clientY,
+      originX: press.originX,
+      originY: press.originY,
+      overZone,
+      validDrop: overZone ? isValidTargetDragZone(press.source, overZone) : undefined,
+    });
+  };
+
+  const cancelTargetDrag = () => {
+    cancelLongPress();
+    targetDragPressRef.current = null;
+    setTargetDragState(null);
+  };
+
+  const finishTargetDrag = (
+    event: React.PointerEvent<HTMLElement>,
+    openPreviewOnClick?: () => void,
+  ) => {
+    const press = targetDragPressRef.current;
+    const drag = targetDragRef.current;
+    if (!press || press.pointerId !== event.pointerId) {
+      cancelLongPress();
+      return;
+    }
+
+    cancelLongPress();
+    targetDragPressRef.current = null;
+
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Capture may already be released by the browser.
+    }
+
+    if (!drag || drag.phase === "pressing") {
+      setTargetDragState(null);
+      if (event.pointerType === "mouse") {
+        openPreviewOnClick?.();
+      }
+      return;
+    }
+
+    const overZone = getTargetDragOverZone(drag.source, event.clientX, event.clientY);
+    const validDrop = isValidTargetDragZone(drag.source, overZone);
+    const destination =
+      validDrop && overZone === "deck"
+        ? getNodeCenter(deckDropZoneRef.current, event.clientX, event.clientY)
+        : validDrop && overZone === "remove"
+          ? getNodeCenter(removeDropZoneRef.current, event.clientX, event.clientY)
+          : validDrop && overZone === "catalog"
+            ? getNodeCenter(catalogDropZoneRef.current, event.clientX, event.clientY)
+            : { x: drag.originX, y: drag.originY };
+
+    setTargetDragState({
+      ...drag,
+      phase: "settling",
+      x: event.clientX,
+      y: event.clientY,
+      overZone,
+      validDrop,
+      dropX: destination.x,
+      dropY: destination.y,
+    });
+
+    targetDragSettleTimer.current = window.setTimeout(() => {
+      if (validDrop) {
+        if (drag.source === "catalog-target") {
+          handleAddTargetToDraft(drag.target);
+        } else {
+          handleRemoveTargetFromDraft(drag.target.id);
+        }
+      }
+      setTargetDragState(null);
+      targetDragSettleTimer.current = null;
+    }, TARGET_DRAG_SETTLE_MS);
+  };
+
+  const makeCatalogTargetPointerProps = (item: PlayerCollectionTargetItemView) => {
+    const target = item.target;
+    const canDrag = item.availability.canAdd;
+
+    return ({
+    onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
+      const originX = event.clientX;
+
+      if (deckDraft) {
+        if (!canDrag) return;
+        beginTargetDragCandidate(event, target, "catalog-target");
+        if (event.pointerType !== "mouse") {
+          longPressStart.current = { x: event.clientX, y: event.clientY };
+          longPressTimer.current = setTimeout(() => {
+            openTargetPreview(target, originX, false);
+            targetDragPressRef.current = null;
+            setTargetDragState(null);
+            longPressStart.current = null;
+          }, 450);
+        }
         return;
       }
-      // Touch / pen: require hold of 450ms
-      longPressStart.current = { x: e.clientX, y: e.clientY };
+
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Preview remains available without capture.
+      }
+      if (event.pointerType === "mouse") {
+        openTargetPreview(target, originX, true);
+        return;
+      }
+      longPressStart.current = { x: event.clientX, y: event.clientY };
       longPressTimer.current = setTimeout(() => {
-        setPreviewOriginX(ox);
-        setPreviewIsDesktop(false);
-        setPreviewCopies(deckDraft ? draftTargetCopies[target.id] ?? 0 : target.copies);
-        setPreview(target);
+        openTargetPreview(target, originX, false);
         longPressStart.current = null;
       }, 450);
     },
-    onPointerUp: (e: React.PointerEvent) => { if (e.pointerType !== "mouse") cancelLongPress(); },
-    onPointerCancel: cancelLongPress,
-    onPointerMove: (e: React.PointerEvent) => {
-      if (e.pointerType === "mouse" || !longPressStart.current) return;
-      const dx = e.clientX - longPressStart.current.x;
-      const dy = e.clientY - longPressStart.current.y;
+    onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => {
+      if (deckDraft) {
+        updateTargetDrag(event);
+        return;
+      }
+      if (event.pointerType === "mouse" || !longPressStart.current) return;
+      const dx = event.clientX - longPressStart.current.x;
+      const dy = event.clientY - longPressStart.current.y;
       if (Math.sqrt(dx * dx + dy * dy) > 9) cancelLongPress();
     },
-    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    onPointerUp: (event: React.PointerEvent<HTMLDivElement>) => {
+      if (deckDraft) {
+        finishTargetDrag(event, () => openTargetPreview(target, event.clientX, true));
+        return;
+      }
+      if (event.pointerType !== "mouse") cancelLongPress();
+    },
+    onPointerCancel: cancelTargetDrag,
+    onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
+  });
+  };
+
+  const makeDeckTargetPointerProps = (target: ContentTargetView) => ({
+    onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
+      beginTargetDragCandidate(event, target, "deck-target");
+    },
+    onPointerMove: updateTargetDrag,
+    onPointerUp: finishTargetDrag,
+    onPointerCancel: cancelTargetDrag,
+    onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
+    "aria-label": `Arrastar ${target.name} para remover do deck`,
   });
 
   const handleBackPointerDown = (e: React.PointerEvent) => {
@@ -1180,6 +1632,21 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     [],
   );
   const syllableViews = useMemo(() => createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog), []);
+  const playerInventorySnapshot = useMemo(
+    () => createLocalPlayerInventorySnapshot(catalog, playerInventoryMode),
+    [catalog, playerInventoryMode],
+  );
+  const playerCollectionView = useMemo(
+    () =>
+      createCatalogBackedPlayerCollectionView({
+        catalog,
+        targetViews,
+        syllableViews,
+        deckDefinition: draftDeckDefinition ?? selectedDeck?.definition ?? null,
+        inventory: playerInventorySnapshot,
+      }),
+    [catalog, draftDeckDefinition, playerInventorySnapshot, selectedDeck, syllableViews, targetViews],
+  );
   const filterOptionsView = useMemo(
     () => createContentCatalogFiltersView(targetViews, { superclassFilter: superF }),
     [targetViews, superF],
@@ -1197,8 +1664,22 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       sortDirection: sortDir,
     });
   }, [targetViews, superF, classF, rarF, dSearch, sortMode, sortDir]);
+  const filteredPlayerTargetViews = useMemo(
+    () =>
+      filteredTargetViews
+        .map((target) => playerCollectionView.targetsById[target.id])
+        .filter((target): target is PlayerCollectionTargetItemView => Boolean(target)),
+    [filteredTargetViews, playerCollectionView],
+  );
 
   const filteredSyllableViews = useMemo(() => !dSearch ? syllableViews : syllableViews.filter((c) => c.syllable.toLowerCase().includes(dSearch)), [syllableViews, dSearch]);
+  const filteredPlayerSyllableViews = useMemo(
+    () =>
+      filteredSyllableViews
+        .map((syllable) => playerCollectionView.syllablesByCardId[syllable.cardId])
+        .filter((syllable): syllable is PlayerCollectionSyllableItemView => Boolean(syllable)),
+    [filteredSyllableViews, playerCollectionView],
+  );
 
   // Cards per page based on grid dimensions:
   // Desktop and Compact targets: 4 cols × 2 rows = 8
@@ -1207,7 +1688,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     ? (mode === "targets" ? 8 : 8)
     : (mode === "targets" ? 8 : 18);
 
-  const pageSourceItems = mode === "targets" ? filteredTargetViews : filteredSyllableViews;
+  const pageSourceItems = mode === "targets" ? filteredPlayerTargetViews : filteredPlayerSyllableViews;
   const totalPages = Math.max(1, Math.ceil(pageSourceItems.length / perPage));
   const curPage = Math.min(page, totalPages - 1);
   const pageItems = pageSourceItems.slice(curPage * perPage, curPage * perPage + perPage);
@@ -1346,15 +1827,46 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
             </div>
 
             {/* Card pool panel */}
-            <div className={cn(
-              "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2",
-              deckDraft ? "border-emerald-500/45" : "border-[#d8ccb8]",
-            )}>
+            <div
+              ref={catalogDropZoneRef}
+              className={cn(
+                "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] transition-all [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2",
+                deckDraft ? "border-emerald-500/45" : "border-[#d8ccb8]",
+                targetDrag?.source === "deck-target" && targetDrag.overZone === "catalog" && "border-rose-400/75 bg-rose-50/65 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.20)]",
+              )}
+            >
 
               {deckDraft && (
-                <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-emerald-700/18 bg-emerald-50/90 px-2.5 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-emerald-800 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]">
-                  <span className="min-w-0 truncate">Catálogo disponível</span>
-                  <span className="shrink-0 text-emerald-700/75">Toque + para adicionar</span>
+                <div className={cn(
+                  "flex shrink-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]",
+                  targetDrag?.source === "deck-target"
+                    ? "border-rose-700/18 bg-rose-50/90 text-rose-800"
+                    : "border-emerald-700/18 bg-emerald-50/90 text-emerald-800",
+                )}>
+                  <div className="min-w-0">
+                    <div className="truncate">{playerCollectionView.sourceLabel}</div>
+                    <div className="truncate text-[0.48rem] tracking-[0.04em] opacity-70 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem]">
+                      {playerCollectionView.summary.availableTargets}/{playerCollectionView.summary.totalTargets} alvos · {targetDrag?.source === "deck-target" ? "solte no catalogo para remover" : "toque + ou arraste"}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-black/10 bg-white/65 p-0.5">
+                    {(["catalog-full", "qa-partial"] as const).map((modeOption) => (
+                      <button
+                        key={modeOption}
+                        type="button"
+                        title={`Usar inventario ${getPlayerInventoryLocalModeLabel(modeOption)}`}
+                        onClick={() => handlePlayerInventoryModeChange(modeOption)}
+                        className={cn(
+                          "h-6 touch-manipulation rounded-md px-2 text-[0.48rem] font-black uppercase tracking-[0.05em] transition [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.4rem]",
+                          playerInventoryMode === modeOption
+                            ? "bg-amber-900/12 text-amber-950 shadow-sm"
+                            : "text-amber-950/48",
+                        )}
+                      >
+                        {modeOption === "catalog-full" ? "Tudo" : "QA"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1381,15 +1893,21 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     >
                       {pageItems.map((entry, i) => {
                         if (mode === "targets") {
-                          const targetEntry = entry as ContentTargetView;
+                          const collectionTargetEntry = entry as PlayerCollectionTargetItemView;
+                          const targetEntry = collectionTargetEntry.target;
                           return (
                           <div
                             key={targetEntry.id}
                             style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }}
-                            className="relative flex items-center justify-center select-none"
-                            {...makeLongPressProps(targetEntry)}
+                            className={cn(
+                              "relative flex items-center justify-center select-none",
+                              deckDraft && collectionTargetEntry.availability.canAdd && "touch-none cursor-grab active:cursor-grabbing",
+                              deckDraft && !collectionTargetEntry.availability.canAdd && "cursor-not-allowed",
+                              targetDrag?.target.id === targetEntry.id && targetDrag.source === "catalog-target" && "opacity-45",
+                            )}
+                            {...makeCatalogTargetPointerProps(collectionTargetEntry)}
                           >
-                            <CollectionTargetCard target={targetEntry} />
+                            <CollectionTargetCard item={collectionTargetEntry} />
                             {deckDraft && (
                               <button
                                 type="button"
@@ -1398,7 +1916,14 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                                   e.stopPropagation();
                                   handleAddTargetToDraft(targetEntry);
                                 }}
-                                className="absolute bottom-2 right-2 z-10 flex h-9 min-w-9 touch-manipulation items-center justify-center gap-1 rounded-lg border-[2px] border-emerald-700/30 bg-emerald-50 px-2 font-serif text-[0.62rem] font-black uppercase tracking-[0.06em] text-emerald-800 shadow-[0_4px_0_rgba(4,120,87,0.25),0_10px_18px_rgba(15,23,42,0.18)] transition [@media(hover:hover)]:hover:-translate-y-px [@media(pointer:coarse)_and_(max-height:480px)]:bottom-1 [@media(pointer:coarse)_and_(max-height:480px)]:right-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:min-w-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]"
+                                disabled={!collectionTargetEntry.availability.canAdd}
+                                title={collectionTargetEntry.availability.reason}
+                                className={cn(
+                                  "absolute bottom-2 right-2 z-10 flex h-9 min-w-9 touch-manipulation items-center justify-center gap-1 rounded-lg border-[2px] px-2 font-serif text-[0.62rem] font-black uppercase tracking-[0.06em] shadow-[0_4px_0_rgba(4,120,87,0.25),0_10px_18px_rgba(15,23,42,0.18)] transition [@media(hover:hover)]:hover:-translate-y-px [@media(pointer:coarse)_and_(max-height:480px)]:bottom-1 [@media(pointer:coarse)_and_(max-height:480px)]:right-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:min-w-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]",
+                                  collectionTargetEntry.availability.canAdd
+                                    ? "border-emerald-700/30 bg-emerald-50 text-emerald-800"
+                                    : "border-rose-700/25 bg-rose-50 text-rose-700 opacity-80",
+                                )}
                                 aria-label={`Adicionar ${targetEntry.name} ao deck`}
                               >
                                 <Plus className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
@@ -1414,17 +1939,38 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                           );
                         }
 
-                        const syllableEntry = entry as ContentSyllableView;
+                        const collectionSyllableEntry = entry as PlayerCollectionSyllableItemView;
+                        const syllableEntry = collectionSyllableEntry.syllable;
+                        const syllableAvailable = collectionSyllableEntry.availability.canAdd;
                         return (
                           <div key={`${syllableEntry.id}-${i}`} style={{ width: "100%", maxWidth: sylW, height: sylH }} className="relative flex justify-center pb-2 [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
-                            <div className="origin-top scale-[0.85] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[0.72]">
+                            <div className={cn("origin-top scale-[0.85] [@media(pointer:coarse)_and_(max-height:480px)]:scale-[0.72]", !syllableAvailable && "grayscale opacity-60")}>
                               <SyllableCard syllable={syllableEntry.syllable} selected={false} playable={false} disabled={false} staticDisplay onClick={() => { }} sizePreset="hand-desktop" />
                             </div>
+                            {deckDraft && (
+                              <span className={cn(
+                                "absolute left-1 top-1 z-10 rounded-full border px-1.5 py-0.5 text-[0.46rem] font-black uppercase tracking-[0.04em] shadow-sm",
+                                getPlayerCollectionAvailabilityToneClass(syllableAvailable),
+                              )}>
+                                {collectionSyllableEntry.inventory.unlimited
+                                  ? `uso ${collectionSyllableEntry.inventory.usedCopies}/∞`
+                                  : (collectionSyllableEntry.inventory.ownedCopies ?? 0) <= 0
+                                    ? "não poss."
+                                    : `resta ${collectionSyllableEntry.inventory.remainingCopies ?? 0}`}
+                              </span>
+                            )}
                             {deckDraft && (
                               <button
                                 type="button"
                                 onClick={() => handleAddCardToDraft(syllableEntry.cardId)}
-                                className="absolute bottom-1 right-1 z-10 flex h-7 min-w-7 touch-manipulation items-center justify-center gap-1 rounded-lg border border-emerald-700/25 bg-emerald-50 px-1.5 text-[0.55rem] font-black text-emerald-800 shadow-sm"
+                                disabled={!collectionSyllableEntry.availability.canAdd}
+                                title={collectionSyllableEntry.availability.reason}
+                                className={cn(
+                                  "absolute bottom-1 right-1 z-10 flex h-7 min-w-7 touch-manipulation items-center justify-center gap-1 rounded-lg border px-1.5 text-[0.55rem] font-black shadow-sm",
+                                  collectionSyllableEntry.availability.canAdd
+                                    ? "border-emerald-700/25 bg-emerald-50 text-emerald-800"
+                                    : "border-rose-700/25 bg-rose-50 text-rose-700 opacity-80",
+                                )}
                                 aria-label={`Adicionar carta ${syllableEntry.syllable} ao deck`}
                               >
                                 <Plus className="h-3 w-3" />
@@ -1477,6 +2023,12 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     renameValue={renameValue}
                     isRenaming={isRenamingDeck}
                     pendingDeleteDeckId={pendingDeleteDeckId}
+                    dragOverZone={targetDrag?.overZone ?? null}
+                    dragSource={targetDrag?.source ?? null}
+                    draggingTargetId={targetDrag?.phase !== "pressing" ? targetDrag?.target.id ?? null : null}
+                    onDeckDropZoneRef={(node) => { deckDropZoneRef.current = node; }}
+                    onRemoveDropZoneRef={(node) => { removeDropZoneRef.current = node; }}
+                    getDeckTargetDragProps={makeDeckTargetPointerProps}
                     onSelectDeck={handleSelectDeck}
                     onViewChange={setDeckRailView}
                     onCreateDeck={handleCreateDeck}
@@ -1588,6 +2140,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
           onClose={() => setPreview(null)}
         />
       )}
+      {targetDrag && <TargetDragOverlay drag={targetDrag} />}
     </motion.div>
   );
 };

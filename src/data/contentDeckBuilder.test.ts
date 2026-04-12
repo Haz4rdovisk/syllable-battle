@@ -19,6 +19,19 @@ import {
   loadDeckBuilderLocalState,
   saveDeckBuilderLocalState,
 } from "./content/deckBuilderStorage";
+import {
+  createCatalogBackedPlayerCollectionView,
+} from "./content/playerCollection";
+import {
+  createLocalPlayerInventorySnapshot,
+  loadPlayerInventoryLocalState,
+  PLAYER_INVENTORY_LOCAL_STORAGE_KEY,
+  savePlayerInventoryLocalState,
+} from "./content/playerInventoryLocal";
+import {
+  createContentCatalogSyllableViews,
+  createContentCatalogTargetViews,
+} from "./content/readModels";
 
 class MemoryStorage {
   private values = new Map<string, string>();
@@ -201,4 +214,114 @@ test("deck builder local storage tolera payload corrompido ou ids removidos do c
   assert.deepEqual(loaded.decks[0]?.targetIds, ["vaca"]);
   assert.deepEqual(loaded.decks[0]?.cardPool, { "syllable.va": 2 });
   assert.equal(loaded.decks[0]?.visualTheme, CONTENT_PIPELINE.catalog.decks[0]?.visualTheme);
+});
+
+test("player collection adapter expoe catalogo completo como colecao local provisoria", () => {
+  const targetViews = createContentCatalogTargetViews(CONTENT_PIPELINE.catalog, { deckModels: CONTENT_PIPELINE.deckModels });
+  const syllableViews = createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog);
+  const deck = CONTENT_PIPELINE.deckModelsById.fazenda.definition;
+  const view = createCatalogBackedPlayerCollectionView({
+    catalog: CONTENT_PIPELINE.catalog,
+    targetViews,
+    syllableViews,
+    deckDefinition: deck,
+  });
+
+  assert.equal(view.source, "catalog-full-access");
+  assert.equal(view.summary.hasLimitedInventory, false);
+  assert.equal(view.summary.availableTargets, view.summary.totalTargets);
+  assert.equal(view.summary.availableSyllables, view.summary.totalSyllables);
+  assert.equal(view.targetsById.vaca.inventory.ownedCopies, null);
+  assert.equal(view.targetsById.vaca.inventory.usedCopies, deck.targetIds.filter((targetId) => targetId === "vaca").length);
+  assert.equal(view.targetsById.vaca.availability.canAdd, true);
+});
+
+test("player collection adapter suporta inventario limitado e itens indisponiveis", () => {
+  const targetViews = createContentCatalogTargetViews(CONTENT_PIPELINE.catalog, { deckModels: CONTENT_PIPELINE.deckModels });
+  const syllableViews = createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog);
+  const view = createCatalogBackedPlayerCollectionView({
+    catalog: CONTENT_PIPELINE.catalog,
+    targetViews,
+    syllableViews,
+    deckDefinition: {
+      targetIds: ["vaca"],
+      cardPool: {
+        "syllable.va": 1,
+        "syllable.ca": 1,
+      },
+    },
+    inventory: {
+      source: "local-snapshot",
+      targetCopies: {
+        vaca: 1,
+      },
+      cardCopies: {
+        "syllable.va": 1,
+      },
+    },
+  });
+
+  assert.equal(view.source, "local-snapshot");
+  assert.equal(view.summary.hasLimitedInventory, true);
+  assert.equal(view.targetsById.vaca.inventory.remainingCopies, 0);
+  assert.equal(view.targetsById.vaca.availability.canAdd, false);
+  assert.equal(view.syllablesByCardId["syllable.ca"].availability.canAdd, false);
+});
+
+test("player inventory local salva modo e tolera payload invalido", () => {
+  const storage = new MemoryStorage();
+
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "catalog-full" });
+  assert.equal(savePlayerInventoryLocalState(storage, { mode: "qa-partial" }), true);
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "qa-partial" });
+
+  storage.setItem(PLAYER_INVENTORY_LOCAL_STORAGE_KEY, JSON.stringify({ version: 1, mode: "modo-inexistente" }));
+  assert.deepEqual(loadPlayerInventoryLocalState(storage), { mode: "catalog-full" });
+});
+
+test("player inventory local cria fixture parcial com disponiveis nao possuidos e sem copias", () => {
+  const targetViews = createContentCatalogTargetViews(CONTENT_PIPELINE.catalog, { deckModels: CONTENT_PIPELINE.deckModels });
+  const syllableViews = createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog);
+  const fullInventory = createLocalPlayerInventorySnapshot(CONTENT_PIPELINE.catalog, "catalog-full");
+  const partialInventory = createLocalPlayerInventorySnapshot(CONTENT_PIPELINE.catalog, "qa-partial");
+  const firstOwnedTarget = CONTENT_PIPELINE.catalog.targets[0];
+  assert.ok(firstOwnedTarget);
+
+  const fullView = createCatalogBackedPlayerCollectionView({
+    catalog: CONTENT_PIPELINE.catalog,
+    targetViews,
+    syllableViews,
+    inventory: fullInventory,
+  });
+  assert.equal(fullView.summary.hasLimitedInventory, false);
+  assert.equal(fullView.targetsById[firstOwnedTarget.id].inventory.unlimited, true);
+
+  const partialView = createCatalogBackedPlayerCollectionView({
+    catalog: CONTENT_PIPELINE.catalog,
+    targetViews,
+    syllableViews,
+    inventory: partialInventory,
+  });
+  const unavailableTargets = partialView.targets.filter((entry) => !entry.availability.canAdd);
+  assert.equal(partialView.sourceLabel, "Colecao QA");
+  assert.equal(partialView.summary.hasLimitedInventory, true);
+  assert.ok(partialView.summary.availableTargets > 0);
+  assert.ok(unavailableTargets.length > 0);
+  assert.equal(partialView.targetsById[firstOwnedTarget.id].inventory.ownedCopies, 1);
+
+  const exhaustedView = createCatalogBackedPlayerCollectionView({
+    catalog: CONTENT_PIPELINE.catalog,
+    targetViews,
+    syllableViews,
+    deckDefinition: {
+      targetIds: [firstOwnedTarget.id],
+      cardPool: firstOwnedTarget.cardIds.reduce<Record<string, number>>((acc, cardId) => {
+        acc[cardId] = (acc[cardId] ?? 0) + 1;
+        return acc;
+      }, {}),
+    },
+    inventory: partialInventory,
+  });
+  assert.equal(exhaustedView.targetsById[firstOwnedTarget.id].inventory.remainingCopies, 0);
+  assert.equal(exhaustedView.targetsById[firstOwnedTarget.id].availability.canAdd, false);
 });
