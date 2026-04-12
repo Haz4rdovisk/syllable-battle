@@ -1,6 +1,6 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FilePlus2, Layers3, Minus, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Swords, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Copy, FilePlus2, Layers3, Minus, Pencil, Plus, RotateCcw, Save, Search, Sparkles, Swords, Trash2, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 import { SyllableCard } from "../game/GameComponents";
@@ -24,17 +24,28 @@ import {
 import {
   addCardToDeckBuilderDraft,
   addTargetToDeckBuilderDraft,
+  createDeckBuilderCompositionView,
+  createDuplicatedDeckBuilderDraftFromDeckModel,
   createDeckBuilderDraftFromDeckModel,
   createDeckDefinitionFromBuilderDraft,
   createEmptyDeckBuilderDraft,
   getDeckBuilderCardCopies,
   getDeckBuilderTargetCopies,
+  renameDeckBuilderDraft,
   removeCardFromDeckBuilderDraft,
   removeTargetFromDeckBuilderDraft,
+  validateDeckBuilderDefinition,
+  type DeckBuilderCompositionView,
+  type DeckBuilderValidationView,
   type DeckBuilderDraft,
 } from "../../data/content/deckBuilder";
+import {
+  loadDeckBuilderLocalState,
+  saveDeckBuilderLocalState,
+} from "../../data/content/deckBuilderStorage";
 import { DECK_VISUAL_THEME_CLASSES } from "../../data/content/themes";
 import type { DeckDefinition, DeckModel } from "../../data/content/types";
+import { CONFIG } from "../../logic/gameLogic";
 
 interface CollectionScreenProps { onBack: () => void }
 
@@ -46,9 +57,12 @@ interface CollectionDeckEntry {
   description: string;
   emoji: string;
   visualTheme: DeckDefinition["visualTheme"];
+  source: "catalog" | "local";
+  localStatus: "catalog" | "override" | "local";
 }
 
 type DeckRailViewMode = "list" | "cards";
+type DeckBuilderFeedback = "saved" | "cancelled" | "storage-error" | "duplicated" | "renamed" | "deleted" | "target-added" | "target-removed" | "card-added" | "card-removed" | null;
 
 // ─── Card grid sizes (portrait aspect ratio ~200:275 ≈ 0.73:1) ───────────────
 const CARD_W_D = 200;
@@ -59,6 +73,38 @@ const SYL_W_D = 128;
 const SYL_H_D = 179;
 const SYL_W_C = 96;
 const SYL_H_C = 134;
+
+const getDeckBuilderBrowserStorage = () => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
+
+const getDeckBuilderStateLabel = (deck: Pick<CollectionDeckEntry, "localStatus">) => {
+  if (deck.localStatus === "override") return "Override local";
+  if (deck.localStatus === "local") return "Deck local";
+  return "Catalogo";
+};
+
+const getDeckBuilderValidationToneClass = (status: DeckBuilderValidationView["status"]) => {
+  if (status === "ready") return "border-emerald-300/75 bg-emerald-50 text-emerald-800";
+  if (status === "incomplete") return "border-amber-300/75 bg-amber-50 text-amber-800";
+  return "border-rose-200/75 bg-rose-50 text-rose-700";
+};
+
+const getDeckBuilderFeedbackToneClass = (feedback: DeckBuilderFeedback) => {
+  if (feedback === "storage-error") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (feedback === "target-removed" || feedback === "card-removed" || feedback === "cancelled" || feedback === "deleted") {
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  }
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+};
+
+const formatDeckBuilderCount = (value: number, minimum: number) => `${value}/${minimum}`;
 
 // ─── Pill ─────────────────────────────────────────────────────────────────────
 const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.ReactNode; sm?: boolean }> = ({ active, onClick, children, sm }) => (
@@ -94,7 +140,7 @@ const DeckRailTargetRow: React.FC<{ target: ContentTargetView; editable?: boolea
 // ─── DeckBanner ───────────────────────────────────────────────────────────────
 const DeckBanner: React.FC<{ deck: CollectionDeckEntry; isSelected: boolean; isDirty?: boolean; onClick: () => void }> = ({ deck, isSelected, isDirty, onClick }) => {
   const deckSummary = useMemo(() => createContentDeckSummaryView(deck.deckModel), [deck]);
-  const count = deckSummary.metrics.uniqueTargets;
+  const count = deckSummary.metrics.totalTargets;
   const sylCount = deckSummary.metrics.totalSyllables;
 
   return (
@@ -103,7 +149,7 @@ const DeckBanner: React.FC<{ deck: CollectionDeckEntry; isSelected: boolean; isD
       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.7rem] shadow [@media(pointer:coarse)_and_(max-height:480px)]:h-10 [@media(pointer:coarse)_and_(max-height:480px)]:w-10 [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.4rem]">{deck.emoji}</div>
       <div className="relative min-w-0 flex-1 flex flex-col justify-center py-0.5">
         <div className="truncate font-serif text-[1.05rem] font-black leading-tight text-amber-50 drop-shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.95rem]">{deck.name}</div>
-        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]">{isDirty ? "RASCUNHO LOCAL" : deck.definition.superclass || "SEM CLASSE"}</div>
+        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]">{isDirty ? "RASCUNHO LOCAL" : getDeckBuilderStateLabel(deck)}</div>
         <div className="mt-2 flex items-center gap-1.5 overflow-hidden [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
           <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{count} alvo{count !== 1 ? 's' : ''}</div>
           <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{sylCount} sílaba{sylCount !== 1 ? 's' : ''}</div>
@@ -113,6 +159,21 @@ const DeckBanner: React.FC<{ deck: CollectionDeckEntry; isSelected: boolean; isD
   );
 };
 
+const DeckCompositionMeter: React.FC<{ label: string; value: number; minimum: number; progress: number }> = ({ label, value, minimum, progress }) => (
+  <div className="min-w-0 rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+    <div className="mb-1 flex items-center justify-between gap-1 text-[0.5rem] font-black uppercase tracking-[0.07em] text-[#8b7357]">
+      <span>{label}</span>
+      <span className={value >= minimum ? "text-emerald-700" : "text-amber-800"}>{formatDeckBuilderCount(value, minimum)}</span>
+    </div>
+    <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10">
+      <div
+        className={cn("h-full rounded-full transition-all duration-200", value >= minimum ? "bg-emerald-500" : "bg-amber-500")}
+        style={{ width: `${Math.max(6, Math.min(100, progress * 100))}%` }}
+      />
+    </div>
+  </div>
+);
+
 // ─── DeckRailPanel ────────────────────────────────────────────────────────────
 const DeckRailPanel: React.FC<{
   decks: CollectionDeckEntry[];
@@ -121,12 +182,26 @@ const DeckRailPanel: React.FC<{
   view: DeckRailViewMode;
   isEditing: boolean;
   isDirty: boolean;
+  feedback: DeckBuilderFeedback;
+  validation: DeckBuilderValidationView | null;
+  composition: DeckBuilderCompositionView | null;
+  renameValue: string;
+  isRenaming: boolean;
+  pendingDeleteDeckId: string | null;
   onSelectDeck: (deckId: string) => void;
   onViewChange: (view: DeckRailViewMode) => void;
   onCreateDeck: () => void;
   onStartEdit: () => void;
   onSaveDraft: () => void;
   onCancelDraft: () => void;
+  onDuplicateDeck: () => void;
+  onRequestDeleteDeck: () => void;
+  onCancelDeleteDeck: () => void;
+  onConfirmDeleteDeck: () => void;
+  onStartRename: () => void;
+  onCancelRename: () => void;
+  onRenameValueChange: (value: string) => void;
+  onCommitRename: () => void;
   onRemoveTarget: (targetId: string) => void;
   onRemoveCard: (cardId: string) => void;
 }> = ({
@@ -136,12 +211,26 @@ const DeckRailPanel: React.FC<{
   view,
   isEditing,
   isDirty,
+  feedback,
+  validation,
+  composition,
+  renameValue,
+  isRenaming,
+  pendingDeleteDeckId,
   onSelectDeck,
   onViewChange,
   onCreateDeck,
   onStartEdit,
   onSaveDraft,
   onCancelDraft,
+  onDuplicateDeck,
+  onRequestDeleteDeck,
+  onCancelDeleteDeck,
+  onConfirmDeleteDeck,
+  onStartRename,
+  onCancelRename,
+  onRenameValueChange,
+  onCommitRename,
   onRemoveTarget,
   onRemoveCard,
 }) => {
@@ -149,9 +238,50 @@ const DeckRailPanel: React.FC<{
   const deckSummary = useMemo(() => (deck ? createContentDeckSummaryView(deck.deckModel) : null), [deck]);
   const deckTargetViews = deckSummary?.targets ?? [];
   const deckSyllableViews = deckSummary?.syllables ?? [];
-  const deckTargetsByRarity = useMemo(() => { const g = {} as Record<string, typeof deckTargetViews>; CONTENT_RARITY_DESCENDING.forEach((r) => { g[r] = []; }); deckTargetViews.forEach((target) => { (g[target.rarity] ??= []).push(target); }); return g; }, [deckTargetViews]);
+  const orderedDeckTargetViews = useMemo(
+    () =>
+      [...deckTargetViews].sort((left, right) =>
+        right.copies - left.copies
+        || right.damage - left.damage
+        || left.name.localeCompare(right.name, "pt-BR"),
+      ),
+    [deckTargetViews],
+  );
+  const orderedDeckSyllableViews = useMemo(
+    () =>
+      [...deckSyllableViews].sort((left, right) =>
+        (right.copies ?? 0) - (left.copies ?? 0)
+        || left.syllable.localeCompare(right.syllable, "pt-BR"),
+      ),
+    [deckSyllableViews],
+  );
+  const deckTargetsByRarity = useMemo(() => { const g = {} as Record<string, typeof orderedDeckTargetViews>; CONTENT_RARITY_DESCENDING.forEach((r) => { g[r] = []; }); orderedDeckTargetViews.forEach((target) => { (g[target.rarity] ??= []).push(target); }); return g; }, [orderedDeckTargetViews]);
   const deckTargetTotal = deckSummary?.metrics.totalTargets ?? 0;
   const deckSyllableTotal = deckSummary?.metrics.totalSyllables ?? 0;
+  const deckRepeatedCopies = composition?.repeatedCopies ?? 0;
+  const isDeletePending = Boolean(deck && pendingDeleteDeckId === deck.deckId);
+  const feedbackText =
+    feedback === "saved"
+      ? "Salvo neste dispositivo"
+      : feedback === "cancelled"
+        ? "Rascunho descartado"
+        : feedback === "duplicated"
+          ? "Deck duplicado"
+          : feedback === "renamed"
+            ? "Nome salvo"
+            : feedback === "deleted"
+              ? "Copia local removida"
+              : feedback === "target-added"
+                ? "+ alvo no rascunho"
+                : feedback === "target-removed"
+                  ? "- alvo do rascunho"
+                  : feedback === "card-added"
+                    ? "+ silaba no rascunho"
+                    : feedback === "card-removed"
+                      ? "- silaba do rascunho"
+                      : feedback === "storage-error"
+                        ? "Storage indisponivel"
+                        : null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
@@ -189,7 +319,7 @@ const DeckRailPanel: React.FC<{
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.4rem] shadow">{deck.emoji}</div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-serif text-[1rem] font-black leading-none text-amber-50">{deck.name}</div>
-                    <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{isEditing ? "Editando deck" : deck.definition.superclass}</div>
+                    <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{isEditing ? "Editando deck" : getDeckBuilderStateLabel(deck)}</div>
                   </div>
                   {!isEditing ? (
                     <button
@@ -221,13 +351,128 @@ const DeckRailPanel: React.FC<{
                 </div>
               </div>
             )}
+            <div className={cn(
+              "flex shrink-0 items-center justify-between gap-2 border-b border-[#d9c8a9] bg-[#fffaf3]/96 px-3 py-1.5 text-[0.56rem] font-black uppercase tracking-[0.08em]",
+              isEditing ? "text-emerald-800" : deck?.localStatus === "override" ? "text-sky-800" : deck?.localStatus === "local" ? "text-emerald-800" : "text-[#9a7f5c]",
+            )}>
+              <span className="min-w-0 truncate">
+                {isEditing
+                  ? isDirty
+                    ? "Rascunho com mudanças"
+                    : "Editando sem mudanças"
+                  : deck?.localStatus === "override"
+                    ? "Catalogo com override local"
+                    : deck?.localStatus === "local"
+                      ? "Deck local salvo"
+                      : "Deck original do catalogo"}
+              </span>
+              {feedbackText && (
+                <span className={cn(
+                  "shrink-0 rounded-full border px-2 py-0.5",
+                  getDeckBuilderFeedbackToneClass(feedback),
+                )}>
+                  {feedbackText}
+                </span>
+              )}
+            </div>
+            {!isEditing && deck && (
+              <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-[#d9c8a9] bg-[#fffaf3]/92 px-2 py-1.5">
+                <button
+                  type="button"
+                  onClick={onStartRename}
+                  className="flex h-7 touch-manipulation items-center justify-center gap-1 rounded-lg border border-[#d7ccb8] bg-white/75 text-[0.5rem] font-black uppercase tracking-[0.04em] text-[#7f6a52] transition [@media(hover:hover)]:hover:bg-white"
+                >
+                  <Pencil className="h-3 w-3" /> Nome
+                </button>
+                <button
+                  type="button"
+                  onClick={onDuplicateDeck}
+                  className="flex h-7 touch-manipulation items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 text-[0.5rem] font-black uppercase tracking-[0.04em] text-sky-800 transition [@media(hover:hover)]:hover:bg-sky-100"
+                >
+                  <Copy className="h-3 w-3" /> Duplicar
+                </button>
+                <button
+                  type="button"
+                  onClick={onRequestDeleteDeck}
+                  disabled={deck.localStatus === "catalog"}
+                  className={cn(
+                    "flex h-7 touch-manipulation items-center justify-center gap-1 rounded-lg border text-[0.5rem] font-black uppercase tracking-[0.04em] transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50",
+                    isDeletePending ? "border-rose-300 bg-rose-100 text-rose-800" : "border-rose-200 bg-rose-50 text-rose-700 [@media(hover:hover)]:hover:bg-rose-100",
+                  )}
+                  title={deck.localStatus === "override" ? "Remove apenas a copia local" : "Exclui o deck local"}
+                >
+                  <Trash2 className="h-3 w-3" /> Excluir
+                </button>
+              </div>
+            )}
+            {isDeletePending && deck && (
+              <div className="flex shrink-0 items-center gap-2 border-b border-rose-200/80 bg-rose-50/92 px-2 py-1.5">
+                <div className="min-w-0 flex-1 text-[0.54rem] font-black uppercase leading-tight tracking-[0.06em] text-rose-800">
+                  {deck.localStatus === "override" ? "Remover override local?" : "Excluir deste dispositivo?"}
+                </div>
+                <button
+                  type="button"
+                  onClick={onCancelDeleteDeck}
+                  className="flex h-7 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/80 px-2 text-[0.5rem] font-black uppercase tracking-[0.05em] text-[#7f6a52]"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  onClick={onConfirmDeleteDeck}
+                  className="flex h-7 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-rose-300 bg-rose-100 px-2 text-[0.5rem] font-black uppercase tracking-[0.05em] text-rose-800"
+                >
+                  Confirmar
+                </button>
+              </div>
+            )}
+            {isRenaming && (
+              <div className="flex shrink-0 items-center gap-1 border-b border-[#d9c8a9] bg-[#fffaf3]/96 px-2 py-1.5">
+                <input
+                  value={renameValue}
+                  onChange={(event) => onRenameValueChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") onCommitRename();
+                    if (event.key === "Escape") onCancelRename();
+                  }}
+                  className="h-8 min-w-0 flex-1 rounded-lg border border-amber-900/15 bg-white/85 px-2 text-[0.68rem] font-black text-amber-950 outline-none focus:border-amber-500/50"
+                  aria-label="Novo nome do deck"
+                  maxLength={28}
+                />
+                <button
+                  type="button"
+                  onClick={onCancelRename}
+                  className="flex h-8 w-8 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/75 text-[#7f6a52]"
+                  aria-label="Cancelar renomeacao"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onCommitRename}
+                  className="flex h-8 touch-manipulation items-center justify-center rounded-lg border border-emerald-700/20 bg-emerald-50 px-2 text-[0.55rem] font-black uppercase tracking-[0.05em] text-emerald-800"
+                >
+                  OK
+                </button>
+              </div>
+            )}
             <div className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 py-2">
+              {deckTargetViews.length === 0 && deckSyllableViews.length === 0 && (
+                <div className="mb-2 rounded-lg border border-dashed border-amber-300/80 bg-amber-50/75 px-3 py-3 text-center">
+                  <div className="font-serif text-[0.9rem] font-black text-[#5b2408]">Deck vazio</div>
+                  <div className="mt-1 text-[0.58rem] font-black uppercase tracking-[0.08em] text-[#9a7f5c]">
+                    Use + nas cartas para começar.
+                  </div>
+                </div>
+              )}
               {CONTENT_RARITY_DESCENDING.map((rk) => {
                 const grp = deckTargetsByRarity[rk]; if (!grp?.length) return null;
+                const groupCopies = grp.reduce((sum, target) => sum + target.copies, 0);
                 return (
                   <div key={rk} className="mb-2">
                     <div className={cn("mb-1.5 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase", getContentRaritySoftToneClass(rk))}>
                       <span className={cn("h-2 w-2 shrink-0 rounded-full", getContentRarityToneClass(rk))} />{getContentRarityLabel(rk)}
+                      <span className="ml-auto text-[0.48rem] opacity-75">{groupCopies} copia{groupCopies !== 1 ? "s" : ""}</span>
                     </div>
                     <div className="flex flex-col gap-1">
                       {grp.map((t) => <DeckRailTargetRow key={t.id} target={t} editable={isEditing} onRemove={() => onRemoveTarget(t.id)} />)}
@@ -239,9 +484,10 @@ const DeckRailPanel: React.FC<{
                 <div className="mb-1">
                   <div className="mb-1.5 flex items-center gap-1.5 rounded-full border border-slate-200/60 bg-slate-50/82 px-2 py-0.5 text-[0.6rem] font-black uppercase text-slate-600">
                     <Sparkles className="h-2.5 w-2.5" />Sílabas
+                    <span className="ml-auto text-[0.48rem] opacity-75">{orderedDeckSyllableViews.length} tipo{orderedDeckSyllableViews.length !== 1 ? "s" : ""}</span>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {deckSyllableViews.map((s, i) => (
+                    {orderedDeckSyllableViews.map((s, i) => (
                       <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-0.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-2 py-0.5 text-[0.58rem] font-black text-amber-800">
                         {s.syllable}<span className="rounded-full bg-amber-200/55 px-1 text-[0.48rem]">×{s.copies ?? 0}</span>
                         {isEditing && (
@@ -261,22 +507,56 @@ const DeckRailPanel: React.FC<{
               )}
             </div>
             <div className="shrink-0 border-t border-[#d9c8a9] bg-[#fffaf3]/96 px-3 py-2">
-              <div className="flex items-center justify-between gap-1">
-                <div className="flex items-center gap-3">
-                  <div className="text-center">
-                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{deckTargetTotal}</div>
-                    <div className="text-[0.54rem] font-black uppercase tracking-[0.1em] text-[#9a7f5c]">Alvos</div>
+              {validation && (
+                <div className={cn(
+                  "mb-1.5 flex items-center justify-between gap-2 rounded-lg border px-2 py-1 text-[0.54rem] font-black uppercase tracking-[0.06em]",
+                  getDeckBuilderValidationToneClass(validation.status),
+                )}>
+                  <div className="flex min-w-0 items-center gap-1">
+                    {validation.status === "ready" ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <AlertTriangle className="h-3 w-3 shrink-0" />}
+                    <span className="shrink-0">{validation.label}</span>
                   </div>
-                  <div className="h-5 w-px bg-[#d9c8a9]" />
-                  <div className="text-center">
-                    <div className="font-serif text-[1.3rem] font-black text-[#5b2408]">{deckSyllableTotal}</div>
-                    <div className="text-[0.54rem] font-black uppercase tracking-[0.1em] text-[#9a7f5c]">Sílabas</div>
+                  <span className="min-w-0 truncate text-right opacity-80">{validation.detail}</span>
+                </div>
+              )}
+              {composition && (
+                <div className="mb-1.5 grid grid-cols-[1fr_1fr_auto] gap-1.5">
+                  <DeckCompositionMeter label="Alvos" value={composition.totalTargets} minimum={composition.minTargets} progress={composition.targetProgress} />
+                  <DeckCompositionMeter label="Sílabas" value={composition.totalSyllables} minimum={composition.minSyllables} progress={composition.syllableProgress} />
+                  <div className="flex min-w-[3.7rem] flex-col items-center justify-center rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                    <div className="font-serif text-[1rem] font-black leading-none text-[#5b2408]">{deckRepeatedCopies}</div>
+                    <div className="mt-0.5 text-[0.46rem] font-black uppercase tracking-[0.06em] text-[#8b7357]">Cópias</div>
                   </div>
                 </div>
-                <div className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.06em]", deckTargetTotal >= 2 ? "border-emerald-300/70 bg-emerald-50 text-emerald-700" : "border-amber-300/70 bg-amber-50 text-amber-700")}>
-                  <Swords className="h-3 w-3" />{isEditing ? (isDirty ? "Alterado" : "Sem mudanças") : deckTargetTotal >= 2 ? "Pronto" : "Montar"}
+              )}
+              <div className="flex items-center justify-between gap-1">
+                <div className="min-w-0">
+                  <div className="truncate text-[0.55rem] font-black uppercase tracking-[0.07em] text-[#7f6a52]">{composition?.label ?? "Composição"}</div>
+                  <div className="truncate text-[0.5rem] font-semibold text-[#9a7f5c]">{composition?.detail ?? `${deckTargetTotal} alvos · ${deckSyllableTotal} sílabas`}</div>
+                </div>
+                <div className={cn("flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.06em]", validation?.status === "ready" ? "border-emerald-300/70 bg-emerald-50 text-emerald-700" : "border-amber-300/70 bg-amber-50 text-amber-700")}>
+                  <Swords className="h-3 w-3" />{isEditing ? (isDirty ? "Alterado" : "Sem mudanças") : validation?.status === "ready" ? "Pronto" : "Montar"}
                 </div>
               </div>
+              {isEditing && (
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onCancelDraft}
+                    className="flex h-8 touch-manipulation items-center justify-center gap-1 rounded-lg border border-[#d7ccb8] bg-white/75 text-[0.55rem] font-black uppercase tracking-[0.06em] text-[#7f6a52] transition [@media(hover:hover)]:hover:bg-white"
+                  >
+                    <X className="h-3 w-3" /> Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSaveDraft}
+                    disabled={!isDirty}
+                    className="flex h-8 touch-manipulation items-center justify-center gap-1 rounded-lg border border-emerald-700/20 bg-emerald-50 text-[0.55rem] font-black uppercase tracking-[0.06em] text-emerald-800 transition disabled:opacity-45 [@media(hover:hover)]:hover:bg-emerald-100"
+                  >
+                    <Save className="h-3 w-3" /> Salvar
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -473,13 +753,25 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
         description: deck.description,
         emoji: deck.emoji,
         visualTheme: deck.visualTheme,
+        source: "catalog" as const,
+        localStatus: "catalog" as const,
       })),
     [],
   );
-  const [localDeckDefinitions, setLocalDeckDefinitions] = useState<DeckDefinition[]>([]);
-  const [selectedDeckId, setSelectedDeckId] = useState(() => baseDeckEntries[0]?.deckId ?? "");
+  const initialLocalBuilderState = useMemo(
+    () => loadDeckBuilderLocalState(getDeckBuilderBrowserStorage(), catalog),
+    [catalog],
+  );
+  const [localDeckDefinitions, setLocalDeckDefinitions] = useState<DeckDefinition[]>(() => initialLocalBuilderState.decks);
+  const [selectedDeckId, setSelectedDeckId] = useState(
+    () => initialLocalBuilderState.selectedDeckId ?? baseDeckEntries[0]?.deckId ?? "",
+  );
   const [deckRailView, setDeckRailView] = useState<DeckRailViewMode>("list");
   const [deckDraft, setDeckDraft] = useState<DeckBuilderDraft | null>(null);
+  const [builderFeedback, setBuilderFeedback] = useState<DeckBuilderFeedback>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenamingDeck, setIsRenamingDeck] = useState(false);
+  const [pendingDeleteDeckId, setPendingDeleteDeckId] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState<"decks" | "filters">("decks");
   const [mode, setMode] = useState<"targets" | "syllables">("targets");
   const [page, setPage] = useState(0);
@@ -519,6 +811,8 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
         description: override.description,
         emoji: override.emoji,
         visualTheme: override.visualTheme,
+        source: "local" as const,
+        localStatus: "override" as const,
       };
     });
     const localOnlyEntries = localDeckDefinitions
@@ -529,13 +823,15 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
         return {
           deckId: definition.id,
           deckModel,
-          definition,
-          name: definition.name,
+        definition,
+        name: definition.name,
           description: definition.description,
           emoji: definition.emoji,
           visualTheme: definition.visualTheme,
-        };
-      });
+          source: "local" as const,
+          localStatus: "local" as const,
+      };
+    });
 
     return [...resolvedBaseEntries, ...localOnlyEntries];
   }, [baseDeckEntries, catalog, localDeckDefinitions]);
@@ -550,6 +846,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   );
   const visibleDecks = useMemo<CollectionDeckEntry[]>(() => {
     if (!draftDeckDefinition || !draftDeckModel) return collectionDecks;
+    const currentEntry = collectionDecks.find((entry) => entry.deckId === draftDeckDefinition.id);
 
     const draftEntry: CollectionDeckEntry = {
       deckId: draftDeckDefinition.id,
@@ -559,6 +856,8 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       description: draftDeckDefinition.description,
       emoji: draftDeckDefinition.emoji,
       visualTheme: draftDeckDefinition.visualTheme,
+      source: currentEntry?.source ?? "local",
+      localStatus: currentEntry?.localStatus ?? "local",
     };
     let replaced = false;
     const entries = collectionDecks.map((entry) => {
@@ -572,6 +871,26 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const selectedDeck = useMemo(
     () => visibleDecks.find((entry) => entry.deckId === selectedDeckId) ?? visibleDecks[0] ?? null,
     [selectedDeckId, visibleDecks],
+  );
+  const selectedDeckValidation = useMemo(
+    () =>
+      selectedDeck
+        ? validateDeckBuilderDefinition(selectedDeck.definition, {
+          minTargets: CONFIG.targetsInPlay,
+          minSyllables: CONFIG.handSize,
+        })
+        : null,
+    [selectedDeck],
+  );
+  const selectedDeckComposition = useMemo(
+    () =>
+      selectedDeck
+        ? createDeckBuilderCompositionView(selectedDeck.definition, {
+          minTargets: CONFIG.targetsInPlay,
+          minSyllables: CONFIG.handSize,
+        })
+        : null,
+    [selectedDeck],
   );
   const persistedDraftBaseline = useMemo(() => {
     if (!deckDraft) return null;
@@ -589,10 +908,34 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     setSelectedDeckId(visibleDecks[0]?.deckId ?? "");
   }, [selectedDeckId, visibleDecks]);
 
+  useEffect(() => {
+    saveDeckBuilderLocalState(getDeckBuilderBrowserStorage(), {
+      decks: localDeckDefinitions,
+      selectedDeckId,
+    }, catalog);
+  }, [catalog, localDeckDefinitions, selectedDeckId]);
+
+  useEffect(() => {
+    if (!builderFeedback) return;
+    const timeoutId = window.setTimeout(() => setBuilderFeedback(null), 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [builderFeedback]);
+
+  const persistLocalDeckDefinitions = (nextDeckDefinitions: DeckDefinition[], nextSelectedDeckId = selectedDeckId) => {
+    setLocalDeckDefinitions(nextDeckDefinitions);
+    return saveDeckBuilderLocalState(getDeckBuilderBrowserStorage(), {
+      decks: nextDeckDefinitions,
+      selectedDeckId: nextSelectedDeckId,
+    }, catalog);
+  };
+
   const handleSelectDeck = (deckId: string) => {
     if (deckDraft && deckId !== deckDraft.id) {
       setDeckDraft(null);
     }
+    setIsRenamingDeck(false);
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(null);
     setSelectedDeckId(deckId);
   };
 
@@ -603,6 +946,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     setDeckRailView("cards");
     setSidebar("decks");
     setMode("targets");
+    setIsRenamingDeck(false);
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(null);
   };
 
   const handleStartEditDeck = () => {
@@ -610,17 +956,23 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     setDeckDraft(createDeckBuilderDraftFromDeckModel(selectedDeck.deckModel));
     setDeckRailView("cards");
     setSidebar("decks");
+    setIsRenamingDeck(false);
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(null);
   };
 
   const handleSaveDeckDraft = () => {
     if (!deckDraft || !draftDeckDefinition) return;
-    setLocalDeckDefinitions((current) => {
-      const next = current.filter((definition) => definition.id !== draftDeckDefinition.id);
-      return [...next, draftDeckDefinition];
-    });
+    const nextLocalDeckDefinitions = [
+      ...localDeckDefinitions.filter((definition) => definition.id !== draftDeckDefinition.id),
+      draftDeckDefinition,
+    ];
+    const storageOk = persistLocalDeckDefinitions(nextLocalDeckDefinitions, draftDeckDefinition.id);
     setSelectedDeckId(draftDeckDefinition.id);
     setDeckDraft(null);
     setDeckRailView("cards");
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(storageOk ? "saved" : "storage-error");
   };
 
   const handleCancelDeckDraft = () => {
@@ -630,29 +982,123 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     setDeckDraft(null);
     setSelectedDeckId(fallbackDeckId);
     setDeckRailView(fallbackDeckId ? "cards" : "list");
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback("cancelled");
+  };
+
+  const handleDuplicateDeck = () => {
+    if (!selectedDeck) return;
+    const draft = createDuplicatedDeckBuilderDraftFromDeckModel(
+      selectedDeck.deckModel,
+      visibleDecks.map((entry) => entry.deckId),
+    );
+    const definition = createDeckDefinitionFromBuilderDraft(draft, catalog);
+    const nextLocalDeckDefinitions = [
+      ...localDeckDefinitions.filter((entry) => entry.id !== definition.id),
+      definition,
+    ];
+    const storageOk = persistLocalDeckDefinitions(nextLocalDeckDefinitions, definition.id);
+    setSelectedDeckId(definition.id);
+    setDeckDraft(null);
+    setDeckRailView("cards");
+    setIsRenamingDeck(false);
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(storageOk ? "duplicated" : "storage-error");
+  };
+
+  const handleRequestDeleteLocalDeck = () => {
+    if (!selectedDeck || selectedDeck.localStatus === "catalog") return;
+    setIsRenamingDeck(false);
+    setPendingDeleteDeckId(selectedDeck.deckId);
+    setBuilderFeedback(null);
+  };
+
+  const handleCancelDeleteLocalDeck = () => {
+    setPendingDeleteDeckId(null);
+  };
+
+  const handleConfirmDeleteLocalDeck = () => {
+    if (!selectedDeck || selectedDeck.localStatus === "catalog") return;
+
+    const nextLocalDeckDefinitions = localDeckDefinitions.filter((definition) => definition.id !== selectedDeck.deckId);
+    const nextSelectedDeckId =
+      selectedDeck.localStatus === "override"
+        ? selectedDeck.deckId
+        : collectionDecks.find((entry) => entry.deckId !== selectedDeck.deckId)?.deckId ?? baseDeckEntries[0]?.deckId ?? "";
+    const storageOk = persistLocalDeckDefinitions(nextLocalDeckDefinitions, nextSelectedDeckId);
+    setDeckDraft(null);
+    setSelectedDeckId(nextSelectedDeckId);
+    setDeckRailView(nextSelectedDeckId ? "cards" : "list");
+    setIsRenamingDeck(false);
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(storageOk ? "deleted" : "storage-error");
+  };
+
+  const handleStartRenameDeck = () => {
+    if (!selectedDeck) return;
+    setRenameValue(selectedDeck.name);
+    setIsRenamingDeck(true);
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(null);
+  };
+
+  const handleCancelRenameDeck = () => {
+    setIsRenamingDeck(false);
+    setRenameValue("");
+  };
+
+  const handleCommitRenameDeck = () => {
+    if (!selectedDeck) return;
+    const nextName = renameValue.trim();
+    if (!nextName || nextName === selectedDeck.name) {
+      setIsRenamingDeck(false);
+      return;
+    }
+
+    const renamedDraft = renameDeckBuilderDraft(createDeckBuilderDraftFromDeckModel(selectedDeck.deckModel), nextName);
+    const definition = createDeckDefinitionFromBuilderDraft(renamedDraft, catalog);
+    const nextLocalDeckDefinitions = [
+      ...localDeckDefinitions.filter((entry) => entry.id !== definition.id),
+      definition,
+    ];
+    const storageOk = persistLocalDeckDefinitions(nextLocalDeckDefinitions, definition.id);
+    setSelectedDeckId(definition.id);
+    setDeckDraft(null);
+    setDeckRailView("cards");
+    setIsRenamingDeck(false);
+    setPendingDeleteDeckId(null);
+    setBuilderFeedback(storageOk ? "renamed" : "storage-error");
   };
 
   const handleAddTargetToDraft = (target: ContentTargetView) => {
     const targetDefinition = target.definition ?? catalog.targetsById[target.id];
     if (!targetDefinition) return;
+    setBuilderFeedback("target-added");
+    setPendingDeleteDeckId(null);
     setDeckDraft((current) => (current ? addTargetToDeckBuilderDraft(current, targetDefinition) : current));
   };
 
   const handleRemoveTargetFromDraft = (targetId: string) => {
     const targetDefinition = catalog.targetsById[targetId];
     if (!targetDefinition) return;
+    setBuilderFeedback("target-removed");
+    setPendingDeleteDeckId(null);
     setDeckDraft((current) => (current ? removeTargetFromDeckBuilderDraft(current, targetDefinition) : current));
   };
 
   const handleAddCardToDraft = (cardId: string) => {
     const card = catalog.cardsById[cardId];
     if (!card) return;
+    setBuilderFeedback("card-added");
+    setPendingDeleteDeckId(null);
     setDeckDraft((current) => (current ? addCardToDeckBuilderDraft(current, card) : current));
   };
 
   const handleRemoveCardFromDraft = (cardId: string) => {
     const card = catalog.cardsById[cardId];
     if (!card) return;
+    setBuilderFeedback("card-removed");
+    setPendingDeleteDeckId(null);
     setDeckDraft((current) => (current ? removeCardFromDeckBuilderDraft(current, card) : current));
   };
 
@@ -900,7 +1346,17 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
             </div>
 
             {/* Card pool panel */}
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border border-[#d8ccb8] bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2">
+            <div className={cn(
+              "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2",
+              deckDraft ? "border-emerald-500/45" : "border-[#d8ccb8]",
+            )}>
+
+              {deckDraft && (
+                <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-emerald-700/18 bg-emerald-50/90 px-2.5 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-emerald-800 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]">
+                  <span className="min-w-0 truncate">Catálogo disponível</span>
+                  <span className="shrink-0 text-emerald-700/75">Toque + para adicionar</span>
+                </div>
+              )}
 
               {/* Card grid — explicit pixel sizes for proper portrait proportions */}
               <div className="relative flex min-h-0 flex-1 items-center justify-between">
@@ -1015,12 +1471,26 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     view={deckRailView}
                     isEditing={Boolean(deckDraft)}
                     isDirty={isDeckDraftDirty}
+                    feedback={builderFeedback}
+                    validation={selectedDeckValidation}
+                    composition={selectedDeckComposition}
+                    renameValue={renameValue}
+                    isRenaming={isRenamingDeck}
+                    pendingDeleteDeckId={pendingDeleteDeckId}
                     onSelectDeck={handleSelectDeck}
                     onViewChange={setDeckRailView}
                     onCreateDeck={handleCreateDeck}
                     onStartEdit={handleStartEditDeck}
                     onSaveDraft={handleSaveDeckDraft}
                     onCancelDraft={handleCancelDeckDraft}
+                    onDuplicateDeck={handleDuplicateDeck}
+                    onRequestDeleteDeck={handleRequestDeleteLocalDeck}
+                    onCancelDeleteDeck={handleCancelDeleteLocalDeck}
+                    onConfirmDeleteDeck={handleConfirmDeleteLocalDeck}
+                    onStartRename={handleStartRenameDeck}
+                    onCancelRename={handleCancelRenameDeck}
+                    onRenameValueChange={setRenameValue}
+                    onCommitRename={handleCommitRenameDeck}
                     onRemoveTarget={handleRemoveTargetFromDraft}
                     onRemoveCard={handleRemoveCardFromDraft}
                   />

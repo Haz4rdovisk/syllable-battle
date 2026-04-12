@@ -19,6 +19,41 @@ export interface DeckBuilderDraft {
   cardPool: Record<string, number>;
 }
 
+export interface DeckBuilderValidationRules {
+  minTargets: number;
+  minSyllables: number;
+}
+
+export type DeckBuilderValidationStatus = "empty" | "incomplete" | "ready";
+
+export interface DeckBuilderValidationIssue {
+  id: "empty" | "min-targets" | "min-syllables";
+  title: string;
+  detail: string;
+}
+
+export interface DeckBuilderValidationView {
+  status: DeckBuilderValidationStatus;
+  label: string;
+  detail: string;
+  issues: DeckBuilderValidationIssue[];
+}
+
+export interface DeckBuilderCompositionView {
+  minTargets: number;
+  minSyllables: number;
+  totalTargets: number;
+  uniqueTargets: number;
+  totalSyllables: number;
+  uniqueSyllables: number;
+  repeatedCopies: number;
+  targetProgress: number;
+  syllableProgress: number;
+  overallProgress: number;
+  label: string;
+  detail: string;
+}
+
 const DEFAULT_DECK_NAME = "Novo Deck";
 const DEFAULT_DECK_DESCRIPTION = "Deck local em montagem.";
 const DEFAULT_DECK_EMOJI = "🃏";
@@ -46,6 +81,11 @@ const createUniqueDeckBuilderId = (existingIds: Iterable<string>, preferredName 
   }
 
   return `${base}-${suffix}`;
+};
+
+const formatDuplicatedDeckName = (name: string) => {
+  const normalizedName = name.trim() || DEFAULT_DECK_NAME;
+  return normalizedName.toLowerCase().includes("copia") ? normalizedName : `${normalizedName} copia`;
 };
 
 const cloneCardPool = (cardPool: Record<string, number>) =>
@@ -107,6 +147,32 @@ export function createEmptyDeckBuilderDraft(
     visualTheme: catalog.decks[0]?.visualTheme ?? DEFAULT_VISUAL_THEME,
     targetIds: [],
     cardPool: {},
+  };
+}
+
+export function createDuplicatedDeckBuilderDraftFromDeckModel(
+  deckModel: DeckModel,
+  existingDeckIds: Iterable<string>,
+): DeckBuilderDraft {
+  const duplicatedName = formatDuplicatedDeckName(deckModel.definition.name);
+  const id = createUniqueDeckBuilderId(existingDeckIds, duplicatedName);
+
+  return {
+    id,
+    name: duplicatedName,
+    description: deckModel.definition.description,
+    emoji: deckModel.definition.emoji,
+    superclass: deckModel.definition.superclass,
+    visualTheme: deckModel.definition.visualTheme,
+    targetIds: [...deckModel.definition.targetIds],
+    cardPool: cloneCardPool(deckModel.definition.cardPool),
+  };
+}
+
+export function renameDeckBuilderDraft(draft: DeckBuilderDraft, name: string): DeckBuilderDraft {
+  return {
+    ...draft,
+    name: name.trim() || draft.name,
   };
 }
 
@@ -195,4 +261,136 @@ export function getDeckBuilderTargetCopies(draft: DeckBuilderDraft) {
 
 export function getDeckBuilderCardCopies(draft: DeckBuilderDraft) {
   return cloneCardPool(draft.cardPool);
+}
+
+export function validateDeckBuilderDefinition(
+  definition: Pick<DeckDefinition, "targetIds" | "cardPool">,
+  rules: DeckBuilderValidationRules,
+): DeckBuilderValidationView {
+  const totalTargets = definition.targetIds.length;
+  const totalSyllables = Object.values(definition.cardPool).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0);
+  const issues: DeckBuilderValidationIssue[] = [];
+
+  if (totalTargets === 0 && totalSyllables === 0) {
+    return {
+      status: "empty",
+      label: "Vazio",
+      detail: "Adicione alvos ou silabas para iniciar o deck.",
+      issues: [
+        {
+          id: "empty",
+          title: "Deck vazio",
+          detail: "O deck ainda nao tem alvos nem silabas.",
+        },
+      ],
+    };
+  }
+
+  if (totalTargets < rules.minTargets) {
+    issues.push({
+      id: "min-targets",
+      title: "Poucos alvos",
+      detail: `Precisa de ${rules.minTargets} alvos para preencher o campo inicial.`,
+    });
+  }
+
+  if (totalSyllables < rules.minSyllables) {
+    issues.push({
+      id: "min-syllables",
+      title: "Poucas silabas",
+      detail: `Precisa de ${rules.minSyllables} silabas para a mao inicial.`,
+    });
+  }
+
+  if (issues.length > 0) {
+    return {
+      status: "incomplete",
+      label: "Incompleto",
+      detail: issues.map((issue) => issue.title).join(" · "),
+      issues,
+    };
+  }
+
+  return {
+    status: "ready",
+    label: "Valido",
+    detail: "Estrutura minima pronta para o jogo atual.",
+    issues: [],
+  };
+}
+
+export function createDeckBuilderCompositionView(
+  definition: Pick<DeckDefinition, "targetIds" | "cardPool">,
+  rules: DeckBuilderValidationRules,
+): DeckBuilderCompositionView {
+  const totalTargets = definition.targetIds.length;
+  const uniqueTargets = new Set(definition.targetIds).size;
+  const totalSyllables = Object.values(definition.cardPool).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0);
+  const uniqueSyllables = Object.values(definition.cardPool).filter((count) => Math.max(0, Number(count) || 0) > 0).length;
+  const repeatedCopies = Math.max(0, totalTargets - uniqueTargets) + Math.max(0, totalSyllables - uniqueSyllables);
+  const targetProgress = rules.minTargets > 0 ? Math.min(1, totalTargets / rules.minTargets) : 1;
+  const syllableProgress = rules.minSyllables > 0 ? Math.min(1, totalSyllables / rules.minSyllables) : 1;
+  const overallProgress = Math.min(targetProgress, syllableProgress);
+  const missingTargets = Math.max(0, rules.minTargets - totalTargets);
+  const missingSyllables = Math.max(0, rules.minSyllables - totalSyllables);
+
+  if (totalTargets === 0 && totalSyllables === 0) {
+    return {
+      minTargets: rules.minTargets,
+      minSyllables: rules.minSyllables,
+      totalTargets,
+      uniqueTargets,
+      totalSyllables,
+      uniqueSyllables,
+      repeatedCopies,
+      targetProgress,
+      syllableProgress,
+      overallProgress,
+      label: "Sem composicao",
+      detail: "Adicione alvos e silabas para formar a base do deck.",
+    };
+  }
+
+  if (missingTargets > 0 || missingSyllables > 0) {
+    const missingParts = [
+      missingTargets > 0 ? `${missingTargets} alvo${missingTargets !== 1 ? "s" : ""}` : "",
+      missingSyllables > 0 ? `${missingSyllables} silaba${missingSyllables !== 1 ? "s" : ""}` : "",
+    ].filter(Boolean);
+
+    return {
+      minTargets: rules.minTargets,
+      minSyllables: rules.minSyllables,
+      totalTargets,
+      uniqueTargets,
+      totalSyllables,
+      uniqueSyllables,
+      repeatedCopies,
+      targetProgress,
+      syllableProgress,
+      overallProgress,
+      label: "Abaixo do minimo",
+      detail: `Falta ${missingParts.join(" e ")} para a base estrutural.`,
+    };
+  }
+
+  const extraTargets = Math.max(0, totalTargets - rules.minTargets);
+  const extraSyllables = Math.max(0, totalSyllables - rules.minSyllables);
+  const hasExtraStructure = extraTargets > 0 || extraSyllables > 0;
+
+  return {
+    minTargets: rules.minTargets,
+    minSyllables: rules.minSyllables,
+    totalTargets,
+    uniqueTargets,
+    totalSyllables,
+    uniqueSyllables,
+    repeatedCopies,
+    targetProgress,
+    syllableProgress,
+    overallProgress,
+    label: hasExtraStructure ? "Acima do minimo" : "Minimo atendido",
+    detail: hasExtraStructure
+      ? "Estrutura acima do minimo atual; balanceamento fica para regras futuras."
+      : "Estrutura minima atendida para o jogo atual.",
+  };
 }
