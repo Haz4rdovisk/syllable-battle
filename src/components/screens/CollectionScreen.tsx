@@ -40,6 +40,7 @@ import {
   getDeckBuilderCardCopies,
   getDeckBuilderTargetCopies,
   getDeckBuilderTargetFormalCanAdd,
+  getDeckBuilderTargetCopyLimit,
   getDeckBuilderSyllableFamilyCopies,
   getDeckBuilderSyllableFormalCanAdd,
   DECK_BUILDER_CONSTRUCTION_RULES,
@@ -91,6 +92,14 @@ interface DeckBuilderTargetDragState {
   dropX?: number;
   dropY?: number;
   validDrop?: boolean;
+}
+
+interface TargetFormalCopyLimitView {
+  currentCopies: number;
+  maxCopies: number;
+  atLimit: boolean;
+  label: string;
+  reason: string;
 }
 
 // ─── Card grid sizes (portrait aspect ratio ~200:275 ≈ 0.73:1) ───────────────
@@ -765,18 +774,37 @@ const DeckRailPanel: React.FC<{
   );
 };
 
-const CollectionTargetCard: React.FC<{ item: PlayerCollectionTargetItemView }> = ({ item }) => {
+const CollectionTargetCard: React.FC<{
+  item: PlayerCollectionTargetItemView;
+  formalCopyLimit?: TargetFormalCopyLimitView | null;
+}> = ({ item, formalCopyLimit }) => {
   const { target } = item;
   const available = item.availability.canAdd;
+  const atFormalLimit = Boolean(formalCopyLimit?.atLimit);
 
   return (
     <div className="relative flex h-full w-full items-start justify-center pb-2 text-center [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
       <div className={cn(
         "card-base relative flex w-full aspect-[126/176] h-full flex-col overflow-hidden rounded-[1.1rem] border border-amber-900/20 shadow-[0_14px_26px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(0,0,0,0.18)] [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.85rem]",
         !available && "grayscale opacity-62",
+        available && atFormalLimit && "opacity-80 ring-2 ring-amber-700/25 hover:translate-y-0 hover:shadow-[0_14px_26px_rgba(0,0,0,0.15)]",
       )}>
 
         <ContentTargetRarityHeader rarityView={target.rarityView} damage={target.damage} />
+        {formalCopyLimit && (
+          <div
+            title={formalCopyLimit.reason}
+            className={cn(
+              "pointer-events-none absolute right-2 top-7 z-10 flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[0.48rem] font-black uppercase leading-none tracking-[0.04em] shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:right-1 [@media(pointer:coarse)_and_(max-height:480px)]:top-6 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.4rem]",
+              atFormalLimit
+                ? "border-amber-900/25 bg-amber-100/95 text-amber-950"
+                : "border-emerald-700/18 bg-emerald-50/92 text-emerald-800",
+            )}
+          >
+            <span>{formalCopyLimit.label}</span>
+            {atFormalLimit && <span className="opacity-72">limite</span>}
+          </div>
+        )}
 
         <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
@@ -1139,6 +1167,21 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     () => getDeckBuilderSyllableFamilyCopies(draftCardCopies, catalog),
     [draftCardCopies, catalog],
   );
+  const getTargetFormalCopyLimitView = (target: ContentTargetView): TargetFormalCopyLimitView => {
+    const currentCopies = draftTargetCopies[target.id] ?? 0;
+    const maxCopies = getDeckBuilderTargetCopyLimit(target.rarity, DECK_BUILDER_CONSTRUCTION_RULES);
+    const atLimit = currentCopies >= maxCopies;
+
+    return {
+      currentCopies,
+      maxCopies,
+      atLimit,
+      label: `×${currentCopies}/${maxCopies}`,
+      reason: atLimit
+        ? `Limite formal atingido para ${getContentRarityLabel(target.rarity)} (${currentCopies}/${maxCopies}).`
+        : `Limite formal por raridade: ${currentCopies}/${maxCopies}.`,
+    };
+  };
 
   useEffect(() => {
     if (visibleDecks.some((entry) => entry.deckId === selectedDeckId)) return;
@@ -1585,9 +1628,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     }, TARGET_DRAG_SETTLE_MS);
   };
 
-  const makeCatalogTargetPointerProps = (item: PlayerCollectionTargetItemView) => {
+  const makeCatalogTargetPointerProps = (item: PlayerCollectionTargetItemView, canStartDrag = item.availability.canAdd) => {
     const target = item.target;
-    const canDrag = item.availability.canAdd;
+    const canDrag = canStartDrag;
 
     return ({
     onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1986,19 +2029,25 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                         if (mode === "targets") {
                           const collectionTargetEntry = entry as PlayerCollectionTargetItemView;
                           const targetEntry = collectionTargetEntry.target;
+                          const targetFormalCopyLimit = deckDraft ? getTargetFormalCopyLimitView(targetEntry) : null;
+                          const targetBlockedByFormalLimit = Boolean(targetFormalCopyLimit?.atLimit);
+                          const targetCanAdd = collectionTargetEntry.availability.canAdd && !targetBlockedByFormalLimit;
+                          const targetActionReason = !collectionTargetEntry.availability.canAdd
+                            ? collectionTargetEntry.availability.reason
+                            : targetFormalCopyLimit?.reason ?? collectionTargetEntry.availability.reason;
                           return (
                           <div
                             key={targetEntry.id}
                             style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }}
                             className={cn(
                               "relative flex items-center justify-center select-none",
-                              deckDraft && collectionTargetEntry.availability.canAdd && "touch-none cursor-grab active:cursor-grabbing",
-                              deckDraft && !collectionTargetEntry.availability.canAdd && "cursor-not-allowed",
+                              deckDraft && targetCanAdd && "touch-none cursor-grab active:cursor-grabbing",
+                              deckDraft && !targetCanAdd && "cursor-not-allowed",
                               targetDrag?.target.id === targetEntry.id && targetDrag.source === "catalog-target" && "opacity-45",
                             )}
-                            {...makeCatalogTargetPointerProps(collectionTargetEntry)}
+                            {...makeCatalogTargetPointerProps(collectionTargetEntry, targetCanAdd)}
                           >
-                            <CollectionTargetCard item={collectionTargetEntry} />
+                            <CollectionTargetCard item={collectionTargetEntry} formalCopyLimit={targetFormalCopyLimit} />
                             {deckDraft && (
                               <button
                                 type="button"
@@ -2008,19 +2057,22 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                                   handleAddTargetToDraft(targetEntry);
                                 }}
                                 disabled={!collectionTargetEntry.availability.canAdd}
-                                title={collectionTargetEntry.availability.reason}
+                                title={targetActionReason}
                                 className={cn(
                                   "absolute bottom-2 right-2 z-10 flex h-9 min-w-9 touch-manipulation items-center justify-center gap-1 rounded-lg border-[2px] px-2 font-serif text-[0.62rem] font-black uppercase tracking-[0.06em] shadow-[0_4px_0_rgba(4,120,87,0.25),0_10px_18px_rgba(15,23,42,0.18)] transition [@media(hover:hover)]:hover:-translate-y-px [@media(pointer:coarse)_and_(max-height:480px)]:bottom-1 [@media(pointer:coarse)_and_(max-height:480px)]:right-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:min-w-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]",
-                                  collectionTargetEntry.availability.canAdd
+                                  targetCanAdd
                                     ? "border-emerald-700/30 bg-emerald-50 text-emerald-800"
                                     : "border-rose-700/25 bg-rose-50 text-rose-700 opacity-80",
                                 )}
-                                aria-label={`Adicionar ${targetEntry.name} ao deck`}
+                                aria-label={targetCanAdd ? `Adicionar ${targetEntry.name} ao deck` : `Adicionar bloqueado para ${targetEntry.name}: ${targetActionReason}`}
                               >
                                 <Plus className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
                                 <span className="[@media(pointer:coarse)_and_(max-height:480px)]:sr-only">Add</span>
                                 {(draftTargetCopies[targetEntry.id] ?? 0) > 0 && (
-                                  <span className="rounded-full bg-emerald-200/80 px-1 text-[0.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.45rem]">
+                                  <span className={cn(
+                                    "rounded-full px-1 text-[0.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.45rem]",
+                                    targetBlockedByFormalLimit ? "bg-rose-100/90 text-rose-800" : "bg-emerald-200/80",
+                                  )}>
                                     ×{draftTargetCopies[targetEntry.id]}
                                   </span>
                                 )}
