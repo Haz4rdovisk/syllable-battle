@@ -95,10 +95,7 @@ interface DeckBuilderTargetDragState {
 }
 
 interface TargetFormalCopyLimitView {
-  currentCopies: number;
-  maxCopies: number;
   atLimit: boolean;
-  label: string;
   reason: string;
 }
 
@@ -112,7 +109,9 @@ const SYL_H_D = 179;
 const SYL_W_C = 96;
 const SYL_H_C = 134;
 const TARGET_DRAG_START_DISTANCE = 10;
+const TARGET_DRAG_SCROLL_CANCEL_DISTANCE = 8;
 const TARGET_DRAG_SETTLE_MS = 170;
+const EMPTY_PLAYER_INVENTORY_OVERRIDES: Record<string, number> = {};
 
 const getDeckBuilderBrowserStorage = () => {
   if (typeof window === "undefined") return null;
@@ -122,6 +121,12 @@ const getDeckBuilderBrowserStorage = () => {
   } catch {
     return null;
   }
+};
+
+const getCollectionDevToolsEnabled = () => {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("collection-dev") === "1" || params.get("deck-builder-dev") === "1";
 };
 
 const getDeckBuilderStateLabel = (deck: Pick<CollectionDeckEntry, "localStatus">) => {
@@ -138,24 +143,7 @@ const getDeckBuilderValidationToneClass = (status: DeckBuilderValidationView["st
   return "border-rose-200/75 bg-rose-50 text-rose-700"; // empty
 };
 
-const getDeckBuilderFeedbackToneClass = (feedback: DeckBuilderFeedback) => {
-  if (feedback === "storage-error" || feedback === "target-unavailable" || feedback === "card-unavailable" || feedback === "target-copy-limit" || feedback === "syllable-copy-limit") return "border-rose-200 bg-rose-50 text-rose-700";
-  if (feedback === "target-removed" || feedback === "card-removed" || feedback === "cancelled" || feedback === "deleted") {
-    return "border-amber-200 bg-amber-50 text-amber-800";
-  }
-  return "border-emerald-200 bg-emerald-50 text-emerald-700";
-};
-
 const formatDeckBuilderCount = (value: number, minimum: number) => `${value}/${minimum}`;
-
-const formatPlayerCollectionCopies = (ownedCopies: number | null) =>
-  ownedCopies === null ? "∞" : String(ownedCopies);
-
-const formatPlayerCollectionUsage = (inventory: PlayerCollectionTargetItemView["inventory"] | PlayerCollectionSyllableItemView["inventory"]) => {
-  if (inventory.unlimited) return `usado ${inventory.usedCopies}/∞`;
-  if ((inventory.ownedCopies ?? 0) <= 0) return "não possuído";
-  return `usado ${inventory.usedCopies}/${formatPlayerCollectionCopies(inventory.ownedCopies)} · resta ${inventory.remainingCopies ?? 0}`;
-};
 
 const getPlayerCollectionAvailabilityToneClass = (available: boolean) =>
   available
@@ -175,34 +163,59 @@ const Pill: React.FC<{ active?: boolean; onClick?: () => void; children: React.R
 const DeckRailTargetRow: React.FC<{
   target: ContentTargetView;
   editable?: boolean;
+  onAdd?: () => void;
   onRemove?: () => void;
   dragProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragging?: boolean;
-}> = ({ target, editable, onRemove, dragProps, isDragging }) => {
+}> = ({ target, editable, onAdd, onRemove, dragProps, isDragging }) => {
+  const maxCopies = getDeckBuilderTargetCopyLimit(target.rarity, DECK_BUILDER_CONSTRUCTION_RULES);
+  const isAtCopyLimit = target.copies >= maxCopies;
+
   return (
     <div
       {...dragProps}
       className={cn(
-        "group flex items-center gap-1.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/70 px-2 py-1 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]",
-        editable && "cursor-grab touch-none active:cursor-grabbing",
+        "group flex min-h-14 items-center gap-2.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/76 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]",
+        editable && "cursor-grab touch-pan-y active:cursor-grabbing",
         isDragging && "opacity-45 ring-2 ring-rose-300/65",
         dragProps?.className,
       )}
     >
-      <div className={cn("h-5 w-1.5 shrink-0 rounded-full", target.rarityView.toneClass)} />
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1rem] shadow-sm">{target.emoji}</div>
-      <span className="min-w-0 flex-1 truncate font-serif text-[0.56rem] font-black leading-tight text-[#31271e]">{target.name}</span>
-      <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-1.5 py-0.5 text-[0.44rem] font-black text-amber-800">×{target.copies}</span>
+      <div className={cn("h-9 w-2.5 shrink-0 rounded-full", target.rarityView.toneClass)} />
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1.5rem] shadow-sm">{target.emoji}</div>
+      <span className="min-w-0 flex-1 truncate font-serif text-[0.86rem] font-black leading-tight text-[#31271e]">{target.name}</span>
+      <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-[0.64rem] font-black text-amber-800">×{target.copies}</span>
       {editable && (
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={onRemove}
-          className="flex h-6 w-6 shrink-0 touch-manipulation items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-700 transition [@media(hover:hover)]:hover:bg-rose-100"
-          aria-label={`Remover ${target.name} do deck`}
-        >
-          <Minus className="h-3 w-3" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!isAtCopyLimit) onAdd?.();
+            }}
+            aria-disabled={isAtCopyLimit}
+            title={isAtCopyLimit ? "Máximo de cópias" : `Adicionar cópia de ${target.name}`}
+            className={cn(
+              "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border transition",
+              isAtCopyLimit
+                ? "cursor-not-allowed border-slate-300/80 bg-slate-100 text-slate-400"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700 [@media(hover:hover)]:hover:bg-emerald-100",
+            )}
+            aria-label={isAtCopyLimit ? `Máximo de cópias para ${target.name}` : `Adicionar copia de ${target.name} ao deck`}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={onRemove}
+            className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-700 transition [@media(hover:hover)]:hover:bg-rose-100"
+            aria-label={`Remover ${target.name} do deck`}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -258,6 +271,8 @@ const TargetDragOverlay: React.FC<{ drag: DeckBuilderTargetDragState }> = ({ dra
   if (drag.phase === "pressing") return null;
 
   const isAdding = drag.source === "catalog-target";
+  const isRemoving = drag.source === "deck-target";
+  const isSettling = drag.phase === "settling";
   const label = drag.validDrop === false
     ? "Solte em uma zona marcada"
     : drag.overZone === "deck"
@@ -273,19 +288,21 @@ const TargetDragOverlay: React.FC<{ drag: DeckBuilderTargetDragState }> = ({ dra
       className="pointer-events-none fixed z-[90] flex w-[8.5rem] flex-col items-center"
       initial={false}
       animate={{
-        left: drag.phase === "settling" ? drag.dropX ?? drag.x : drag.x,
-        top: drag.phase === "settling" ? drag.dropY ?? drag.y : drag.y,
-        scale: drag.phase === "settling" ? 0.72 : 1,
-        opacity: drag.phase === "settling" ? 0.28 : 0.96,
+        left: isSettling ? drag.dropX ?? drag.x : drag.x,
+        top: isSettling ? drag.dropY ?? drag.y : drag.y,
+        scale: isSettling ? 0.72 : 1,
+        opacity: isSettling ? 0.28 : 0.96,
       }}
-      transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.6 }}
+      transition={isSettling
+        ? { type: "spring", stiffness: 420, damping: 34, mass: 0.6 }
+        : { left: { duration: 0 }, top: { duration: 0 }, scale: { duration: 0.08 }, opacity: { duration: 0.08 } }}
       style={{ left: drag.x, top: drag.y, translateX: "-50%", translateY: "-50%" }}
     >
       <div className={cn(
         "relative flex w-full items-center gap-2 rounded-xl border-2 px-2 py-2 shadow-[0_20px_38px_rgba(44,31,12,0.30)] backdrop-blur-sm",
         drag.validDrop === false
           ? "border-amber-300 bg-amber-50/94 text-amber-900"
-          : drag.overZone === "remove" || drag.overZone === "catalog"
+          : drag.overZone === "remove" || drag.overZone === "catalog" || isRemoving
             ? "border-rose-300 bg-rose-50/94 text-rose-900"
             : "border-emerald-300 bg-emerald-50/94 text-emerald-900",
       )}>
@@ -308,9 +325,9 @@ const DeckRailPanel: React.FC<{
   compact: boolean;
   selectedDeckId: string;
   view: DeckRailViewMode;
+  contentMode: "targets" | "syllables";
   isEditing: boolean;
   isDirty: boolean;
-  feedback: DeckBuilderFeedback;
   validation: DeckBuilderValidationView | null;
   composition: DeckBuilderCompositionView | null;
   renameValue: string;
@@ -336,6 +353,7 @@ const DeckRailPanel: React.FC<{
   onCancelRename: () => void;
   onRenameValueChange: (value: string) => void;
   onCommitRename: () => void;
+  onAddTarget: (target: ContentTargetView) => void;
   onRemoveTarget: (targetId: string) => void;
   onRemoveCard: (cardId: string) => void;
 }> = ({
@@ -343,9 +361,9 @@ const DeckRailPanel: React.FC<{
   compact,
   selectedDeckId,
   view,
+  contentMode,
   isEditing,
   isDirty,
-  feedback,
   validation,
   composition,
   renameValue,
@@ -371,6 +389,7 @@ const DeckRailPanel: React.FC<{
   onCancelRename,
   onRenameValueChange,
   onCommitRename,
+  onAddTarget,
   onRemoveTarget,
   onRemoveCard,
 }) => {
@@ -396,44 +415,13 @@ const DeckRailPanel: React.FC<{
     [deckSyllableViews],
   );
   const deckTargetsByRarity = useMemo(() => { const g = {} as Record<string, typeof orderedDeckTargetViews>; CONTENT_RARITY_DESCENDING.forEach((r) => { g[r] = []; }); orderedDeckTargetViews.forEach((target) => { (g[target.rarity] ??= []).push(target); }); return g; }, [orderedDeckTargetViews]);
-  const deckTargetTotal = deckSummary?.metrics.totalTargets ?? 0;
-  const deckSyllableTotal = deckSummary?.metrics.totalSyllables ?? 0;
-  const deckRepeatedCopies = composition?.repeatedCopies ?? 0;
   const isDeletePending = Boolean(deck && pendingDeleteDeckId === deck.deckId);
   const isDeckDropActive = isEditing && dragSource === "catalog-target";
   const isDeckDropHighlighted = isDeckDropActive && dragOverZone === "deck";
   const isRemoveDropActive = isEditing && dragSource === "deck-target";
   const isRemoveDropHighlighted = isRemoveDropActive && dragOverZone === "remove";
-  const feedbackText =
-    feedback === "saved"
-      ? "Salvo neste dispositivo"
-      : feedback === "cancelled"
-        ? "Rascunho descartado"
-        : feedback === "duplicated"
-          ? "Deck duplicado"
-          : feedback === "renamed"
-            ? "Nome salvo"
-            : feedback === "deleted"
-              ? "Copia local removida"
-              : feedback === "target-added"
-                ? "+ alvo no rascunho"
-                : feedback === "target-removed"
-                  ? "- alvo do rascunho"
-                  : feedback === "card-added"
-                    ? "+ silaba no rascunho"
-                    : feedback === "card-removed"
-                      ? "- silaba do rascunho"
-                      : feedback === "target-unavailable"
-                        ? "Alvo indisponivel"
-                        : feedback === "card-unavailable"
-                          ? "Silaba indisponivel"
-                          : feedback === "target-copy-limit"
-                            ? "Limite de copias atingido"
-                            : feedback === "syllable-copy-limit"
-                              ? "Limite de silaba atingido"
-                              : feedback === "storage-error"
-                                ? "Storage indisponivel"
-                                : null;
+  const canDuplicateDeck = Boolean(deckSummary && (deckSummary.metrics.totalTargets > 0 || deckSummary.metrics.totalSyllables > 0));
+  const canSaveDeck = isDirty && canDuplicateDeck;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-[1rem] border border-[#d8ccb8] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
@@ -449,9 +437,11 @@ const DeckRailPanel: React.FC<{
                 <button
                   type="button"
                   onClick={onCreateDeck}
-                  className="flex h-8 shrink-0 touch-manipulation items-center gap-1 rounded-lg border border-emerald-700/20 bg-emerald-50 px-2 text-[0.58rem] font-black uppercase tracking-[0.06em] text-emerald-800 shadow-sm transition [@media(hover:hover)]:hover:bg-emerald-100"
+                  className="relative flex h-10 shrink-0 touch-manipulation items-center gap-2 overflow-hidden rounded-lg border-[2px] border-[#8f5f12] bg-[#f8e7c7] px-3 font-serif text-[0.68rem] font-black uppercase tracking-[0.07em] text-[#5b2408] shadow-[0_4px_0_#8f5f12,0_10px_18px_rgba(91,36,8,0.16)] transition-transform duration-100 [@media(hover:hover)]:hover:-translate-y-px [@media(hover:hover)]:hover:bg-[#ffe5b0] [@media(hover:hover)]:hover:shadow-[0_5px_0_#8f5f12,0_13px_20px_rgba(91,36,8,0.20)] active:translate-y-[3px] active:shadow-[0_1px_0_#8f5f12,0_5px_10px_rgba(91,36,8,0.14)]"
                 >
-                  <FilePlus2 className="h-3.5 w-3.5" /> Novo
+                  <span className="pointer-events-none absolute inset-[2px] rounded-md border border-white/40" />
+                  <FilePlus2 className="relative z-10 h-4 w-4" />
+                  <span className="relative z-10">Novo Deck</span>
                 </button>
               </div>
             </div>
@@ -465,69 +455,54 @@ const DeckRailPanel: React.FC<{
               <div className={cn("relative shrink-0 overflow-hidden px-3 py-2.5", cn("bg-gradient-to-br", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.14),transparent_55%)]" />
                 <div className="relative flex items-center gap-2">
-                  <button type="button" onClick={() => onViewChange("list")} className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/25 bg-black/20 text-amber-50 transition-all [@media(hover:hover)]:hover:bg-black/30">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isEditing) onCancelDraft();
+                      onViewChange("list");
+                    }}
+                    className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/25 bg-black/20 text-amber-50 transition-all [@media(hover:hover)]:hover:bg-black/30"
+                  >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.4rem] shadow">{deck.emoji}</div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-serif text-[1rem] font-black leading-none text-amber-50">{deck.name}</div>
-                    <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{isEditing ? "Editando deck" : getDeckBuilderStateLabel(deck)}</div>
+                    {!isEditing && <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{getDeckBuilderStateLabel(deck)}</div>}
                   </div>
                   {!isEditing ? (
                     <button
                       type="button"
                       onClick={onStartEdit}
-                      className="flex h-7 shrink-0 touch-manipulation items-center gap-1 rounded-lg border border-white/25 bg-black/20 px-2 text-[0.55rem] font-black uppercase tracking-[0.06em] text-amber-50 transition [@media(hover:hover)]:hover:bg-black/30"
+                      className="relative flex h-8 shrink-0 touch-manipulation items-center gap-1.5 overflow-hidden rounded-lg border-[2px] border-[#8f5f12]/80 bg-[#f8e7c7] px-2.5 font-serif text-[0.58rem] font-black uppercase tracking-[0.06em] text-[#5b2408] shadow-[0_3px_0_#7a4d0f,0_8px_14px_rgba(91,36,8,0.16)] transition-transform duration-100 [@media(hover:hover)]:hover:-translate-y-px [@media(hover:hover)]:hover:bg-[#ffe5b0] [@media(hover:hover)]:hover:shadow-[0_4px_0_#7a4d0f,0_11px_16px_rgba(91,36,8,0.20)] active:translate-y-[2px] active:shadow-[0_1px_0_#7a4d0f,0_4px_8px_rgba(91,36,8,0.14)]"
                     >
-                      <Pencil className="h-3 w-3" /> Editar
+                      <span className="pointer-events-none absolute inset-[2px] rounded-md border border-white/45" />
+                      <Pencil className="relative z-10 h-3.5 w-3.5" />
+                      <span className="relative z-10">Editar</span>
                     </button>
                   ) : (
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
-                        onClick={onCancelDraft}
-                        className="flex h-7 touch-manipulation items-center gap-1 rounded-lg border border-white/20 bg-black/20 px-2 text-[0.52rem] font-black uppercase tracking-[0.05em] text-amber-50 transition [@media(hover:hover)]:hover:bg-black/30"
-                      >
-                        <X className="h-3 w-3" /> Cancelar
-                      </button>
-                      <button
-                        type="button"
                         onClick={onSaveDraft}
-                        disabled={!isDirty}
-                        className="flex h-7 touch-manipulation items-center gap-1 rounded-lg border border-emerald-200/55 bg-emerald-50 px-2 text-[0.52rem] font-black uppercase tracking-[0.05em] text-emerald-800 transition disabled:opacity-45 [@media(hover:hover)]:hover:bg-emerald-100"
+                        disabled={!canSaveDeck}
+                        className={cn(
+                          "relative flex h-8 touch-manipulation items-center gap-1.5 overflow-hidden rounded-lg border-[2px] px-2.5 font-serif text-[0.58rem] font-black uppercase tracking-[0.06em] transition-transform duration-100",
+                          canSaveDeck
+                            ? "border-emerald-800/45 bg-emerald-50 text-emerald-900 shadow-[0_3px_0_rgba(6,95,70,0.42),0_8px_14px_rgba(6,95,70,0.16)] [@media(hover:hover)]:hover:-translate-y-px [@media(hover:hover)]:hover:bg-emerald-100 [@media(hover:hover)]:hover:shadow-[0_4px_0_rgba(6,95,70,0.44),0_11px_16px_rgba(6,95,70,0.20)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(6,95,70,0.42),0_4px_8px_rgba(6,95,70,0.14)]"
+                            : "cursor-not-allowed border-white/20 bg-white/24 text-amber-50/48 shadow-none",
+                        )}
                       >
-                        <Save className="h-3 w-3" /> Salvar
+                        {canSaveDeck && <span className="pointer-events-none absolute inset-[2px] rounded-md border border-white/45" />}
+                        <Save className="relative z-10 h-3.5 w-3.5" />
+                        <span className="relative z-10">Salvar</span>
                       </button>
                     </div>
                   )}
                 </div>
               </div>
             )}
-            <div className={cn(
-              "flex shrink-0 items-center justify-between gap-2 border-b border-[#d9c8a9] bg-[#fffaf3]/96 px-3 py-1.5 text-[0.56rem] font-black uppercase tracking-[0.08em]",
-              isEditing ? "text-emerald-800" : deck?.localStatus === "override" ? "text-sky-800" : deck?.localStatus === "local" ? "text-emerald-800" : "text-[#9a7f5c]",
-            )}>
-              <span className="min-w-0 truncate">
-                {isEditing
-                  ? isDirty
-                    ? "Rascunho com mudanças"
-                    : "Editando sem mudanças"
-                  : deck?.localStatus === "override"
-                    ? "Catalogo com override local"
-                    : deck?.localStatus === "local"
-                      ? "Deck local salvo"
-                      : "Deck original do catalogo"}
-              </span>
-              {feedbackText && (
-                <span className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5",
-                  getDeckBuilderFeedbackToneClass(feedback),
-                )}>
-                  {feedbackText}
-                </span>
-              )}
-            </div>
-            {isEditing && (
+            {isRemoveDropActive && (
               <div
                 ref={onRemoveDropZoneRef}
                 className={cn(
@@ -540,62 +515,64 @@ const DeckRailPanel: React.FC<{
                 )}
               >
                 <Trash2 className="h-3 w-3" />
-                {isRemoveDropActive ? "Solte aqui para remover" : "Arraste um alvo do deck para remover"}
+                Solte aqui para remover
               </div>
             )}
-            {!isEditing && deck && (
-              <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-[#d9c8a9] bg-[#fffaf3]/92 px-2 py-1.5">
+            {deck && (
+              <div className="grid shrink-0 grid-cols-3 gap-1.5 border-b border-[#d9c8a9] bg-[#fffaf3]/92 px-2 py-2">
                 <button
                   type="button"
                   onClick={onStartRename}
-                  className="flex h-7 touch-manipulation items-center justify-center gap-1 rounded-lg border border-[#d7ccb8] bg-white/75 text-[0.5rem] font-black uppercase tracking-[0.04em] text-[#7f6a52] transition [@media(hover:hover)]:hover:bg-white"
+                  className="flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-[#d7ccb8] bg-white/75 text-[0.62rem] font-black uppercase tracking-[0.05em] text-[#7f6a52] transition [@media(hover:hover)]:hover:bg-white [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
                 >
-                  <Pencil className="h-3 w-3" /> Nome
+                  <Pencil className="h-3.5 w-3.5" /> Nome
                 </button>
                 <button
                   type="button"
                   onClick={onDuplicateDeck}
-                  className="flex h-7 touch-manipulation items-center justify-center gap-1 rounded-lg border border-sky-200 bg-sky-50 text-[0.5rem] font-black uppercase tracking-[0.04em] text-sky-800 transition [@media(hover:hover)]:hover:bg-sky-100"
+                  disabled={!canDuplicateDeck}
+                  title={canDuplicateDeck ? "Duplicar deck" : "Adicione cartas antes de duplicar"}
+                  className="flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 text-[0.62rem] font-black uppercase tracking-[0.05em] text-sky-800 transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50 [@media(hover:hover)]:hover:bg-sky-100 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
                 >
-                  <Copy className="h-3 w-3" /> Duplicar
+                  <Copy className="h-3.5 w-3.5" /> Duplicar
                 </button>
                 <button
                   type="button"
                   onClick={onRequestDeleteDeck}
                   disabled={deck.localStatus === "catalog"}
                   className={cn(
-                    "flex h-7 touch-manipulation items-center justify-center gap-1 rounded-lg border text-[0.5rem] font-black uppercase tracking-[0.04em] transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50",
+                    "flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border text-[0.62rem] font-black uppercase tracking-[0.05em] transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]",
                     isDeletePending ? "border-rose-300 bg-rose-100 text-rose-800" : "border-rose-200 bg-rose-50 text-rose-700 [@media(hover:hover)]:hover:bg-rose-100",
                   )}
                   title={deck.localStatus === "override" ? "Remove apenas a copia local" : "Exclui o deck local"}
                 >
-                  <Trash2 className="h-3 w-3" /> Excluir
+                  <Trash2 className="h-3.5 w-3.5" /> Excluir
                 </button>
               </div>
             )}
             {isDeletePending && deck && (
-              <div className="flex shrink-0 items-center gap-2 border-b border-rose-200/80 bg-rose-50/92 px-2 py-1.5">
-                <div className="min-w-0 flex-1 text-[0.54rem] font-black uppercase leading-tight tracking-[0.06em] text-rose-800">
-                  {deck.localStatus === "override" ? "Remover override local?" : "Excluir deste dispositivo?"}
+              <div className="flex shrink-0 items-center gap-2 border-b border-rose-200/80 bg-rose-50/92 px-2 py-2">
+                <div className="min-w-0 flex-1 text-[0.64rem] font-black uppercase leading-tight tracking-[0.06em] text-rose-800">
+                  Excluir deck?
                 </div>
                 <button
                   type="button"
                   onClick={onCancelDeleteDeck}
-                  className="flex h-7 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/80 px-2 text-[0.5rem] font-black uppercase tracking-[0.05em] text-[#7f6a52]"
+                  className="flex h-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/80 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-[#7f6a52] [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
                 >
-                  Voltar
+                  Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={onConfirmDeleteDeck}
-                  className="flex h-7 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-rose-300 bg-rose-100 px-2 text-[0.5rem] font-black uppercase tracking-[0.05em] text-rose-800"
+                  className="flex h-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-rose-300 bg-rose-100 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-rose-800 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
                 >
                   Confirmar
                 </button>
               </div>
             )}
             {isRenaming && (
-              <div className="flex shrink-0 items-center gap-1 border-b border-[#d9c8a9] bg-[#fffaf3]/96 px-2 py-1.5">
+              <div className="flex shrink-0 items-center gap-1.5 border-b border-[#d9c8a9] bg-[#fffaf3]/96 px-2 py-2">
                 <input
                   value={renameValue}
                   onChange={(event) => onRenameValueChange(event.target.value)}
@@ -603,22 +580,22 @@ const DeckRailPanel: React.FC<{
                     if (event.key === "Enter") onCommitRename();
                     if (event.key === "Escape") onCancelRename();
                   }}
-                  className="h-8 min-w-0 flex-1 rounded-lg border border-amber-900/15 bg-white/85 px-2 text-[0.68rem] font-black text-amber-950 outline-none focus:border-amber-500/50"
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-amber-900/15 bg-white/85 px-2.5 text-[0.78rem] font-black text-amber-950 outline-none focus:border-amber-500/50 [@media(pointer:coarse)_and_(max-height:480px)]:h-9"
                   aria-label="Novo nome do deck"
                   maxLength={28}
                 />
                 <button
                   type="button"
                   onClick={onCancelRename}
-                  className="flex h-8 w-8 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/75 text-[#7f6a52]"
+                  className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/75 text-[#7f6a52] [@media(pointer:coarse)_and_(max-height:480px)]:h-9 [@media(pointer:coarse)_and_(max-height:480px)]:w-9"
                   aria-label="Cancelar renomeacao"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={onCommitRename}
-                  className="flex h-8 touch-manipulation items-center justify-center rounded-lg border border-emerald-700/20 bg-emerald-50 px-2 text-[0.55rem] font-black uppercase tracking-[0.05em] text-emerald-800"
+                  className="flex h-10 touch-manipulation items-center justify-center rounded-lg border border-emerald-700/20 bg-emerald-50 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-emerald-800 [@media(pointer:coarse)_and_(max-height:480px)]:h-9 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
                 >
                   OK
                 </button>
@@ -635,104 +612,88 @@ const DeckRailPanel: React.FC<{
                     : "",
               )}
             >
-              {isDeckDropActive && (
-                <div className={cn(
-                  "mb-2 rounded-lg border border-dashed px-3 py-2 text-center text-[0.56rem] font-black uppercase tracking-[0.08em] transition-all",
-                  isDeckDropHighlighted
-                    ? "border-emerald-400 bg-emerald-100/80 text-emerald-800"
-                    : "border-emerald-300/75 bg-emerald-50/75 text-emerald-700",
-                )}>
-                  {isDeckDropHighlighted ? "Solte para adicionar ao deck" : "Arraste o alvo para este painel"}
-                </div>
-              )}
-              {deckTargetViews.length === 0 && deckSyllableViews.length === 0 && (
-                <div className="mb-2 rounded-lg border border-dashed border-amber-300/80 bg-amber-50/75 px-3 py-3 text-center">
-                  <div className="font-serif text-[0.9rem] font-black text-[#5b2408]">Deck vazio</div>
-                  <div className="mt-1 text-[0.58rem] font-black uppercase tracking-[0.08em] text-[#9a7f5c]">
-                    Use + nas cartas para começar.
-                  </div>
-                </div>
-              )}
-              {CONTENT_RARITY_DESCENDING.map((rk) => {
-                const grp = deckTargetsByRarity[rk]; if (!grp?.length) return null;
-                const groupCopies = grp.reduce((sum, target) => sum + target.copies, 0);
-                return (
-                  <div key={rk} className="mb-2">
-                    <div className={cn("mb-1.5 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase", getContentRaritySoftToneClass(rk))}>
-                      <span className={cn("h-2 w-2 shrink-0 rounded-full", getContentRarityToneClass(rk))} />{getContentRarityLabel(rk)}
-                      <span className="ml-auto text-[0.48rem] opacity-75">{groupCopies} copia{groupCopies !== 1 ? "s" : ""}</span>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={contentMode}
+                  initial={{ opacity: 0, x: contentMode === "targets" ? -14 : 14 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: contentMode === "targets" ? 14 : -14 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                >
+                  {deckTargetViews.length === 0 && deckSyllableViews.length === 0 && (
+                    <div className="mb-2 rounded-lg border border-dashed border-amber-300/80 bg-amber-50/75 px-3 py-3 text-center">
+                      <div className="font-serif text-[0.9rem] font-black text-[#5b2408]">Deck vazio</div>
+                      <div className="mt-1 text-[0.58rem] font-black uppercase tracking-[0.08em] text-[#9a7f5c]">
+                        Arraste alvos do catálogo para começar.
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      {grp.map((t) => (
-                        <DeckRailTargetRow
-                          key={t.id}
-                          target={t}
-                          editable={isEditing}
-                          onRemove={() => onRemoveTarget(t.id)}
-                          dragProps={isEditing ? getDeckTargetDragProps(t) : undefined}
-                          isDragging={draggingTargetId === t.id && dragSource === "deck-target"}
-                        />
-                      ))}
+                  )}
+                  {contentMode === "targets" && CONTENT_RARITY_DESCENDING.map((rk) => {
+                    const grp = deckTargetsByRarity[rk]; if (!grp?.length) return null;
+                    const groupCopies = grp.reduce((sum, target) => sum + target.copies, 0);
+                    return (
+                      <div key={rk} className="mb-2">
+                        <div className={cn("mb-2 flex items-center gap-2 rounded-full border px-3 py-1.5 text-[0.76rem] font-black uppercase", getContentRaritySoftToneClass(rk))}>
+                          <span className={cn("h-3 w-3 shrink-0 rounded-full", getContentRarityToneClass(rk))} />{getContentRarityLabel(rk)}
+                          <span className="ml-auto text-[0.62rem] opacity-75">{groupCopies} copia{groupCopies !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {grp.map((t) => (
+                            <DeckRailTargetRow
+                              key={t.id}
+                              target={t}
+                              editable={isEditing}
+                              onAdd={() => onAddTarget(t)}
+                              onRemove={() => onRemoveTarget(t.id)}
+                              dragProps={isEditing ? getDeckTargetDragProps(t) : undefined}
+                              isDragging={draggingTargetId === t.id && dragSource === "deck-target"}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {contentMode === "syllables" && deckSyllableViews.length > 0 && (
+                    <div className="mb-1">
+                      <div className="mb-2 flex items-center gap-2 rounded-full border border-slate-200/60 bg-slate-50/82 px-3 py-1.5 text-[0.76rem] font-black uppercase text-slate-600">
+                        <Sparkles className="h-3.5 w-3.5" />Sílabas
+                        <span className="ml-auto text-[0.62rem] opacity-75">{orderedDeckSyllableViews.length} tipo{orderedDeckSyllableViews.length !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {orderedDeckSyllableViews.map((s, i) => (
+                          <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-3 py-1.5 text-[0.78rem] font-black text-amber-800">
+                            {s.syllable}<span className="rounded-full bg-amber-200/55 px-2 text-[0.64rem]">×{s.copies ?? 0}</span>
+                            {isEditing && (
+                              <button
+                                type="button"
+                                onClick={() => onRemoveCard(s.cardId)}
+                                className="-mr-1 ml-0.5 flex h-6 w-6 touch-manipulation items-center justify-center rounded-full bg-rose-100 text-rose-700"
+                                aria-label={`Remover carta ${s.syllable} do deck`}
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-              {deckSyllableViews.length > 0 && (
-                <div className="mb-1">
-                  <div className="mb-1.5 flex items-center gap-1.5 rounded-full border border-slate-200/60 bg-slate-50/82 px-2 py-0.5 text-[0.6rem] font-black uppercase text-slate-600">
-                    <Sparkles className="h-2.5 w-2.5" />Sílabas
-                    <span className="ml-auto text-[0.48rem] opacity-75">{orderedDeckSyllableViews.length} tipo{orderedDeckSyllableViews.length !== 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {orderedDeckSyllableViews.map((s, i) => (
-                      <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-0.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-2 py-0.5 text-[0.58rem] font-black text-amber-800">
-                        {s.syllable}<span className="rounded-full bg-amber-200/55 px-1 text-[0.48rem]">×{s.copies ?? 0}</span>
-                        {isEditing && (
-                          <button
-                            type="button"
-                            onClick={() => onRemoveCard(s.cardId)}
-                            className="-mr-1 ml-0.5 flex h-4 w-4 touch-manipulation items-center justify-center rounded-full bg-rose-100 text-rose-700"
-                            aria-label={`Remover carta ${s.syllable} do deck`}
-                          >
-                            <Minus className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
             <div className="shrink-0 border-t border-[#d9c8a9] bg-[#fffaf3]/96 px-3 py-2">
-              {validation && (
-                <div className={cn(
-                  "mb-1.5 flex items-center justify-between gap-2 rounded-lg border px-2 py-1 text-[0.54rem] font-black uppercase tracking-[0.06em]",
-                  getDeckBuilderValidationToneClass(validation.status),
-                )}>
-                  <div className="flex min-w-0 items-center gap-1">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                {validation && (
+                  <div className={cn(
+                    "inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.06em]",
+                    getDeckBuilderValidationToneClass(validation.status),
+                  )}>
                     {(validation.status === "ready" || validation.status === "valid-min" || validation.status === "ideal") ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <AlertTriangle className="h-3 w-3 shrink-0" />}
-                    <span className="shrink-0">{validation.label}</span>
+                    <span className="truncate">{validation.label}</span>
                   </div>
-                  <span className="min-w-0 truncate text-right opacity-80">{validation.detail}</span>
-                </div>
-              )}
-              {composition && (
-                <div className="mb-1.5 grid grid-cols-[1fr_1fr_auto] gap-1.5">
-                  <DeckCompositionMeter label="Alvos" value={composition.totalTargets} minimum={composition.minTargets} progress={composition.targetProgress} ideal={composition.idealTargets || undefined} max={composition.maxTargets || undefined} />
-                  <DeckCompositionMeter label="Sílabas" value={composition.totalSyllables} minimum={composition.minSyllables} progress={composition.syllableProgress} ideal={composition.idealSyllables || undefined} max={composition.maxSyllables || undefined} />
-                  <div className="flex min-w-[3.7rem] flex-col items-center justify-center rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                    <div className="font-serif text-[1rem] font-black leading-none text-[#5b2408]">{deckRepeatedCopies}</div>
-                    <div className="mt-0.5 text-[0.46rem] font-black uppercase tracking-[0.06em] text-[#8b7357]">Cópias</div>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-1">
-                <div className="min-w-0">
-                  <div className="truncate text-[0.55rem] font-black uppercase tracking-[0.07em] text-[#7f6a52]">{composition?.label ?? "Composição"}</div>
-                  <div className="truncate text-[0.5rem] font-semibold text-[#9a7f5c]">{composition?.detail ?? `${deckTargetTotal} alvos · ${deckSyllableTotal} sílabas`}</div>
-                </div>
+                )}
                 <div className={cn(
-                  "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.06em]",
+                  "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.06em]",
                   validation?.status === "ideal" ? "border-emerald-400/70 bg-emerald-100 text-emerald-800"
                     : (validation?.status === "valid-min" || validation?.status === "ready") ? "border-emerald-300/70 bg-emerald-50 text-emerald-700"
                     : validation?.status === "exceeded" ? "border-rose-300/70 bg-rose-50 text-rose-700"
@@ -747,23 +708,10 @@ const DeckRailPanel: React.FC<{
                     : "Montar"}
                 </div>
               </div>
-              {isEditing && (
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={onCancelDraft}
-                    className="flex h-8 touch-manipulation items-center justify-center gap-1 rounded-lg border border-[#d7ccb8] bg-white/75 text-[0.55rem] font-black uppercase tracking-[0.06em] text-[#7f6a52] transition [@media(hover:hover)]:hover:bg-white"
-                  >
-                    <X className="h-3 w-3" /> Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onSaveDraft}
-                    disabled={!isDirty}
-                    className="flex h-8 touch-manipulation items-center justify-center gap-1 rounded-lg border border-emerald-700/20 bg-emerald-50 text-[0.55rem] font-black uppercase tracking-[0.06em] text-emerald-800 transition disabled:opacity-45 [@media(hover:hover)]:hover:bg-emerald-100"
-                  >
-                    <Save className="h-3 w-3" /> Salvar
-                  </button>
+              {composition && (
+                <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+                  <DeckCompositionMeter label="Alvos" value={composition.totalTargets} minimum={composition.minTargets} progress={composition.targetProgress} ideal={composition.idealTargets || undefined} max={composition.maxTargets || undefined} />
+                  <DeckCompositionMeter label="Sílabas" value={composition.totalSyllables} minimum={composition.minSyllables} progress={composition.syllableProgress} ideal={composition.idealSyllables || undefined} max={composition.maxSyllables || undefined} />
                 </div>
               )}
             </div>
@@ -776,11 +724,10 @@ const DeckRailPanel: React.FC<{
 
 const CollectionTargetCard: React.FC<{
   item: PlayerCollectionTargetItemView;
-  formalCopyLimit?: TargetFormalCopyLimitView | null;
-}> = ({ item, formalCopyLimit }) => {
+  atFormalLimit?: boolean;
+}> = ({ item, atFormalLimit }) => {
   const { target } = item;
   const available = item.availability.canAdd;
-  const atFormalLimit = Boolean(formalCopyLimit?.atLimit);
 
   return (
     <div className="relative flex h-full w-full items-start justify-center pb-2 text-center [@media(pointer:coarse)_and_(max-height:480px)]:pb-1">
@@ -791,20 +738,6 @@ const CollectionTargetCard: React.FC<{
       )}>
 
         <ContentTargetRarityHeader rarityView={target.rarityView} damage={target.damage} />
-        {formalCopyLimit && (
-          <div
-            title={formalCopyLimit.reason}
-            className={cn(
-              "pointer-events-none absolute right-2 top-7 z-10 flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[0.48rem] font-black uppercase leading-none tracking-[0.04em] shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:right-1 [@media(pointer:coarse)_and_(max-height:480px)]:top-6 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.4rem]",
-              atFormalLimit
-                ? "border-amber-900/25 bg-amber-100/95 text-amber-950"
-                : "border-emerald-700/18 bg-emerald-50/92 text-emerald-800",
-            )}
-          >
-            <span>{formalCopyLimit.label}</span>
-            {atFormalLimit && <span className="opacity-72">limite</span>}
-          </div>
-        )}
 
         <div className="relative flex min-h-0 flex-[0.82] items-center justify-center bg-white/10 p-1.5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_42%)]" />
@@ -824,13 +757,14 @@ const CollectionTargetCard: React.FC<{
             className="mt-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5"
             chipClassName="[@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.1em]"
           />
-          <div className={cn(
-            "mx-auto mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[0.48rem] font-black uppercase tracking-[0.06em] [@media(pointer:coarse)_and_(max-height:480px)]:mt-1 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem]",
-            getPlayerCollectionAvailabilityToneClass(available),
-          )}>
-            <span>{available ? "Disponível" : "Indisponível"}</span>
-            <span className="opacity-75">· {formatPlayerCollectionUsage(item.inventory)}</span>
-          </div>
+          {!available && (
+            <div className={cn(
+              "mx-auto mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[0.48rem] font-black uppercase tracking-[0.06em] [@media(pointer:coarse)_and_(max-height:480px)]:mt-1 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem]",
+              getPlayerCollectionAvailabilityToneClass(false),
+            )}>
+              Indisponível
+            </div>
+          )}
         </div>
 
         <div className="pointer-events-none absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] opacity-30" />
@@ -984,6 +918,7 @@ const CardPreviewOverlay: React.FC<{
 
 export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) => {
   const catalog = CONTENT_PIPELINE.catalog;
+  const collectionDevToolsEnabled = useMemo(() => getCollectionDevToolsEnabled(), []);
   const baseDeckEntries = useMemo<CollectionDeckEntry[]>(
     () =>
       APP_RESOLVED_DECKS.map((deck) => ({
@@ -1003,10 +938,14 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     () => loadDeckBuilderLocalState(getDeckBuilderBrowserStorage(), catalog),
     [catalog],
   );
+  const initialPlayerInventoryState = useMemo(
+    () => loadPlayerInventoryLocalState(getDeckBuilderBrowserStorage()),
+    [],
+  );
   const [localDeckDefinitions, setLocalDeckDefinitions] = useState<DeckDefinition[]>(() => initialLocalBuilderState.decks);
-  const [playerInventoryMode, setPlayerInventoryMode] = useState<PlayerInventoryLocalMode>("catalog-full");
+  const [playerInventoryMode, setPlayerInventoryMode] = useState<PlayerInventoryLocalMode>(() => initialPlayerInventoryState.mode);
   const [playerInventoryOverrides, setPlayerInventoryOverrides] = useState<Record<string, number>>(
-    () => loadPlayerInventoryLocalState(getDeckBuilderBrowserStorage()).targetCopiesOverride,
+    () => initialPlayerInventoryState.targetCopiesOverride,
   );
   const [selectedDeckId, setSelectedDeckId] = useState(
     () => initialLocalBuilderState.selectedDeckId ?? baseDeckEntries[0]?.deckId ?? "",
@@ -1017,6 +956,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   const [renameValue, setRenameValue] = useState("");
   const [isRenamingDeck, setIsRenamingDeck] = useState(false);
   const [pendingDeleteDeckId, setPendingDeleteDeckId] = useState<string | null>(null);
+  const [targetLimitFeedback, setTargetLimitFeedback] = useState<{ targetId: string; x: number; y: number; nonce: number } | null>(null);
   const [sidebar, setSidebar] = useState<"decks" | "filters">("decks");
   const [mode, setMode] = useState<"targets" | "syllables">("targets");
   const [page, setPage] = useState(0);
@@ -1048,6 +988,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     originY: number;
   } | null>(null);
   const targetDragSettleTimer = useRef<number | null>(null);
+  const targetLimitFeedbackTimer = useRef<number | null>(null);
   const deckDropZoneRef = useRef<HTMLDivElement | null>(null);
   const removeDropZoneRef = useRef<HTMLDivElement | null>(null);
   const catalogDropZoneRef = useRef<HTMLDivElement | null>(null);
@@ -1173,10 +1114,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     const atLimit = currentCopies >= maxCopies;
 
     return {
-      currentCopies,
-      maxCopies,
       atLimit,
-      label: `×${currentCopies}/${maxCopies}`,
       reason: atLimit
         ? `Limite formal atingido para ${getContentRarityLabel(target.rarity)} (${currentCopies}/${maxCopies}).`
         : `Limite formal por raridade: ${currentCopies}/${maxCopies}.`,
@@ -1213,8 +1151,28 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       if (targetDragSettleTimer.current) {
         window.clearTimeout(targetDragSettleTimer.current);
       }
+      if (targetLimitFeedbackTimer.current) {
+        window.clearTimeout(targetLimitFeedbackTimer.current);
+      }
     };
   }, []);
+
+  const showTargetLimitFeedback = (targetId: string, x: number, y: number) => {
+    if (targetLimitFeedbackTimer.current) {
+      window.clearTimeout(targetLimitFeedbackTimer.current);
+    }
+    setTargetLimitFeedback((current) => ({
+      targetId,
+      x,
+      y,
+      nonce: (current?.nonce ?? 0) + 1,
+    }));
+    setBuilderFeedback("target-copy-limit");
+    targetLimitFeedbackTimer.current = window.setTimeout(() => {
+      setTargetLimitFeedback(null);
+      targetLimitFeedbackTimer.current = null;
+    }, 950);
+  };
 
   const persistLocalDeckDefinitions = (nextDeckDefinitions: DeckDefinition[], nextSelectedDeckId = selectedDeckId) => {
     setLocalDeckDefinitions(nextDeckDefinitions);
@@ -1282,6 +1240,11 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
   const handleSaveDeckDraft = () => {
     if (!deckDraft || !draftDeckDefinition) return;
+    const hasDeckContent =
+      (draftDeckModel?.targetInstances.length ?? 0) > 0
+      || Object.values(draftDeckDefinition.cardPool ?? {}).some((copies) => copies > 0);
+    if (!hasDeckContent) return;
+
     const nextLocalDeckDefinitions = [
       ...localDeckDefinitions.filter((definition) => definition.id !== draftDeckDefinition.id),
       draftDeckDefinition,
@@ -1347,7 +1310,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     const storageOk = persistLocalDeckDefinitions(nextLocalDeckDefinitions, nextSelectedDeckId);
     setDeckDraft(null);
     setSelectedDeckId(nextSelectedDeckId);
-    setDeckRailView(nextSelectedDeckId ? "cards" : "list");
+    setDeckRailView("list");
     setIsRenamingDeck(false);
     setPendingDeleteDeckId(null);
     setBuilderFeedback(storageOk ? "deleted" : "storage-error");
@@ -1371,6 +1334,15 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     const nextName = renameValue.trim();
     if (!nextName || nextName === selectedDeck.name) {
       setIsRenamingDeck(false);
+      return;
+    }
+
+    if (deckDraft) {
+      setDeckDraft((current) => (current ? renameDeckBuilderDraft(current, nextName) : current));
+      setIsRenamingDeck(false);
+      setRenameValue("");
+      setPendingDeleteDeckId(null);
+      setBuilderFeedback("renamed");
       return;
     }
 
@@ -1537,6 +1509,22 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     const current = targetDragRef.current;
 
     if (current?.phase === "pressing" && distance < TARGET_DRAG_START_DISTANCE) return;
+    if (
+      current?.phase === "pressing"
+      && press.source === "deck-target"
+      && event.pointerType !== "mouse"
+      && Math.abs(dy) > TARGET_DRAG_SCROLL_CANCEL_DISTANCE
+      && Math.abs(dy) > Math.abs(dx)
+    ) {
+      targetDragPressRef.current = null;
+      setTargetDragState(null);
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Let the browser keep handling the vertical pan.
+      }
+      return;
+    }
     if (current?.phase === "pressing") {
       cancelLongPress();
       setPreview(null);
@@ -1628,7 +1616,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     }, TARGET_DRAG_SETTLE_MS);
   };
 
-  const makeCatalogTargetPointerProps = (item: PlayerCollectionTargetItemView, canStartDrag = item.availability.canAdd) => {
+  const makeCatalogTargetPointerProps = (item: PlayerCollectionTargetItemView, canStartDrag = item.availability.canAdd, blockedFeedback?: "copy-limit") => {
     const target = item.target;
     const canDrag = canStartDrag;
 
@@ -1637,7 +1625,12 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
       const originX = event.clientX;
 
       if (deckDraft) {
-        if (!canDrag) return;
+        if (!canDrag) {
+          if (blockedFeedback === "copy-limit") {
+            showTargetLimitFeedback(target.id, event.clientX, event.clientY);
+          }
+          return;
+        }
         beginTargetDragCandidate(event, target, "catalog-target");
         if (event.pointerType !== "mouse") {
           longPressStart.current = { x: event.clientX, y: event.clientY };
@@ -1739,9 +1732,11 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     [],
   );
   const syllableViews = useMemo(() => createContentCatalogSyllableViews(CONTENT_PIPELINE.catalog), []);
+  const effectivePlayerInventoryMode = collectionDevToolsEnabled ? playerInventoryMode : "catalog-full";
+  const effectivePlayerInventoryOverrides = collectionDevToolsEnabled ? playerInventoryOverrides : EMPTY_PLAYER_INVENTORY_OVERRIDES;
   const playerInventorySnapshot = useMemo(
-    () => createLocalPlayerInventorySnapshot(catalog, playerInventoryMode, playerInventoryOverrides),
-    [catalog, playerInventoryMode, playerInventoryOverrides],
+    () => createLocalPlayerInventorySnapshot(catalog, effectivePlayerInventoryMode, effectivePlayerInventoryOverrides),
+    [catalog, effectivePlayerInventoryMode, effectivePlayerInventoryOverrides],
   );
   const playerCollectionView = useMemo(
     () =>
@@ -1938,12 +1933,17 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
               ref={catalogDropZoneRef}
               className={cn(
                 "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-[1.1rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.30),rgba(255,248,235,0.78))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] transition-all [@media(pointer:coarse)_and_(max-height:480px)]:rounded-[0.82rem] [@media(pointer:coarse)_and_(max-height:480px)]:p-2",
-                deckDraft ? "border-emerald-500/45" : "border-[#d8ccb8]",
-                targetDrag?.source === "deck-target" && targetDrag.overZone === "catalog" && "border-rose-400/75 bg-rose-50/65 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.20)]",
+                targetDrag?.source === "deck-target"
+                  ? targetDrag.overZone === "catalog"
+                    ? "border-rose-400/75 bg-rose-50/65 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.20)]"
+                    : "border-rose-200/55"
+                  : deckDraft
+                    ? "border-emerald-500/45"
+                    : "border-[#d8ccb8]",
               )}
             >
 
-              {deckDraft && (
+              {collectionDevToolsEnabled && deckDraft && (
                 <div className={cn(
                   "flex shrink-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]",
                   targetDrag?.source === "deck-target"
@@ -1953,7 +1953,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                   <div className="min-w-0">
                     <div className="truncate">{playerCollectionView.sourceLabel}</div>
                     <div className="truncate text-[0.48rem] tracking-[0.04em] opacity-70 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem]">
-                      {playerCollectionView.summary.availableTargets}/{playerCollectionView.summary.totalTargets} alvos · {targetDrag?.source === "deck-target" ? "solte no catalogo para remover" : "toque + ou arraste"}
+                      {playerCollectionView.summary.availableTargets}/{playerCollectionView.summary.totalTargets} alvos · {targetDrag?.source === "deck-target" ? "solte no catalogo para remover" : "arraste para o deck"}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-black/10 bg-white/65 p-0.5">
@@ -1990,7 +1990,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                 </div>
               )}
 
-              {!deckDraft && playerInventoryMode !== "catalog-full" && (
+              {collectionDevToolsEnabled && !deckDraft && playerInventoryMode !== "catalog-full" && (
                 <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-amber-400/40 bg-amber-50/80 px-2.5 py-1 text-[0.52rem] font-black uppercase tracking-[0.08em] text-amber-800 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.44rem]">
                   <span>Modo QA: {getPlayerInventoryLocalModeLabel(playerInventoryMode)}</span>
                   <button
@@ -2032,53 +2032,24 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                           const targetFormalCopyLimit = deckDraft ? getTargetFormalCopyLimitView(targetEntry) : null;
                           const targetBlockedByFormalLimit = Boolean(targetFormalCopyLimit?.atLimit);
                           const targetCanAdd = collectionTargetEntry.availability.canAdd && !targetBlockedByFormalLimit;
-                          const targetActionReason = !collectionTargetEntry.availability.canAdd
-                            ? collectionTargetEntry.availability.reason
-                            : targetFormalCopyLimit?.reason ?? collectionTargetEntry.availability.reason;
                           return (
-                          <div
+                          <motion.div
                             key={targetEntry.id}
                             style={{ width: "100%", maxWidth: cardW, height: "100%", maxHeight: cardH }}
+                            animate={targetLimitFeedback?.targetId === targetEntry.id
+                              ? { x: [0, -5, 5, -3, 3, 0], rotate: [0, -0.8, 0.8, -0.45, 0.45, 0] }
+                              : { x: 0, rotate: 0 }}
+                            transition={{ duration: 0.26, ease: "easeOut" }}
                             className={cn(
                               "relative flex items-center justify-center select-none",
                               deckDraft && targetCanAdd && "touch-none cursor-grab active:cursor-grabbing",
                               deckDraft && !targetCanAdd && "cursor-not-allowed",
                               targetDrag?.target.id === targetEntry.id && targetDrag.source === "catalog-target" && "opacity-45",
                             )}
-                            {...makeCatalogTargetPointerProps(collectionTargetEntry, targetCanAdd)}
+                            {...makeCatalogTargetPointerProps(collectionTargetEntry, targetCanAdd, targetBlockedByFormalLimit ? "copy-limit" : undefined)}
                           >
-                            <CollectionTargetCard item={collectionTargetEntry} formalCopyLimit={targetFormalCopyLimit} />
-                            {deckDraft && (
-                              <button
-                                type="button"
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAddTargetToDraft(targetEntry);
-                                }}
-                                disabled={!collectionTargetEntry.availability.canAdd}
-                                title={targetActionReason}
-                                className={cn(
-                                  "absolute bottom-2 right-2 z-10 flex h-9 min-w-9 touch-manipulation items-center justify-center gap-1 rounded-lg border-[2px] px-2 font-serif text-[0.62rem] font-black uppercase tracking-[0.06em] shadow-[0_4px_0_rgba(4,120,87,0.25),0_10px_18px_rgba(15,23,42,0.18)] transition [@media(hover:hover)]:hover:-translate-y-px [@media(pointer:coarse)_and_(max-height:480px)]:bottom-1 [@media(pointer:coarse)_and_(max-height:480px)]:right-1 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:min-w-7 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]",
-                                  targetCanAdd
-                                    ? "border-emerald-700/30 bg-emerald-50 text-emerald-800"
-                                    : "border-rose-700/25 bg-rose-50 text-rose-700 opacity-80",
-                                )}
-                                aria-label={targetCanAdd ? `Adicionar ${targetEntry.name} ao deck` : `Adicionar bloqueado para ${targetEntry.name}: ${targetActionReason}`}
-                              >
-                                <Plus className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
-                                <span className="[@media(pointer:coarse)_and_(max-height:480px)]:sr-only">Add</span>
-                                {(draftTargetCopies[targetEntry.id] ?? 0) > 0 && (
-                                  <span className={cn(
-                                    "rounded-full px-1 text-[0.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.45rem]",
-                                    targetBlockedByFormalLimit ? "bg-rose-100/90 text-rose-800" : "bg-emerald-200/80",
-                                  )}>
-                                    ×{draftTargetCopies[targetEntry.id]}
-                                  </span>
-                                )}
-                              </button>
-                            )}
-                            {deckDraft && playerInventoryMode !== "catalog-full" && (() => {
+                            <CollectionTargetCard item={collectionTargetEntry} atFormalLimit={targetBlockedByFormalLimit} />
+                            {collectionDevToolsEnabled && deckDraft && playerInventoryMode !== "catalog-full" && (() => {
                               const ownedCopies = collectionTargetEntry.inventory.ownedCopies ?? 0;
                               const hasOverride = Object.prototype.hasOwnProperty.call(playerInventoryOverrides, targetEntry.id);
                               return (
@@ -2121,7 +2092,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                                 </div>
                               );
                             })()}
-                          </div>
+                          </motion.div>
                           );
                         }
 
@@ -2201,9 +2172,9 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     compact={compact}
                     selectedDeckId={selectedDeck?.deckId ?? selectedDeckId}
                     view={deckRailView}
+                    contentMode={mode}
                     isEditing={Boolean(deckDraft)}
                     isDirty={isDeckDraftDirty}
-                    feedback={builderFeedback}
                     validation={selectedDeckValidation}
                     composition={selectedDeckComposition}
                     renameValue={renameValue}
@@ -2229,6 +2200,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     onCancelRename={handleCancelRenameDeck}
                     onRenameValueChange={setRenameValue}
                     onCommitRename={handleCommitRenameDeck}
+                    onAddTarget={handleAddTargetToDraft}
                     onRemoveTarget={handleRemoveTargetFromDraft}
                     onRemoveCard={handleRemoveCardFromDraft}
                   />
@@ -2327,6 +2299,21 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
         />
       )}
       {targetDrag && <TargetDragOverlay drag={targetDrag} />}
+      <AnimatePresence>
+        {targetLimitFeedback && (
+          <motion.div
+            key={targetLimitFeedback.nonce}
+            className="pointer-events-none fixed z-[95] -translate-x-1/2 rounded-lg border border-amber-700/30 bg-[#fff3d6]/96 px-3 py-1.5 font-serif text-[0.64rem] font-black uppercase tracking-[0.06em] text-[#7a3f0f] shadow-[0_5px_0_rgba(143,95,18,0.34),0_14px_26px_rgba(91,36,8,0.20)]"
+            initial={{ opacity: 0, y: -46, scale: 0.92 }}
+            animate={{ opacity: 1, y: -72, scale: 1 }}
+            exit={{ opacity: 0, y: -86, scale: 0.96 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            style={{ left: targetLimitFeedback.x, top: targetLimitFeedback.y }}
+          >
+            Máximo de cópias
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
