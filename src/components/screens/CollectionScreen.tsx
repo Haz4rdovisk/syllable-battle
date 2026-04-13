@@ -342,7 +342,6 @@ const DeckRailPanel: React.FC<{
   onSelectDeck: (deckId: string) => void;
   onViewChange: (view: DeckRailViewMode) => void;
   onCreateDeck: () => void;
-  onStartEdit: () => void;
   onSaveDraft: () => void;
   onCancelDraft: () => void;
   onDuplicateDeck: () => void;
@@ -378,7 +377,6 @@ const DeckRailPanel: React.FC<{
   onSelectDeck,
   onViewChange,
   onCreateDeck,
-  onStartEdit,
   onSaveDraft,
   onCancelDraft,
   onDuplicateDeck,
@@ -445,8 +443,8 @@ const DeckRailPanel: React.FC<{
                 </button>
               </div>
             </div>
-            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto bg-[#fffaf3]/94 p-3">
-              {decks.map((d) => <DeckBanner key={d.deckId} deck={d} isSelected={d.deckId === selectedDeckId} isDirty={isDirty && d.deckId === selectedDeckId} onClick={() => { onSelectDeck(d.deckId); onViewChange("cards"); }} />)}
+            <div className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto bg-[#fffaf3]/94 p-3">
+              {decks.map((d) => <DeckBanner key={d.deckId} deck={d} isSelected={d.deckId === selectedDeckId} isDirty={isDirty && d.deckId === selectedDeckId} onClick={() => onSelectDeck(d.deckId)} />)}
             </div>
           </motion.div>
         ) : (
@@ -470,17 +468,7 @@ const DeckRailPanel: React.FC<{
                     <div className="truncate font-serif text-[1rem] font-black leading-none text-amber-50">{deck.name}</div>
                     {!isEditing && <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{getDeckBuilderStateLabel(deck)}</div>}
                   </div>
-                  {!isEditing ? (
-                    <button
-                      type="button"
-                      onClick={onStartEdit}
-                      className="relative flex h-8 shrink-0 touch-manipulation items-center gap-1.5 overflow-hidden rounded-lg border-[2px] border-[#8f5f12]/80 bg-[#f8e7c7] px-2.5 font-serif text-[0.58rem] font-black uppercase tracking-[0.06em] text-[#5b2408] shadow-[0_3px_0_#7a4d0f,0_8px_14px_rgba(91,36,8,0.16)] transition-transform duration-100 [@media(hover:hover)]:hover:-translate-y-px [@media(hover:hover)]:hover:bg-[#ffe5b0] [@media(hover:hover)]:hover:shadow-[0_4px_0_#7a4d0f,0_11px_16px_rgba(91,36,8,0.20)] active:translate-y-[2px] active:shadow-[0_1px_0_#7a4d0f,0_4px_8px_rgba(91,36,8,0.14)]"
-                    >
-                      <span className="pointer-events-none absolute inset-[2px] rounded-md border border-white/45" />
-                      <Pencil className="relative z-10 h-3.5 w-3.5" />
-                      <span className="relative z-10">Editar</span>
-                    </button>
-                  ) : (
+                  {isEditing && (
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
@@ -1207,13 +1195,16 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
   };
 
   const handleSelectDeck = (deckId: string) => {
-    if (deckDraft && deckId !== deckDraft.id) {
-      setDeckDraft(null);
-    }
+    const deckToOpen = visibleDecks.find((entry) => entry.deckId === deckId);
+    if (!deckToOpen) return;
+    setDeckDraft(createDeckBuilderDraftFromDeckModel(deckToOpen.deckModel));
     setIsRenamingDeck(false);
     setPendingDeleteDeckId(null);
     setBuilderFeedback(null);
     setSelectedDeckId(deckId);
+    setDeckRailView("cards");
+    setSidebar("decks");
+    setMode("targets");
   };
 
   const handleCreateDeck = () => {
@@ -1223,16 +1214,6 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     setDeckRailView("cards");
     setSidebar("decks");
     setMode("targets");
-    setIsRenamingDeck(false);
-    setPendingDeleteDeckId(null);
-    setBuilderFeedback(null);
-  };
-
-  const handleStartEditDeck = () => {
-    if (!selectedDeck) return;
-    setDeckDraft(createDeckBuilderDraftFromDeckModel(selectedDeck.deckModel));
-    setDeckRailView("cards");
-    setSidebar("decks");
     setIsRenamingDeck(false);
     setPendingDeleteDeckId(null);
     setBuilderFeedback(null);
@@ -1251,7 +1232,7 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
     ];
     const storageOk = persistLocalDeckDefinitions(nextLocalDeckDefinitions, draftDeckDefinition.id);
     setSelectedDeckId(draftDeckDefinition.id);
-    setDeckDraft(null);
+    setDeckDraft(createDeckBuilderDraftFromDeckModel(createDeckModel(draftDeckDefinition, catalog)));
     setDeckRailView("cards");
     setPendingDeleteDeckId(null);
     setBuilderFeedback(storageOk ? "saved" : "storage-error");
@@ -2189,7 +2170,6 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
                     onSelectDeck={handleSelectDeck}
                     onViewChange={setDeckRailView}
                     onCreateDeck={handleCreateDeck}
-                    onStartEdit={handleStartEditDeck}
                     onSaveDraft={handleSaveDeckDraft}
                     onCancelDraft={handleCancelDeckDraft}
                     onDuplicateDeck={handleDuplicateDeck}
