@@ -175,16 +175,16 @@ const DeckRailTargetRow: React.FC<{
     <div
       {...dragProps}
       className={cn(
-        "group flex min-h-14 items-center gap-2.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/76 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)]",
+        "group flex min-h-14 items-center gap-2.5 overflow-hidden rounded-lg border border-amber-900/10 bg-white/76 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.07)] transition-all [@media(hover:hover)]:hover:bg-amber-50/90 [@media(hover:hover)]:hover:shadow-[0_2px_6px_rgba(0,0,0,0.10)] [@media(pointer:coarse)_and_(max-height:480px)]:min-h-10 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1",
         editable && "cursor-grab touch-pan-y active:cursor-grabbing",
         isDragging && "opacity-45 ring-2 ring-rose-300/65",
         dragProps?.className,
       )}
     >
-      <div className={cn("h-9 w-2.5 shrink-0 rounded-full", target.rarityView.toneClass)} />
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1.5rem] shadow-sm">{target.emoji}</div>
-      <span className="min-w-0 flex-1 truncate font-serif text-[0.86rem] font-black leading-tight text-[#31271e]">{target.name}</span>
-      <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-[0.64rem] font-black text-amber-800">×{target.copies}</span>
+      <div className={cn("h-9 w-2.5 shrink-0 rounded-full [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:w-1.5", target.rarityView.toneClass)} />
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#fffaf3] text-[1.5rem] shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:w-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.1rem]">{target.emoji}</div>
+      <span className="min-w-0 flex-1 truncate font-serif text-[0.86rem] font-black leading-tight text-[#31271e] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.68rem]">{target.name}</span>
+      <span className="shrink-0 rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-[0.64rem] font-black text-amber-800 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]">×{target.copies}</span>
       {editable && (
         <div className="flex shrink-0 items-center gap-1">
           <button
@@ -197,23 +197,23 @@ const DeckRailTargetRow: React.FC<{
             aria-disabled={isAtCopyLimit}
             title={isAtCopyLimit ? "Máximo de cópias" : `Adicionar cópia de ${target.name}`}
             className={cn(
-              "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border transition",
+              "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border transition [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:w-7",
               isAtCopyLimit
                 ? "cursor-not-allowed border-slate-300/80 bg-slate-100 text-slate-400"
                 : "border-emerald-200 bg-emerald-50 text-emerald-700 [@media(hover:hover)]:hover:bg-emerald-100",
             )}
             aria-label={isAtCopyLimit ? `Máximo de cópias para ${target.name}` : `Adicionar copia de ${target.name} ao deck`}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
           </button>
           <button
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onRemove}
-            className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-700 transition [@media(hover:hover)]:hover:bg-rose-100"
+            className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-700 transition [@media(hover:hover)]:hover:bg-rose-100 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:w-7"
             aria-label={`Remover ${target.name} do deck`}
           >
-            <Minus className="h-3.5 w-3.5" />
+            <Minus className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
           </button>
         </div>
       )}
@@ -228,15 +228,15 @@ const DeckBanner: React.FC<{ deck: CollectionDeckEntry; isSelected: boolean; isD
   const sylCount = deckSummary.metrics.totalSyllables;
 
   return (
-    <div role="button" onClick={onClick} className={cn("relative flex w-full shrink-0 cursor-pointer select-none items-center gap-3 overflow-hidden rounded-xl border-2 px-3 py-3 text-left transition-all duration-200 [@media(pointer:coarse)_and_(max-height:480px)]:gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-2", isSelected ? cn("border-white/30 ring-2 ring-white/15 shadow-md bg-gradient-to-r", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]) : cn("border-[#d9c8a9] bg-gradient-to-r opacity-72 [@media(hover:hover)]:hover:opacity-95 [@media(hover:hover)]:hover:shadow-sm", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
+    <div role="button" onClick={onClick} className={cn("relative flex w-full shrink-0 cursor-pointer select-none items-center gap-3 overflow-hidden rounded-xl border-2 px-3 py-3 text-left transition-all duration-200 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5", isSelected ? cn("border-white/30 ring-2 ring-white/15 shadow-md bg-gradient-to-r", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]) : cn("border-[#d9c8a9] bg-gradient-to-r opacity-72 [@media(hover:hover)]:hover:opacity-95 [@media(hover:hover)]:hover:shadow-sm", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_left,rgba(255,255,255,0.12),transparent_55%)]" />
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.7rem] shadow [@media(pointer:coarse)_and_(max-height:480px)]:h-10 [@media(pointer:coarse)_and_(max-height:480px)]:w-10 [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.4rem]">{deck.emoji}</div>
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.7rem] shadow [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:w-8 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:text-[1.05rem]">{deck.emoji}</div>
       <div className="relative min-w-0 flex-1 flex flex-col justify-center py-0.5">
-        <div className="truncate font-serif text-[1.05rem] font-black leading-tight text-amber-50 drop-shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.95rem]">{deck.name}</div>
-        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.55rem]">{isDirty ? "RASCUNHO LOCAL" : getDeckBuilderStateLabel(deck)}</div>
-        <div className="mt-2 flex items-center gap-1.5 overflow-hidden [@media(pointer:coarse)_and_(max-height:480px)]:mt-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
-          <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{count} alvo{count !== 1 ? 's' : ''}</div>
-          <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[7.5px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{sylCount} sílaba{sylCount !== 1 ? 's' : ''}</div>
+        <div className="truncate font-serif text-[1.05rem] font-black leading-tight text-amber-50 drop-shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.76rem]">{deck.name}</div>
+        <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.46rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{isDirty ? "RASCUNHO LOCAL" : getDeckBuilderStateLabel(deck)}</div>
+        <div className="mt-2 flex items-center gap-1.5 overflow-hidden [@media(pointer:coarse)_and_(max-height:480px)]:mt-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
+          <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[6.4px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.05em]">{count} alvo{count !== 1 ? 's' : ''}</div>
+          <div className="shrink-0 rounded-full border border-amber-900/12 bg-white/85 px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.12em] text-amber-950 shadow-sm [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-[1px] [@media(pointer:coarse)_and_(max-height:480px)]:text-[6.4px] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.05em]">{sylCount} sílaba{sylCount !== 1 ? 's' : ''}</div>
         </div>
       </div>
     </div>
@@ -252,12 +252,12 @@ const DeckCompositionMeter: React.FC<{ label: string; value: number; minimum: nu
   const countClass = exceeded ? "text-rose-700" : inIdeal ? "text-emerald-700" : aboveMin ? "text-emerald-600" : "text-amber-800";
   const barClass = exceeded ? "bg-rose-500" : inIdeal ? "bg-emerald-600" : aboveMin ? "bg-emerald-400" : "bg-amber-500";
   return (
-    <div className="min-w-0 rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-      <div className="mb-1 flex items-center justify-between gap-1 text-[0.5rem] font-black uppercase tracking-[0.07em] text-[#8b7357]">
+    <div className="min-w-0 rounded-lg border border-amber-900/10 bg-white/65 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-0.5">
+      <div className="mb-1 flex items-center justify-between gap-1 text-[0.5rem] font-black uppercase tracking-[0.07em] text-[#8b7357] [@media(pointer:coarse)_and_(max-height:480px)]:mb-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.04em]">
         <span>{label}</span>
         <span className={countClass}>{formatDeckBuilderCount(value, displayTarget)}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10">
+      <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10 [@media(pointer:coarse)_and_(max-height:480px)]:h-1">
         <div
           className={cn("h-full rounded-full transition-all duration-200", barClass)}
           style={{ width: `${Math.max(6, Math.min(100, progress * 100))}%` }}
@@ -312,7 +312,9 @@ const TargetDragOverlay: React.FC<{ drag: DeckBuilderTargetDragState }> = ({ dra
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate font-serif text-[0.72rem] font-black leading-none">{drag.target.name}</div>
-          <div className="mt-1 truncate text-[0.48rem] font-black uppercase tracking-[0.07em] opacity-75">{label}</div>
+          {isAdding && (
+            <div className="mt-1 truncate text-[0.48rem] font-black uppercase tracking-[0.07em] opacity-75">{label}</div>
+          )}
         </div>
       </div>
     </motion.div>
@@ -417,7 +419,6 @@ const DeckRailPanel: React.FC<{
   const isDeckDropActive = isEditing && dragSource === "catalog-target";
   const isDeckDropHighlighted = isDeckDropActive && dragOverZone === "deck";
   const isRemoveDropActive = isEditing && dragSource === "deck-target";
-  const isRemoveDropHighlighted = isRemoveDropActive && dragOverZone === "remove";
   const canDuplicateDeck = Boolean(deckSummary && (deckSummary.metrics.totalTargets > 0 || deckSummary.metrics.totalSyllables > 0));
   const canSaveDeck = isDirty && canDuplicateDeck;
 
@@ -426,47 +427,47 @@ const DeckRailPanel: React.FC<{
       <AnimatePresence mode="wait" initial={false}>
         {view === "list" ? (
           <motion.div key="list" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col">
-            <div className="shrink-0 border-b border-[#d9c8a9] bg-[#fffaf3]/90 px-4 py-2.5">
+            <div className="shrink-0 border-b border-[#d9c8a9] bg-[#fffaf3]/90 px-4 py-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-serif text-[1rem] font-black uppercase text-[#5b2408]">Meus Decks</div>
-                  <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#9a7f5c]">{decks.length} decks disponíveis</div>
+                  <div className="font-serif text-[1rem] font-black uppercase text-[#5b2408] [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.78rem] [@media(pointer:coarse)_and_(max-height:480px)]:leading-none">Meus Decks</div>
+                  <div className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#9a7f5c] [@media(pointer:coarse)_and_(max-height:480px)]:mt-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.44rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.08em]">{decks.length} decks disponíveis</div>
                 </div>
                 <button
                   type="button"
                   onClick={onCreateDeck}
-                  className="relative flex h-10 shrink-0 touch-manipulation items-center gap-2 overflow-hidden rounded-lg border-[2px] border-[#8f5f12] bg-[#f8e7c7] px-3 font-serif text-[0.68rem] font-black uppercase tracking-[0.07em] text-[#5b2408] shadow-[0_4px_0_#8f5f12,0_10px_18px_rgba(91,36,8,0.16)] transition-transform duration-100 [@media(hover:hover)]:hover:-translate-y-px [@media(hover:hover)]:hover:bg-[#ffe5b0] [@media(hover:hover)]:hover:shadow-[0_5px_0_#8f5f12,0_13px_20px_rgba(91,36,8,0.20)] active:translate-y-[3px] active:shadow-[0_1px_0_#8f5f12,0_5px_10px_rgba(91,36,8,0.14)]"
+                  className="relative flex h-10 shrink-0 touch-manipulation items-center gap-2 overflow-hidden rounded-lg border-[2px] border-[#8f5f12] bg-[#f8e7c7] px-3 font-serif text-[0.68rem] font-black uppercase tracking-[0.07em] text-[#5b2408] shadow-[0_4px_0_#8f5f12,0_10px_18px_rgba(91,36,8,0.16)] transition-transform duration-100 [@media(hover:hover)]:hover:-translate-y-px [@media(hover:hover)]:hover:bg-[#ffe5b0] [@media(hover:hover)]:hover:shadow-[0_5px_0_#8f5f12,0_13px_20px_rgba(91,36,8,0.20)] active:translate-y-[3px] active:shadow-[0_1px_0_#8f5f12,0_5px_10px_rgba(91,36,8,0.14)] [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.52rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.04em] [@media(pointer:coarse)_and_(max-height:480px)]:shadow-[0_3px_0_#8f5f12,0_7px_12px_rgba(91,36,8,0.14)]"
                 >
                   <span className="pointer-events-none absolute inset-[2px] rounded-md border border-white/40" />
-                  <FilePlus2 className="relative z-10 h-4 w-4" />
-                  <span className="relative z-10">Novo Deck</span>
+                  <FilePlus2 className="relative z-10 h-4 w-4 [@media(pointer:coarse)_and_(max-height:480px)]:h-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-3.5" />
+                  <span className="relative z-10">Novo<span className="[@media(pointer:coarse)_and_(max-height:480px)]:hidden"> Deck</span></span>
                 </button>
               </div>
             </div>
-            <div className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto bg-[#fffaf3]/94 p-3">
+            <div className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto bg-[#fffaf3]/94 p-3 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:p-2">
               {decks.map((d) => <DeckBanner key={d.deckId} deck={d} isSelected={d.deckId === selectedDeckId} isDirty={isDirty && d.deckId === selectedDeckId} onClick={() => onSelectDeck(d.deckId)} />)}
             </div>
           </motion.div>
         ) : (
-          <motion.div key="cards" initial={{ opacity: 0, x: -28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.18 }} className="flex h-full flex-col">
+          <motion.div key="cards" initial={{ opacity: 0, x: -28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.18 }} className="relative flex h-full flex-col">
             {deck && (
-              <div className={cn("relative shrink-0 overflow-hidden px-3 py-2.5", cn("bg-gradient-to-br", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
+              <div className={cn("relative shrink-0 overflow-hidden px-3 py-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5", cn("bg-gradient-to-br", DECK_VISUAL_THEME_CLASSES[deck.visualTheme]))}>
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.14),transparent_55%)]" />
-                <div className="relative flex items-center gap-2">
+                <div className="relative flex items-center gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
                       if (isEditing) onCancelDraft();
                       onViewChange("list");
                     }}
-                    className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/25 bg-black/20 text-amber-50 transition-all [@media(hover:hover)]:hover:bg-black/30"
+                    className="flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/25 bg-black/20 text-amber-50 transition-all [@media(hover:hover)]:hover:bg-black/30 [@media(pointer:coarse)_and_(max-height:480px)]:h-6 [@media(pointer:coarse)_and_(max-height:480px)]:w-6"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 [@media(pointer:coarse)_and_(max-height:480px)]:h-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-3.5" />
                   </button>
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.4rem] shadow">{deck.emoji}</div>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-[1.4rem] shadow [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:w-7 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-lg [@media(pointer:coarse)_and_(max-height:480px)]:text-[1rem]">{deck.emoji}</div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-serif text-[1rem] font-black leading-none text-amber-50">{deck.name}</div>
-                    {!isEditing && <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65">{getDeckBuilderStateLabel(deck)}</div>}
+                    <div className="truncate font-serif text-[1rem] font-black leading-none text-amber-50 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.76rem]">{deck.name}</div>
+                    {!isEditing && <div className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-amber-100/65 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.44rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.07em]">{getDeckBuilderStateLabel(deck)}</div>}
                   </div>
                   {isEditing && (
                     <div className="flex shrink-0 items-center gap-1">
@@ -475,14 +476,14 @@ const DeckRailPanel: React.FC<{
                         onClick={onSaveDraft}
                         disabled={!canSaveDeck}
                         className={cn(
-                          "relative flex h-8 touch-manipulation items-center gap-1.5 overflow-hidden rounded-lg border-[2px] px-2.5 font-serif text-[0.58rem] font-black uppercase tracking-[0.06em] transition-transform duration-100",
+                          "relative flex h-8 touch-manipulation items-center gap-1.5 overflow-hidden rounded-lg border-[2px] px-2.5 font-serif text-[0.58rem] font-black uppercase tracking-[0.06em] transition-transform duration-100 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.04em]",
                           canSaveDeck
                             ? "border-emerald-800/45 bg-emerald-50 text-emerald-900 shadow-[0_3px_0_rgba(6,95,70,0.42),0_8px_14px_rgba(6,95,70,0.16)] [@media(hover:hover)]:hover:-translate-y-px [@media(hover:hover)]:hover:bg-emerald-100 [@media(hover:hover)]:hover:shadow-[0_4px_0_rgba(6,95,70,0.44),0_11px_16px_rgba(6,95,70,0.20)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(6,95,70,0.42),0_4px_8px_rgba(6,95,70,0.14)]"
                             : "cursor-not-allowed border-white/20 bg-white/24 text-amber-50/48 shadow-none",
                         )}
                       >
                         {canSaveDeck && <span className="pointer-events-none absolute inset-[2px] rounded-md border border-white/45" />}
-                        <Save className="relative z-10 h-3.5 w-3.5" />
+                        <Save className="relative z-10 h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
                         <span className="relative z-10">Salvar</span>
                       </button>
                     </div>
@@ -493,74 +494,65 @@ const DeckRailPanel: React.FC<{
             {isRemoveDropActive && (
               <div
                 ref={onRemoveDropZoneRef}
-                className={cn(
-                  "flex h-8 shrink-0 items-center justify-center gap-1.5 border-b px-2 text-[0.52rem] font-black uppercase tracking-[0.07em] transition-all",
-                  isRemoveDropHighlighted
-                    ? "border-rose-300 bg-rose-100 text-rose-800 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.16)]"
-                    : isRemoveDropActive
-                      ? "border-rose-200/80 bg-rose-50/85 text-rose-700"
-                      : "border-[#d9c8a9] bg-[#fffaf3]/92 text-[#9a7f5c]",
-                )}
-              >
-                <Trash2 className="h-3 w-3" />
-                Solte aqui para remover
-              </div>
+                aria-hidden="true"
+                className="pointer-events-none absolute left-0 right-0 top-0 z-10 h-20 opacity-0"
+              />
             )}
             {deck && (
-              <div className="grid shrink-0 grid-cols-3 gap-1.5 border-b border-[#d9c8a9] bg-[#fffaf3]/92 px-2 py-2">
+              <div className="grid shrink-0 grid-cols-3 gap-1.5 border-b border-[#d9c8a9] bg-[#fffaf3]/92 px-2 py-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5">
                 <button
                   type="button"
                   onClick={onStartRename}
-                  className="flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-[#d7ccb8] bg-white/75 text-[0.62rem] font-black uppercase tracking-[0.05em] text-[#7f6a52] transition [@media(hover:hover)]:hover:bg-white [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
+                  className="flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-[#d7ccb8] bg-white/75 text-[0.62rem] font-black uppercase tracking-[0.05em] text-[#7f6a52] transition [@media(hover:hover)]:hover:bg-white [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.03em]"
                 >
-                  <Pencil className="h-3.5 w-3.5" /> Nome
+                  <Pencil className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /> Nome
                 </button>
                 <button
                   type="button"
                   onClick={onDuplicateDeck}
                   disabled={!canDuplicateDeck}
                   title={canDuplicateDeck ? "Duplicar deck" : "Adicione cartas antes de duplicar"}
-                  className="flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 text-[0.62rem] font-black uppercase tracking-[0.05em] text-sky-800 transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50 [@media(hover:hover)]:hover:bg-sky-100 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
+                  className="flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 text-[0.62rem] font-black uppercase tracking-[0.05em] text-sky-800 transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50 [@media(hover:hover)]:hover:bg-sky-100 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.03em]"
                 >
-                  <Copy className="h-3.5 w-3.5" /> Duplicar
+                  <Copy className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /> Duplicar
                 </button>
                 <button
                   type="button"
                   onClick={onRequestDeleteDeck}
                   disabled={deck.localStatus === "catalog"}
                   className={cn(
-                    "flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border text-[0.62rem] font-black uppercase tracking-[0.05em] transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]",
+                    "flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border text-[0.62rem] font-black uppercase tracking-[0.05em] transition disabled:border-[#d7ccb8] disabled:bg-white/55 disabled:text-[#9a7f5c] disabled:opacity-50 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.03em]",
                     isDeletePending ? "border-rose-300 bg-rose-100 text-rose-800" : "border-rose-200 bg-rose-50 text-rose-700 [@media(hover:hover)]:hover:bg-rose-100",
                   )}
                   title={deck.localStatus === "override" ? "Remove apenas a copia local" : "Exclui o deck local"}
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Excluir
+                  <Trash2 className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" /> Excluir
                 </button>
               </div>
             )}
             {isDeletePending && deck && (
-              <div className="flex shrink-0 items-center gap-2 border-b border-rose-200/80 bg-rose-50/92 px-2 py-2">
-                <div className="min-w-0 flex-1 text-[0.64rem] font-black uppercase leading-tight tracking-[0.06em] text-rose-800">
+              <div className="flex shrink-0 items-center gap-2 border-b border-rose-200/80 bg-rose-50/92 px-2 py-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5">
+                <div className="min-w-0 flex-1 text-[0.64rem] font-black uppercase leading-tight tracking-[0.06em] text-rose-800 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.04em]">
                   Excluir deck?
                 </div>
                 <button
                   type="button"
                   onClick={onCancelDeleteDeck}
-                  className="flex h-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/80 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-[#7f6a52] [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
+                  className="flex h-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/80 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-[#7f6a52] [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={onConfirmDeleteDeck}
-                  className="flex h-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-rose-300 bg-rose-100 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-rose-800 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
+                  className="flex h-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-rose-300 bg-rose-100 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-rose-800 [@media(pointer:coarse)_and_(max-height:480px)]:h-7 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]"
                 >
                   Confirmar
                 </button>
               </div>
             )}
             {isRenaming && (
-              <div className="flex shrink-0 items-center gap-1.5 border-b border-[#d9c8a9] bg-[#fffaf3]/96 px-2 py-2">
+              <div className="flex shrink-0 items-center gap-1.5 border-b border-[#d9c8a9] bg-[#fffaf3]/96 px-2 py-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5">
                 <input
                   value={renameValue}
                   onChange={(event) => onRenameValueChange(event.target.value)}
@@ -568,14 +560,14 @@ const DeckRailPanel: React.FC<{
                     if (event.key === "Enter") onCommitRename();
                     if (event.key === "Escape") onCancelRename();
                   }}
-                  className="h-10 min-w-0 flex-1 rounded-lg border border-amber-900/15 bg-white/85 px-2.5 text-[0.78rem] font-black text-amber-950 outline-none focus:border-amber-500/50 [@media(pointer:coarse)_and_(max-height:480px)]:h-9"
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-amber-900/15 bg-white/85 px-2.5 text-[0.78rem] font-black text-amber-950 outline-none focus:border-amber-500/50 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.62rem]"
                   aria-label="Novo nome do deck"
                   maxLength={28}
                 />
                 <button
                   type="button"
                   onClick={onCancelRename}
-                  className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/75 text-[#7f6a52] [@media(pointer:coarse)_and_(max-height:480px)]:h-9 [@media(pointer:coarse)_and_(max-height:480px)]:w-9"
+                  className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-lg border border-[#d7ccb8] bg-white/75 text-[#7f6a52] [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:w-8 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md"
                   aria-label="Cancelar renomeacao"
                 >
                   <X className="h-4 w-4" />
@@ -583,7 +575,7 @@ const DeckRailPanel: React.FC<{
                 <button
                   type="button"
                   onClick={onCommitRename}
-                  className="flex h-10 touch-manipulation items-center justify-center rounded-lg border border-emerald-700/20 bg-emerald-50 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-emerald-800 [@media(pointer:coarse)_and_(max-height:480px)]:h-9 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]"
+                  className="flex h-10 touch-manipulation items-center justify-center rounded-lg border border-emerald-700/20 bg-emerald-50 px-3 text-[0.62rem] font-black uppercase tracking-[0.05em] text-emerald-800 [@media(pointer:coarse)_and_(max-height:480px)]:h-8 [@media(pointer:coarse)_and_(max-height:480px)]:rounded-md [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.5rem]"
                 >
                   OK
                 </button>
@@ -592,7 +584,7 @@ const DeckRailPanel: React.FC<{
             <div
               ref={onDeckDropZoneRef}
               className={cn(
-                "no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 py-2 transition-all",
+                "no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 py-2 transition-all [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5",
                 isDeckDropHighlighted
                   ? "bg-emerald-50/80 shadow-[inset_0_0_0_2px_rgba(16,185,129,0.28)]"
                   : isDeckDropActive
@@ -621,11 +613,11 @@ const DeckRailPanel: React.FC<{
                     const groupCopies = grp.reduce((sum, target) => sum + target.copies, 0);
                     return (
                       <div key={rk} className="mb-2">
-                        <div className={cn("mb-2 flex items-center gap-2 rounded-full border px-3 py-1.5 text-[0.76rem] font-black uppercase", getContentRaritySoftToneClass(rk))}>
-                          <span className={cn("h-3 w-3 shrink-0 rounded-full", getContentRarityToneClass(rk))} />{getContentRarityLabel(rk)}
-                          <span className="ml-auto text-[0.62rem] opacity-75">{groupCopies} copia{groupCopies !== 1 ? "s" : ""}</span>
+                        <div className={cn("mb-2 flex items-center gap-2 rounded-full border px-3 py-1.5 text-[0.76rem] font-black uppercase [@media(pointer:coarse)_and_(max-height:480px)]:mb-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]", getContentRaritySoftToneClass(rk))}>
+                          <span className={cn("h-3 w-3 shrink-0 rounded-full [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5", getContentRarityToneClass(rk))} />{getContentRarityLabel(rk)}
+                          <span className="ml-auto text-[0.62rem] opacity-75 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]">{groupCopies} copia{groupCopies !== 1 ? "s" : ""}</span>
                         </div>
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5">
                           {grp.map((t) => (
                             <DeckRailTargetRow
                               key={t.id}
@@ -643,22 +635,22 @@ const DeckRailPanel: React.FC<{
                   })}
                   {contentMode === "syllables" && deckSyllableViews.length > 0 && (
                     <div className="mb-1">
-                      <div className="mb-2 flex items-center gap-2 rounded-full border border-slate-200/60 bg-slate-50/82 px-3 py-1.5 text-[0.76rem] font-black uppercase text-slate-600">
+                      <div className="mb-2 flex items-center gap-2 rounded-full border border-slate-200/60 bg-slate-50/82 px-3 py-1.5 text-[0.76rem] font-black uppercase text-slate-600 [@media(pointer:coarse)_and_(max-height:480px)]:mb-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.56rem]">
                         <Sparkles className="h-3.5 w-3.5" />Sílabas
-                        <span className="ml-auto text-[0.62rem] opacity-75">{orderedDeckSyllableViews.length} tipo{orderedDeckSyllableViews.length !== 1 ? "s" : ""}</span>
+                        <span className="ml-auto text-[0.62rem] opacity-75 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]">{orderedDeckSyllableViews.length} tipo{orderedDeckSyllableViews.length !== 1 ? "s" : ""}</span>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1.5">
                         {orderedDeckSyllableViews.map((s, i) => (
-                          <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-3 py-1.5 text-[0.78rem] font-black text-amber-800">
-                            {s.syllable}<span className="rounded-full bg-amber-200/55 px-2 text-[0.64rem]">×{s.copies ?? 0}</span>
+                          <span key={`${s.syllable}-${i}`} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/60 bg-amber-50/80 px-3 py-1.5 text-[0.78rem] font-black text-amber-800 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.58rem]">
+                            {s.syllable}<span className="rounded-full bg-amber-200/55 px-2 text-[0.64rem] [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.48rem]">×{s.copies ?? 0}</span>
                             {isEditing && (
                               <button
                                 type="button"
                                 onClick={() => onRemoveCard(s.cardId)}
-                                className="-mr-1 ml-0.5 flex h-6 w-6 touch-manipulation items-center justify-center rounded-full bg-rose-100 text-rose-700"
+                                className="-mr-1 ml-0.5 flex h-6 w-6 touch-manipulation items-center justify-center rounded-full bg-rose-100 text-rose-700 [@media(pointer:coarse)_and_(max-height:480px)]:h-5 [@media(pointer:coarse)_and_(max-height:480px)]:w-5"
                                 aria-label={`Remover carta ${s.syllable} do deck`}
                               >
-                                <Minus className="h-3.5 w-3.5" />
+                                <Minus className="h-3.5 w-3.5 [@media(pointer:coarse)_and_(max-height:480px)]:h-3 [@media(pointer:coarse)_and_(max-height:480px)]:w-3" />
                               </button>
                             )}
                           </span>
@@ -669,25 +661,25 @@ const DeckRailPanel: React.FC<{
                 </motion.div>
               </AnimatePresence>
             </div>
-            <div className="shrink-0 border-t border-[#d9c8a9] bg-[#fffaf3]/96 px-3 py-2">
-              <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="shrink-0 border-t border-[#d9c8a9] bg-[#fffaf3]/96 px-3 py-2 [@media(pointer:coarse)_and_(max-height:480px)]:px-2 [@media(pointer:coarse)_and_(max-height:480px)]:py-1.5">
+              <div className="mb-1.5 flex items-center justify-between gap-2 [@media(pointer:coarse)_and_(max-height:480px)]:mb-1 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
                 {validation && (
                   <div className={cn(
-                    "inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.06em]",
+                    "inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.06em] [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.04em]",
                     getDeckBuilderValidationToneClass(validation.status),
                   )}>
-                    {(validation.status === "ready" || validation.status === "valid-min" || validation.status === "ideal") ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <AlertTriangle className="h-3 w-3 shrink-0" />}
+                    {(validation.status === "ready" || validation.status === "valid-min" || validation.status === "ideal") ? <CheckCircle2 className="h-3 w-3 shrink-0 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" /> : <AlertTriangle className="h-3 w-3 shrink-0 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" />}
                     <span className="truncate">{validation.label}</span>
                   </div>
                 )}
                 <div className={cn(
-                  "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.06em]",
+                  "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.06em] [@media(pointer:coarse)_and_(max-height:480px)]:gap-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:px-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:text-[0.42rem] [@media(pointer:coarse)_and_(max-height:480px)]:tracking-[0.04em]",
                   validation?.status === "ideal" ? "border-emerald-400/70 bg-emerald-100 text-emerald-800"
                     : (validation?.status === "valid-min" || validation?.status === "ready") ? "border-emerald-300/70 bg-emerald-50 text-emerald-700"
                     : validation?.status === "exceeded" ? "border-rose-300/70 bg-rose-50 text-rose-700"
                     : "border-amber-300/70 bg-amber-50 text-amber-700",
                 )}>
-                  <Swords className="h-3 w-3" />{isEditing
+                  <Swords className="h-3 w-3 [@media(pointer:coarse)_and_(max-height:480px)]:h-2.5 [@media(pointer:coarse)_and_(max-height:480px)]:w-2.5" />{isEditing
                     ? (isDirty ? "Alterado" : "Sem mudanças")
                     : validation?.status === "ideal" ? "Ideal"
                     : validation?.status === "valid-min" ? "Valido"
@@ -697,7 +689,7 @@ const DeckRailPanel: React.FC<{
                 </div>
               </div>
               {composition && (
-                <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+                <div className="mb-1.5 grid grid-cols-2 gap-1.5 [@media(pointer:coarse)_and_(max-height:480px)]:mb-0.5 [@media(pointer:coarse)_and_(max-height:480px)]:gap-1">
                   <DeckCompositionMeter label="Alvos" value={composition.totalTargets} minimum={composition.minTargets} progress={composition.targetProgress} ideal={composition.idealTargets || undefined} max={composition.maxTargets || undefined} />
                   <DeckCompositionMeter label="Sílabas" value={composition.totalSyllables} minimum={composition.minSyllables} progress={composition.syllableProgress} ideal={composition.idealSyllables || undefined} max={composition.maxSyllables || undefined} />
                 </div>
@@ -1845,11 +1837,10 @@ export const CollectionScreen: React.FC<CollectionScreenProps> = ({ onBack }) =>
 
               {deckDraft && (
                 <div className={cn(
-                  "flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 font-black uppercase tracking-[0.08em] text-emerald-800 shadow-sm",
-                  compact ? "h-7 text-[0.52rem]" : "h-9 text-[0.6rem]",
+                  "flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 font-black uppercase tracking-[0.08em] text-emerald-800 shadow-sm",
+                  compact ? "h-7 w-7 px-0 text-[0.52rem]" : "h-9 w-9 px-0 text-[0.6rem]",
                 )}>
                   <Pencil className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")} />
-                  Editando
                 </div>
               )}
 

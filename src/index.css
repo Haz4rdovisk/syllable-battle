@@ -28,6 +28,8 @@
     overflow: hidden;
     position: fixed;
     width: 100%;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   body {
@@ -37,6 +39,23 @@
     background-image: radial-gradient(circle at center, #2c1e1a 0%, #1a1a1a 100%);
     touch-action: none;
     overscroll-behavior: none;
+  }
+
+  * {
+    -webkit-user-select: inherit;
+    user-select: inherit;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  img,
+  svg {
+    -webkit-user-drag: none;
   }
 
   h1, h2, h3, .font-fantasy {
